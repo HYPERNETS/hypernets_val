@@ -23,6 +23,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
+import numpy as np
 
 # User defined functions
 sys.path.insert(0,'/Users/javier.concha/Desktop/Javier/2019_ROMA/CNR_Research/HYPERNETS_Validation_Protocols/python_scripts')
@@ -30,13 +31,13 @@ import common_functions
 
 #%%
 path_main = '/Users/javier.concha/Desktop/Javier/2019_ROMA/CNR_Research/HYPERNETS_D7p2/data/AERONET-OC'
-filename = 'MDB_S3A_OLCI_L2_AERONET_ARIAKE_TOWER.nc'
+filename = 'MDB_S3A_OLCI_L2_AERONET_Venise.nc'
 path_file = os.path.join(path_main,filename)
 nc_f0 = Dataset(path_file,'r')
 
 # satellite_id:long_name = "Index with acquisition time (central pixel)" ;
 # satellite_id:units = "Seconds since 1970-1-1" ;
-satellite_id = nc_f0.variables['satellite_id'][:]
+satellite_id = nc_f0.dimensions['satellite_id']
 
 # double satellite_OAA(satellite_id, rows, columns) ;
 # double satellite_OZA(satellite_id, rows, columns) ;
@@ -104,6 +105,8 @@ satellite_id = nc_f0.variables['satellite_id'][:]
 
 # satellites
 # 0400p00,0412p50,0442p50,0490p00,0510p00,0560p00,0620p00,0665p00,0673p75,0681p25,0708p75,0753p75,0778p75,0865p00,0885p00,1020p00
+
+satellite_PDU = nc_f0.variables['satellite_PDU'][:]
 satellite_bands  = nc_f0.variables['satellite_bands'][:]
 satellite_Oa01_Rrs  = nc_f0.variables['satellite_Oa01_Rrs'][:] # 0
 satellite_Oa02_Rrs  = nc_f0.variables['satellite_Oa02_Rrs'][:] # 1
@@ -189,40 +192,94 @@ insitu_Solar_Azimuth_Angle = nc_f0.variables['insitu_Solar_Azimuth_Angle'][:]
 
 #%%
 
-sat_idx = 0
 
-lat = satellite_latitude[sat_idx,:,:]
-lon = satellite_longitude[sat_idx,:,:]
-lat0 = central_latitude[sat_idx]
-lon0 = central_longitude[sat_idx]
-r,c = common_functions.find_row_column_from_lat_lon(lat,lon,lat0,lon0)
+for sat_idx in range(100):
+    lat = satellite_latitude[sat_idx,:,:]
+    lon = satellite_longitude[sat_idx,:,:]
+    lat0 = central_latitude[sat_idx]
+    lon0 = central_longitude[sat_idx]
+    r,c = common_functions.find_row_column_from_lat_lon(lat,lon,lat0,lon0)
+    
+    wl_idx = 0
+    wl = satellite_bands[wl_idx]
+    
+    
+    
+    size_box = 3
+    extract = common_functions.extract_box(satellite_Oa01_Rrs[sat_idx,:,:],r,c,size_box)
+    
+    Rrs_0400p00_extract = common_functions.extract_box(satellite_Oa01_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0412p50_extract = common_functions.extract_box(satellite_Oa02_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0442p50_extract = common_functions.extract_box(satellite_Oa03_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0490p00_extract = common_functions.extract_box(satellite_Oa04_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0510p00_extract = common_functions.extract_box(satellite_Oa05_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0560p00_extract = common_functions.extract_box(satellite_Oa06_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0620p00_extract = common_functions.extract_box(satellite_Oa07_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0665p00_extract = common_functions.extract_box(satellite_Oa08_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0673p75_extract = common_functions.extract_box(satellite_Oa09_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0681p25_extract = common_functions.extract_box(satellite_Oa10_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0708p75_extract = common_functions.extract_box(satellite_Oa11_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0753p75_extract = common_functions.extract_box(satellite_Oa12_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0778p75_extract = common_functions.extract_box(satellite_Oa16_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0865p00_extract = common_functions.extract_box(satellite_Oa17_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0885p00_extract = common_functions.extract_box(satellite_Oa18_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_1020p00_extract = common_functions.extract_box(satellite_Oa21_Rrs[sat_idx,:,:],r,c,size_box)
 
-wl_idx = 0
-wl = satellite_bands[wl_idx]
+    sat_spectrum = np.array([Rrs_0400p00_extract.mean()
+        ,Rrs_0412p50_extract.mean()
+        ,Rrs_0442p50_extract.mean()
+        ,Rrs_0490p00_extract.mean()
+        ,Rrs_0510p00_extract.mean()
+        ,Rrs_0560p00_extract.mean()
+        ,Rrs_0620p00_extract.mean()
+        ,Rrs_0665p00_extract.mean()
+        ,Rrs_0673p75_extract.mean()
+        ,Rrs_0681p25_extract.mean()
+        ,Rrs_0708p75_extract.mean()
+        ,Rrs_0753p75_extract.mean()
+        ,Rrs_0778p75_extract.mean()
+        ,Rrs_0865p00_extract.mean()
+        ,Rrs_0885p00_extract.mean()
+        ,Rrs_1020p00_extract.mean()])
+    
+    plt.figure()
+    plt.title(satellite_PDU[sat_idx][:31])
+    plt.plot(satellite_bands,sat_spectrum,'-*')
 
-
-
-size_box = 3
-extract = common_functions.extract_box(satellite_Oa01_Rrs[sat_idx,:,:],r,c,size_box)
-
-Rrs_0400p00_extract = common_functions.extract_box(satellite_Oa01_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0412p50_extract = common_functions.extract_box(satellite_Oa02_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0442p50_extract = common_functions.extract_box(satellite_Oa03_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0490p00_extract = common_functions.extract_box(satellite_Oa04_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0510p00_extract = common_functions.extract_box(satellite_Oa05_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0560p00_extract = common_functions.extract_box(satellite_Oa06_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0620p00_extract = common_functions.extract_box(satellite_Oa07_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0665p00_extract = common_functions.extract_box(satellite_Oa08_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0673p75_extract = common_functions.extract_box(satellite_Oa09_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0681p25_extract = common_functions.extract_box(satellite_Oa10_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0708p75_extract = common_functions.extract_box(satellite_Oa11_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0753p75_extract = common_functions.extract_box(satellite_Oa12_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0778p75_extract = common_functions.extract_box(satellite_Oa16_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0865p00_extract = common_functions.extract_box(satellite_Oa17_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_0885p00_extract = common_functions.extract_box(satellite_Oa18_Rrs[sat_idx,:,:],r,c,size_box)
-Rrs_1020p00_extract = common_functions.extract_box(satellite_Oa21_Rrs[sat_idx,:,:],r,c,size_box)
-
-plt.figure()
-for ins_idx, line in enumerate(insitu_time[sat_idx,:]):
-    print(ins_idx)
-    plt.plot(insitu_time[sat_idx,ins_idx],insitu_Oa01_Rrs[sat_idx,ins_idx])
+    for ins_idx, line in enumerate(insitu_time[sat_idx,:]):
+        ins_spectrum = np.array([insitu_Oa01_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa02_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa03_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa04_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa05_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa06_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa07_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa08_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa09_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa10_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa11_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa12_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa16_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa17_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa18_Rrs[sat_idx,ins_idx]
+            ,insitu_Oa21_Rrs[sat_idx,ins_idx]])
+        if not np.all(np.isnan(ins_spectrum)):
+            print('---------------')
+            print(f'sat_idx: {sat_idx};ins_idx: {ins_idx}')
+            print(insitu_Oa01_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa02_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa03_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa04_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa05_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa06_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa07_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa08_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa09_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa10_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa11_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa12_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa16_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa17_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa18_Rrs[sat_idx,ins_idx])
+            print(insitu_Oa21_Rrs[sat_idx,ins_idx])
+            plt.plot(satellite_bands,ins_spectrum)
