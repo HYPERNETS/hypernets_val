@@ -193,7 +193,7 @@ insitu_Solar_Azimuth_Angle = nc_f0.variables['insitu_Solar_Azimuth_Angle'][:]
 #%%
 
 
-for sat_idx in range(100):
+for sat_idx in range(10):
     lat = satellite_latitude[sat_idx,:,:]
     lon = satellite_longitude[sat_idx,:,:]
     lat0 = central_latitude[sat_idx]

@@ -88,6 +88,16 @@ import COMMON.common_functions as cfs
 
 os.environ['QT_QPA_PLATFORM']='offscreen' # to avoid error "QXcbConnection: Could not connect to display"
 
+# user defined functions
+def create_list_products(path_source,path_out,wce):
+    cmd = f'find {path_source} -name {wce}> {path_out}/file_list.txt'
+    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+    out, err = prog.communicate()
+    if err:
+        print(err)  
+    path_to_list = f'{path_out}/file_list.txt'
+    return path_to_list
+
 def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
     # from Tie-Points grid (a coarser grid)
     filepah = os.path.join(path_source,'tie_geo_coordinates.nc')
@@ -119,7 +129,7 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
 
     return ws0, ws1, sza, saa, vza, vaa
 
-def extract_box(satellite_id,size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon):
+def extract_box(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon):
     #%
   
     coordinates_filename = 'geo_coordinates.nc'
@@ -286,9 +296,9 @@ def extract_box(satellite_id,size_box,station_name,path_source,path_output,in_si
                     BRDF6[ind0,ind1] = brdf_coeffs[0,6]
 
             #%% Save extract as netCDF4 file
-            path_out = os.path.join(path_output)
-            ofname = 'extract_'+station_name+'.nc'
-            ofname = os.path.join(path_out,ofname)
+            path_out = os.path.join(path_output,'EXTRACTS')
+            filename = path_source.split('/')[-1].replace('.','_')+'_extract_'+station_name+'.nc'
+            ofname = os.path.join(path_out,filename)
             
             if os.path.exists(ofname):
               os.remove(ofname)
@@ -332,136 +342,136 @@ def extract_box(satellite_id,size_box,station_name,path_source,path_output,in_si
             vaa_value[:] = vaa
             
             latitude = fmb.createVariable('latitude',  'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6) 
-            latitude[satellite_id,:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+            latitude[:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
             
             longitude = fmb.createVariable('longitude',  'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            longitude[satellite_id,:,:] = [lon[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+            longitude[:,:] = [lon[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
     
             # NOT BRDF-corrected
             rhow_0400p00_box=fmb.createVariable('rhow_0400p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0400p00_box[satellite_id,:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0400p00_box[:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0400p00_box.description = 'rhow(0400.00) NOT brdf-corrected'
 
             rhow_0412p50_box=fmb.createVariable('rhow_0412p50', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0412p50_box[satellite_id,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0412p50_box[:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0412p50_box.description = 'rhow(0412.50) NOT brdf-corrected'
             
             rhow_0442p50_box=fmb.createVariable('rhow_0442p50', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0442p50_box[satellite_id,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0442p50_box[:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0442p50_box.description = 'rhow(0442.50) NOT brdf-corrected'
             
             rhow_0490p00_box=fmb.createVariable('rhow_0490p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0490p00_box[satellite_id,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0490p00_box[:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0490p00_box.description = 'rhow(0490.00) NOT brdf-corrected'
             
             rhow_0510p00_box=fmb.createVariable('rhow_0510p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0510p00_box[satellite_id,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0510p00_box[:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0510p00_box.description = 'rhow(0510.00) NOT brdf-corrected'
             
             rhow_0560p00_box=fmb.createVariable('rhow_0560p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0560p00_box[satellite_id,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0560p00_box[:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0560p00_box.description = 'rhow(0560.00) NOT brdf-corrected'
     
             rhow_0620p00_box=fmb.createVariable('rhow_0620p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0620p00_box[satellite_id,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0620p00_box[:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0620p00_box.description = 'rhow(0620.00) NOT brdf-corrected'
             
             rhow_0665p00_box=fmb.createVariable('rhow_0665p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0665p00_box[satellite_id,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0665p00_box[:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0665p00_box.description = 'rhow(0665.00) NOT brdf-corrected'
     
             rhow_0673p75_box=fmb.createVariable('rhow_0673p75', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0673p75_box[satellite_id,:,:] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0673p75_box[:,:] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0673p75_box.description = 'rhow(0673.75) NOT brdf-corrected'
 
             rhow_0681p25_box=fmb.createVariable('rhow_0681p25', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0681p25_box[satellite_id,:,:] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0681p25_box[:,:] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0681p25_box.description = 'rhow(0681.25) NOT brdf-corrected'
 
             rhow_0708p75_box=fmb.createVariable('rhow_0708p75', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0708p75_box[satellite_id,:,:] = [ma.array(rhow_0708p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0708p75_box[:,:] = [ma.array(rhow_0708p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0708p75_box.description = 'rhow(0708.75) NOT brdf-corrected'
 
             rhow_0753p75_box=fmb.createVariable('rhow_0753p75', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0753p75_box[satellite_id,:,:] = [ma.array(rhow_0753p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0753p75_box[:,:] = [ma.array(rhow_0753p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0753p75_box.description = 'rhow(0753.75) NOT brdf-corrected'
 
             rhow_0778p75_box=fmb.createVariable('rhow_0778p75', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0778p75_box[satellite_id,:,:] = [ma.array(rhow_0778p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0778p75_box[:,:] = [ma.array(rhow_0778p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0778p75_box.description = 'rhow(0778.75) NOT brdf-corrected'
             
             rhow_0865p00_box=fmb.createVariable('rhow_0865p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0865p00_box[satellite_id,:,:] = [ma.array(rhow_0865p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0865p00_box[:,:] = [ma.array(rhow_0865p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0865p00_box.description = 'rhow(0865.00) NOT brdf-corrected'
 
             rhow_0885p00_box=fmb.createVariable('rhow_0885p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0885p00_box[satellite_id,:,:] = [ma.array(rhow_0885p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_0885p00_box[:,:] = [ma.array(rhow_0885p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_0885p00_box.description = 'rhow(0885.00) NOT brdf-corrected'
             
             rhow_1020p50_box=fmb.createVariable('rhow_1020p50', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_1020p50_box[satellite_id,:,:] = [ma.array(rhow_1020p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            rhow_1020p50_box[:,:] = [ma.array(rhow_1020p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             rhow_1020p50_box.description = 'rhow(1020.50) NOT brdf-corrected'
             
             # BRDF-corrected
             rhow_0412p50_fq=fmb.createVariable('rhow_0412p50_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0412p50_fq[satellite_id,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
+            rhow_0412p50_fq[:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
             rhow_0412p50_fq.description = 'rhow(0412.50) brdf-corrected'
             
             rhow_0442p50_fq=fmb.createVariable('rhow_0442p50_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0442p50_fq[satellite_id,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
+            rhow_0442p50_fq[:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
             rhow_0442p50_fq.description = 'rhow(0442.50) brdf-corrected'
             
             rhow_0490p00_fq=fmb.createVariable('rhow_0490p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0490p00_fq[satellite_id,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
+            rhow_0490p00_fq[:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
             rhow_0490p00_fq.description = 'rhow(0490.00) brdf-corrected'
             
             rhow_0510p00_fq=fmb.createVariable('rhow_0510p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0510p00_fq[satellite_id,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF3)]
+            rhow_0510p00_fq[:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF3)]
             rhow_0510p00_fq.description = 'rhow(0510.00) brdf-corrected'
             
             rhow_0560p00_fq=fmb.createVariable('rhow_0560p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0560p00_fq[satellite_id,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF4)]
+            rhow_0560p00_fq[:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF4)]
             rhow_0560p00_fq.description = 'rhow(0560.00) brdf-corrected'
     
             rhow_0620p00_fq=fmb.createVariable('rhow_0620p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0620p00_fq[satellite_id,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF5)]
+            rhow_0620p00_fq[:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF5)]
             rhow_0620p00_fq.description = 'rhow(0620.00) brdf-corrected'
             
             rhow_0665p00_fq=fmb.createVariable('rhow_0665p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0665p00_fq[satellite_id,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
+            rhow_0665p00_fq[:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
             rhow_0665p00_fq.description = 'rhow(0665.00) brdf-corrected'
             
             AOT_0865p50_box=fmb.createVariable('AOT_0865p50', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            AOT_0865p50_box[satellite_id,:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            AOT_0865p50_box[:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             AOT_0865p50_box.description = 'Aerosol optical thickness'
     
             WQSF_box=fmb.createVariable('WQSF', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            WQSF_box[satellite_id,:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            WQSF_box[:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             WQSF_box.description = 'OLCI Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
             
             fq_0 = fmb.createVariable('fq_0', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_0[satellite_id,:,:] = [ma.array(BRDF0)]
+            fq_0[:,:] = [ma.array(BRDF0)]
     
             fq_1 = fmb.createVariable('fq_1', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_1[satellite_id,:,:] = [ma.array(BRDF1)]
+            fq_1[:,:] = [ma.array(BRDF1)]
     
             fq_2 = fmb.createVariable('fq_2', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_2[satellite_id,:,:] = [ma.array(BRDF2)]
+            fq_2[:,:] = [ma.array(BRDF2)]
     
             fq_3 = fmb.createVariable('fq_3', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_3[satellite_id,:,:] = [ma.array(BRDF3)]
+            fq_3[:,:] = [ma.array(BRDF3)]
     
             fq_4 = fmb.createVariable('fq_4', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_4[satellite_id,:,:] = [ma.array(BRDF4)]
+            fq_4[:,:] = [ma.array(BRDF4)]
     
             fq_5 = fmb.createVariable('fq_5', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_5[satellite_id,:,:] = [ma.array(BRDF5)]
+            fq_5[:,:] = [ma.array(BRDF5)]
     
             fq_6 = fmb.createVariable('fq_6', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_6[satellite_id,:,:] = [ma.array(BRDF6)]
+            fq_6[:,:] = [ma.array(BRDF6)]
     
             chl_oc4me = fmb.createVariable('chl_oc4me', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            chl_oc4me[satellite_id,:,:] = [ma.array(CHL_OC4ME_extract)]
+            chl_oc4me[:,:] = [ma.array(CHL_OC4ME_extract)]
             
             fmb.close()
             print('Extract created!')
@@ -469,147 +479,113 @@ def extract_box(satellite_id,size_box,station_name,path_source,path_output,in_si
             print('Index out of bound!')
     else:
         print('File does NOT contains the in situ location!')
+    return ofname
 
-# sat
-'/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/IDATA/SAT/S3A/S3A_OL_2_WFR____20180722T095755_20180722T100055_20180723T170825_0179_033_350_2160_MAR_O_NT_002.SEN3'
-'S3A_OL_2_WFR____20180722T095755_20180722T100055_20180723T170825_0179_033_350_2160_MAR_O_NT_002.SEN3'
+# #############################
+# def add_insitu(ofname,satellite_id):
+#     # in situ
+#     path = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/IDATA/INSITU/AERONET'   
+# #    filename = station_name+'_20V3_20190927_20200110.nc'
+#     filename = 'Venise_20_201601001_201612031.nc'
+#     # filename = station_name+'_20V3_20180622_20180822.nc'
+#     filename_insitu = os.path.join(path,filename)
+#     if not os.path.exists(filename_insitu):
+#         print('File does not exist')
+        
+#     nc_f0 = Dataset(filename_insitu,'r')
 
-# in situ
-'/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/IDATA/INSITU/AERONET'
-'Venise_20_201601001_201612031.nc'
+#     Time = nc_f0.variables['Time'][:]
+#     Level = nc_f0.variables['Level'][:]
+#     Julian_day = nc_f0.variables['Julian_day'][:]
+#     Exact_wavelengths = nc_f0.variables['Exact_wavelengths'][:]
+#     Lwn_fonQ = nc_f0.variables['Lwn_fonQ'][:]
+
+#     nc_f0.close()
+
+#     day_vec    = np.array([float(Time[i].replace(' ',':').split(':')[0]) for i in range(0,len(Time))])
+#     month_vec  = np.array([float(Time[i].replace(' ',':').split(':')[1]) for i in range(0,len(Time))])
+#     year_vec   = np.array([float(Time[i].replace(' ',':').split(':')[2]) for i in range(0,len(Time))])
+#     hour_vec   = np.array([float(Time[i].replace(' ',':').split(':')[3]) for i in range(0,len(Time))])
+#     minute_vec = np.array([float(Time[i].replace(' ',':').split(':')[4]) for i in range(0,len(Time))])
+#     second_vec = np.array([float(Time[i].replace(' ',':').split(':')[5]) for i in range(0,len(Time))])
+
+#     Julian_day_vec =np.array([float(Julian_day[i]) for i in range(0,len(Time))])
+#     date_format = "%d:%m:%Y %H:%M:%S"
+#     ins_time = np.array([datetime.strptime(Time[i], date_format) for i in range(0,len(Time))])
+
+#     doy_vec = np.array([int(float(Julian_day[i])) for i in range(0,len(Time))])
+
+
+#     # openin MDB created
+#     year_str = ofname.split('/')[-3]
+#     doy_str = ofname.split('/')[-2]       
+#     nc_f1 = Dataset(ofname,'r')
+    
+#     date_format = "%Y-%m-%dT%H:%M:%S.%fZ" 
+#     sat_start_time = datetime.strptime(nc_f1.start_time, date_format)
+#     sat_stop_time = datetime.strptime(nc_f1.stop_time, date_format)
+    
+#     delta_time = 3# float in hours       
+#     time_diff = ins_time - sat_stop_time
+#     dt_hour = [i.total_seconds()/(60*60) for i in time_diff] # time diffence between in situ measurements and sat in hours
+#     idx_min = np.argmin(np.abs(dt_hour))
+#     matchup_idx_vec = np.abs(dt_hour) <= delta_time 
+
+#     nday = sum(matchup_idx_vec)
+#     print(str(nday)+' matchups per '+year_str+' '+doy_str)
+#     if nday >=1:
+#         print('----------------------------')
+#         print('line '+str(cnt))
+#         print('--Zibordi et al. 2009')
+#         print(str(nday)+' matchups per '+year_str+' '+doy_str)
+
+#         print(mu_Lwn_0412p50_fq_ins_zi.append(Lwn_fonQ[idx_min,3])) # 412,
+#         print(mu_Lwn_0442p50_fq_ins_zi.append(Lwn_fonQ[idx_min,5])) # 441.8
+#         print(mu_Lwn_0490p00_fq_ins_zi.append(Lwn_fonQ[idx_min,6])) # 488.5
+#         if Exact_wavelengths[idx_min,13] != -999:
+#             idx_560 = 13
+#         elif Exact_wavelengths[idx_min,12] != -999:
+#             idx_560 = 12
+#         else: 
+#             idx_560 = 11
+#         print(mu_Lwn_0560p00_fq_ins_zi.append(Lwn_fonQ[idx_min,idx_560])) # 551,
+#         print(mu_Lwn_0665p00_fq_ins_zi.append(Lwn_fonQ[idx_min,15])) # 667.9  
 
 #%%
-def main():
-    """business logic for when running this module as the primary one!"""
-    print('Main Code!')
-    
-    path_source = os.path.join(code_home,'IDATA','SAT','S3A')
-    list_name = 'OLCI_list_test.txt' #'OLCI_list_uniq.txt '
-    path_to_list = os.path.join(path_source,list_name)
+# def main():
+print('Main Code!')
 
 
-    station_list = ['Venise','Galata_Platform','Gloria','Helsinki_Lighthouse','Gustav_Dalen_Tower','Venise_PANTHYR']
-    parser = argparse.ArgumentParser(description="Create list of OLCI WFR files from DataArchive in the virtual machine.")
-    parser.add_argument("-s", "--station" , help="The Aeronet OC station.", type=str,choices=station_list)
-    parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
-    args = parser.parse_args()
-    
-    if not args.debug:
-        station_name  = args.station
-        if sys.platform == 'linux': 
-            if station_name == 'Venise':
-                list_name = 'OLCI_list_Venise_20V3_20190927_20200110_uniq.txt'
-            elif station_name == 'Galata_Platform':
-                list_name = 'OLCI_list_Galata_Platform_20_201601001_201909011_uniq.txt'
-            elif station_name == 'Gloria':
-                list_name = 'OLCI_list_Gloria_20_201601001_201909011_uniq.txt'
-            elif station_name == 'Helsinki_Lighthouse':
-                list_name = 'OLCI_list_Helsinki_Lighthouse_20_201601001_201909011_uniq.txt'
-            elif station_name == 'Gustav_Dalen_Tower':
-                list_name = 'OLCI_list_Gustav_Dalen_Tower_20_201601001_201909011_uniq.txt'
-            elif station_name == 'Venise_PANTHYR':
-                list_name = 'OLCI_list_Venise_PANTHYR_uniq.txt'    
-        elif sys.platform == 'darwin':   
-            list_name = 'OLCI_list_test.txt'
-    else:
-        list_name = 'OLCI_list_test.txt'
-        station_name  = args.station
+# look for in situ data within t hours
+# save nc file
 
-    print('The list is: '+list_name) 
-    print('The station is: '+station_name)
-    # in situ location based on the station name
-    lat_in_situ, lon_in_situ = cfs.get_lat_lon_ins(station_name)
-    
-    with open(path_to_list,'r') as file:
+path_source = os.path.join(code_home,'IDATA','SAT','S3A')
+path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
+path_source2 = 'trimmed_sources_NEW_Venice/'
+path_source = os.path.join(path_source1,path_source2)
+path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA'
+
+station_name = 'Venise'
+
+# in situ location based on the station name
+lat_in_situ, lon_in_situ = cfs.get_lat_lon_ins(station_name)
+
+# create list of sat granules
+res = 'WRR'
+wce = f'"*OL_2_{res}*trim*"' # wild card expression
+path_to_list = create_list_products(path_source,path_out,wce)
+
+# create extract and save it in internal folder
+size_box = 25
+
+with open(path_to_list,'r') as file:
         for cnt, line in enumerate(file):
             print('------------------')
+            path_to_sat_source = line[:-1]
+            ofname = extract_box(size_box,station_name,path_to_sat_source,path_out,lat_in_situ,lon_in_situ)
 
-            if line[0] =='S':
-                year_str = line.split('_')[7][0:4]
-                month_str = line.split('_')[7][4:6]
-                day_str = line.split('_')[7][6:8]
-                doy_str = str(datetime(int(year_str),int(month_str),int(day_str)).timetuple().tm_yday)
-                prod_name = line[:-1]
-            elif line[0] == '/':
-                year_str = line.split('/')[1]
-                doy_str = line.split('/')[2]
-                prod_name = line.split('/')[3][:-1]
-                
-            source_dir = os.path.join(path_source,year_str,doy_str)
-            
-            if line[0] =='S':
-                source = os.path.join(source_dir,line[:-1])
-            elif line[0] == '/':
-                source = os.path.join(source_dir,line.split('/')[3][:-1])
-
-            if os.path.exists(source+'.SEN3.zip'):
-                source_file_path = source+'.SEN3.zip'
-                zipfilename = prod_name+'.SEN3.zip'
-                print('file '+source_file_path+' exists!')
-                
-            elif os.path.exists(source+'.zip'):
-                source_file_path = source+'.zip'
-                zipfilename = prod_name+'.zip'
-                print('file '+source_file_path+' exists!')
-                
-            else:
-                print('file '+source+' does NOT exists!')
-                continue
-            
-            output_dir = os.path.join(code_home,'ODATA','EXTRACTS','S3A',year_str,doy_str)
-            # create the folders if not already exists
-            if not os.path.isdir(output_dir):
-                os.makedirs(output_dir)
-            
-            
-            # adding exception handling
-            try:
-                shutil.copy(source_file_path, output_dir)
-                zipfilePath = os.path.join(output_dir,zipfilename)
-                zip = zipfile.ZipFile(zipfilePath)
-                zip.extractall(output_dir)
-                zip.close()
-            except IOError as e:
-                print("Unable to copy file. %s" % e)
-            except:
-                print("Unexpected error:", sys.exc_info())
-            path_to_unzip = os.path.join(output_dir,zipfilename[:-4])   # without the .zip ending
-            
-            if not os.path.exists(path_to_unzip):
-                if os.path.exists(path_to_unzip+'.SEN3'):
-                    path_to_unzip = path_to_unzip+'.SEN3'
-                else:
-                    print('dir '+path_to_unzip+' does NOT exist!')
-                    continue 
-
-            size_box = 25
-            satellite_id = 0
-            extract_box(satellite_id,size_box,station_name,path_source=path_to_unzip,path_output=output_dir,\
-                                       in_situ_lat=lat_in_situ,in_situ_lon=lon_in_situ)
-            
-            cmd = 'rm '+path_to_unzip+'/*' # remove folder content
-            print(cmd)
-            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-            out, err = prog.communicate()
-            if err:
-                print(err)
-                
-            cmd = 'rm -r '+path_to_unzip+'/' # remove folder
-            print(cmd)
-            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-            out, err = prog.communicate()
-            if err:
-                print(err)
-                cmd = 'mv '+path_to_unzip+'/ '+os.path.join(code_home,'delete_later') # mv for deleting later
-                subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-            cmd = 'rm '+output_dir+'/*.zip' # remove .zip
-            print(cmd)
-            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-            out, err = prog.communicate()
-            if err:
-                print(err)
 
         
 #%%
-if __name__ == '__main__':
-    main()        
+# if __name__ == '__main__':
+#     main()        
