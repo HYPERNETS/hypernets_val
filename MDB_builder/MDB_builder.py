@@ -129,7 +129,7 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
 
     return ws0, ws1, sza, saa, vza, vaa
 
-def extract_box(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon):
+def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon):
     #%
   
     coordinates_filename = 'geo_coordinates.nc'
@@ -503,7 +503,7 @@ with open(path_to_list,'r') as file:
         for cnt, line in enumerate(file):
             print('------------------')
             path_to_sat_source = line[:-1]
-            ofname = extract_box(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
+            ofname = create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
             print(ofname)
 
 
