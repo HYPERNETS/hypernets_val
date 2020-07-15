@@ -304,175 +304,94 @@ def extract_box(size_box,station_name,path_source,path_output,in_situ_lat,in_sit
               os.remove(ofname)
             
             fmb = Dataset(ofname, 'w', format='NETCDF4')
-            fmb.description = 'OLCI NxN extract'
-            fmb.start_time = nc_f0.start_time
-            fmb.stop_time = nc_f0.stop_time    
-            fmb.input_file = path_source
+            fmb.description = f'OLCI {size_box}x{size_box} extract'
+            fmb.satellite_start_time = nc_f0.start_time
+            fmb.satellite_stop_time = nc_f0.stop_time    
+            fmb.satellite_input_file = path_source
+            fmb.satellite_ws0 = ws0
+            fmb.satellite_ws1 = ws1
+            fmb.satellite_sza = sza
+            fmb.satellite_saa = saa
+            fmb.satellite_vza = vza
+            fmb.satellite_vaa = vaa
             
-            fmb.createDimension('satellite_id', None)
-            fmb.createDimension('size_box_x', size_box)
-            fmb.createDimension('size_box_y', size_box)
+            fmb.insitu_lat = in_situ_lat
+            fmb.insitu_lon = in_situ_lon
             
-            row_center = fmb.createVariable('row_center',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            row_center[:] = r
-            row_center.description = 'row index to the original L2 file'
-            col_center = fmb.createVariable('col_center',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            col_center[:] = c
-            col_center.description = 'column index to the original L2 file'
+            # dimensions
+            fmb.createDimension('satellite_size_box_x', size_box)
+            fmb.createDimension('satellite_size_box_y', size_box)
+            fmb.createDimension('satellite_bands', 16)
+            fmb.createDimension('satellite_BRDF_bands', 7)
             
-            lat_insitu = fmb.createVariable('lat_insitu',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            lat_insitu[:] = in_situ_lat
-            lat_insitu.description = 'latitude of in situ measurement'
+            # variables            
+            satellite_latitude = fmb.createVariable('satellite_latitude',  'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_latitude[:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
             
-            lon_insitu = fmb.createVariable('lon_insitu',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            lon_insitu[:] = in_situ_lon
-            lon_insitu.description = 'longitude of in situ measurement'
-            
-            ws0_value = fmb.createVariable('ws0_value',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            ws0_value[:] = ws0
-            ws1_value = fmb.createVariable('ws1_value',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            ws1_value[:] = ws1
-            sza_value = fmb.createVariable('sza_value',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            sza_value[:] = sza
-            saa_value = fmb.createVariable('saa_value',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            saa_value[:] = saa
-            vza_value = fmb.createVariable('vza_value',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            vza_value[:] = vza
-            vaa_value = fmb.createVariable('vaa_value',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6) 
-            vaa_value[:] = vaa
-            
-            latitude = fmb.createVariable('latitude',  'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6) 
-            latitude[:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
-            
-            longitude = fmb.createVariable('longitude',  'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            longitude[:,:] = [lon[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+            satellite_longitude = fmb.createVariable('satellite_longitude',  'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_longitude[:,:] = [lon[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+
+            # double satellite_bands          (satellite_bands) ;
+            satellite_bands = fmb.createVariable('satellite_bands',  'f4', ('satellite_bands'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_bands[:] = [0400.00,0412.50,0442.50,0490.00,0510.00,0560.00,0620.00,0665.00,0673.75,0681.25,0708.75,0753.75,0778.75,0865.00,0885.00,1020.50]
+
+            # double satellite_BRDF_Bands     (satellite_BRDF_Bands) ;
+            satellite_BRDF_bands = fmb.createVariable('satellite_BRDF_bands',  'f4', ('satellite_BRDF_bands'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_BRDF_bands[:] = [412.50,442.50,490.00,510.00,560.00,620.00,665.00]
     
             # NOT BRDF-corrected
-            rhow_0400p00_box=fmb.createVariable('rhow_0400p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0400p00_box[:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0400p00_box.description = 'rhow(0400.00) NOT brdf-corrected'
-
-            rhow_0412p50_box=fmb.createVariable('rhow_0412p50', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0412p50_box[:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0412p50_box.description = 'rhow(0412.50) NOT brdf-corrected'
-            
-            rhow_0442p50_box=fmb.createVariable('rhow_0442p50', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0442p50_box[:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0442p50_box.description = 'rhow(0442.50) NOT brdf-corrected'
-            
-            rhow_0490p00_box=fmb.createVariable('rhow_0490p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0490p00_box[:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0490p00_box.description = 'rhow(0490.00) NOT brdf-corrected'
-            
-            rhow_0510p00_box=fmb.createVariable('rhow_0510p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0510p00_box[:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0510p00_box.description = 'rhow(0510.00) NOT brdf-corrected'
-            
-            rhow_0560p00_box=fmb.createVariable('rhow_0560p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0560p00_box[:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0560p00_box.description = 'rhow(0560.00) NOT brdf-corrected'
-    
-            rhow_0620p00_box=fmb.createVariable('rhow_0620p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0620p00_box[:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0620p00_box.description = 'rhow(0620.00) NOT brdf-corrected'
-            
-            rhow_0665p00_box=fmb.createVariable('rhow_0665p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0665p00_box[:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0665p00_box.description = 'rhow(0665.00) NOT brdf-corrected'
-    
-            rhow_0673p75_box=fmb.createVariable('rhow_0673p75', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0673p75_box[:,:] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0673p75_box.description = 'rhow(0673.75) NOT brdf-corrected'
-
-            rhow_0681p25_box=fmb.createVariable('rhow_0681p25', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0681p25_box[:,:] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0681p25_box.description = 'rhow(0681.25) NOT brdf-corrected'
-
-            rhow_0708p75_box=fmb.createVariable('rhow_0708p75', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0708p75_box[:,:] = [ma.array(rhow_0708p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0708p75_box.description = 'rhow(0708.75) NOT brdf-corrected'
-
-            rhow_0753p75_box=fmb.createVariable('rhow_0753p75', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0753p75_box[:,:] = [ma.array(rhow_0753p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0753p75_box.description = 'rhow(0753.75) NOT brdf-corrected'
-
-            rhow_0778p75_box=fmb.createVariable('rhow_0778p75', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0778p75_box[:,:] = [ma.array(rhow_0778p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0778p75_box.description = 'rhow(0778.75) NOT brdf-corrected'
-            
-            rhow_0865p00_box=fmb.createVariable('rhow_0865p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0865p00_box[:,:] = [ma.array(rhow_0865p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0865p00_box.description = 'rhow(0865.00) NOT brdf-corrected'
-
-            rhow_0885p00_box=fmb.createVariable('rhow_0885p00', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0885p00_box[:,:] = [ma.array(rhow_0885p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_0885p00_box.description = 'rhow(0885.00) NOT brdf-corrected'
-            
-            rhow_1020p50_box=fmb.createVariable('rhow_1020p50', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_1020p50_box[:,:] = [ma.array(rhow_1020p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            rhow_1020p50_box.description = 'rhow(1020.50) NOT brdf-corrected'
+            satellite_rhow=fmb.createVariable('satellite_rhow', 'f4', ('satellite_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_rhow[0,:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[1,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[2,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[3,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[4,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[5,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[6,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[7,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[8,:,:] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[9,:,:] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[10,:,:] = [ma.array(rhow_0708p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[11,:,:] = [ma.array(rhow_0753p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[12,:,:] = [ma.array(rhow_0778p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[13,:,:] = [ma.array(rhow_0865p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[14,:,:] = [ma.array(rhow_0885p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[15,:,:] = [ma.array(rhow_1020p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow.description = 'Satellite rhow.'
             
             # BRDF-corrected
-            rhow_0412p50_fq=fmb.createVariable('rhow_0412p50_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0412p50_fq[:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
-            rhow_0412p50_fq.description = 'rhow(0412.50) brdf-corrected'
+            satellite_BRDF_rhow=fmb.createVariable('satellite_BRDF_rhow', 'f4', ('satellite_BRDF_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_rhow[0,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
+            satellite_BRDF_rhow[1,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
+            satellite_BRDF_rhow[2,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
+            satellite_BRDF_rhow[3,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF3)]
+            satellite_BRDF_rhow[4,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF4)]
+            satellite_BRDF_rhow[5,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF5)]
+            satellite_BRDF_rhow[6,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
+            satellite_BRDF_rhow.description = 'Satellite rhow BRDF-corrected'
             
-            rhow_0442p50_fq=fmb.createVariable('rhow_0442p50_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0442p50_fq[:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
-            rhow_0442p50_fq.description = 'rhow(0442.50) brdf-corrected'
+            satellite_AOT_0865p50_box=fmb.createVariable('satellite_AOT_0865p50', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_AOT_0865p50_box[:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
+    
+            satellite_WQSF=fmb.createVariable('satellite_WQSF', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_WQSF[:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
             
-            rhow_0490p00_fq=fmb.createVariable('rhow_0490p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0490p00_fq[:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
-            rhow_0490p00_fq.description = 'rhow(0490.00) brdf-corrected'
-            
-            rhow_0510p00_fq=fmb.createVariable('rhow_0510p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0510p00_fq[:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF3)]
-            rhow_0510p00_fq.description = 'rhow(0510.00) brdf-corrected'
-            
-            rhow_0560p00_fq=fmb.createVariable('rhow_0560p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0560p00_fq[:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF4)]
-            rhow_0560p00_fq.description = 'rhow(0560.00) brdf-corrected'
-    
-            rhow_0620p00_fq=fmb.createVariable('rhow_0620p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0620p00_fq[:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF5)]
-            rhow_0620p00_fq.description = 'rhow(0620.00) brdf-corrected'
-            
-            rhow_0665p00_fq=fmb.createVariable('rhow_0665p00_fq', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            rhow_0665p00_fq[:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
-            rhow_0665p00_fq.description = 'rhow(0665.00) brdf-corrected'
-            
-            AOT_0865p50_box=fmb.createVariable('AOT_0865p50', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            AOT_0865p50_box[:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            AOT_0865p50_box.description = 'Aerosol optical thickness'
-    
-            WQSF_box=fmb.createVariable('WQSF', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            WQSF_box[:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            WQSF_box.description = 'OLCI Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
-            
-            fq_0 = fmb.createVariable('fq_0', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_0[:,:] = [ma.array(BRDF0)]
-    
-            fq_1 = fmb.createVariable('fq_1', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_1[:,:] = [ma.array(BRDF1)]
-    
-            fq_2 = fmb.createVariable('fq_2', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_2[:,:] = [ma.array(BRDF2)]
-    
-            fq_3 = fmb.createVariable('fq_3', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_3[:,:] = [ma.array(BRDF3)]
-    
-            fq_4 = fmb.createVariable('fq_4', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_4[:,:] = [ma.array(BRDF4)]
-    
-            fq_5 = fmb.createVariable('fq_5', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_5[:,:] = [ma.array(BRDF5)]
-    
-            fq_6 = fmb.createVariable('fq_6', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            fq_6[:,:] = [ma.array(BRDF6)]
-    
-            chl_oc4me = fmb.createVariable('chl_oc4me', 'f4', ('satellite_id','size_box_x','size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            chl_oc4me[:,:] = [ma.array(CHL_OC4ME_extract)]
-            
+            satellite_BRDF_fq = fmb.createVariable('satellite_BRDF_fq', 'f4', ('satellite_BRDF_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_fq[0,:,:] = [ma.array(BRDF0)]
+            satellite_BRDF_fq[1,:,:] = [ma.array(BRDF1)]
+            satellite_BRDF_fq[2,:,:] = [ma.array(BRDF2)]
+            satellite_BRDF_fq[3,:,:] = [ma.array(BRDF3)]
+            satellite_BRDF_fq[4,:,:] = [ma.array(BRDF4)]
+            satellite_BRDF_fq[5,:,:] = [ma.array(BRDF5)]
+            satellite_BRDF_fq[6,:,:] = [ma.array(BRDF6)]
+            satellite_BRDF_fq.description = 'Satellite BRDF fq coefficients'
+
+            satellite_chl_oc4me = fmb.createVariable('chl_oc4me', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_chl_oc4me[:,:] = [ma.array(CHL_OC4ME_extract)]
+            satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
+
             fmb.close()
             print('Extract created!')
         else:
