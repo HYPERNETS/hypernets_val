@@ -478,21 +478,23 @@ print('Main Code!')
 # look for in situ data within t hours
 # save nc file
 
-path_source = os.path.join(code_home,'IDATA','SAT','S3A')
-path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
-path_source2 = 'trimmed_sources_NEW_Venice/'
-path_source = os.path.join(path_source1,path_source2)
+satellite_path_source = os.path.join(code_home,'IDATA','SAT','S3A')
+satellite_path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
+satellite_path_source2 = 'trimmed_sources_NEW_Venice/'
+satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)
 path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA'
 
 station_name = 'Venise'
 
+insitu_path_source = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data'
+
 # in situ location based on the station name
-lat_in_situ, lon_in_situ = cfs.get_lat_lon_ins(station_name)
+in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
 
 # create list of sat granules
 res = 'WRR'
 wce = f'"*OL_2_{res}*trim*"' # wild card expression
-path_to_list = create_list_products(path_source,path_out,wce)
+path_to_list = create_list_products(satellite_path_source,path_out,wce)
 
 # create extract and save it in internal folder
 size_box = 25
@@ -501,7 +503,8 @@ with open(path_to_list,'r') as file:
         for cnt, line in enumerate(file):
             print('------------------')
             path_to_sat_source = line[:-1]
-            ofname = extract_box(size_box,station_name,path_to_sat_source,path_out,lat_in_situ,lon_in_situ)
+            ofname = extract_box(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
+            print(ofname)
 
 
         
