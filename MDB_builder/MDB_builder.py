@@ -132,10 +132,6 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
     return ws0, ws1, sza, saa, vza, vaa
 
 def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon):
-    # extract date time info
-    sensor_str = path_source.split('/')[-1].split('_')[0]
-    res_str = path_source.split('/')[-1].split('_')[3]
-    datetime_str = path_source.split('/')[-1].split('_')[7]
     
     #% open nc file
     coordinates_filename = 'geo_coordinates.nc'
@@ -169,6 +165,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
     contain_flag = cfs.contain_location(lat,lon,in_situ_lat,in_situ_lon)
     
     if contain_flag:
+        print('-----------------')
     
         r, c = cfs.find_row_column_from_lat_lon(lat,lon,in_situ_lat,in_situ_lon)
         
@@ -408,10 +405,10 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             
         else:
             print('Index out of bound!')
-    else:
-        print('File does NOT contains the in situ location!')
+    # else:
+    #     print('File does NOT contains the in situ location!')
     
-    return ofname, sensor_str, res_str, datetime_str
+    return ofname
 
 def copy_nc(ifile,ofile):
     with Dataset(ifile) as src:
@@ -435,12 +432,8 @@ def copy_nc(ifile,ofile):
             dst[name][:] = src[name][:]
     return dst
 
-def add_insitu(extract_path,ofile,path_to_insitu_list):
-    
-    date_str = ofile.split('/')[-1].split('_')[3]
-    print(date_str)
-    
-    # cfs.doy_from_YYYYMMDD()
+
+def create_insitu_list_daily(path_to_insitu_list,date_str):
     # create list in situ per date YYYYMMDD
     YYYYMMDD_str = date_str[:8]
     path_to_list = f'{path_to_insitu_list[:-4]}_{YYYYMMDD_str}.txt'
@@ -448,18 +441,29 @@ def add_insitu(extract_path,ofile,path_to_insitu_list):
     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
     out, err = prog.communicate()
     if err:
-        print(err)  
+        print(err)
+        
+    return path_to_list
+ 
     
-   # append to nc file
+def add_insitu(extract_path,ofile,path_to_list_daily):
+    date_str = ofile.split('/')[-1].split('_')[3]
+    print(date_str)
+      
+    # append to nc file
     nc_f0 = copy_nc(extract_path,ofile)
     
     # create in situ dimensions
     nc_f0.createDimension('insitu_id', None)
     nc_f0.createDimension('insitu_bands', 70)
             
+    # extract in situ data
+    with open(path_to_list_daily) as file:
+        for idx, line in enumerate(file):
+            print(os.path.basename(line[:-1]))
+    
+    
     nc_f0.close()
-
-
 # #############################
 
 
@@ -478,7 +482,8 @@ satellite_path_source2 = 'trimmed_sources/'
 satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)
 path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA'
 
-os.remove(f'{path_out}/satellite_MU_list.txt')
+if os.path.exists(f'{path_out}/satellite_MU_list.txt'):
+    os.remove(f'{path_out}/satellite_MU_list.txt')
 
 station_name = 'Venise'
 
@@ -504,18 +509,27 @@ insitu_sensor = 'PANTHYR'
 
 with open(path_to_satellite_list,'r') as file:
         for cnt, line in enumerate(file):
-            print('------------------')
             path_to_sat_source = line[:-1]
-            try:
-                extract_path,sensor_str, res_str, datetime_str = \
-                    create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
-    
-                ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
-    
-                add_insitu(extract_path,ofile,path_to_insitu_list)
-            except Exception as e:
-                
-                print(f'Exception: {e}')
+            # extract date time info
+            sensor_str = path_to_sat_source.split('/')[-1].split('_')[0]
+            res_str = path_to_sat_source.split('/')[-1].split('_')[3]
+            datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
+            
+            try:              
+                path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
+                if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
+                    extract_path = \
+                        create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
+        
+                    ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
+        
+                    add_insitu(extract_path,ofile,path_to_list_daily)
+                else:
+                    os.remove(path_to_list_daily)
+            
+            except:
+            # except Exception as e:
+                # print(f'Exception: {e}')
                 pass
                     
 #%%
