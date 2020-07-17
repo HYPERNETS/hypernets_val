@@ -89,13 +89,15 @@ import COMMON.common_functions as cfs
 os.environ['QT_QPA_PLATFORM']='offscreen' # to avoid error "QXcbConnection: Could not connect to display"
 
 # user defined functions
-def create_list_products(path_source,path_out,wce):
-    cmd = f'find {path_source} -name {wce}> {path_out}/file_list.txt'
+def create_list_products(path_source,path_out,wce,type_product):
+    
+    path_to_list = f'{path_out}/file_{type_product}_list.txt'
+    cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
     out, err = prog.communicate()
     if err:
         print(err)  
-    path_to_list = f'{path_out}/file_list.txt'
+    
     return path_to_list
 
 def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
@@ -130,8 +132,12 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
     return ws0, ws1, sza, saa, vza, vaa
 
 def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon):
-    #%
-  
+    # extract date time info
+    sensor_str = path_source.split('/')[-1].split('_')[0]
+    res_str = path_source.split('/')[-1].split('_')[3]
+    datetime_str = path_source.split('/')[-1].split('_')[7]
+    
+    #% open nc file
     coordinates_filename = 'geo_coordinates.nc'
 
     rhow_0400p00_filename = 'Oa01_reflectance.nc'
@@ -394,81 +400,69 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
 
             fmb.close()
             print('Extract created!')
+            cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/satellite_MU_list.txt'
+            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)  
+            
         else:
             print('Index out of bound!')
     else:
         print('File does NOT contains the in situ location!')
-    return ofname
+    
+    return ofname, sensor_str, res_str, datetime_str
+
+def copy_nc(ifile,ofile):
+    with Dataset(ifile) as src:
+        dst = Dataset(ofile, "w")
+        
+        # copy global attributes all at once via dictionary
+        dst.setncatts(src.__dict__)
+        
+        # copy dimensions
+        for name, dimension in src.dimensions.items():
+            dst.createDimension(
+                name, (len(dimension) if not dimension.isunlimited() else None))
+            
+        # copy all file data except for the excluded
+        for name, variable in src.variables.items():
+            dst.createVariable(name, variable.datatype, variable.dimensions)
+            
+            # copy variable attributes all at once via dictionary
+            dst[name].setncatts(src[name].__dict__)
+            
+            dst[name][:] = src[name][:]
+    return dst
+
+def add_insitu(extract_path,ofile,path_to_insitu_list):
+    
+    date_str = ofile.split('/')[-1].split('_')[3]
+    print(date_str)
+    
+    # cfs.doy_from_YYYYMMDD()
+    # create list in situ per date YYYYMMDD
+    YYYYMMDD_str = date_str[:8]
+    path_to_list = f'{path_to_insitu_list[:-4]}_{YYYYMMDD_str}.txt'
+    cmd = f'cat {path_to_insitu_list}|grep {YYYYMMDD_str}|sort|uniq> {path_to_list}'
+    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+    out, err = prog.communicate()
+    if err:
+        print(err)  
+    
+   # append to nc file
+    nc_f0 = copy_nc(extract_path,ofile)
+    
+    # create in situ dimensions
+    nc_f0.createDimension('insitu_id', None)
+    nc_f0.createDimension('insitu_bands', 70)
+            
+    nc_f0.close()
+
 
 # #############################
-# def add_insitu(ofname,satellite_id):
-#     # in situ
-#     path = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/IDATA/INSITU/AERONET'   
-# #    filename = station_name+'_20V3_20190927_20200110.nc'
-#     filename = 'Venise_20_201601001_201612031.nc'
-#     # filename = station_name+'_20V3_20180622_20180822.nc'
-#     filename_insitu = os.path.join(path,filename)
-#     if not os.path.exists(filename_insitu):
-#         print('File does not exist')
-        
-#     nc_f0 = Dataset(filename_insitu,'r')
-
-#     Time = nc_f0.variables['Time'][:]
-#     Level = nc_f0.variables['Level'][:]
-#     Julian_day = nc_f0.variables['Julian_day'][:]
-#     Exact_wavelengths = nc_f0.variables['Exact_wavelengths'][:]
-#     Lwn_fonQ = nc_f0.variables['Lwn_fonQ'][:]
-
-#     nc_f0.close()
-
-#     day_vec    = np.array([float(Time[i].replace(' ',':').split(':')[0]) for i in range(0,len(Time))])
-#     month_vec  = np.array([float(Time[i].replace(' ',':').split(':')[1]) for i in range(0,len(Time))])
-#     year_vec   = np.array([float(Time[i].replace(' ',':').split(':')[2]) for i in range(0,len(Time))])
-#     hour_vec   = np.array([float(Time[i].replace(' ',':').split(':')[3]) for i in range(0,len(Time))])
-#     minute_vec = np.array([float(Time[i].replace(' ',':').split(':')[4]) for i in range(0,len(Time))])
-#     second_vec = np.array([float(Time[i].replace(' ',':').split(':')[5]) for i in range(0,len(Time))])
-
-#     Julian_day_vec =np.array([float(Julian_day[i]) for i in range(0,len(Time))])
-#     date_format = "%d:%m:%Y %H:%M:%S"
-#     ins_time = np.array([datetime.strptime(Time[i], date_format) for i in range(0,len(Time))])
-
-#     doy_vec = np.array([int(float(Julian_day[i])) for i in range(0,len(Time))])
 
 
-#     # openin MDB created
-#     year_str = ofname.split('/')[-3]
-#     doy_str = ofname.split('/')[-2]       
-#     nc_f1 = Dataset(ofname,'r')
-    
-#     date_format = "%Y-%m-%dT%H:%M:%S.%fZ" 
-#     sat_start_time = datetime.strptime(nc_f1.start_time, date_format)
-#     sat_stop_time = datetime.strptime(nc_f1.stop_time, date_format)
-    
-#     delta_time = 3# float in hours       
-#     time_diff = ins_time - sat_stop_time
-#     dt_hour = [i.total_seconds()/(60*60) for i in time_diff] # time diffence between in situ measurements and sat in hours
-#     idx_min = np.argmin(np.abs(dt_hour))
-#     matchup_idx_vec = np.abs(dt_hour) <= delta_time 
-
-#     nday = sum(matchup_idx_vec)
-#     print(str(nday)+' matchups per '+year_str+' '+doy_str)
-#     if nday >=1:
-#         print('----------------------------')
-#         print('line '+str(cnt))
-#         print('--Zibordi et al. 2009')
-#         print(str(nday)+' matchups per '+year_str+' '+doy_str)
-
-#         print(mu_Lwn_0412p50_fq_ins_zi.append(Lwn_fonQ[idx_min,3])) # 412,
-#         print(mu_Lwn_0442p50_fq_ins_zi.append(Lwn_fonQ[idx_min,5])) # 441.8
-#         print(mu_Lwn_0490p00_fq_ins_zi.append(Lwn_fonQ[idx_min,6])) # 488.5
-#         if Exact_wavelengths[idx_min,13] != -999:
-#             idx_560 = 13
-#         elif Exact_wavelengths[idx_min,12] != -999:
-#             idx_560 = 12
-#         else: 
-#             idx_560 = 11
-#         print(mu_Lwn_0560p00_fq_ins_zi.append(Lwn_fonQ[idx_min,idx_560])) # 551,
-#         print(mu_Lwn_0665p00_fq_ins_zi.append(Lwn_fonQ[idx_min,15])) # 667.9  
 
 #%%
 # def main():
@@ -480,34 +474,50 @@ print('Main Code!')
 
 satellite_path_source = os.path.join(code_home,'IDATA','SAT','S3A')
 satellite_path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
-satellite_path_source2 = 'trimmed_sources_NEW_Venice/'
+satellite_path_source2 = 'trimmed_sources/'
 satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)
 path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA'
+
+os.remove(f'{path_out}/satellite_MU_list.txt')
 
 station_name = 'Venise'
 
 insitu_path_source = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data'
-
 # in situ location based on the station name
 in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
 
 # create list of sat granules
-res = 'WRR'
+res = 'WFR'
 wce = f'"*OL_2_{res}*trim*"' # wild card expression
-path_to_list = create_list_products(satellite_path_source,path_out,wce)
+path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
+
+
+# create list of in situ files
+wce = f'"*AZI_270_data.csv"' # wild card expression
+path_to_insitu_list = create_list_products(insitu_path_source,path_out,wce,'insitu')
 
 # create extract and save it in internal folder
 size_box = 25
+insitu_sensor = 'PANTHYR'
+# in situ 
 
-with open(path_to_list,'r') as file:
+
+with open(path_to_satellite_list,'r') as file:
         for cnt, line in enumerate(file):
             print('------------------')
             path_to_sat_source = line[:-1]
-            ofname = create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
-            print(ofname)
-
-
-        
+            try:
+                extract_path,sensor_str, res_str, datetime_str = \
+                    create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
+    
+                ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
+    
+                add_insitu(extract_path,ofile,path_to_insitu_list)
+            except Exception as e:
+                
+                print(f'Exception: {e}')
+                pass
+                    
 #%%
 # if __name__ == '__main__':
 #     main()        
