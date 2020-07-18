@@ -78,6 +78,7 @@ import numpy as np
 import numpy.ma as ma
 import argparse
 from datetime import datetime
+import pandas as pd
 
 # import user defined functions from other .py
 code_home = os.path.abspath('../')
@@ -456,11 +457,17 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     
     # create in situ dimensions
     nc_f0.createDimension('insitu_id', None)
-    nc_f0.createDimension('insitu_bands', 70)
+    nc_f0.createDimension('insitu_bands', None)
     
     # create variable 
     insitu_time=nc_f0.createVariable('insitu_time', 'S2', ('insitu_id'), fill_value=-999, zlib=True, complevel=6)
-    insitu_time.description  = 'In situ time in ISO 8601 format (UTC)'
+    insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
+    
+    insitu_bands=nc_f0.createVariable('insitu_bands', 'f4', ('insitu_bands'), fill_value=-999, zlib=True, complevel=6)
+    insitu_bands.description  = 'In situ bands in nm.'
+    
+    insitu_rhow=nc_f0.createVariable('insitu_rhow', 'f4', ('insitu_bands','insitu_id'), fill_value=-999, zlib=True, complevel=6)
+    insitu_rhow.description  = 'In situ rhow.'
      
     insitu_idx = 0
     # extract in situ data
@@ -481,14 +488,18 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
             
             time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
             if np.abs(time_diff) <= time_window:
-                
-                print(f'{insitu_datetime} - {satellite_datetime}')
-                print(time_diff)
-                print(insitu_idx)
-                print(insitu_datetime_str)
                 insitu_time[insitu_idx] = insitu_datetime_str
+                
+                
+                # get data from csv using pandas
+                data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
+                
+                if insitu_idx == 0:
+                    wl0 = data['wavelength'].tolist()
+                    insitu_bands[:] = wl0
+                insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
                 insitu_idx += 1
-    
+                # print(rhow0)
     
     nc_f0.close()
 # #############################
