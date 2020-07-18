@@ -446,9 +446,10 @@ def create_insitu_list_daily(path_to_insitu_list,date_str):
     return path_to_list
  
     
-def add_insitu(extract_path,ofile,path_to_list_daily):
-    date_str = ofile.split('/')[-1].split('_')[3]
-    print(date_str)
+def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
+    print(f'Satellite time" {datetime_str}')
+    date_format = '%Y%m%dT%H%M%S'
+    satellite_datetime = datetime.strptime(datetime_str, date_format)
       
     # append to nc file
     nc_f0 = copy_nc(extract_path,ofile)
@@ -456,11 +457,37 @@ def add_insitu(extract_path,ofile,path_to_list_daily):
     # create in situ dimensions
     nc_f0.createDimension('insitu_id', None)
     nc_f0.createDimension('insitu_bands', 70)
-            
+    
+    # create variable 
+    insitu_time=nc_f0.createVariable('insitu_time', 'S2', ('insitu_id'), fill_value=-999, zlib=True, complevel=6)
+    insitu_time.description  = 'In situ time in ISO 8601 format (UTC)'
+     
+    insitu_idx = 0
     # extract in situ data
     with open(path_to_list_daily) as file:
         for idx, line in enumerate(file):
-            print(os.path.basename(line[:-1]))
+            # time in ISO 8601 format (UTC). Ex: "2020-01-05T09:27:27.934965Z"
+            date_str = os.path.basename(line[:-1]).split('_')[3]
+            time_str = os.path.basename(line[:-1]).split('_')[4]
+                     
+            YYYY_str = date_str[:4]
+            MM_str = date_str[4:6]
+            DD_str = date_str[6:8]
+            HH_str = time_str[:2]
+            mm_str = time_str[2:4]
+            ss_str = time_str[4:6]
+            insitu_datetime_str = f'{YYYY_str}-{MM_str}-{DD_str}T{HH_str}:{mm_str}:{ss_str}Z'
+            insitu_datetime = datetime(int(YYYY_str),int(MM_str),int(DD_str),int(HH_str),int(mm_str),int(ss_str))
+            
+            time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
+            if np.abs(time_diff) <= time_window:
+                
+                print(f'{insitu_datetime} - {satellite_datetime}')
+                print(time_diff)
+                print(insitu_idx)
+                print(insitu_datetime_str)
+                insitu_time[insitu_idx] = insitu_datetime_str
+                insitu_idx += 1
     
     
     nc_f0.close()
@@ -506,6 +533,8 @@ size_box = 25
 insitu_sensor = 'PANTHYR'
 # in situ 
 
+time_window = 3 # in hours (+- hours)
+
 
 with open(path_to_satellite_list,'r') as file:
         for cnt, line in enumerate(file):
@@ -523,13 +552,13 @@ with open(path_to_satellite_list,'r') as file:
         
                     ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
         
-                    add_insitu(extract_path,ofile,path_to_list_daily)
+                    add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window)
                 else:
                     os.remove(path_to_list_daily)
             
-            except:
-            # except Exception as e:
-                # print(f'Exception: {e}')
+            # except:
+            except Exception as e:
+                print(f'Exception: {e}')
                 pass
                     
 #%%
