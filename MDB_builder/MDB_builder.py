@@ -76,7 +76,6 @@ import subprocess
 from netCDF4 import Dataset
 import numpy as np
 import numpy.ma as ma
-import argparse
 from datetime import datetime
 import pandas as pd
 
@@ -89,6 +88,10 @@ import COMMON.common_functions as cfs
 
 os.environ['QT_QPA_PLATFORM']='offscreen' # to avoid error "QXcbConnection: Could not connect to display"
 
+import argparse
+parser = argparse.ArgumentParser(description="Create list of OLCI WFR files from DataArchive in the virtual machine.")
+parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
+args = parser.parse_args()
 # user defined functions
 def create_list_products(path_source,path_out,wce,type_product):
     
@@ -448,7 +451,7 @@ def create_insitu_list_daily(path_to_insitu_list,date_str):
  
     
 def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
-    print(f'Satellite time" {datetime_str}')
+    print(f'Satellite time {datetime_str}')
     date_format = '%Y%m%dT%H%M%S'
     satellite_datetime = datetime.strptime(datetime_str, date_format)
       
@@ -507,71 +510,87 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
 
 
 #%%
-# def main():
-print('Main Code!')
-
-
-# look for in situ data within t hours
-# save nc file
-
-satellite_path_source = os.path.join(code_home,'IDATA','SAT','S3A')
-satellite_path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
-satellite_path_source2 = 'trimmed_sources/'
-satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)
-path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA'
-
-if os.path.exists(f'{path_out}/satellite_MU_list.txt'):
-    os.remove(f'{path_out}/satellite_MU_list.txt')
-
-station_name = 'Venise'
-
-insitu_path_source = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data'
-# in situ location based on the station name
-in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
-
-# create list of sat granules
-res = 'WFR'
-wce = f'"*OL_2_{res}*trim*"' # wild card expression
-path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
-
-
-# create list of in situ files
-wce = f'"*AZI_270_data.csv"' # wild card expression
-path_to_insitu_list = create_list_products(insitu_path_source,path_out,wce,'insitu')
-
-# create extract and save it in internal folder
-size_box = 25
-insitu_sensor = 'PANTHYR'
-# in situ 
-
-time_window = 3 # in hours (+- hours)
-
-
-with open(path_to_satellite_list,'r') as file:
-        for cnt, line in enumerate(file):
-            path_to_sat_source = line[:-1]
-            # extract date time info
-            sensor_str = path_to_sat_source.split('/')[-1].split('_')[0]
-            res_str = path_to_sat_source.split('/')[-1].split('_')[3]
-            datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
-            
-            try:              
-                path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
-                if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
-                    extract_path = \
-                        create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
+def main():
+    if sys.platform == 'linux':
+        satellite_path_source1 = '/dst04-data1/OC/OLCI'
+        satellite_path_source2 = 'trimmed_sources/'
+        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)
         
-                    ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
+        insitu_path_source = '/store3/PANTHYR/AAOT/data'
         
-                    add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window)
-                else:
-                    os.remove(path_to_list_daily)
+        path_out = '/home/Javier.Concha/MDB_py/ODATA'
+    elif sys.platform == 'darwin':
+        # satellite_path_source = os.path.join(code_home,'IDATA','SAT','S3A')
+        satellite_path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
+        satellite_path_source2 = 'trimmed_sources/'
+        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)
+        
+        insitu_path_source = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data'
+        
+        path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA'
+    else:
+        print('Error: host flag is not either mac or vm')
+    print('Main Code!')
+    
+    
+    # look for in situ data within t hours
+    # save nc file
+    
+
+    
+    if os.path.exists(f'{path_out}/satellite_MU_list.txt'):
+        os.remove(f'{path_out}/satellite_MU_list.txt')
+    
+    station_name = 'Venise'
+    
+    
+    # in situ location based on the station name
+    in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
+    
+    # create list of sat granules
+    res = 'WFR'
+    wce = f'"*OL_2_{res}*trim*"' # wild card expression
+    path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
+    
+    
+    # create list of in situ files
+    wce = f'"*AZI_270_data.csv"' # wild card expression
+    path_to_insitu_list = create_list_products(insitu_path_source,path_out,wce,'insitu')
+    
+    # create extract and save it in internal folder
+    size_box = 25
+    insitu_sensor = 'PANTHYR'
+    # in situ 
+    
+    time_window = 3 # in hours (+- hours)
+    
+    
+    with open(path_to_satellite_list,'r') as file:
+            for cnt, line in enumerate(file):
+                path_to_sat_source = line[:-1]
+                # extract date time info
+                sensor_str = path_to_sat_source.split('/')[-1].split('_')[0]
+                res_str = path_to_sat_source.split('/')[-1].split('_')[3]
+                datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
+                
+                try:              
+                    path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
+                    if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
+                        extract_path = \
+                            create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
             
-            # except:
-            except Exception as e:
-                print(f'Exception: {e}')
-                pass
+                        ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
+            
+                        add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window)
+                    else:
+                        os.remove(path_to_list_daily)
+                
+                # except:
+                except Exception as e:
+                    if args.debug:
+                        print(f'Exception: {e}')
+                    pass
                     
-#%%
-# if __name__ == '__main__':
-#     main()        
+# %%
+if __name__ == '__main__':
+    main()        
