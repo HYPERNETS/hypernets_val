@@ -91,7 +91,10 @@ os.environ['QT_QPA_PLATFORM']='offscreen' # to avoid error "QXcbConnection: Coul
 import argparse
 parser = argparse.ArgumentParser(description="Create list of OLCI WFR files from DataArchive in the virtual machine.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
+parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
+
 args = parser.parse_args()
+
 # user defined functions
 def create_list_products(path_source,path_out,wce,type_product):
     
@@ -564,6 +567,12 @@ def main():
     
     time_window = 3 # in hours (+- hours)
     
+    if args.startdate:
+        datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
+    else:
+        datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+        
+    print(datetime_start)     
     
     with open(path_to_satellite_list,'r') as file:
             for cnt, line in enumerate(file):
@@ -573,23 +582,26 @@ def main():
                 res_str = path_to_sat_source.split('/')[-1].split('_')[3]
                 datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
                 
-                try:              
-                    path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
-                    if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
-                        extract_path = \
-                            create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
-            
-                        ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
-            
-                        add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window)
-                    else:
-                        os.remove(path_to_list_daily)
+                date_format = '%Y%m%dT%H%M%S'
+                satellite_datetime = datetime.strptime(datetime_str, date_format)
+                if satellite_datetime >= datetime_start:
+                    try:              
+                        path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
+                        if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
+                            extract_path = \
+                                create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
                 
-                # except:
-                except Exception as e:
-                    if args.debug:
-                        print(f'Exception: {e}')
-                    pass
+                            ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
+                
+                            add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window)
+                        else:
+                            os.remove(path_to_list_daily)
+                    
+                    # except:
+                    except Exception as e:
+                        if args.debug:
+                            print(f'Exception: {e}')
+                        pass
                     
 # %%
 if __name__ == '__main__':
