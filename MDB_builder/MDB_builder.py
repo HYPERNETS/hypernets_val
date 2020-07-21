@@ -66,11 +66,6 @@ dimensions:
 #%% imports
 import os
 import sys
-
-
-import shutil
-
-import zipfile
 import subprocess
 
 from netCDF4 import Dataset

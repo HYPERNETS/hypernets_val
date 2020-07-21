@@ -29,15 +29,13 @@ from matplotlib import pyplot as plt
 plt.rc('xtick',labelsize=12)
 plt.rc('ytick',labelsize=12)
 from scipy import stats
-# to import apply_flags_OLCI.py
-import sys
+
 import subprocess
-path_main = '/Users/javier.concha/Desktop/Javier/2019_ROMA/CNR_Research/HYPERNETS_Validation_Protocols/python_scripts/'
-sys.path.insert(0,path_main)
-import apply_flags_OLCI as OLCI_flags
+
 
 # User Defined Functions
-import common_functions
+import COMMON.common_functions as cfs
+import COMMON.apply_OLCI_flags as apply_OLCI_flags
 
 #%%
 def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max_val): 
@@ -130,7 +128,7 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
     
     ref_obs = np.asarray(x)
     sat_obs = np.asarray(y)
-    rmse_val = common_functions.rmse(sat_obs,ref_obs)
+    rmse_val = cfs.rmse(sat_obs,ref_obs)
 
             # the mean of relative (signed) percent differences
     rel_diff = 100*(ref_obs-sat_obs)/ref_obs
@@ -144,7 +142,7 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
         ref_obs_Venise = ref_obs[cond_station]
         sat_obs_Venise = sat_obs[cond_station]
         slope_Venise, intercept_Venise, r_value_Venise, p_value_Venise, std_err_Venise = stats.linregress(ref_obs_Venise,sat_obs_Venise)
-        rmse_val_Venise = common_functions.rmse(sat_obs_Venise,ref_obs_Venise)
+        rmse_val_Venise = cfs.rmse(sat_obs_Venise,ref_obs_Venise)
         rel_diff_Venise = 100*(ref_obs_Venise-sat_obs_Venise)/ref_obs_Venise
         mean_rel_diff_Venise = np.mean(rel_diff_Venise)
         mean_abs_rel_diff_Venise = np.mean(np.abs(rel_diff_Venise))
@@ -154,7 +152,7 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
         ref_obs_Gloria = ref_obs[cond_station]
         sat_obs_Gloria = sat_obs[cond_station]
         slope_Gloria, intercept_Gloria, r_value_Gloria, p_value_Gloria, std_err_Gloria = stats.linregress(ref_obs_Gloria,sat_obs_Gloria)
-        rmse_val_Gloria = common_functions.rmse(sat_obs_Gloria,ref_obs_Gloria)
+        rmse_val_Gloria = cfs.rmse(sat_obs_Gloria,ref_obs_Gloria)
         rel_diff_Gloria = 100*(ref_obs_Gloria-sat_obs_Gloria)/ref_obs_Gloria
         mean_rel_diff_Gloria = np.mean(rel_diff_Gloria)
         mean_abs_rel_diff_Gloria = np.mean(np.abs(rel_diff_Gloria))
@@ -164,7 +162,7 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
         ref_obs_Galata_Platform = ref_obs[cond_station]
         sat_obs_Galata_Platform = sat_obs[cond_station]
         slope_Galata_Platform, intercept_Galata_Platform, r_value_Galata_Platform, p_value_Galata_Platform, std_err_Galata_Platform = stats.linregress(ref_obs_Galata_Platform,sat_obs_Galata_Platform)
-        rmse_val_Galata_Platform = common_functions.rmse(sat_obs_Galata_Platform,ref_obs_Galata_Platform)
+        rmse_val_Galata_Platform = cfs.rmse(sat_obs_Galata_Platform,ref_obs_Galata_Platform)
         rel_diff_Galata_Platform = 100*(ref_obs_Galata_Platform-sat_obs_Galata_Platform)/ref_obs_Galata_Platform
         mean_rel_diff_Galata_Platform = np.mean(rel_diff_Galata_Platform)
         mean_abs_rel_diff_Galata_Platform = np.mean(np.abs(rel_diff_Galata_Platform))
@@ -174,7 +172,7 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
         ref_obs_Helsinki_Lighthouse = ref_obs[cond_station]
         sat_obs_Helsinki_Lighthouse = sat_obs[cond_station]
         slope_Helsinki_Lighthouse, intercept_Helsinki_Lighthouse, r_value_Helsinki_Lighthouse, p_value_Helsinki_Lighthouse, std_err_Helsinki_Lighthouse = stats.linregress(ref_obs_Helsinki_Lighthouse,sat_obs_Helsinki_Lighthouse)
-        rmse_val_Helsinki_Lighthouse = common_functions.rmse(sat_obs_Helsinki_Lighthouse,ref_obs_Helsinki_Lighthouse)
+        rmse_val_Helsinki_Lighthouse = cfs.rmse(sat_obs_Helsinki_Lighthouse,ref_obs_Helsinki_Lighthouse)
         rel_diff_Helsinki_Lighthouse = 100*(ref_obs_Helsinki_Lighthouse-sat_obs_Helsinki_Lighthouse)/ref_obs_Helsinki_Lighthouse
         mean_rel_diff_Helsinki_Lighthouse = np.mean(rel_diff_Helsinki_Lighthouse)
         mean_abs_rel_diff_Helsinki_Lighthouse = np.mean(np.abs(rel_diff_Helsinki_Lighthouse))
@@ -184,7 +182,7 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
         ref_obs_Gustav_Dalen_Tower = ref_obs[cond_station]
         sat_obs_Gustav_Dalen_Tower = sat_obs[cond_station]
         slope_Gustav_Dalen_Tower, intercept_Gustav_Dalen_Tower, r_value_Gustav_Dalen_Tower, p_value_Gustav_Dalen_Tower, std_err_Gustav_Dalen_Tower = stats.linregress(ref_obs_Gustav_Dalen_Tower,sat_obs_Gustav_Dalen_Tower)
-        rmse_val_Gustav_Dalen_Tower = common_functions.rmse(sat_obs_Gustav_Dalen_Tower,ref_obs_Gustav_Dalen_Tower)
+        rmse_val_Gustav_Dalen_Tower = cfs.rmse(sat_obs_Gustav_Dalen_Tower,ref_obs_Gustav_Dalen_Tower)
         rel_diff_Gustav_Dalen_Tower = 100*(ref_obs_Gustav_Dalen_Tower-sat_obs_Gustav_Dalen_Tower)/ref_obs_Gustav_Dalen_Tower
         mean_rel_diff_Gustav_Dalen_Tower = np.mean(rel_diff_Gustav_Dalen_Tower)
         mean_abs_rel_diff_Gustav_Dalen_Tower = np.mean(np.abs(rel_diff_Gustav_Dalen_Tower))
@@ -351,11 +349,11 @@ doy_vec_AOC = np.array([int(float(Julian_day[i])) for i in range(0,len(Time))])
 # extract.nc is created by create_extract.py
 # Solar spectral irradiance F0 in uW/cm^2/nm
 path_to_Thuillier_FO = '/Users/javier.concha/Desktop/Javier/2019_ROMA/CNR_Research/HYPERNETS_Validation_Protocols/python_scripts/'
-F0_0412p50 = common_functions.get_F0(412.5,path_to_Thuillier_FO)  
-F0_0442p50 = common_functions.get_F0(442.5,path_to_Thuillier_FO)
-F0_0490p00 = common_functions.get_F0(490.0,path_to_Thuillier_FO)
-F0_0560p00 = common_functions.get_F0(560.0,path_to_Thuillier_FO)
-F0_0665p00 = common_functions.get_F0(665.0,path_to_Thuillier_FO)  
+F0_0412p50 = cfs.get_F0(412.5,path_to_Thuillier_FO)  
+F0_0442p50 = cfs.get_F0(442.5,path_to_Thuillier_FO)
+F0_0490p00 = cfs.get_F0(490.0,path_to_Thuillier_FO)
+F0_0560p00 = cfs.get_F0(560.0,path_to_Thuillier_FO)
+F0_0665p00 = cfs.get_F0(665.0,path_to_Thuillier_FO)  
 
 # from AERONET-OC: Lwn in [mW/(cm^2 sr um)]
 
@@ -652,95 +650,95 @@ with open(path_to_list,'r') as file:
         if nday_AOC >=1:
 
             if Lwn_fonQ[idx_min_AOC,0] != -999:
-                rhow_AOC_0340p00 = Lwn_fonQ[idx_min_AOC,0]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,0],path_to_Thuillier_FO)
+                rhow_AOC_0340p00 = Lwn_fonQ[idx_min_AOC,0]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,0],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0340p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,1] != -999:
-                rhow_AOC_0380p00 = Lwn_fonQ[idx_min_AOC,1]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,1],path_to_Thuillier_FO)
+                rhow_AOC_0380p00 = Lwn_fonQ[idx_min_AOC,1]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,1],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0380p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,2] != -999:
-                rhow_AOC_0400p00 = Lwn_fonQ[idx_min_AOC,2]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,2],path_to_Thuillier_FO)
+                rhow_AOC_0400p00 = Lwn_fonQ[idx_min_AOC,2]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,2],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0400p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,3] != -999:
-                rhow_AOC_0412p00 = Lwn_fonQ[idx_min_AOC,3]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,3],path_to_Thuillier_FO)
+                rhow_AOC_0412p00 = Lwn_fonQ[idx_min_AOC,3]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,3],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0412p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,4] != -999:
-                rhow_AOC_0440p00 = Lwn_fonQ[idx_min_AOC,4]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,4],path_to_Thuillier_FO)
+                rhow_AOC_0440p00 = Lwn_fonQ[idx_min_AOC,4]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,4],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0440p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,5] != -999:
-                rhow_AOC_0443p00 = Lwn_fonQ[idx_min_AOC,5]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,5],path_to_Thuillier_FO)
+                rhow_AOC_0443p00 = Lwn_fonQ[idx_min_AOC,5]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,5],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0443p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,6] != -999:
-                rhow_AOC_0490p00 = Lwn_fonQ[idx_min_AOC,6]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,6],path_to_Thuillier_FO)
+                rhow_AOC_0490p00 = Lwn_fonQ[idx_min_AOC,6]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,6],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0490p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,7] != -999:
-                rhow_AOC_0500p00 = Lwn_fonQ[idx_min_AOC,7]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,7],path_to_Thuillier_FO)
+                rhow_AOC_0500p00 = Lwn_fonQ[idx_min_AOC,7]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,7],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0500p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,8] != -999:
-                rhow_AOC_0510p00 = Lwn_fonQ[idx_min_AOC,8]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,8],path_to_Thuillier_FO)
+                rhow_AOC_0510p00 = Lwn_fonQ[idx_min_AOC,8]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,8],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0510p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,9] != -999:
-                rhow_AOC_0531p00 = Lwn_fonQ[idx_min_AOC,9]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,9],path_to_Thuillier_FO)
+                rhow_AOC_0531p00 = Lwn_fonQ[idx_min_AOC,9]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,9],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0531p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,10] != -999:
-                rhow_AOC_0532p00 = Lwn_fonQ[idx_min_AOC,10]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,10],path_to_Thuillier_FO)
+                rhow_AOC_0532p00 = Lwn_fonQ[idx_min_AOC,10]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,10],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0532p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,11] != -999:
-                rhow_AOC_0551p00 = Lwn_fonQ[idx_min_AOC,11]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,11],path_to_Thuillier_FO)
+                rhow_AOC_0551p00 = Lwn_fonQ[idx_min_AOC,11]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,11],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0551p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,12] != -999:
-                rhow_AOC_0555p00 = Lwn_fonQ[idx_min_AOC,12]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,12],path_to_Thuillier_FO)
+                rhow_AOC_0555p00 = Lwn_fonQ[idx_min_AOC,12]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,12],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0555p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,13] != -999:
-                rhow_AOC_0560p00 = Lwn_fonQ[idx_min_AOC,13]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,13],path_to_Thuillier_FO)
+                rhow_AOC_0560p00 = Lwn_fonQ[idx_min_AOC,13]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,13],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0560p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,14] != -999:
-                rhow_AOC_0620p00 = Lwn_fonQ[idx_min_AOC,14]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,14],path_to_Thuillier_FO)
+                rhow_AOC_0620p00 = Lwn_fonQ[idx_min_AOC,14]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,14],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0620p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,15] != -999:
-                rhow_AOC_0667p00 = Lwn_fonQ[idx_min_AOC,15]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,15],path_to_Thuillier_FO)
+                rhow_AOC_0667p00 = Lwn_fonQ[idx_min_AOC,15]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,15],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0667p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,16] != -999:
-                rhow_AOC_0675p00 = Lwn_fonQ[idx_min_AOC,16]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,16],path_to_Thuillier_FO)
+                rhow_AOC_0675p00 = Lwn_fonQ[idx_min_AOC,16]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,16],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0675p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,17] != -999:
-                rhow_AOC_0681p00 = Lwn_fonQ[idx_min_AOC,17]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,17],path_to_Thuillier_FO)
+                rhow_AOC_0681p00 = Lwn_fonQ[idx_min_AOC,17]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,17],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0681p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,18] != -999:
-                rhow_AOC_0709p00 = Lwn_fonQ[idx_min_AOC,18]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,18],path_to_Thuillier_FO)
+                rhow_AOC_0709p00 = Lwn_fonQ[idx_min_AOC,18]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,18],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0709p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,19] != -999:
-                rhow_AOC_0779p00 = Lwn_fonQ[idx_min_AOC,19]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,19],path_to_Thuillier_FO)
+                rhow_AOC_0779p00 = Lwn_fonQ[idx_min_AOC,19]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,19],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0779p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,20] != -999:
-                rhow_AOC_0865p00 = Lwn_fonQ[idx_min_AOC,20]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,20],path_to_Thuillier_FO)
+                rhow_AOC_0865p00 = Lwn_fonQ[idx_min_AOC,20]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,20],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0865p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,21] != -999:
-                rhow_AOC_0870p00 = Lwn_fonQ[idx_min_AOC,21]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,21],path_to_Thuillier_FO)
+                rhow_AOC_0870p00 = Lwn_fonQ[idx_min_AOC,21]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,21],path_to_Thuillier_FO)
             else:
                 rhow_AOC_0870p00 = np.nan
             if Lwn_fonQ[idx_min_AOC,22] != -999:
-                rhow_AOC_1020p00 = Lwn_fonQ[idx_min_AOC,22]*np.pi/common_functions.get_F0(Exact_wavelengths[idx_min_AOC,22],path_to_Thuillier_FO)
+                rhow_AOC_1020p00 = Lwn_fonQ[idx_min_AOC,22]*np.pi/cfs.get_F0(Exact_wavelengths[idx_min_AOC,22],path_to_Thuillier_FO)
             else:
                 rhow_AOC_1020p00 = np.nan
             
@@ -885,7 +883,7 @@ with open(path_to_list,'r') as file:
                     rhow_0778p75_box.mean(),rhow_0865p00_box.mean(),rhow_0885p00_box.mean(),rhow_1020p50_box.mean()],'+r',markersize=8,linewidth=3)
                 scatter_legend.append('OLCI: ZMB18') 
             
-            flags_mask = OLCI_flags.create_mask(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])
+            flags_mask = apply_OLCI_flags.create_mask(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])
                 # Ex. flags_mask when all valid:
                 # [[0 0 0 0 0]
                 #  [0 0 0 0 0]
@@ -1185,7 +1183,7 @@ with open(path_to_list,'r') as file:
             print('rhow_0412p50_fq_box.mask:')
             print(rhow_0412p50_fq_box.mask)
             
-            flags_mask = OLCI_flags.create_mask(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])
+            flags_mask = apply_OLCI_flags.create_mask(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])
             print('flags_mask:')
             print(flags_mask)
             # plot sat data
