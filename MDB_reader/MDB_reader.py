@@ -20,6 +20,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import os
+import sys
+import subprocess
 from netCDF4 import Dataset
 import numpy as np
 import numpy.ma as ma
@@ -30,14 +32,24 @@ plt.rc('xtick',labelsize=12)
 plt.rc('ytick',labelsize=12)
 from scipy import stats
 
-import subprocess
-
-
 # User Defined Functions
+code_home = os.path.abspath('../')
+sys.path.append(code_home)
 import COMMON.common_functions as cfs
 import COMMON.apply_OLCI_flags as apply_OLCI_flags
 
 #%%
+# create list of sat granules
+def create_list_MDBs(path_to_source,path_out,wce,type_product):
+    path_to_list = f'{path_out}/file_{type_product}_list.txt'
+    cmd = f'find {path_to_source} -name {wce}|sort|uniq> {path_to_list}'
+    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+    out, err = prog.communicate()
+    if err:
+        print(err)  
+    
+    return path_to_list
+
 def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max_val): 
 
     # replace nan in y (sat data)
@@ -249,14 +261,29 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
 print('Main Code!')
 #%%
 
-path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/'
-path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/Figures/'
+path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/'
+path_main2 = 'ODATA/MDBs'
+path_to_source = os.path.join(path_main,path_main2)
+path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA/Figures'
 
 '''
 date_list.txt created as:
 % cat file_list_local.txt|cut -d _ -f4|sort|uniq>date_list.txt
 ''' 
 # PANTHYR Data
+insitu_sensor = 'PANTHYR'
+satellite_sensor = 'S3' # A and B
+
+# create list of MDBs
+type_product = 'MDB'
+wce = f'"{type_product}*{satellite_sensor}*{insitu_sensor}*.nc"' # wild card expression
+path_to_list = create_list_MDBs(path_to_source,path_out,wce,type_product)
+
+with open(path_to_list) as file:
+    for idx, line in enumerate(file):
+        MDBfile = line[:-1]
+        print(MDBfile)
+#%%
 list_name = 'file_list_PANTHYR.txt'
 path_data = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data'
 
