@@ -399,12 +399,18 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
 
             fmb.close()
             print('Extract created!')
-            cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/satellite_MU_list.txt'
+            cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_list.txt'
             prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
                 print(err)  
-            
+                
+            # cmd = f'cat {path_source}/xfdumanifest.xml | grep S3A_OL_1_EF|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_list.txt'  
+            # print(cmd)
+            # prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+            # out, err = prog.communicate()
+            # if err:
+                print(err) 
         else:
             print('Index out of bound!')
     # else:
@@ -536,8 +542,11 @@ def main():
     
 
     
-    if os.path.exists(f'{path_out}/satellite_MU_list.txt'):
-        os.remove(f'{path_out}/satellite_MU_list.txt')
+    if os.path.exists(f'{path_out}/OL_2_list.txt'):
+        os.remove(f'{path_out}/OL_2_list.txt')
+        
+    if os.path.exists(f'{path_out}/OL_1_list.txt'):
+        os.remove(f'{path_out}/OL_1_list.txt')    
     
     station_name = 'Venise'
     
@@ -546,7 +555,7 @@ def main():
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
     
     # create list of sat granules
-    res = 'WFR'
+    res = 'WRR'
     wce = f'"*OL_2_{res}*trim*"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
     
