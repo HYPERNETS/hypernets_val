@@ -133,7 +133,7 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
 
     return ws0, ws1, sza, saa, vza, vaa
 
-def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon):
+def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon,res_str):
     
     #% open nc file
     coordinates_filename = 'geo_coordinates.nc'
@@ -399,17 +399,29 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
 
             fmb.close()
             print('Extract created!')
-            cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_list.txt'
+
+            # create OL_1 and OL_2 and OL_2 trimmed lists
+            if res_str == 'WFR':
+                res_L1_str = 'EFR' 
+            elif res_str == 'WRR':
+                res_L1_str = 'ERR'
+                
+            cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v trim|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
+            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)     
+            
+            cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_trimmed_list.txt'
             prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
                 print(err)  
                 
-            # cmd = f'cat {path_source}/xfdumanifest.xml | grep S3A_OL_1_EF|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_list.txt'  
-            # print(cmd)
-            # prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-            # out, err = prog.communicate()
-            # if err:
+            cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
+            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
                 print(err) 
         else:
             print('Index out of bound!')
@@ -542,11 +554,7 @@ def main():
     
 
     
-    if os.path.exists(f'{path_out}/OL_2_list.txt'):
-        os.remove(f'{path_out}/OL_2_list.txt')
-        
-    if os.path.exists(f'{path_out}/OL_1_list.txt'):
-        os.remove(f'{path_out}/OL_1_list.txt')    
+ 
     
     station_name = 'Venise'
     
@@ -559,6 +567,19 @@ def main():
     wce = f'"*OL_2_{res}*trim*"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
     
+    if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
+        os.remove(f'{path_out}/OL_2_{res}_list.txt')
+
+    if os.path.exists(f'{path_out}/OL_2_{res}_trimmed_list.txt'):
+        os.remove(f'{path_out}/OL_2_{res}_trimmed_list.txt')
+
+    if res == 'WFR':
+        res_L1_str = 'EFR'
+    elif res == 'WRR':
+        res_L1_str = 'ERR'
+        
+    if os.path.exists(f'{path_out}/OL_1_{res_L1_str}_list.txt'):
+        os.remove(f'{path_out}/OL_1_{res_L1_str}_list.txt')   
     
     # create list of in situ files
     wce = f'"*AZI_270_data.csv"' # wild card expression
@@ -593,7 +614,7 @@ def main():
                         path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
                         if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
                             extract_path = \
-                                create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon)
+                                create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str)
                 
                             ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
                 
