@@ -479,7 +479,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     nc_f0.createDimension('insitu_bands', None)
     
     # create variable 
-    insitu_time=nc_f0.createVariable('insitu_time', 'S2', ('insitu_id'), fill_value=-999, zlib=True, complevel=6)
+    insitu_time=nc_f0.createVariable('insitu_time', 'S2', ('insitu_id'), zlib=True, complevel=6)
     insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
     
     insitu_bands=nc_f0.createVariable('insitu_bands', 'f4', ('insitu_bands'), fill_value=-999, zlib=True, complevel=6)
