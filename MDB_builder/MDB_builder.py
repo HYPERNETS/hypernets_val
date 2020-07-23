@@ -88,18 +88,19 @@ parser = argparse.ArgumentParser(description="Create list of OLCI WFR files from
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR ")
+parser.add_argument('-n', "--nolist", help="Do not create satellite andpin situ lists.",action="store_true")
 
 args = parser.parse_args()
 
 # user defined functions
-def create_list_products(path_source,path_out,wce,type_product):
-    
-    path_to_list = f'{path_out}/file_{type_product}_list.txt'
-    cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
-    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-    out, err = prog.communicate()
-    if err:
-        print(err)  
+def create_list_products(path_source,path_out,wce,res_str,type_product):
+    path_to_list = f'{path_out}/file_{type_product}_{res_str}_list.txt'
+    if not args.nolist:
+        cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
+        prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(err)  
     
     return path_to_list
 
@@ -400,39 +401,6 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
 
             fmb.close()
             print('Extract created!')
-
-            # create OL_1 and OL_2 and OL_2 trimmed lists
-            if res_str == 'WFR':
-                res_L1_str = 'EFR' 
-            elif res_str == 'WRR':
-                res_L1_str = 'ERR'
-                
-            cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v trim|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
-            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-            out, err = prog.communicate()
-            if err:
-                print(err)  
-            elif args.debug:
-                print('Run:')
-                print(cmd)
-            
-            cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_trimmed_list.txt'
-            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-            out, err = prog.communicate()
-            if err:
-                print(err) 
-            elif args.debug:
-                print('Run:')
-                print(cmd)
-                
-            cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
-            prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-            out, err = prog.communicate()
-            if err:
-                print(err) 
-            elif args.debug:
-                print('Run:')
-                print(cmd)
                 
         else:
             print('Index out of bound!')
@@ -464,7 +432,64 @@ def copy_nc(ifile,ofile):
             dst[name][:] = src[name][:]
     return dst
 
+def add_OL_12_to_list(path_source,path_output,res_str):
+    # create OL_1 and OL_2 and OL_2 trimmed lists
+    if res_str == 'WFR':
+        res_L1_str = 'EFR' 
+    elif res_str == 'WRR':
+        res_L1_str = 'ERR'
+        
+    cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v trim|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
+    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+    out, err = prog.communicate()
+    if err:
+        print(err)  
+    elif args.debug:
+        print('Run:')
+        print(cmd)
+    
+    cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_trimmed_list.txt'
+    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+    out, err = prog.communicate()
+    if err:
+        print(err) 
+    elif args.debug:
+        print('Run:')
+        print(cmd)
+        
+    cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
+    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+    out, err = prog.communicate()
+    if err:
+        print(err) 
+    elif args.debug:
+        print('Run:')
+        print(cmd)
+        
+def clean_lists(path_out,res_str):
+    list_path = f'{path_out}/OL_2_{res_str}_list.txt'
+    sort_uniq(list_path,path_out)
+    
+    list_path = f'{path_out}/OL_2_{res_str}_trimmed_list.txt'
+    sort_uniq(list_path,path_out)
+    
+    if res_str == 'WFR':
+        res_L1_str = 'EFR'
+    elif res_str == 'WRR':
+        res_L1_str = 'ERR'
 
+    list_path = f'{path_out}/OL_1_{res_L1_str}_list.txt'
+    sort_uniq(list_path,path_out)
+    
+def sort_uniq(list_path,path_out): 
+    if os.path.exists(list_path):
+        cmd = f'sort {list_path}|uniq > {path_out}/temp_list.txt && {path_out}/temp_list.txt {list_path}'  
+        prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(err) 
+        os.remove(f'{path_out}/temp_list.txt')   
+   
 def create_insitu_list_daily(path_to_insitu_list,date_str):
     # create list in situ per date YYYYMMDD
     YYYYMMDD_str = date_str[:8]
@@ -531,6 +556,14 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                 insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
                 insitu_idx += 1
                 # print(rhow0)
+    if insitu_idx == 0:
+        if os.path.exists(ofile):
+            os.remove(ofile)
+        if args.debug:
+            print('Not in situ measurements within the time window. MDB file deleted!')
+        return False
+    else:
+        return True
     
     nc_f0.close()
 # #############################
@@ -577,7 +610,7 @@ def main():
         res = 'WFR'
         
     wce = f'"*OL_2_{res}*trim*"' # wild card expression
-    path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
+    path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,res,'satellite')
     
     if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
         os.remove(f'{path_out}/OL_2_{res}_list.txt')
@@ -595,7 +628,7 @@ def main():
     
     # create list of in situ files
     wce = f'"*AZI_270_data.csv"' # wild card expression
-    path_to_insitu_list = create_list_products(insitu_path_source,path_out,wce,'insitu')
+    path_to_insitu_list = create_list_products(insitu_path_source,path_out,wce,res,'insitu')
     
     # create extract and save it in internal folder
     size_box = 25
@@ -634,7 +667,8 @@ def main():
                 
                             ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
                 
-                            add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window)
+                            if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
+                                add_OL_12_to_list(path_to_sat_source,path_out,res_str)
                         else:
                             if args.debug:
                                 print('No in situ measurements found!')
