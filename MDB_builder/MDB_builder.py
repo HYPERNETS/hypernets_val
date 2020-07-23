@@ -87,6 +87,7 @@ import argparse
 parser = argparse.ArgumentParser(description="Create list of OLCI WFR files from DataArchive in the virtual machine.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
+parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR ")
 
 args = parser.parse_args()
 
@@ -570,7 +571,11 @@ def main():
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
     
     # create list of sat granules
-    res = 'WFR'
+    if args.res == 'WRR':
+        res = 'WRR'
+    else:
+        res = 'WFR'
+        
     wce = f'"*OL_2_{res}*trim*"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
     
