@@ -570,7 +570,7 @@ def main():
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
     
     # create list of sat granules
-    res = 'WRR'
+    res = 'WFR'
     wce = f'"*OL_2_{res}*trim*"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
     
