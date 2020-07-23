@@ -167,8 +167,8 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
     contain_flag = cfs.contain_location(lat,lon,in_situ_lat,in_situ_lon)
     
     if contain_flag:
-        print('-----------------')
-    
+        if not args.debug:
+            print('-----------------')
         r, c = cfs.find_row_column_from_lat_lon(lat,lon,in_situ_lat,in_situ_lon)
         
         start_idx_x = (r-int(size_box/2))
@@ -410,23 +410,34 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
-                print(err)     
+                print(err)  
+            elif args.debug:
+                print('Run:')
+                print(cmd)
             
             cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_trimmed_list.txt'
             prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
-                print(err)  
+                print(err) 
+            elif args.debug:
+                print('Run:')
+                print(cmd)
                 
             cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
             prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
                 print(err) 
+            elif args.debug:
+                print('Run:')
+                print(cmd)
+                
         else:
             print('Index out of bound!')
-    # else:
-    #     print('File does NOT contains the in situ location!')
+    else:
+        if args.debug:
+            print('File does NOT contains the in situ location!')
     
     return ofname
 
@@ -552,10 +563,6 @@ def main():
     # look for in situ data within t hours
     # save nc file
     
-
-    
- 
-    
     station_name = 'Venise'
     
     
@@ -563,7 +570,7 @@ def main():
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
     
     # create list of sat granules
-    res = 'WFR'
+    res = 'WRR'
     wce = f'"*OL_2_{res}*trim*"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,'satellite')
     
@@ -607,6 +614,10 @@ def main():
                 res_str = path_to_sat_source.split('/')[-1].split('_')[3]
                 datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
                 
+                if args.debug:
+                    print('-----------------')
+                    print(f'{datetime_str} {sensor_str} {res_str}')
+                
                 date_format = '%Y%m%dT%H%M%S'
                 satellite_datetime = datetime.strptime(datetime_str, date_format)
                 if satellite_datetime >= datetime_start:
@@ -620,13 +631,17 @@ def main():
                 
                             add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window)
                         else:
-                            os.remove(path_to_list_daily)
+                            if args.debug:
+                                print('No in situ measurements found!')
                     
                     # except:
                     except Exception as e:
                         if args.debug:
                             print(f'Exception: {e}')
                         pass
+                    
+                    if os.path.exists(path_to_list_daily):
+                            os.remove(path_to_list_daily)
                     
 # %%
 if __name__ == '__main__':
