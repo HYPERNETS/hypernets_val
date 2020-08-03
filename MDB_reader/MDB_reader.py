@@ -292,10 +292,39 @@ def config_reader(FILEconfig):
         print ('windows_size must be an odd number between 1 and %d' %int(Config['satellite_options']['miniprods_size']))
         sys.exit()
     return Config
+
+
+class PYTHON_class(object):
+    def __init__(self,Config):
+        input_directory = Config['file_path']['input_directory']
+        path_to_source = os.path.join(input_directory,'ODATA','MDBs')
+        output_directory = Config['file_path']['output_directory']
+
+        '''
+        date_list.txt created as:
+        % cat file_list_local.txt|cut -d _ -f4|sort|uniq>date_list.txt
+        ''' 
+        # PANTHYR Data
+        insitu_sensor = Config['Time_and_sites_selection']['insitu_type']
+        satellite_sensor = Config['satellite_options']['satellite'] # A and B
+
+        # create list of MDBs
+        type_product = 'MDB'
+        res = Config['satellite_options']['resolution']
+        wce = f'"{type_product}*{satellite_sensor}*{res}*{insitu_sensor}*.nc"' # wild card expression
+        path_to_list = create_list_MDBs(path_to_source,output_directory,wce,type_product)
+
+        with open(path_to_list) as file:
+            for idx, line in enumerate(file):
+                print(idx)
+                MDBfile = line[:-1]
+                print(MDBfile)
+                
+#%%                
 # def main():
-    """business logic for when running this module as the primary one!"""
+"""business logic for when running this module as the primary one!"""
 print('Main Code!')
-#%%
+
 path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/'
 
 # config_file = file_config_parse.config_file
@@ -307,33 +336,9 @@ else:
     print (config_file + ' does not exist. Please provide a valid config file path')
     sys.exit()
 
-input_directory = Config['file_path']['input_directory']
-path_main2 = 'ODATA/MDBs'
-path_to_source = os.path.join(path_main,path_main2)
-output_directory = Config['file_path']['output_directory']
-
-'''
-date_list.txt created as:
-% cat file_list_local.txt|cut -d _ -f4|sort|uniq>date_list.txt
-''' 
-# PANTHYR Data
-insitu_sensor = Config['Time_and_sites_selection']['insitu_type']
-satellite_sensor = Config['satellite_options']['satellite'] # A and B
-
-# create list of MDBs
-type_product = 'MDB'
-res = Config['satellite_options']['resolution']
-wce = f'"{type_product}*{satellite_sensor}*{res}*{insitu_sensor}*.nc"' # wild card expression
-path_to_list = create_list_MDBs(path_to_source,output_directory,wce,type_product)
-
-with open(path_to_list) as file:
-    for idx, line in enumerate(file):
-        print(idx)
-        MDBfile = line[:-1]
-        print(MDBfile)
+PYTHON_class(Config)
 
 
-   
-# #%%
+#%%
 # if __name__ == '__main__':
 #     main()
