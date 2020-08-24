@@ -264,53 +264,57 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
 
 def config_reader(FILEconfig):
     """
-    Reads and checks configuration file
+    Reads and checks configuration file for the validation
     Args:
         FILEconfig(str): configuration file path
     
     Return:
-        Config object
+        config_val object
     """
-    Config = configparser.ConfigParser()
-    Config.read(FILEconfig)
-    input_path = str(Config['file_path']['input_directory'])
-    output_path = str(Config['file_path']['output_directory'])
+    config_val = configparser.ConfigParser()
+    config_val.read(FILEconfig)
+    input_path = str(config_val['file_path']['input_directory'])
+    output_path = str(config_val['file_path']['output_directory'])
     if input_path == '' or input_path == ' ' or output_path == '' or output_path == ' ':
         print ('please provide input and output directories path')
         sys.exit()
-    if Config['Time_and_sites_selection']['insitu_type'] not in (['PANTHYR']):
+    if config_val['Time_and_sites_selection']['insitu_type'] not in (['PANTHYR']):
         print ("please select a valid in situ type: 'PANTHYR'")
         sys.exit()
-    if Config['satellite_options']['platform'] not in (['A','B']):
+    if config_val['satellite_options']['platform'] not in (['A','B']):
         print ("please select a valid name for platform: A or B")
         sys.exit()
-    if Config['Time_and_sites_selection']['insitu_type'] == 'AERONET' and Config['Time_and_sites_selection']['sites'] in (['',' ']):
-        Config['Time_and_sites_selection']['sites'] = 'ALL'
-    if Config['Filtering_options']['flags'] in [' ','']:
-        Config['Filtering_options']['flags'] = 'None'
-    if int(Config['satellite_options']['window_size']) > int(Config['satellite_options']['miniprods_size']) or int(Config['satellite_options']['window_size']) % 2 == 0:
-        print ('windows_size must be an odd number between 1 and %d' %int(Config['satellite_options']['miniprods_size']))
+    if config_val['Time_and_sites_selection']['insitu_type'] == 'AERONET' and config_val['Time_and_sites_selection']['sites'] in (['',' ']):
+        config_val['Time_and_sites_selection']['sites'] = 'ALL'
+    if config_val['Filtering_options']['flags'] in [' ','']:
+        config_val['Filtering_options']['flags'] = 'None'
+    if int(config_val['satellite_options']['window_size']) > int(config_val['satellite_options']['miniprods_size']) or int(config_val['satellite_options']['window_size']) % 2 == 0:
+        print ('windows_size must be an odd number between 1 and %d' %int(config_val['satellite_options']['miniprods_size']))
         sys.exit()
-    return Config
+    return config_val
 
 
 class PYTHON_class(object):
-    def __init__(self,Config):
-        input_directory = Config['file_path']['input_directory']
+    def __init__(self,config_val):
+        from MDB_builder.MDBs_config_class import MDBs_config
+        config_MDB = MDBs_config()
+        config_MDB.defaults_olci()
+        config_MDB.defaults_AERONET()
+        input_directory = config_val['file_path']['input_directory']
         path_to_source = os.path.join(input_directory,'ODATA','MDBs')
-        output_directory = Config['file_path']['output_directory']
+        output_directory = config_val['file_path']['output_directory']
 
         '''
         date_list.txt created as:
         % cat file_list_local.txt|cut -d _ -f4|sort|uniq>date_list.txt
         ''' 
         # PANTHYR Data
-        insitu_sensor = Config['Time_and_sites_selection']['insitu_type']
-        satellite_sensor = Config['satellite_options']['satellite'] # A and B
+        insitu_sensor = config_val['Time_and_sites_selection']['insitu_type']
+        satellite_sensor = config_val['satellite_options']['satellite'] # A and B
 
         # create list of MDBs
         type_product = 'MDB'
-        res = Config['satellite_options']['resolution']
+        res = config_val['satellite_options']['resolution']
         wce = f'"{type_product}*{satellite_sensor}*{res}*{insitu_sensor}*.nc"' # wild card expression
         path_to_list = create_list_MDBs(path_to_source,output_directory,wce,type_product)
 
@@ -331,12 +335,12 @@ path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNET
 config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
 
 if os.path.isfile (config_file) == True:
-    Config = config_reader(config_file)
+    config_val = config_reader(config_file)
 else:
     print (config_file + ' does not exist. Please provide a valid config file path')
     sys.exit()
 
-PYTHON_class(Config)
+PYTHON_class(config_val)
 
 
 #%%

@@ -3,9 +3,9 @@ class MDBs_config(object):
     Configuration options for MDBs building. Attributes shall be edited before running MDBs builder.
     """
     def __init__(self):
-        self.defaults_common()
+        pass
 
-    def defaults_common(self):
+    def defaults_olci(self):
         #comon paramters for Level 2
         import numpy as np
         import os
@@ -74,38 +74,7 @@ class MDBs_config(object):
                                 'Oa04_reflectance_err','Oa05_reflectance_err','Oa06_reflectance_err','Oa07_reflectance_err','Oa08_reflectance_err','Oa09_reflectance_err','Oa10_reflectance_err','Oa11_reflectance_err',
                                 'Oa12_reflectance_err','Oa16_reflectance_err','Oa17_reflectance_err','Oa18_reflectance_err','Oa21_reflectance_err','CHL_OC4ME_err','CHL_NN_err','TSM_NN_err','ADG443_NN_err',
                                 'KD490_M07_err','T865_err','A865_err','PAR_err'])
-        self.append_fields = list()
-        
-    def defaults_MOBY(self): 
-        import numpy as np
-        #variabless to be included in MDBs
-        self.moby_variables = (['Rrs','Lwn','Es']) #Rrs required! (for MDB_reader). If Lwn included , Lw is included by default
-        self.moby_Rrs_bands = [('Oa'+"{:02d}"+'_Rrs').format(curr) for curr in range(1,22)]
-        self.moby_wave = ([400.0,412.5,442.5,490.0,510.0,560.0,620.0,665.0,673.75,681.25,708.75,753.75,761.25,764.375,767.5,778.75,865.0,885.0,900.0,940.0,1020.0])
-        
-        self.MOBY_no_24 = 60 #no. of possible measurements available within +-24 hours from overpass. Up to now is 12 but may increase with new sensors launches
-        #moby Es bands to be included
-        
-        #subdiretory structure for MOBY files
-        self.MOBY_insitu_dir_struct = {'a':'/MOBY/S3A/OLCI/', 'b': '/MOBY/S3A/OLCI/'}
-        #deployments with post-deployment calibration applied (check on MOBY site)
-        self.MOBY_list_postCal = (259,260,261,262,263,264,266,267) #post cals is available for deployment up to 267
-        
-        #additional variables to be included in MOBY MDB. 
-        self.additional_variables = np.array(['Year','JDay','Deploy','Lat','Long','Data','GMTTime','arm','ObsDate','process_status'])
-        self.additional_description = (['Year of the corresponding MOBY acquisition',
-                                      'Day of the year of the corresponding MOBY acquisition','MOBY deployment identification number',
-                                      'Latitude for MOBY buoy','Longitude for MOBY buoy',
-                                      'MOBY data status (1 = Good and 2 = Questionable)','GMTTime','MOBY arms used: 1 = LuTop-LuMid, 2 = LuTop-LuBot, 7 = LuMid-LuBot', 'ObsDate', 'MOBY data reprocessing status: pre (0) or post (1) deployment calibration'])  
-        self.additional_units = (['years','Days since November 24th, 4714 BC at 12:00 in the proleptic Gregorian calendar','-','degrees_north','degrees_east','-','-','-','-','-'])
-        #list of variable to be excluded
-        self.moby_exclude = ()
-        #MDB attributes
-        self.MOBYdescription = {'A':"S3A OLCI WFR L2 - MOBY Matchups Data Base", 'B': "S3B OLCI WFR L2 - MOBY Matchups Data Base"}
-        self.MOBYdescription_L1 = {'A':"S3A OLCI EFR L1 - MOBY Matchups Data Base", 'B':"S3B OLCI EFR L1 - MOBY Matchups Data Base"}
-        self.MOBYdata_usage = ('MOBY data have been downloaded from https://www.star.nesdis.noaa.gov/sod/moby/gold/. '
-                               'We acknowledge NOAA CoastWatch/OceanWatch for them. The applicable data policies must be followed. Please check at https://www.mlml.calstate.edu/moby/ about data usage policy.') 
-        
+        self.append_fields = list() 
         
     def defaults_AERONET(self): 
         '''
@@ -273,6 +242,37 @@ class MDBs_config(object):
         self.description3D = np.array(['AERONET-OC Water-Leaving Radiance','AERONET-OC Water-Leaving Radiance corrected for viewing angle dependence' ,'AERONET-OC Normalized Water-Leaving Radiance determined from Lw (i.e., not corrected for the viewing angle dependence and for the effects of the non-isotropic distribution of the in-water light field','AERONET-OC Normalized Water-Leaving Radiance determined from Lw_Q corrected for the effects of the non-isotropic distribution of the in-water radiance field (i.e., f/Q Corrected)', 'AERONET-OC Mean of 11 Above-Water Total Radiance Measurements','AERONET-OC Standard Deviation of 11 Above-Water Total Radiance Measurements','AERONET-OC Mean of Lowest Two of 11 Above-Water Total Radiance Measurements','AERONET-OC Mean of 3 Sky Radiance Measurements','AERONET-OC Standard Deviation of 3 Sky Radiance Measurement','AERONET-OC Sea Surface Reflectance','AERONET-OC Aerosol Optical Thickness','AERONET-OC Ozone Optical Thickness','AERONET-OC Rayleigh Optical Thickness','AERONET-OC Solar Zenith Angle','AERONET-OC Solar Azimuth Angle','AERONET-OC exact wavelength','Thuillier et al. (2003) solar irradiance resampled for AERONET-OC exact wavelength, used for Lwn_fQ to Rrs conversion'])
         self.data_usage = ('Notice to users: AERONET-OC data have been downloaded from https://aeronet.gsfc.nasa.gov/cgi-bin/draw_map_display_seaprism_v3. The applicable data policies must be followed. Please check at https://aeronet.gsfc.nasa.gov/cgi-bin/draw_map_display_seaprism_v3 about Data Usage Policy')
         
+    def defaults_MOBY(self): 
+        import numpy as np
+        #variabless to be included in MDBs
+        self.moby_variables = (['Rrs','Lwn','Es']) #Rrs required! (for MDB_reader). If Lwn included , Lw is included by default
+        self.moby_Rrs_bands = [('Oa'+"{:02d}"+'_Rrs').format(curr) for curr in range(1,22)]
+        self.moby_wave = ([400.0,412.5,442.5,490.0,510.0,560.0,620.0,665.0,673.75,681.25,708.75,753.75,761.25,764.375,767.5,778.75,865.0,885.0,900.0,940.0,1020.0])
+        
+        self.MOBY_no_24 = 60 #no. of possible measurements available within +-24 hours from overpass. Up to now is 12 but may increase with new sensors launches
+        #moby Es bands to be included
+        
+        #subdiretory structure for MOBY files
+        self.MOBY_insitu_dir_struct = {'a':'/MOBY/S3A/OLCI/', 'b': '/MOBY/S3A/OLCI/'}
+        #deployments with post-deployment calibration applied (check on MOBY site)
+        self.MOBY_list_postCal = (259,260,261,262,263,264,266,267) #post cals is available for deployment up to 267
+        
+        #additional variables to be included in MOBY MDB. 
+        self.additional_variables = np.array(['Year','JDay','Deploy','Lat','Long','Data','GMTTime','arm','ObsDate','process_status'])
+        self.additional_description = (['Year of the corresponding MOBY acquisition',
+                                      'Day of the year of the corresponding MOBY acquisition','MOBY deployment identification number',
+                                      'Latitude for MOBY buoy','Longitude for MOBY buoy',
+                                      'MOBY data status (1 = Good and 2 = Questionable)','GMTTime','MOBY arms used: 1 = LuTop-LuMid, 2 = LuTop-LuBot, 7 = LuMid-LuBot', 'ObsDate', 'MOBY data reprocessing status: pre (0) or post (1) deployment calibration'])  
+        self.additional_units = (['years','Days since November 24th, 4714 BC at 12:00 in the proleptic Gregorian calendar','-','degrees_north','degrees_east','-','-','-','-','-'])
+        #list of variable to be excluded
+        self.moby_exclude = ()
+        #MDB attributes
+        self.MOBYdescription = {'A':"S3A OLCI WFR L2 - MOBY Matchups Data Base", 'B': "S3B OLCI WFR L2 - MOBY Matchups Data Base"}
+        self.MOBYdescription_L1 = {'A':"S3A OLCI EFR L1 - MOBY Matchups Data Base", 'B':"S3B OLCI EFR L1 - MOBY Matchups Data Base"}
+        self.MOBYdata_usage = ('MOBY data have been downloaded from https://www.star.nesdis.noaa.gov/sod/moby/gold/. '
+                               'We acknowledge NOAA CoastWatch/OceanWatch for them. The applicable data policies must be followed. Please check at https://www.mlml.calstate.edu/moby/ about data usage policy.') 
+        
+
     def defaults_cruises(self): 
         '''
         Configuration options for in situ data in MDBs when using data different that AERONET-OC or MOBY

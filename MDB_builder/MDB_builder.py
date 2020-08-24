@@ -545,8 +545,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
             time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
             if np.abs(time_diff) <= time_window:
                 insitu_time[insitu_idx] = insitu_datetime_str
-                
-                
+                        
                 # get data from csv using pandas
                 data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
                 
@@ -567,9 +566,6 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     
     nc_f0.close()
 # #############################
-
-
-
 #%%
 def main():
     if sys.platform == 'linux':
