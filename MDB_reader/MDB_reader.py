@@ -294,7 +294,7 @@ def config_reader(FILEconfig):
     return config_val
 
 
-class PYTHON_class(object):
+class PANTHYR_class(object):
     def __init__(self,config_val):
         from MDB_builder.MDBs_config_class import MDBs_config
         config_MDB = MDBs_config()
@@ -340,7 +340,7 @@ else:
     print (config_file + ' does not exist. Please provide a valid config file path')
     sys.exit()
 
-PYTHON_class(config_val)
+PANTHYR_class(config_val)
 
 
 #%%
