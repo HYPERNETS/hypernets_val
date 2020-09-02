@@ -25,7 +25,9 @@ import subprocess
 from netCDF4 import Dataset
 import numpy as np
 import numpy.ma as ma
-from datetime import datetime
+import datetime
+import time
+import calendar
 import pandas
 from matplotlib import pyplot as plt
 plt.rc('xtick',labelsize=12)
@@ -269,78 +271,343 @@ def config_reader(FILEconfig):
         FILEconfig(str): configuration file path
     
     Return:
-        config_val object
+        options object
     """
-    config_val = configparser.ConfigParser()
-    config_val.read(FILEconfig)
-    input_path = str(config_val['file_path']['input_directory'])
-    output_path = str(config_val['file_path']['output_directory'])
+    options = configparser.ConfigParser()
+    options.read(FILEconfig)
+    input_path = str(options['file_path']['input_directory'])
+    output_path = str(options['file_path']['output_directory'])
     if input_path == '' or input_path == ' ' or output_path == '' or output_path == ' ':
         print ('please provide input and output directories path')
         sys.exit()
-    if config_val['Time_and_sites_selection']['insitu_type'] not in (['PANTHYR']):
+    if options['insitu_options']['sensor'] not in (['PANTHYR']):
         print ("please select a valid in situ type: 'PANTHYR'")
         sys.exit()
-    if config_val['satellite_options']['platform'] not in (['A','B']):
+    if options['satellite_options']['platform'] not in (['A','B']):
         print ("please select a valid name for platform: A or B")
         sys.exit()
-    if config_val['Time_and_sites_selection']['insitu_type'] == 'AERONET' and config_val['Time_and_sites_selection']['sites'] in (['',' ']):
-        config_val['Time_and_sites_selection']['sites'] = 'ALL'
-    if config_val['Filtering_options']['flags'] in [' ','']:
-        config_val['Filtering_options']['flags'] = 'None'
-    if int(config_val['satellite_options']['window_size']) > int(config_val['satellite_options']['miniprods_size']) or int(config_val['satellite_options']['window_size']) % 2 == 0:
-        print ('windows_size must be an odd number between 1 and %d' %int(config_val['satellite_options']['miniprods_size']))
+    if options['insitu_options']['sensor'] == 'AERONET' and options['Time_and_sites_selection']['sites'] in (['',' ']):
+        options['Time_and_sites_selection']['sites'] = 'ALL'
+    if options['Filtering_options']['flags'] in [' ','']:
+        options['Filtering_options']['flags'] = 'None'
+    if int(options['satellite_options']['window_size']) > int(options['satellite_options']['miniprods_size']) or int(options['satellite_options']['window_size']) % 2 == 0:
+        print ('windows_size must be an odd number between 1 and %d' %int(options['satellite_options']['miniprods_size']))
         sys.exit()
-    return config_val
+    return options
 
 
 class PANTHYR_class(object):
-    def __init__(self,config_val):
+    def __init__(self,options):
         from MDB_builder.MDBs_config_class import MDBs_config
         config_MDB = MDBs_config()
         config_MDB.defaults_olci()
-        config_MDB.defaults_AERONET()
-        input_directory = config_val['file_path']['input_directory']
-        path_to_source = os.path.join(input_directory,'ODATA','MDBs')
-        output_directory = config_val['file_path']['output_directory']
+        config_MDB.defaults_PANTHYR()
 
+
+        self.satellite_Nbands = config_MDB.n_sensor_bands #No. OLCI bands
+        self.insitu_Nbands = config_MDB.Rrs_Nbands_PANTHYR
+        self.RRS = np.ma.empty((0,self.satellite_Nbands))
+        self.RRS_std = np.ma.empty((0,self.satellite_Nbands))
+        self.RRS_panthyr = np.ma.empty((0,self.insitu_Nbands))
+        self.RRS_panthyr_mask_shift = np.ma.empty((0,self.insitu_Nbands))
+        self.panthyr_min = np.ma.empty((0,self.insitu_Nbands))
+        self.panthyr_num = np.ma.empty((0,self.insitu_Nbands))
+        self.panthyr_max = np.ma.empty((0,self.insitu_Nbands))
+        self.date = np.ma.empty((0,1))
+        self.site = np.ma.empty((0,1))
+        self.pdu = np.ma.empty((0,1))
+        self.Panthyrdate = np.ma.empty((0,1))
+        # self.Aerolevel = np.ma.empty((0,1))
+
+        self.MDB_PANTHYR_reader(options)
+
+
+    def MDB_PANTHYR_reader(self,options):
+        """
+
+        Finds and reads AERONET MDBs and filters data as defined in the configuration file.
+        Args:
+            options (dict): options from config. file
+                                                     
+        Used for internal purpose and should not be called directly.
+
+        """
+        startDate = datetime.datetime.strptime(options['Time_and_sites_selection']['time_start'],'%Y-%m-%d')
+        endDate = datetime.datetime.strptime(options['Time_and_sites_selection']['time_stop'],'%Y-%m-%d')
+        startDate = calendar.timegm(startDate.timetuple())
+        endDate = calendar.timegm(endDate.timetuple()) + 86400.0
+        dim_window = int(options['satellite_options']['window_size'])
+        dim_total = int(options['satellite_options']['miniprods_size'])
+        central_pixel = int(np.floor(dim_total / 2))
+        n_bands = self.satellite_Nbands
+        delta_t = int(options['Filtering_options']['time_difference'])
+        #walk trhough input directory looking for MDBs
+        input_list = []
+        site_list = options['Time_and_sites_selection']['sites']
+        site_list = site_list.replace(" ", "")
+        site_list = str.split(site_list,',')
+        # files_shortlisted = [('MDB_%s%s_%s_L2_AERONET_%s.nc'%(str(options['satellite']).upper().replace(" ", ""),str(options['platform']).replace(" ", ""),str(options['sensor']).upper().replace(" ", ""),s)) for s in site_list]
+        # for filename in os.listdir(options['input_directory']):
+        #     if filename in files_shortlisted:            
+        #         input_list.append(filename)
+
+        path_to_source = options['file_path']['input_directory']
+        output_directory = options['file_path']['output_directory']
         '''
         date_list.txt created as:
         % cat file_list_local.txt|cut -d _ -f4|sort|uniq>date_list.txt
         ''' 
         # PANTHYR Data
-        insitu_sensor = config_val['Time_and_sites_selection']['insitu_type']
-        satellite_sensor = config_val['satellite_options']['satellite'] # A and B
+        insitu_sensor = options['insitu_options']['sensor']
+        satellite_sensor = options['satellite_options']['satellite'] # A and B
 
         # create list of MDBs
         type_product = 'MDB'
-        res = config_val['satellite_options']['resolution']
+        res = options['satellite_options']['resolution']
         wce = f'"{type_product}*{satellite_sensor}*{res}*{insitu_sensor}*.nc"' # wild card expression
         path_to_list = create_list_MDBs(path_to_source,output_directory,wce,type_product)
 
         with open(path_to_list) as file:
             for idx, line in enumerate(file):
-                print(idx)
-                MDBfile = line[:-1]
-                print(MDBfile)
+                # print(idx)
+                MDBfile_path = line[:-1]
+                input_list.append(MDBfile_path)        
                 
-#%%                
+        #definition of flags
+        flag_list = str(options['Filtering_options']['flags'])
+        flag_list = flag_list.replace(" ", "")
+        flag_list = str.split(flag_list,',')
+        # flagging = flag.Class_Flags_OLCI()
+        #extracting data from MDB
+        MDB_index = 0
+        check = 0
+
+        for MDBS in input_list:
+            # open each MDB
+            print(MDBS)
+            nc = Dataset(os.path.join(MDBS))
+            
+            #check if it is an AERONET MDB
+            if nc.satellite+nc.platform == str(options['satellite_options']['satellite']).replace(" ", "").upper()+str(options['satellite_options']['platform']).replace(" ", ""):
+                #import current MDB variables
+                aero_bands = nc.variables['insitu_bands'][:]
+                olci_bands = nc.variables['satellite_bands'][:]
+                self.aero_bands = aero_bands
+                self.olci_bands = olci_bands
+                nc.satellite_stop_time
+                curr_satellite_date = nc.satellite_stop_time
+#                 curr_level = nc.variables[options['insitu_prefix']+'level'][:]
+                curr_insitu_date = nc.variables['insitu_time'][:]
+                print(curr_satellite_date)
+                print(curr_insitu_date)
+#                 curr_site = nc.variables[options['insitu_prefix']+'site_name'][:]
+#                 #mask by selected sites and period
+#                 mask_site = np.ones(nc.variables[options['sat_prefix'] +'time'][:].shape)
+#                 for selected_site in site_list:
+#                     mask_site [np.where(curr_site == selected_site)] = 0
+#                 if options['sites'] == 'ALL':
+#                     mask_site = mask_site * 0
+#                 mask_site [np.where(curr_satellite_date > endDate)] = 1
+#                 mask_site [np.where(curr_satellite_date < startDate)] = 1
+#                 #mask by quality level for AERONET data
+#                 mask_level = np.zeros(curr_level.shape)
+#                 mask_level[np.ma.where(curr_level < float(options['aeronet_level_min']))] = 1
+#                 #QA_insitu = nc.variables[options['insitu_prefix']+'QA'][:]
+#                 #if int(options['qa']) == 0:
+#                 #    pass
+#                 #else:
+#                 #    QA_mask = QA_insitu >= float(options['qa'])
+#                 #    mask_level[~QA_mask] = 1
+#                 curr_site = np.ma.masked_array(curr_site,mask_site)
+#                 curr_pdu = np.ma.masked_array(nc.variables[options['sat_prefix'] +'PDU'][:],mask_site)
+#                 curr_satellite_date = np.ma.masked_array(curr_satellite_date,mask_site)
+#                 curr_mb = np.ma.empty((nc.variables[options['sat_prefix'] +'time'].size,0))  
+#                 curr_mb_std = np.ma.empty((nc.variables[options['sat_prefix'] +'time'].size,0))
+#                 curr_mbAER = np.ma.empty((nc.variables[options['sat_prefix'] +'time'].size,0))
+#                 curr_mbAERmin = np.ma.empty((nc.variables[options['sat_prefix'] +'time'].size,0))
+#                 curr_mbAERmax = np.ma.empty((nc.variables[options['sat_prefix'] +'time'].size,0))
+#                 curr_mbAERnum = np.ma.empty((nc.variables[options['sat_prefix'] +'time'].size,0))
+#                 #time difference mask for AERONET data
+#                 time_diff = nc.variables['time_difference'][:]
+#                 mask_time = np.zeros(time_diff.shape)
+#                 mask_time [np.ma.where(time_diff > delta_t)] = 1
+#                 time_diff = np.ma.masked_array(time_diff,mask_time)
+#                 #angles mask
+#                 OZA = nc.variables[options['sat_prefix'] +'OZA'][:,central_pixel - int(np.floor(dim_window/2)) : central_pixel+ int(np.floor(dim_window / 2)) + 1,central_pixel
+#                                                                  - int(np.floor(dim_window / 2)) : central_pixel + int(np.floor(dim_window / 2)) + 1]
+#                 OZA = np.ma.masked_array(OZA,OZA > float(options['sensor_zenith_max']))
+#                 SZA = nc.variables[options['sat_prefix'] +'SZA'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                                                                  - int(np.floor(dim_window / 2)) : central_pixel + int(np.floor(dim_window / 2)) + 1]
+#                 SZA = np.ma.masked_array(SZA,SZA > float(options['sun_zenith_max']))
+#                 #flags mask
+#                 if (str(flag_list[0])) != 'None':
+#                     mask = flagging.Mask(nc.variables[options['sat_prefix'] +'WQSF'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                                                                                      - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1],(flag_list))
+#                     mask [np.where(mask != 0)] = 1
+#                 else: 
+#                     mask = np.full(nc.variables[options['sat_prefix'] +'WQSF'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                                                                                - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1].shape,0,dtype=int)
+#                 #NTP = Nuber of Total non-LAND Pixels
+#                 land = flagging.Mask(nc.variables[options['sat_prefix'] +'WQSF'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                                                                                  - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1],(['LAND']))
+#                 inland_w = flagging.Mask(nc.variables[options['sat_prefix'] +'WQSF'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                                                                                      - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1],(['INLAND_WATER']))
+#                 land[np.where(inland_w > 0)] = 0
+#                 NTP = np.power(dim_window,2) - np.sum(land,axis=(1,2))
+#                 #extracting date and level (masked through selected OLCI flags)
+#                 band_index = 0
+#                 cv_412 = np.ma.empty((curr_satellite_date.size,0))
+#                 curr_insitu_date = np.ma.masked_array(curr_insitu_date,mask_time)
+#                 curr_insitu_date = np.ma.masked_array(curr_insitu_date,mask_level)
+#                 curr_level = np.ma.masked_array(curr_level,mask_level)
+#                 curr_level = np.ma.masked_array(curr_level,mask_time)
+#                 #take the first not filtered (by quality level) spectrum 
+#                 validAERindex = np.ma.zeros(nc.dimensions[options['sat_prefix'] +'id'].size,dtype = int)
+#                 validAeroDate = np.ma.empty(nc.dimensions[options['sat_prefix'] +'id'].size)
+#                 validAeroLevel = np.ma.empty(nc.dimensions[options['sat_prefix'] +'id'].size)
+#                 for pos in range (0, nc.dimensions[options['sat_prefix'] +'id'].size):
+#                         try:
+#                             validAERindex [pos] = int(np.min(np.where(curr_insitu_date[pos,:].mask == 0)))
+#                         except ValueError:
+#                             validAERindex [pos] = np.int(0)
+#                         validAeroDate [pos] = curr_insitu_date[pos,validAERindex[pos]]
+#                         validAeroLevel [pos] = curr_level[pos,validAERindex[pos]]
+
+#                 #extracting Rrs from dim_window X dim_window area
+#                 for var in nc.variables:
+#                     if options['sat_prefix'] in var and ('Rrs' in var or options['sat_prefix'] +'T865' in var):
+#                         curr_rrs = np.ma.masked_array(nc.variables[var][:,central_pixel - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2) + 1),central_pixel 
+#                                                                         - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1],np.ndarray.astype((mask),int))
+#                         #retrieve Rrs values without BRDF applied
+#                         if (options['brdf'] == 'False' or options['brdf'] == 'F' 
+#                             or options['brdf'] == 'FALSE') and band_index < options['brdf_n_bands'] and var != options['sat_prefix'] +'T865':
+#                             curr_brdf = nc.variables[options['sat_prefix'] +'BRDF'][:,central_pixel  - int(np.floor(dim_window/2)):central_pixel 
+#                                                                  + int(np.floor(dim_window/2)+1),central_pixel  - int(np.floor(dim_window/2)):central_pixel 
+#                                                                  + int(np.floor(dim_window/2))+1,band_index]
+#                             curr_brdf[curr_brdf.mask] = 1
+#                             curr_rrs = np.ma.divide(curr_rrs,curr_brdf)
+#                         numberValid = np.ma.count(curr_rrs,axis = (1,2))
+                        
+#                         curr_rrs = np.ma.masked_array(curr_rrs,OZA.mask)
+#                         curr_rrs = np.ma.masked_array(curr_rrs,SZA.mask)                        
+#                         curr_mean = np.ma.mean(curr_rrs, axis = (1,2))
+#                         curr_std = np.ma.std(curr_rrs, axis = (1,2))
+#                         #calculate and filter by Mean+1.5*std and recalculate mean 
+#                         unfilMean = np.ma.repeat(curr_mean[:,np.newaxis,np.newaxis],dim_window,axis=1)
+#                         unfilMean = np.ma.repeat(unfilMean,dim_window,axis=2)
+#                         unfilstd = np.ma.repeat(curr_std[:,np.newaxis,np.newaxis],dim_window,axis=1)
+#                         unfilstd = np.ma.repeat(unfilstd,dim_window,axis=2)
+#                         tresh_up = unfilMean + 1.5 * unfilstd
+#                         tresh_bottom = unfilMean - 1.5 * unfilstd
+#                         mask_outlier = np.ma.zeros(curr_rrs.shape)
+#                         mask_outlier[np.where(curr_rrs - tresh_up > 0)] = 1 
+#                         mask_outlier[np.where(tresh_bottom - curr_rrs > 0)] = 1
+#                         if options['outliers'] == 'False' or options['outliers'] == 'F' or options['outliers'] == 'FALSE':
+#                             mask_outlier = mask_outlier * 0
+#                         curr_rrs_filtered = np.ma.masked_array(curr_rrs,mask_outlier)
+#                         curr_mean = np.ma.median(curr_rrs_filtered, axis = (1,2))
+#                         curr_mean = np.ma.masked_array(curr_mean,mask_site)
+#                         curr_std = np.ma.std(curr_rrs_filtered, axis = (1,2))
+#                         curr_std = np.ma.masked_array(curr_std,mask_site)
+#                         #mask out whole matchup if #of valid pixel < defined trheshold * NTP
+#                         curr_mean = np.ma.masked_array(curr_mean,numberValid < float(options['valid_min_pixel']) * NTP)
+#                         curr_std = np.ma.masked_array(curr_std,numberValid < float(options['valid_min_pixel']) * NTP) 
+#                         curr_cv = np.ma.divide(curr_std,curr_mean)
+#                         if (band_index < n_bands and olci_bands[band_index] == 560):
+#                             #name is 412 but is done on 560
+#                             cv_412 = np.ma.append(cv_412,curr_cv[:,np.newaxis],axis = 1)
+#                         if var != options['sat_prefix'] +'T865':
+#                             curr_mean = curr_mean.reshape(curr_mean.size,1)
+#                             curr_std = curr_std.reshape(curr_std.size,1)
+#                             curr_mb = np.ma.append(curr_mb,curr_mean,axis =1)
+#                             curr_mb_std = np.ma.append(curr_mb_std,curr_std,axis =1)
+#                             band_index += 1
+#                     if options['insitu_prefix'] in var and 'Rrs' in var:
+#                         if 'bands' in var or 'applied_shift' in var:
+#                             pass
+#                         else:
+#                             #read aeronet values and filter for time_difference and quality level. 
+#                             #Take the closest valid data using validAERindex 
+#                             currAER = np.ma.masked_array(nc.variables[var][:],mask_time)
+#                             curr_shift = np.ma.masked_array(nc.variables[var + '_applied_shift'][:]).astype(int)
+#                             currAER = np.ma.masked_array(currAER,mask_level)
+#                             if options['bandshifting'] in (['FALSE','False','F']) :
+#                                 currAER = np.ma.masked_array(currAER,curr_shift)
+#                             currAERmin = np.ma.min(currAER,axis = 1)
+#                             currAERmax = np.ma.max(currAER,axis = 1)
+#                             currAERnum = np.ma.count(currAER,axis = 1)
+#                             validAER = np.ma.empty(currAER[:,0].shape)
+#                             for pos in range (0, nc.dimensions[options['sat_prefix'] +'id'].size):
+#                                 validAER [pos] = currAER[pos,validAERindex[pos]]
+#                             curr_mbAER = np.ma.append(curr_mbAER,np.ma.reshape(validAER,(currAER[:,0].size,1)),axis = 1)
+#                             curr_mbAERmin = np.ma.append(curr_mbAERmin,np.ma.reshape(currAERmin,(currAERmin.size,1)),axis = 1)
+#                             curr_mbAERmax = np.ma.append(curr_mbAERmax,np.ma.reshape(currAERmax,(currAERmax.size,1)),axis = 1)
+#                             curr_mbAERnum = np.ma.append(curr_mbAERnum,np.ma.reshape(currAERnum,(currAERnum.size,1)),axis = 1)
+#                 #filter out whole matchups if coefficient of variation at 560 > threshold
+#                 cv_412 = np.median(cv_412,axis = 1)
+#                 cv_412 = np.abs(np.repeat(np.reshape(cv_412,(cv_412.size,1)),self.n_bands,axis = 1))
+#                 cv_412 = np.ma.masked_greater(cv_412,float(options ['cv_max']))
+#                 if options['cv_'].lower() == 'false':
+#                     cv_412.mask = cv_412.mask * 0
+#                 curr_mb = np.ma.masked_array(curr_mb,cv_412.mask)
+#                 curr_mb = curr_mb.reshape(curr_mb.shape[0],n_bands)
+#                 curr_mb_std = np.ma.masked_array(curr_mb_std,cv_412.mask)
+#                 curr_mb_std = curr_mb_std.reshape(curr_mb_std.shape[0],n_bands)
+#                 curr_mbAER = curr_mbAER.reshape(curr_mbAER.shape[0],aero_bands.size)
+#                 curr_mbAERmin = curr_mbAERmin.reshape(curr_mbAERmin.shape[0],aero_bands.size)
+#                 curr_mbAERmax = curr_mbAERmax.reshape(curr_mbAERmax.shape[0],aero_bands.size)
+#                 curr_mbAERnum = curr_mbAERnum.reshape(curr_mbAERnum.shape[0],aero_bands.size)
+#                 self.RRS = np.ma.append(self.RRS,curr_mb,axis = 0)
+#                 self.RRS_std = np.ma.append(self.RRS_std,curr_mb_std,axis = 0) 
+#                 self.RRS_aeronet = np.ma.append(self.RRS_aeronet,curr_mbAER,axis = 0)
+#                 self.aeronet_max = np.ma.append(self.aeronet_max,curr_mbAERmax,axis = 0)
+#                 self.aeronet_min = np.ma.append(self.aeronet_min,curr_mbAERmin,axis = 0)
+#                 self.aeronet_num = np.ma.append(self.aeronet_num,curr_mbAERnum,axis = 0)
+#                 curr_site = np.ma.masked_array(curr_site,curr_mb[:,0].mask)
+#                 curr_satellite_date = np.ma.masked_array(curr_satellite_date,curr_mb[:,0].mask)
+#                 validAeroDate = np.ma.masked_array(validAeroDate,curr_mb[:,0].mask)
+#                 validAeroLevel = np.ma.masked_array(validAeroLevel,curr_mb[:,0].mask)
+#                 self.date = np.ma.append(self.date,curr_satellite_date)
+#                 self.site = np.ma.append(self.site,curr_site)
+#                 self.pdu = np.ma.append(self.pdu,curr_pdu)
+#                 self.Aerodate = np.ma.append(self.Aerodate,validAeroDate)
+#                 self.Aerolevel = np.ma.append(self.Aerolevel,validAeroLevel)
+#                 check = 1
+#             else:
+#                 pass
+#         if check == 1:
+#                 nc.close()
+#                 return 1
+#         else:
+#              return 0         
+# #%%                
 # def main():
 """business logic for when running this module as the primary one!"""
 print('Main Code!')
 
 path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/'
 
+# Read config. file
 # config_file = file_config_parse.config_file
 config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
 
-if os.path.isfile (config_file) == True:
-    config_val = config_reader(config_file)
+if os.path.isfile(config_file) == True:
+    options = config_reader(config_file)
 else:
-    print (config_file + ' does not exist. Please provide a valid config file path')
+    print(config_file + ' does not exist. Please provide a valid config file path')
     sys.exit()
 
-PANTHYR_class(config_val)
+if options['insitu_options']['sensor'] == 'PANTHYR':
+    #read AERONET MDB
+    dataTOplot = PANTHYR_class(options)
+    # if dataTOplot.RRS.size == 0:
+    #     print ('no PANTHYR MDBs found!')
+    # elif np.sum(~dataTOplot.date.mask * ~dataTOplot.Aerodate.mask) == 0:
+    #     print ('no valid matchups found')
+    # else:
+    #     #plot data and save stats
+    #     [df_data,df_overall,header] = plot_matchups(dataTOplot,options)
+    #     write_csv_stat(df_data,df_overall,header,options)   
 
 
 #%%

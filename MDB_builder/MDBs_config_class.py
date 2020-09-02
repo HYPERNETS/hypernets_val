@@ -75,6 +75,157 @@ class MDBs_config(object):
                                 'Oa12_reflectance_err','Oa16_reflectance_err','Oa17_reflectance_err','Oa18_reflectance_err','Oa21_reflectance_err','CHL_OC4ME_err','CHL_NN_err','TSM_NN_err','ADG443_NN_err',
                                 'KD490_M07_err','T865_err','A865_err','PAR_err'])
         self.append_fields = list() 
+
+    def defaults_PANTHYR(self): 
+        '''
+        Specifies options for AERONET-OC data in MDBs. If any new AERONET site becomes available, it needs to be added, together with refeerences (PI and contacts)
+        '''
+        import numpy as np
+        #all possible wavelengths in original data
+        # self.all_original_bands = np.array([411,412,413,440,441,442,488,489,490,491,530,550,551,552,553,554,555,666,667,668,868,869,870,871,1017,1018,1019,1020,1021])   
+        #AERONET sites on lakes
+        # self.lakes = (['Palgrunden','Lake_Okeechobee','South_Greenbay','Lake_Erie'])
+        #list of variable included in AERONET QA ncf files 
+        # self.aero_original_1d = (['Julian_Day','Instrument_Number','Pressure','Wind_Speed','Chlorophyll','Sea_Surface_Reflectance','Ozone','time','QA','SAM'])#('level','lat',
+                                #'long','altitude' are attribute of the in situ ncf file and appended as costant values by
+                                #pass_aeronet_dataset.py)
+        #central nominal wavelength at which AERONET Version 2 data are grouped or shifted for Rrs. 
+        self.Rrs_bands_PANTHYR = np.array([\
+            355, 357.5, 360, 362.5, 365, 367.5, 370, 372.5, 375, 377.5,\
+            380, 382.5, 385, 387.5, 390, 392.5, 395, 397.5, 400, 402.5, 405, 407.5,\
+            410, 412.5, 415, 417.5, 420, 422.5, 425, 427.5, 430, 432.5, 435, 437.5,\
+            440, 442.5, 445, 447.5, 450, 452.5, 455, 457.5, 460, 462.5, 465, 467.5,\
+            470, 472.5, 475, 477.5, 480, 482.5, 485, 487.5, 490, 492.5, 495, 497.5,\
+            500, 502.5, 505, 507.5, 510, 512.5, 515, 517.5, 520, 522.5, 525, 527.5,\
+            530, 532.5, 535, 537.5, 540, 542.5, 545, 547.5, 550, 552.5, 555, 557.5,\
+            560, 562.5, 565, 567.5, 570, 572.5, 575, 577.5, 580, 582.5, 585, 587.5,\
+            590, 592.5, 595, 597.5, 600, 602.5, 605, 607.5, 610, 612.5, 615, 617.5,\
+            620, 622.5, 625, 627.5, 630, 632.5, 635, 637.5, 640, 642.5, 645, 647.5,\
+            650, 652.5, 655, 657.5, 660, 662.5, 665, 667.5, 670, 672.5, 675, 677.5,\
+            680, 682.5, 685, 687.5, 690, 692.5, 695, 697.5, 700, 702.5, 705, 707.5,\
+            710, 712.5, 715, 717.5, 720, 722.5, 725, 727.5, 730, 732.5, 735, 737.5,\
+            740, 742.5, 745, 747.5, 750, 752.5, 755, 757.5, 760, 762.5, 765, 767.5,\
+            770, 772.5, 775, 777.5, 780, 782.5, 785, 787.5, 790, 792.5, 795, 797.5,\
+            800, 802.5, 805, 807.5, 810, 812.5, 815, 817.5, 820, 822.5, 825, 827.5,\
+            830, 832.5, 835, 837.5, 840, 842.5, 845, 847.5, 850, 852.5, 855, 857.5,\
+            860, 862.5, 865, 867.5, 870, 872.5, 875, 877.5, 880, 882.5, 885, 887.5,\
+            890, 892.5, 895, 897.5, 900, 902.5, 905, 907.5, 910, 912.5, 915, 917.5,\
+            920, 922.5, 925, 927.5, 930, 932.5, 935, 937.5, 940, 942.5, 945])
+       
+        self.Rrs_Nbands_PANTHYR = self.Rrs_bands_PANTHYR.size
+        
+        #list of AERONET variables to be included in MDBs, divided according to final dimensions and sorted as desired,
+        #corresponding units and descriptions. Remeber that Lwn_fQ is stored in group in AERONET files
+        # self.groups3D = np.array(['Lw','Lw_Q','Lwn','Lwn_fQ','Lt_Mean','Lt_Stddev','Lt_Min_rel','Li_Mean_val','Li_Stddev',
+        #                          'AOT','OOT','ROT','Solar_Zenith','Solar_Azimuth','ExactWavelength','F0'])
+        # self.units3D = np.array(['mW.cm-2.sr-1.um-1','mW.cm-2.sr-1.um-1','mW.cm-2.sr-1.um-1','mW.cm-2.sr-1.um-1',
+        #                         'mW.cm-2.sr-1.um-1','mW.cm-2.sr-1.um-1','mW.cm-2.sr-1.um-1','mW.cm-2.sr-1.um-1',
+        #                         'mW.cm-2.sr-1.um-1','-','-','-','degrees','degrees','nm','mW.m-2.nm-1'])
+        # self.description3D = np.array(['AERONET-OC Water-Leaving Radiance','AERONET-OC Water-Leaving Radiance corrected for viewing angle dependence' ,'AERONET-OC Normalized Water-Leaving Radiance determined from Lw (i.e., not corrected for the viewing angle dependence and for the effects of the non-isotropic distribution of the in-water light field','AERONET-OC Normalized Water-Leaving Radiance determined from Lw_Q corrected for the effects of the non-isotropic distribution of the in-water radiance field (i.e., f/Q Corrected)', 'AERONET-OC Mean of 11 Above-Water Total Radiance Measurements','AERONET-OC Standard Deviation of 11 Above-Water Total Radiance Measurements','AERONET-OC Mean of Lowest Two of 11 Above-Water Total Radiance Measurements','AERONET-OC Mean of 3 Sky Radiance Measurements','AERONET-OC Standard Deviation of 3 Sky Radiance Measurement','AERONET-OC Aerosol Optical Thickness','AERONET-OC Ozone Optical Thickness','AERONET-OC Rayleigh Optical Thickness','AERONET-OC Solar Zenith Angle','AERONET-OC Solar Azimuth Angle','AERONET-OC exact wavelength','Thuillier et al. (2003) solar irradiance resampled for AERONET-OC exact wavelength, used for Lwn_fQ to Rrs conversion'])
+        
+        # self.var2D_1 = np.array(['Julian_Day'])
+        # self.units2D_1 = np.array(['-'])
+        # self.description2D_1 = np.array(['AERONET-OC acquisition time in days from January 1st'])
+        # for b in self.band_index:
+        #     self.var2D_1 = np.append(self.var2D_1, "Oa%02d_Rrs" %b) #mandatory
+        #     self.description2D_1 = np.append(self.description2D_1,'Above water Remote Sensing Reflectance for AERONET-OC acquisition at %d nm obtained from Lwn_fQ' %float(self.sensor_bands[self.band_index == b]))
+        #     self.units2D_1 = np.append(self.units2D_1,'sr-1')
+        # for b in self.band_index:
+        #     self.var2D_1 = np.append(self.var2D_1,'Oa%02d_Rrs_applied_shift' %b) #mandatory 
+        #     self.description2D_1 = np.append(self.description2D_1,'True if values at %d nm is derived trhough band_shifting correction' %float(self.sensor_bands[self.band_index == b]))
+        #     self.units2D_1 = np.append(self.units2D_1,'-')
+        # self.units2D_1 = np.append(self.units2D_1,np.array(['mg.m-3','-','-','degrees']))
+        # self.description2D_1 = np.append(
+        #         self.description2D_1,np.array(['AERONET-OC Chlorophyll-a','AERONET-OC Sea Surface Reflectance',
+        #                                        'Quality level based on SAM','Spectral Angle Mapper for AERONET-OC spectrum']))
+        # self.var2D_1 = np.append(self.var2D_1,np.array(
+        #     ['Chlorophyll','Sea_Surface_Reflectance','QA','SAM']))
+        # self.var2D_2 = np.array(['Instrument_Number','level','lat','long','altitude','Pressure','Wind_Speed','Ozone'])
+        # self.units2D_2 = np.array(['-','-','degrees_north','degrees_east','m','hPa','m.s-1','Dobson_Units'])
+        # self.description2D_2 = np.array(['AERONET-OC Instrument Number','AERONET-OC quality level',
+        #                                  'Latitude for AERONET-OC site','Longitude for AERONET-OC site',
+        #                                  'Altitude for AERONET-OC site','Atmospheric Pressure at AERONET-OC site',
+        #                                  'Wind Speed at AERONET-OC site','Ozone at AERONET-OC site'])
+        self.site_list = (['Venise'])        
+        # self.PIs = {'ARIAKE_TOWER':'Joji Ishizaka, Kohei Arai',
+        #             'Bahia_Blanca':'Brent Holben',
+        #             'Blyth_NOAH':'Rodney Forster',
+        #             'Casablanca_Platform':'Giuseppe Zibordi, Marco Talone',
+        #             'COVE_SEAPRISM':'Brent Holben',
+        #             'Galata_Platform':'Giuseppe Zibordi',
+        #             'Gloria':'Giuseppe Zibordi',
+        #             'GOT_Seaprism':'Brent Holben',
+        #             'Grizzly_Bay':'Nima Pahlevan',
+        #             'Gustav_Dalen_Tower': 'Giuseppe Zibordi',
+        #             'HBOI':'Nima Pahlevan',
+        #             'Helsinki_Lighthouse':'Giuseppe Zibordi',
+        #             'Ieodo_Station':'Young-Je Park, Hak-Yeol You', 
+        #             'Irbe_Lighthouse':'Giuseppe Zibordi',
+        #             'Kemigawa_Offshore': 'Brent_Holben',
+        #             'Lake_Erie':'Tim Moore, Steve Ruberg, Menghua Wang',
+        #             'Lake_Okeechobee':'Nima Pahlevan',
+        #             'LISCO':'Sam Ahmed, Alex Gilerson',
+        #             'Lucinda':'Thomas Schroeder',
+        #             'MVCO':'Hui Feng, Heidi M. Sosik',
+        #             'Palgrunden':'Susanne Kratzer',
+        #             'Section-7_Platform':'Giuseppe Zibordi',
+        #             'Socheongcho':'Young-Je Park',
+        #             'South_Greenbay':'Nima Pahlevan',
+        #             'Thornton_C-power':'Dimitry Van der Zande',
+        #             'USC_SEAPRISM':'Nick Tufillaro',
+        #             'USC_SEAPRISM_2':'Nick Tufillaro',
+        #             'Venise':'Giuseppe Zibordi',
+        #             'WaveCIS_Site_CSI_6':'Alan Weidemann, Bill Gibson, Robert Arnone',
+        #             'Zeebrugge-MOW1':'Dimitry Van der Zande'                  
+        #             }
+        # self.PIs_mail = {'ARIAKE_TOWER':'Jishizaka@nagoya-u.jp, arai@cc.saga-u.ac.jp',
+        #                  'Blyth_NOAH':'r.forster@hull.ac.uk',
+        #                  'Bahia_Blanca':'Brent.N.Holben@nasa.gov',
+        #                  'Casablanca_Platform':'giuseppe.zibordi@ec.europa.eu, marco.talone@ec.europa.eu',
+        #                  'COVE_SEAPRISM':'Brent.N.Holben@nasa.gov',
+        #                  'Galata_Platform':'giuseppe.zibordi@ec.europa.eu',
+        #                  'Gloria':'giuseppe.zibordi@ec.europa.eu',                         
+        #                  'GOT_Seaprism':'Brent.N.Holben@nasa.gov',
+        #                  'Grizzly_Bay': 'nima.pahlevan@nasa.gov',
+        #                  'Gustav_Dalen_Tower':'giuseppe.zibordi@ec.europa.eu',
+        #                  'HBOI':'nima.pahlevan@nasa.gov',
+        #                  'Helsinki_Lighthouse':'giuseppe.zibordi@ec.europa.eu',
+        #                  'Ieodo_Station':'youngjepark@kiost.ac,peterhak@korea.kr',
+        #                  'Irbe_Lighthouse':'giuseppe.zibordi@ec.europa.eu',
+        #                  'Kemigawa_Offshore':'Brent.N.Holben@nasa.gov',
+        #                  'Lake_Erie':'timothy.moore@unh.edu, steve.ruberg@noaa.gov, Menghua.Wang@noaa.gov',
+        #                  'Lake_Okeechobee':'nima.pahlevan@nasa.gov',
+        #                  'LISCO':'ahmed@ccny.cuny.edu, gilerson@ccny.cuny.edu',
+        #                  'Lucinda':'Thomas.Schroeder@csiro.au',
+        #                  'MVCO':'Hui.Feng@unh.edu, hsosik@whoi.edu',
+        #                  'Palgrunden':'Susanne.Kratzer@su.se',
+        #                  'Section-7_Platform':'giuseppe.zibordi@ec.europa.eu',
+        #                  'Socheongcho':'youngjepark@kiost.ac',
+        #                  'South_Greenbay':'nima.pahlevan@nasa.gov',
+        #                  'Thornton_C-power':'dvanderzande@naturalsciences.be',
+        #                  'USC_SEAPRISM':'nbt@coas.oregonstate.edu',
+        #                  'USC_SEAPRISM_2':'nbt@coas.oregonstate.edu',
+        #                  'Venise':'giuseppe.zibordi@ec.europa.eu',
+        #                  'WaveCIS_Site_CSI_6':'Alan.Weidemann@nrlssc.navy.mil, bgibson@lsu.edu, Robert.Arnone@usm.edu',
+        #                  'Zeebrugge-MOW1':'dvanderzande@naturalsciences.be'
+        #                  }
+
+        # #AERONET MDB attributes
+        # self.description = "S3A OLCI WFR L2 - AERONET-OC Matchups Data Base"
+        # self.description_B = "S3B OLCI WFR L2 - AERONET-OC Matchups Data Base"
+        # self.description_L1 = "S3A OLCI EFR L1 - AERONET-OC Matchups Data Base"
+        # self.description_L1_B = "S3B OLCI EFR L1 - AERONET-OC Matchups Data Base"
+        # self.data_usage = ('Notice to users: AERONET-OC data have been downloaded from https://aeronet.gsfc.nasa.gov/cgi-bin/type_piece_of_map_seaprism_new. The applicable data policies must be followed. Please check at https://aeronet.gsfc.nasa.gov/cgi-bin/type_piece_of_map_seaprism_new about Data Usage Policy')
+        
+        # #list of variables to be excluded
+        # self.aero_exclude = (['QA'])
+        
+        # ##params for banshifting
+        # self.QAA_g0 = 0.08945 #Melin&Sclep, 2015
+        # self.QAA_g1 = 0.1247   #Melin&Sclep, 2015 
+        # self.DlambdaMAX_vis = 1 #nm: max distance for which bandshifting is not required in VIS
+        # self.DlambdaMAX_NIR = 6 #nm: max distance for which bands are compared in NIR
+            
         
     def defaults_AERONET(self): 
         '''

@@ -72,6 +72,7 @@ from netCDF4 import Dataset
 import numpy as np
 import numpy.ma as ma
 from datetime import datetime
+from datetime import timedelta
 import pandas as pd
 
 # import user defined functions from other .py
@@ -87,8 +88,9 @@ import argparse
 parser = argparse.ArgumentParser(description="Create list of OLCI WFR files from DataArchive in the virtual machine.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
+parser.add_argument('-e', "--enddate", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR ")
-parser.add_argument('-n', "--nolist", help="Do not create satellite andpin situ lists.",action="store_true")
+parser.add_argument('-n', "--nolist", help="Do not create satellite and in situ lists.",action="store_true")
 
 args = parser.parse_args()
 
@@ -307,10 +309,19 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             filename = path_source.split('/')[-1].replace('.','_')+'_extract_'+station_name+'.nc'
             ofname = os.path.join(path_out,filename)
             
+            print(filename)
+
+            satellite = filename[0:2]
+            platform = filename[2]
+            sensor = 'olci'
+            
             if os.path.exists(ofname):
               os.remove(ofname)
             
             fmb = Dataset(ofname, 'w', format='NETCDF4')
+            fmb.satellite = satellite
+            fmb.platform = platform
+            fmb.sensor = sensor
             fmb.description = f'OLCI {size_box}x{size_box} extract'
             fmb.satellite_start_time = nc_f0.start_time
             fmb.satellite_stop_time = nc_f0.stop_time    
@@ -322,6 +333,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             fmb.satellite_vza = vza
             fmb.satellite_vaa = vaa
             
+            fmb.insitu_site_name = station_name
             fmb.insitu_lat = in_situ_lat
             fmb.insitu_lon = in_situ_lon
             
@@ -510,6 +522,9 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
       
     # append to nc file
     nc_f0 = copy_nc(extract_path,ofile)
+
+    # add time window diff
+    nc_f0.time_diff = time_window*60*60 # in seconds
     
     # create in situ dimensions
     nc_f0.createDimension('insitu_id', None)
@@ -571,24 +586,23 @@ def main():
     if sys.platform == 'linux':
         satellite_path_source1 = '/dst04-data1/OC/OLCI'
         satellite_path_source2 = 'trimmed_sources/'
-        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)
-        
-        insitu_path_source = '/store3/PANTHYR/AAOT/data'
-        
+        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2) 
+        insitu_path_source = '/store3/PANTHYR/AAOT/data'   
         path_out = '/home/Javier.Concha/MDB_py/ODATA'
     elif sys.platform == 'darwin':
         # satellite_path_source = os.path.join(code_home,'IDATA','SAT','S3A')
         satellite_path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
         satellite_path_source2 = 'trimmed_sources/'
-        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)
-        
-        insitu_path_source = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data'
-        
+        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)  
+        insitu_path_source = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data' 
         path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA'
     else:
         print('Error: host flag is not either mac or vm')
     print('Main Code!')
     
+    if args.debug:
+        path_out = path_out + '/test/'
+        print('Entering Debugging Mode:')
     
     # look for in situ data within t hours
     # save nc file
@@ -638,7 +652,13 @@ def main():
     else:
         datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
         
-    print(datetime_start)     
+    if args.enddate:
+        datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59,minutes=59,hours=23)
+    else:
+        datetime_end = datetime.today()      
+         
+    print(datetime_start)  
+    print(datetime_end)
     
     with open(path_to_satellite_list,'r') as file:
             for cnt, line in enumerate(file):
@@ -648,13 +668,12 @@ def main():
                 res_str = path_to_sat_source.split('/')[-1].split('_')[3]
                 datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
                 
-                if args.debug:
-                    print('-----------------')
-                    print(f'{datetime_str} {sensor_str} {res_str}')
-                
                 date_format = '%Y%m%dT%H%M%S'
                 satellite_datetime = datetime.strptime(datetime_str, date_format)
-                if satellite_datetime >= datetime_start:
+                if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
+                    if args.debug:
+                        print('-----------------')
+                        print(f'{datetime_str} {sensor_str} {res_str}')
                     try:              
                         path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
                         if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
