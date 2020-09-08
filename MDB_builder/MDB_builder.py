@@ -137,7 +137,7 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
 
     return ws0, ws1, sza, saa, vza, vaa
 
-def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon,res_str):
+def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon,res_str,insitu_sensor):
     
     #% open nc file
     coordinates_filename = 'geo_coordinates.nc'
@@ -319,23 +319,31 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
               os.remove(ofname)
             
             fmb = Dataset(ofname, 'w', format='NETCDF4')
+            fmb.MDB_version = '0.0'
+            fmb.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")            
             fmb.satellite = satellite
             fmb.platform = platform
             fmb.sensor = sensor
-            fmb.description = f'OLCI {size_box}x{size_box} extract'
+            fmb.description = f'{satellite}{platform} {sensor.upper()} {res_str} L2 - {insitu_sensor} Matchup Data Base'
             fmb.satellite_start_time = nc_f0.start_time
             fmb.satellite_stop_time = nc_f0.stop_time    
-            fmb.satellite_input_file = path_source
-            fmb.satellite_ws0 = ws0
-            fmb.satellite_ws1 = ws1
-            fmb.satellite_sza = sza
-            fmb.satellite_saa = saa
-            fmb.satellite_vza = vza
-            fmb.satellite_vaa = vaa
-            
+            fmb.satellite_PDU = path_source.split('/')[-1]
+            fmb.satellite_path_source = path_source
+            fmb.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
+
+            fmb.datapolicy = 'Notice to users: Add data policy'
+            fmb.insitu_sensor_processor_version = '0.0'
             fmb.insitu_site_name = station_name
+
             fmb.insitu_lat = in_situ_lat
             fmb.insitu_lon = in_situ_lon
+
+            fmb.satellite_ws0 = ws0
+            fmb.satellite_ws1 = ws1
+            fmb.satellite_SZA_center_pixel = sza
+            fmb.satellite_SAA_center_pixel = saa
+            fmb.satellite_VZA_center_pixel = vza
+            fmb.satellite_VAA_center_pixel = vaa
             
             # dimensions
             fmb.createDimension('satellite_size_box_x', size_box)
@@ -343,7 +351,17 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             fmb.createDimension('satellite_bands', 16)
             fmb.createDimension('satellite_BRDF_bands', 7)
             
-            # variables            
+            # variables  
+            # satellite_SZA = fmb.createVariable('satellite_SZA', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            # satellite_SZA[:] = [SZA[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+            # satellite_SZA.long_name = 'Sun Zenith Angle'
+            # satellite_SZA.long_name = 'Sun Zenith Angle'    
+            # satellite_SZA.units = 'degrees'
+# SZA
+# SAA
+# OZA
+# OAA
+
             satellite_latitude = fmb.createVariable('satellite_latitude',  'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6) 
             satellite_latitude[:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
             
@@ -359,7 +377,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_BRDF_bands[:] = [412.50,442.50,490.00,510.00,560.00,620.00,665.00]
     
             # NOT BRDF-corrected
-            satellite_rhow=fmb.createVariable('satellite_rhow', 'f4', ('satellite_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_rhow = fmb.createVariable('satellite_rhow', 'f4', ('satellite_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
             satellite_rhow[0,:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_rhow[1,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_rhow[2,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
@@ -379,7 +397,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_rhow.description = 'Satellite rhow.'
             
             # BRDF-corrected
-            satellite_BRDF_rhow=fmb.createVariable('satellite_BRDF_rhow', 'f4', ('satellite_BRDF_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_rhow = fmb.createVariable('satellite_BRDF_rhow', 'f4', ('satellite_BRDF_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
             satellite_BRDF_rhow[0,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
             satellite_BRDF_rhow[1,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
             satellite_BRDF_rhow[2,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
@@ -389,23 +407,23 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_BRDF_rhow[6,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
             satellite_BRDF_rhow.description = 'Satellite rhow BRDF-corrected'
             
-            satellite_AOT_0865p50_box=fmb.createVariable('satellite_AOT_0865p50', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_AOT_0865p50_box = fmb.createVariable('satellite_AOT_0865p50', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
             satellite_AOT_0865p50_box[:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
     
-            satellite_WQSF=fmb.createVariable('satellite_WQSF', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_WQSF = fmb.createVariable('satellite_WQSF', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
             satellite_WQSF[:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
             
-            satellite_BRDF_fq = fmb.createVariable('satellite_BRDF_fq', 'f4', ('satellite_BRDF_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
-            satellite_BRDF_fq[0,:,:] = [ma.array(BRDF0)]
-            satellite_BRDF_fq[1,:,:] = [ma.array(BRDF1)]
-            satellite_BRDF_fq[2,:,:] = [ma.array(BRDF2)]
-            satellite_BRDF_fq[3,:,:] = [ma.array(BRDF3)]
-            satellite_BRDF_fq[4,:,:] = [ma.array(BRDF4)]
-            satellite_BRDF_fq[5,:,:] = [ma.array(BRDF5)]
-            satellite_BRDF_fq[6,:,:] = [ma.array(BRDF6)]
-            satellite_BRDF_fq.description = 'Satellite BRDF fq coefficients'
+            satellite_BRDF_fQ = fmb.createVariable('satellite_BRDF_fQ', 'f4', ('satellite_BRDF_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_fQ[0,:,:] = [ma.array(BRDF0)]
+            satellite_BRDF_fQ[1,:,:] = [ma.array(BRDF1)]
+            satellite_BRDF_fQ[2,:,:] = [ma.array(BRDF2)]
+            satellite_BRDF_fQ[3,:,:] = [ma.array(BRDF3)]
+            satellite_BRDF_fQ[4,:,:] = [ma.array(BRDF4)]
+            satellite_BRDF_fQ[5,:,:] = [ma.array(BRDF5)]
+            satellite_BRDF_fQ[6,:,:] = [ma.array(BRDF6)]
+            satellite_BRDF_fQ.description = 'Satellite BRDF fQ coefficients'
 
             satellite_chl_oc4me = fmb.createVariable('chl_oc4me', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
             satellite_chl_oc4me[:,:] = [ma.array(CHL_OC4ME_extract)]
@@ -524,7 +542,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     nc_f0 = copy_nc(extract_path,ofile)
 
     # add time window diff
-    nc_f0.time_diff = time_window*60*60 # in seconds
+    nc_f0.time_diff = f'{time_window*60*60}' # in seconds
     
     # create in situ dimensions
     nc_f0.createDimension('insitu_id', None)
@@ -657,8 +675,9 @@ def main():
     else:
         datetime_end = datetime.today()      
          
-    print(datetime_start)  
-    print(datetime_end)
+    if args.debug:
+        print(f'Start date: {datetime_start}')  
+        print(f'End date: {datetime_end}')
     
     with open(path_to_satellite_list,'r') as file:
             for cnt, line in enumerate(file):
@@ -678,7 +697,7 @@ def main():
                         path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
                         if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
                             extract_path = \
-                                create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str)
+                                create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)
                 
                             ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
                 
