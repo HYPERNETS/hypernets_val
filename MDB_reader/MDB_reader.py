@@ -40,7 +40,8 @@ import configparser
 code_home = os.path.abspath('../')
 sys.path.append(code_home)
 import COMMON.common_functions as cfs
-import COMMON.apply_OLCI_flags as apply_OLCI_flags
+# import COMMON.apply_OLCI_flags as apply_OLCI_flags
+import COMMON.Class_Flags_OLCI as flag
 
 #%%
 # create list of sat granules
@@ -377,36 +378,96 @@ class PANTHYR_class(object):
         flag_list = str(options['Filtering_options']['flags'])
         flag_list = flag_list.replace(" ", "")
         flag_list = str.split(flag_list,',')
-        # flagging = flag.Class_Flags_OLCI()
+        flagging = flag.Class_Flags_OLCI()
         #extracting data from MDB
         MDB_index = 0
         check = 0
 
-        for MDBS in input_list:
+        for MDBpath in input_list:
             # open each MDB
-            print(MDBS)
-            nc = Dataset(os.path.join(MDBS))
+            print('------------------')
+            print(MDBpath.split('/')[-1])
+            nc = Dataset(os.path.join(MDBpath))
             
             #check if it is an AERONET MDB
             if nc.satellite+nc.platform == str(options['satellite_options']['satellite']).replace(" ", "").upper()+str(options['satellite_options']['platform']).replace(" ", ""):
                 #import current MDB variables
-                aero_bands = nc.variables['insitu_bands'][:]
-                olci_bands = nc.variables['satellite_bands'][:]
-                self.aero_bands = aero_bands
-                self.olci_bands = olci_bands
+                insitu_bands = nc.variables['insitu_bands'][:] # insitu_bands(insitu_bands)
+                satellite_bands = nc.variables['satellite_bands'][:]
+
+                self.insitu_bands = insitu_bands
+                self.satellite_bands = satellite_bands
                 nc.satellite_stop_time
                 curr_satellite_date = nc.satellite_stop_time
 #                 curr_level = nc.variables[options['insitu_prefix']+'level'][:]
-                curr_insitu_date = nc.variables['insitu_time'][:]
-                print(curr_satellite_date)
-                print(curr_insitu_date)
-#                 curr_site = nc.variables[options['insitu_prefix']+'site_name'][:]
-#                 #mask by selected sites and period
-#                 mask_site = np.ones(nc.variables[options['sat_prefix'] +'time'][:].shape)
-#                 for selected_site in site_list:
-#                     mask_site [np.where(curr_site == selected_site)] = 0
-#                 if options['sites'] == 'ALL':
-#                     mask_site = mask_site * 0
+                curr_insitu_date = nc.variables['insitu_time'][:] # insitu_time(insitu_id)
+                curr_site = nc.insitu_site_name
+
+                time_difference = nc.variables['time_difference'][:]
+                index_time = np.argmin(np.abs(time_difference))
+
+                OZA = nc.satellite_VZA_center_pixel
+                SZA = nc.satellite_SZA_center_pixel
+                # print(f'OZA: {OZA:.1f}; SZA: {SZA:.1f}')
+
+                #flags mask
+                
+                satellite_WQSF = nc.variables['satellite_WQSF'][central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+                                                                        - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1]
+                if (str(flag_list[0])) != 'None':
+                    mask = flagging.Mask(satellite_WQSF,flag_list)
+                    mask [np.where(mask != 0)] = 1
+                else: 
+                    mask = np.full(satellite_WQSF.shape,0,dtype=int)
+                #NTP = Nuber of Total non-LAND Pixels
+                land = flagging.Mask(satellite_WQSF,(['LAND']))
+                inland_w = flagging.Mask(satellite_WQSF,(['INLAND_WATER']))
+                land[np.where(inland_w > 0)] = 0
+                NTP = np.power(dim_window,2) - np.sum(land,axis=(0,1))  
+
+                print(f'NTP: {NTP:.0f}')              
+
+                #extracting date and level (masked through selected OLCI flags)
+
+                if time_difference[index_time] < delta_t*60*60\
+                    and OZA <= float(options['Filtering_options']['sensor_zenith_max'])\
+                    and SZA <= float(options['Filtering_options']['sun_zenith_max']):
+                    print(f'time difference: {time_difference[index_time]}, within delta_t: {delta_t}')
+
+                    satellite_rhow = nc.variables['satellite_rhow'][:]
+                    for sat_band_index in range(0,satellite_rhow.shape[0]):
+                        wl = satellite_bands[sat_band_index]
+                        ins_band_index = np.argmin(np.abs(wl-insitu_bands))
+                        print(f'Closest in situ band to sat band {wl}: {insitu_bands[ins_band_index]} nm')
+    
+    
+                        curr_rrs = satellite_rhow[sat_band_index,central_pixel - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2) + 1),central_pixel 
+                                                                            - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1]
+                        curr_rrs_mean = curr_rrs.mean()
+                        curr_rrs_stdv = curr_rrs.std()
+    
+                        
+    
+                        if float(satellite_bands[sat_band_index]) == 560:
+                            curr_rrs_CV = curr_rrs_stdv/curr_rrs_mean
+                            print(f'Extract mean: {curr_rrs_mean:.4f}; stdev: {curr_rrs_stdv:.4f}, CV: {100*curr_rrs_CV:.4f} %')
+                        else: 
+                            print(f'Extract mean: {curr_rrs_mean:.4f}; stdev: {curr_rrs_stdv:.4f}')
+
+                # for var in nc.variables:
+                #     if 'satellite_rhow' in var: # float satellite_rhow(satellite_bands, satellite_size_box_x, satellite_size_box_y)
+                        
+                #         var[band_index,:,:]
+                #         print(var)
+
+                #         band_index += 1
+                
+                #mask by selected sites and period
+                # mask_site = np.ones(nc.variables[options['sat_prefix'] +'time'][:].shape)
+                # for selected_site in site_list:
+                #     mask_site [np.where(curr_site == selected_site)] = 0
+                # if options['sites'] == 'ALL':
+                #     mask_site = mask_site * 0
 #                 mask_site [np.where(curr_satellite_date > endDate)] = 1
 #                 mask_site [np.where(curr_satellite_date < startDate)] = 1
 #                 #mask by quality level for AERONET data
@@ -441,16 +502,16 @@ class PANTHYR_class(object):
 #                 SZA = np.ma.masked_array(SZA,SZA > float(options['sun_zenith_max']))
 #                 #flags mask
 #                 if (str(flag_list[0])) != 'None':
-#                     mask = flagging.Mask(nc.variables[options['sat_prefix'] +'WQSF'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                     mask = flagging.Mask(nc.variables['satellite_WQSF'][central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
 #                                                                                      - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1],(flag_list))
 #                     mask [np.where(mask != 0)] = 1
 #                 else: 
-#                     mask = np.full(nc.variables[options['sat_prefix'] +'WQSF'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                     mask = np.full(nc.variables['satellite_WQSF'][central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
 #                                                                                - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1].shape,0,dtype=int)
 #                 #NTP = Nuber of Total non-LAND Pixels
-#                 land = flagging.Mask(nc.variables[options['sat_prefix'] +'WQSF'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                 land = flagging.Mask(nc.variables['satellite_WQSF'][central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
 #                                                                                  - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1],(['LAND']))
-#                 inland_w = flagging.Mask(nc.variables[options['sat_prefix'] +'WQSF'][:,central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
+#                 inland_w = flagging.Mask(nc.variables['satellite_WQSF'][central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
 #                                                                                      - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1],(['INLAND_WATER']))
 #                 land[np.where(inland_w > 0)] = 0
 #                 NTP = np.power(dim_window,2) - np.sum(land,axis=(1,2))
@@ -513,7 +574,7 @@ class PANTHYR_class(object):
 #                         curr_mean = np.ma.masked_array(curr_mean,numberValid < float(options['valid_min_pixel']) * NTP)
 #                         curr_std = np.ma.masked_array(curr_std,numberValid < float(options['valid_min_pixel']) * NTP) 
 #                         curr_cv = np.ma.divide(curr_std,curr_mean)
-#                         if (band_index < n_bands and olci_bands[band_index] == 560):
+#                         if (band_index < n_bands and satellite_bands[band_index] == 560):
 #                             #name is 412 but is done on 560
 #                             cv_412 = np.ma.append(cv_412,curr_cv[:,np.newaxis],axis = 1)
 #                         if var != options['sat_prefix'] +'T865':
@@ -553,10 +614,10 @@ class PANTHYR_class(object):
 #                 curr_mb = curr_mb.reshape(curr_mb.shape[0],n_bands)
 #                 curr_mb_std = np.ma.masked_array(curr_mb_std,cv_412.mask)
 #                 curr_mb_std = curr_mb_std.reshape(curr_mb_std.shape[0],n_bands)
-#                 curr_mbAER = curr_mbAER.reshape(curr_mbAER.shape[0],aero_bands.size)
-#                 curr_mbAERmin = curr_mbAERmin.reshape(curr_mbAERmin.shape[0],aero_bands.size)
-#                 curr_mbAERmax = curr_mbAERmax.reshape(curr_mbAERmax.shape[0],aero_bands.size)
-#                 curr_mbAERnum = curr_mbAERnum.reshape(curr_mbAERnum.shape[0],aero_bands.size)
+#                 curr_mbAER = curr_mbAER.reshape(curr_mbAER.shape[0],insitu_bands.size)
+#                 curr_mbAERmin = curr_mbAERmin.reshape(curr_mbAERmin.shape[0],insitu_bands.size)
+#                 curr_mbAERmax = curr_mbAERmax.reshape(curr_mbAERmax.shape[0],insitu_bands.size)
+#                 curr_mbAERnum = curr_mbAERnum.reshape(curr_mbAERnum.shape[0],insitu_bands.size)
 #                 self.RRS = np.ma.append(self.RRS,curr_mb,axis = 0)
 #                 self.RRS_std = np.ma.append(self.RRS_std,curr_mb_std,axis = 0) 
 #                 self.RRS_aeronet = np.ma.append(self.RRS_aeronet,curr_mbAER,axis = 0)
