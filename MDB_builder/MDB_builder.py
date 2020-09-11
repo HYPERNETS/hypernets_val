@@ -87,6 +87,7 @@ os.environ['QT_QPA_PLATFORM']='offscreen' # to avoid error "QXcbConnection: Coul
 import argparse
 parser = argparse.ArgumentParser(description="Create list of OLCI WFR files from DataArchive in the virtual machine.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
+parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-e', "--enddate", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR ")
@@ -625,8 +626,10 @@ def main():
     print('Main Code!')
     
     if args.debug:
-        path_out = path_out + '/test/'
         print('Entering Debugging Mode:')
+
+    if args.test:
+        path_out = path_out + '/test/'
     
     # look for in situ data within t hours
     # save nc file

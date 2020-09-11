@@ -408,7 +408,7 @@ class PANTHYR_class(object):
 
                 OZA = nc.satellite_VZA_center_pixel
                 SZA = nc.satellite_SZA_center_pixel
-                # print(f'OZA: {OZA:.1f}; SZA: {SZA:.1f}')
+                print(f'OZA: {OZA:.1f}; SZA: {SZA:.1f}')
 
                 #flags mask
                 
