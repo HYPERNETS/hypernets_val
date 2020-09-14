@@ -71,7 +71,7 @@ def rmse(predictions, targets):
 
 #%% Get FO from Thuiller
 def get_F0(wl,path_main):
-    path_to_file = os.path.join(path_main,'Thuillier_F0.nc')
+    path_to_file = os.path.join('Thuillier_F0.nc')
     nc_f0 = Dataset(path_to_file,'r')
     Wavelength = nc_f0.variables['Wavelength'][:]
     F0 = nc_f0.variables['F0'][:]
