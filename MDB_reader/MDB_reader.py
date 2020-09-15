@@ -43,6 +43,25 @@ import COMMON.common_functions as cfs
 # import COMMON.apply_OLCI_flags as apply_OLCI_flags
 import COMMON.Class_Flags_OLCI as flag
 
+# for plotting
+color_dict = dict({\
+ '400.00':'LightBlue',\
+ '412.50':'DeepSkyBlue',\
+ '442.50':'DodgerBlue',\
+ '490.00':'Blue',\
+ '510.00':'ForestGreen',\
+ '560.00':'Green',\
+ '620.00':'LightCoral',\
+ '665.00':'Red',\
+ '673.75':'Crimson',\
+ '681.25':'FireBrick',\
+ '708.75':'Silver',\
+ '753.75':'Gray',\
+ '778.75':'DimGray',\
+ '865.00':'SlateGray',\
+ '885.00':'DarkSlateGray',\
+'1020.50':'Black'})
+
 #%%
 # create list of sat granules
 def create_list_MDBs(path_to_source,path_out,wce,type_product):
@@ -340,6 +359,14 @@ class PANTHYR_class(object):
         dim_window = int(options['satellite_options']['window_size'])
         dim_total = int(options['satellite_options']['miniprods_size'])
         central_pixel = int(np.floor(dim_total / 2))
+        
+        N_MUs = 0 # number of MUs
+
+        r_s = central_pixel - int(np.floor(dim_window/2))       # starting row
+        r_e = central_pixel + int(np.floor(dim_window/2)) + 1   # ending row
+        c_s = central_pixel - int(np.floor(dim_window/2))       # starting col
+        c_e = central_pixel + int(np.floor(dim_window/2)) + 1   # ending col
+
         n_bands = self.satellite_Nbands
         delta_t = int(options['Filtering_options']['time_difference'])
         #walk trhough input directory looking for MDBs
@@ -360,13 +387,16 @@ class PANTHYR_class(object):
         ''' 
         # PANTHYR Data
         insitu_sensor = options['insitu_options']['sensor']
-        satellite_sensor = options['satellite_options']['satellite'] # A and B
+        satellite_sensor = options['satellite_options']['satellite'] # S3
+        platform = options['satellite_options']['platform']
 
         # create list of MDBs
         type_product = 'MDB'
         res = options['satellite_options']['resolution']
-        wce = f'"{type_product}*{satellite_sensor}*{res}*{insitu_sensor}*.nc"' # wild card expression
+        wce = f'"{type_product}*{satellite_sensor}{platform}*{res}*{insitu_sensor}*.nc"' # wild card expression
         path_to_list = create_list_MDBs(path_to_source,output_directory,wce,type_product)
+        
+        plt.figure()
 
         with open(path_to_list) as file:
             for idx, line in enumerate(file):
@@ -387,10 +417,18 @@ class PANTHYR_class(object):
             # open each MDB
             print('------------------')
             print(MDBpath.split('/')[-1])
-            nc = Dataset(os.path.join(MDBpath))
+            check = 0
+            try:
+                nc = Dataset(os.path.join(MDBpath))
+                
+            # except:
+            except Exception as e:
+                print(f'Exception: {e}')
+                pass    
             
             #check if it is an AERONET MDB
-            if nc.satellite+nc.platform == str(options['satellite_options']['satellite']).replace(" ", "").upper()+str(options['satellite_options']['platform']).replace(" ", ""):
+            if nc.satellite+nc.platform == str(options['satellite_options']['satellite']).replace(" ", "").upper()+str(options['satellite_options']['platform']).replace(" ", "")\
+                and (options['satellite_options']['proc_version'] in nc.satellite_proc_version):
                 #import current MDB variables
                 insitu_bands = nc.variables['insitu_bands'][:] # insitu_bands(insitu_bands)
                 satellite_bands = nc.variables['satellite_bands'][:]
@@ -404,16 +442,17 @@ class PANTHYR_class(object):
                 curr_site = nc.insitu_site_name
 
                 time_difference = nc.variables['time_difference'][:]
-                index_time = np.argmin(np.abs(time_difference))
+                ins_time_index = np.argmin(np.abs(time_difference))
 
                 OZA = nc.satellite_VZA_center_pixel
                 SZA = nc.satellite_SZA_center_pixel
                 print(f'OZA: {OZA:.1f}; SZA: {SZA:.1f}')
+                
+                sat_proc_version_str = nc.satellite_proc_version
 
                 #flags mask
                 
-                satellite_WQSF = nc.variables['satellite_WQSF'][central_pixel-int(np.floor(dim_window/2)):central_pixel + int(np.floor(dim_window / 2)) + 1,central_pixel
-                                                                        - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1]
+                satellite_WQSF = nc.variables['satellite_WQSF'][r_s:r_e,c_s:c_e]
                 if (str(flag_list[0])) != 'None':
                     mask = flagging.Mask(satellite_WQSF,flag_list)
                     mask [np.where(mask != 0)] = 1
@@ -425,34 +464,108 @@ class PANTHYR_class(object):
                 land[np.where(inland_w > 0)] = 0
                 NTP = np.power(dim_window,2) - np.sum(land,axis=(0,1))  
 
-                print(f'NTP: {NTP:.0f}')              
+                             
 
                 #extracting date and level (masked through selected OLCI flags)
 
-                if time_difference[index_time] < delta_t*60*60\
+                if time_difference[ins_time_index] < delta_t*60*60\
                     and OZA <= float(options['Filtering_options']['sensor_zenith_max'])\
                     and SZA <= float(options['Filtering_options']['sun_zenith_max']):
-                    print(f'time difference: {time_difference[index_time]}, within delta_t: {delta_t}')
+                    print(f'time difference: {time_difference[ins_time_index]}, within delta_t: {delta_t}')
 
                     satellite_rhow = nc.variables['satellite_rhow'][:]
+                    insitu_rrs = nc.variables['insitu_rhow'][:]
+                    insitu_rrs = insitu_rrs/np.pi # transform from rhow to Rrs
+
+                    curr_ins_rrs = []
+                    curr_sat_rrs_mean = []
+                    curr_bands = []
+                    
+                    print(f'size insitu_rrs: {insitu_rrs.shape}')
+
                     for sat_band_index in range(0,satellite_rhow.shape[0]):
                         wl = satellite_bands[sat_band_index]
                         ins_band_index = np.argmin(np.abs(wl-insitu_bands))
                         print(f'Closest in situ band to sat band {wl}: {insitu_bands[ins_band_index]} nm')
     
-    
-                        curr_rrs = satellite_rhow[sat_band_index,central_pixel - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2) + 1),central_pixel 
-                                                                            - int(np.floor(dim_window / 2)):central_pixel + int(np.floor(dim_window / 2)) + 1]
-                        curr_rrs_mean = curr_rrs.mean()
-                        curr_rrs_stdv = curr_rrs.std()
-    
-                        
-    
-                        if float(satellite_bands[sat_band_index]) == 560:
-                            curr_rrs_CV = curr_rrs_stdv/curr_rrs_mean
-                            print(f'Extract mean: {curr_rrs_mean:.4f}; stdev: {curr_rrs_stdv:.4f}, CV: {100*curr_rrs_CV:.4f} %')
-                        else: 
-                            print(f'Extract mean: {curr_rrs_mean:.4f}; stdev: {curr_rrs_stdv:.4f}')
+                        # satellite extract
+                        curr_sat_box = satellite_rhow[sat_band_index,r_s:r_e,c_s:c_e]
+                        print(curr_sat_box)
+                        curr_sat_box = np.ma.masked_where(curr_sat_box == 65535,curr_sat_box)
+                        print(curr_sat_box)
+                        numberValid = np.ma.count(curr_sat_box)
+                        print(f'NTP: {NTP:.0f}; numberValid: {numberValid}') 
+
+                        #calculate and filter by Mean+1.5*std and recalculate mean 
+                        unfilMean = curr_sat_box.mean()
+                        unfilstd = curr_sat_box.std()
+                        tresh_up = unfilMean + 1.5 * unfilstd
+                        tresh_bottom = unfilMean - 1.5 * unfilstd
+                        mask_outlier = np.ma.zeros(curr_sat_box.shape)
+                        mask_outlier[np.where(curr_sat_box - tresh_up > 0)] = 1 
+                        mask_outlier[np.where(tresh_bottom - curr_sat_box > 0)] = 1
+                        if options['Filtering_options']['outliers'] == 'False' or options['Filtering_options']['outliers'] == 'F' or options['Filtering_options']['outliers'] == 'FALSE':
+                            mask_outlier = mask_outlier * 0
+                        print(mask_outlier)
+                        curr_sat_box_filtered = np.ma.masked_array(curr_sat_box,mask_outlier)
+                        curr_sat_box_mean = np.ma.mean(curr_sat_box_filtered)
+                        curr_sat_box_std = np.ma.std(curr_sat_box_filtered)
+
+                        #mask out whole matchup if #of valid pixel < defined trheshold * NTP
+                        if numberValid >= (float(options['Filtering_options']['valid_min_pixel']) * NTP):
+                            # in situ
+                            curr_ins_rrs.append(insitu_rrs[ins_band_index,ins_time_index])
+                            curr_sat_rrs_mean.append(curr_sat_box_mean/np.pi) # transform rhow to Rrs
+                            curr_bands.append(wl)
+                            print(f'in situ: {insitu_rrs[ins_band_index,ins_time_index]}; sat: {curr_sat_box_mean}')
+                            
+                            if wl == 560:
+                                #name is 412 but is done on 560
+                                curr_sat_box_cv_412 = curr_sat_box_std/curr_sat_box_mean
+                                print(f'cv_412: {curr_sat_box_cv_412}')
+                                check = 1
+
+                    if check and curr_sat_box_cv_412 <= float(options['Filtering_options']['cv_max']):
+                        N_MUs += 1
+                        for sat_band_index in range(len(curr_bands)):
+                            if options['plot_options']['to_plot'] == 'rhow':
+                                plt.scatter(curr_ins_rrs[sat_band_index]*np.pi,curr_sat_rrs_mean[sat_band_index]*np.pi,c=color_dict[f'{curr_bands[sat_band_index]:.2f}'])
+                            
+                            elif options['plot_options']['to_plot'] == 'Rrs':
+                                plt.scatter(curr_ins_rrs[sat_band_index],curr_sat_rrs_mean[sat_band_index],c=color_dict[f'{curr_bands[sat_band_index]:.2f}'])
+                            
+
+
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        if options['plot_options']['to_plot'] == 'rhow':
+            plt.xlabel(r'PANTHYR $\rho_{W}$',fontsize=12)
+            plt.ylabel(r'OLCI $\rho_{W}$',fontsize=12)    
+        elif options['plot_options']['to_plot'] == 'Rrs':
+            plt.xlabel(r'PANTHYR $R_{rs}$',fontsize=12)
+            plt.ylabel(r'OLCI $R_{rs}$',fontsize=12)               
+
+
+        plt.legend(['400.00', '412.50', '442.50', '490.00', '510.00', '560.00', '620.00', '665.00',\
+                    '673.75', '681.25', '708.75', '753.75', '778.75', '865.00', '885.00','1020.50'],
+                   loc='upper left',\
+                   bbox_to_anchor=(1.001, 1))
+        xmin, xmax = plt.gca().get_xlim()
+        ymin, ymax = plt.gca().get_ylim()
+        xmin = np.min([xmin,ymin])
+        xmax = np.max([xmax,ymax])
+        print(f'xmin={xmin}; xmax={xmax}')
+        plt.plot([xmin,xmax],[xmin,xmax],'--k')
+
+        ofname = f'{satellite_sensor}{platform}_{res}_{insitu_sensor}'
+        plt.title(ofname+ f'; N = {N_MUs}; {sat_proc_version_str}')
+        ofname = ofname +'_'+ sat_proc_version_str.replace(' ','_').replace('.','p')+ '.pdf'
+        ofname = os.path.join(output_directory,ofname)
+        if 'T' in options['plot_options']['save_plot']:
+            plt.savefig(ofname,dpi=300)
+        print(ofname)
+        print(f'N match-ups: {N_MUs}')
+
 
                 # for var in nc.variables:
                 #     if 'satellite_rhow' in var: # float satellite_rhow(satellite_bands, satellite_size_box_x, satellite_size_box_y)
