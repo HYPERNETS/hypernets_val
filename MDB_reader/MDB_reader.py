@@ -433,6 +433,9 @@ class PANTHYR_class(object):
                 insitu_bands = nc.variables['insitu_bands'][:] # insitu_bands(insitu_bands)
                 satellite_bands = nc.variables['satellite_bands'][:]
 
+                satellite_BRDF_bands = nc.variables['satellite_BRDF_bands'][:]
+                satellite_BRDF_bands_list = list(satellite_BRDF_bands)
+
                 self.insitu_bands = insitu_bands
                 self.satellite_bands = satellite_bands
                 nc.satellite_stop_time
@@ -451,7 +454,6 @@ class PANTHYR_class(object):
                 sat_proc_version_str = nc.satellite_proc_version
 
                 #flags mask
-                
                 satellite_WQSF = nc.variables['satellite_WQSF'][r_s:r_e,c_s:c_e]
                 if (str(flag_list[0])) != 'None':
                     mask = flagging.Mask(satellite_WQSF,flag_list)
@@ -462,11 +464,7 @@ class PANTHYR_class(object):
                 land = flagging.Mask(satellite_WQSF,(['LAND']))
                 inland_w = flagging.Mask(satellite_WQSF,(['INLAND_WATER']))
                 land[np.where(inland_w > 0)] = 0
-                NTP = np.power(dim_window,2) - np.sum(land,axis=(0,1))  
-
-                             
-
-                #extracting date and level (masked through selected OLCI flags)
+                NTP = np.power(dim_window,2) - np.sum(land,axis=(0,1))
 
                 if time_difference[ins_time_index] < delta_t*60*60\
                     and OZA <= float(options['Filtering_options']['sensor_zenith_max'])\
@@ -474,6 +472,7 @@ class PANTHYR_class(object):
                     print(f'time difference: {time_difference[ins_time_index]}, within delta_t: {delta_t}')
 
                     satellite_rhow = nc.variables['satellite_rhow'][:]
+                    satellite_BRDF_rhow = nc.variables['satellite_BRDF_rhow'][:]
                     insitu_rrs = nc.variables['insitu_rhow'][:]
                     insitu_rrs = insitu_rrs/np.pi # transform from rhow to Rrs
 
@@ -485,16 +484,23 @@ class PANTHYR_class(object):
 
                     for sat_band_index in range(0,satellite_rhow.shape[0]):
                         wl = satellite_bands[sat_band_index]
+                        if options['satellite_options']['BRDF'] == 'T' and (wl in satellite_BRDF_bands_list):
+                            print(f'Band {wl} in BRDF bands.')
+                            sat_BRDF_band_index = np.argmin(np.abs(wl-satellite_BRDF_bands))
+                            # satellite extract
+                            curr_sat_box = satellite_BRDF_rhow[sat_BRDF_band_index,r_s:r_e,c_s:c_e]
+                        else:
+                            # satellite extract
+                            curr_sat_box = satellite_rhow[sat_band_index,r_s:r_e,c_s:c_e]
+
                         ins_band_index = np.argmin(np.abs(wl-insitu_bands))
                         print(f'Closest in situ band to sat band {wl}: {insitu_bands[ins_band_index]} nm')
-    
-                        # satellite extract
-                        curr_sat_box = satellite_rhow[sat_band_index,r_s:r_e,c_s:c_e]
-                        print(curr_sat_box)
+
+                        # print(curr_sat_box)
                         curr_sat_box = np.ma.masked_where(curr_sat_box == 65535,curr_sat_box)
-                        print(curr_sat_box)
+                        # print(curr_sat_box)
                         numberValid = np.ma.count(curr_sat_box)
-                        print(f'NTP: {NTP:.0f}; numberValid: {numberValid}') 
+                         
 
                         #calculate and filter by Mean+1.5*std and recalculate mean 
                         unfilMean = curr_sat_box.mean()
@@ -506,7 +512,7 @@ class PANTHYR_class(object):
                         mask_outlier[np.where(tresh_bottom - curr_sat_box > 0)] = 1
                         if options['Filtering_options']['outliers'] == 'False' or options['Filtering_options']['outliers'] == 'F' or options['Filtering_options']['outliers'] == 'FALSE':
                             mask_outlier = mask_outlier * 0
-                        print(mask_outlier)
+                        # print(mask_outlier)
                         curr_sat_box_filtered = np.ma.masked_array(curr_sat_box,mask_outlier)
                         curr_sat_box_mean = np.ma.mean(curr_sat_box_filtered)
                         curr_sat_box_std = np.ma.std(curr_sat_box_filtered)
@@ -524,15 +530,26 @@ class PANTHYR_class(object):
                                 curr_sat_box_cv_412 = curr_sat_box_std/curr_sat_box_mean
                                 print(f'cv_412: {curr_sat_box_cv_412}')
                                 check = 1
+                                
+                        else:
+                            print(f'Not included: NTP= {NTP:.0f}; numberValid= {numberValid}')
 
                     if check and curr_sat_box_cv_412 <= float(options['Filtering_options']['cv_max']):
                         N_MUs += 1
                         for sat_band_index in range(len(curr_bands)):
+                            if curr_bands[sat_band_index] in satellite_BRDF_bands_list and options['satellite_options']['BRDF'] == 'T':
+                                mfc = 'Gray'
+                                lw = 1.5
+                            else:
+                                mfc = None
+                                lw = None
                             if options['plot_options']['to_plot'] == 'rhow':
-                                plt.scatter(curr_ins_rrs[sat_band_index]*np.pi,curr_sat_rrs_mean[sat_band_index]*np.pi,c=color_dict[f'{curr_bands[sat_band_index]:.2f}'])
+                                plt.scatter(curr_ins_rrs[sat_band_index]*np.pi,curr_sat_rrs_mean[sat_band_index]*np.pi,\
+                                    c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
                             
                             elif options['plot_options']['to_plot'] == 'Rrs':
-                                plt.scatter(curr_ins_rrs[sat_band_index],curr_sat_rrs_mean[sat_band_index],c=color_dict[f'{curr_bands[sat_band_index]:.2f}'])
+                                plt.scatter(curr_ins_rrs[sat_band_index],curr_sat_rrs_mean[sat_band_index],\
+                                    c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
                             
 
 
@@ -559,7 +576,11 @@ class PANTHYR_class(object):
 
         ofname = f'{satellite_sensor}{platform}_{res}_{insitu_sensor}'
         plt.title(ofname+ f'; N = {N_MUs}; {sat_proc_version_str}')
-        ofname = ofname +'_'+ sat_proc_version_str.replace(' ','_').replace('.','p')+ '.pdf'
+        if options['satellite_options']['BRDF'] == 'T':
+            brdf_str = '_BRDF'
+        else:
+            brdf_str = ''
+        ofname = ofname +'_'+ sat_proc_version_str.replace(' ','_').replace('.','p')+brdf_str+ '.pdf'
         ofname = os.path.join(output_directory,ofname)
         if 'T' in options['plot_options']['save_plot']:
             plt.savefig(ofname,dpi=300)
