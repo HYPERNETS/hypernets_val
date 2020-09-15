@@ -139,6 +139,15 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
     return ws0, ws1, sza, saa, vza, vaa
 
 def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon,res_str,insitu_sensor):
+    # extract IFP-OL-2 version
+    with open(os.path.join(path_source,'xfdumanifest.xml'),'r') as read_obj:
+        for line in read_obj:
+            if 'IPF-OL-2' in line:
+                IPF_OL_2_version = line.split('"')[3]
+                proc_version_str = f'IPF-OL-2 version {IPF_OL_2_version}'
+                print(proc_version_str)
+                pass
+
     
     #% open nc file
     coordinates_filename = 'geo_coordinates.nc'
@@ -320,7 +329,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
               os.remove(ofname)
             
             fmb = Dataset(ofname, 'w', format='NETCDF4')
-            fmb.MDB_version = '0.0'
+            fmb.MDB_software_version = '0.0'
             fmb.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")            
             fmb.satellite = satellite
             fmb.platform = platform
@@ -331,6 +340,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             fmb.satellite_PDU = path_source.split('/')[-1]
             fmb.satellite_path_source = path_source
             fmb.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
+            fmb.satellite_proc_version = proc_version_str
 
             fmb.datapolicy = 'Notice to users: Add data policy'
             fmb.insitu_sensor_processor_version = '0.0'
