@@ -476,8 +476,9 @@ class PANTHYR_class(object):
 
                 if time_difference[ins_time_index] < delta_t*60*60\
                     and OZA <= float(options['Filtering_options']['sensor_zenith_max'])\
-                    and SZA <= float(options['Filtering_options']['sun_zenith_max']):
-                    print(f'time difference: {time_difference[ins_time_index]}, within delta_t: {delta_t}')
+                    and SZA <= float(options['Filtering_options']['sun_zenith_max'])\
+                    and cond_min_valid_pxs:
+                    # print(f'time difference: {time_difference[ins_time_index]}, within delta_t: {delta_t}')
 
                     satellite_rhow = nc.variables['satellite_rhow'][:]
                     satellite_BRDF_rhow = nc.variables['satellite_BRDF_rhow'][:]
