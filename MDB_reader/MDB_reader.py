@@ -460,11 +460,19 @@ class PANTHYR_class(object):
                     mask [np.where(mask != 0)] = 1
                 else: 
                     mask = np.full(satellite_WQSF.shape,0,dtype=int)
-                #NTP = Nuber of Total non-LAND Pixels
+                NGP = np.power(dim_window,2) - np.sum(mask) # Number Good Pixels excluding flagged pixels
+                #NTP = Number Total non-LAND Pixels
                 land = flagging.Mask(satellite_WQSF,(['LAND']))
                 inland_w = flagging.Mask(satellite_WQSF,(['INLAND_WATER']))
                 land[np.where(inland_w > 0)] = 0
                 NTP = np.power(dim_window,2) - np.sum(land,axis=(0,1))
+
+                # conditions minimum valid pixels
+                if float(options['Filtering_options']['valid_min_pixel']) == 1: # 100% like Zibordi
+                    cond_min_valid_pxs = NGP == np.power(dim_window,2)
+                else:
+                    cond_min_valid_pxs = NGP > (float(options['Filtering_options']['valid_min_pixel']) * NTP + 1)
+
 
                 if time_difference[ins_time_index] < delta_t*60*60\
                     and OZA <= float(options['Filtering_options']['sensor_zenith_max'])\
@@ -480,7 +488,7 @@ class PANTHYR_class(object):
                     curr_sat_rrs_mean = []
                     curr_bands = []
                     
-                    print(f'size insitu_rrs: {insitu_rrs.shape}')
+                    # print(f'size insitu_rrs: {insitu_rrs.shape}')
 
                     for sat_band_index in range(0,satellite_rhow.shape[0]):
                         wl = satellite_bands[sat_band_index]
@@ -496,29 +504,38 @@ class PANTHYR_class(object):
                         ins_band_index = np.argmin(np.abs(wl-insitu_bands))
                         print(f'Closest in situ band to sat band {wl}: {insitu_bands[ins_band_index]} nm')
 
-                        # print(curr_sat_box)
                         curr_sat_box = np.ma.masked_where(curr_sat_box == 65535,curr_sat_box)
-                        # print(curr_sat_box)
-                        numberValid = np.ma.count(curr_sat_box)
-                         
+                        curr_sat_box = np.ma.masked_invalid(curr_sat_box)
+                        curr_sat_box = np.ma.masked_array(curr_sat_box,mask)
 
-                        #calculate and filter by Mean+1.5*std and recalculate mean 
-                        unfilMean = curr_sat_box.mean()
-                        unfilstd = curr_sat_box.std()
-                        tresh_up = unfilMean + 1.5 * unfilstd
-                        tresh_bottom = unfilMean - 1.5 * unfilstd
-                        mask_outlier = np.ma.zeros(curr_sat_box.shape)
-                        mask_outlier[np.where(curr_sat_box - tresh_up > 0)] = 1 
-                        mask_outlier[np.where(tresh_bottom - curr_sat_box > 0)] = 1
-                        if options['Filtering_options']['outliers'] == 'False' or options['Filtering_options']['outliers'] == 'F' or options['Filtering_options']['outliers'] == 'FALSE':
-                            mask_outlier = mask_outlier * 0
-                        # print(mask_outlier)
-                        curr_sat_box_filtered = np.ma.masked_array(curr_sat_box,mask_outlier)
-                        curr_sat_box_mean = np.ma.mean(curr_sat_box_filtered)
-                        curr_sat_box_std = np.ma.std(curr_sat_box_filtered)
+                        numberValid = np.ma.count(curr_sat_box)
+
+                        # conditions minimum valid pixels. Note: condition repeated because some masking (e.g. invalid pixels) was made
+                        # after the first time this condition was asked
+                        if float(options['Filtering_options']['valid_min_pixel']) == 1: # 100% like Zibordi
+                            cond_min_valid_pxs = numberValid == np.power(dim_window,2)
+                        else:
+                            cond_min_valid_pxs = numberValid > (float(options['Filtering_options']['valid_min_pixel']) * NTP + 1)
 
                         #mask out whole matchup if #of valid pixel < defined trheshold * NTP
-                        if numberValid >= (float(options['Filtering_options']['valid_min_pixel']) * NTP):
+                        if cond_min_valid_pxs:
+
+                            #calculate and filter by Mean+1.5*std and recalculate mean 
+                            unfilMean = curr_sat_box.mean()
+                            unfilstd = curr_sat_box.std()
+                            tresh_up = unfilMean + 1.5 * unfilstd
+                            tresh_bottom = unfilMean - 1.5 * unfilstd
+                            mask_outlier = np.ma.zeros(curr_sat_box.shape)
+                            mask_outlier[np.where(curr_sat_box > tresh_up)] = 1 
+                            mask_outlier[np.where(curr_sat_box < tresh_bottom)] = 1
+                            if options['Filtering_options']['outliers'] == 'False' or options['Filtering_options']['outliers'] == 'F' or options['Filtering_options']['outliers'] == 'FALSE':
+                                mask_outlier = mask_outlier * 0
+                            curr_sat_box_filtered = np.ma.masked_array(curr_sat_box,mask_outlier)
+    
+                            curr_sat_box_mean = np.ma.mean(curr_sat_box_filtered)
+                            curr_sat_box_std = np.ma.std(curr_sat_box_filtered)
+
+
                             # in situ
                             curr_ins_rrs.append(insitu_rrs[ins_band_index,ins_time_index])
                             curr_sat_rrs_mean.append(curr_sat_box_mean/np.pi) # transform rhow to Rrs
@@ -527,14 +544,14 @@ class PANTHYR_class(object):
                             
                             if wl == 560:
                                 #name is 412 but is done on 560
-                                curr_sat_box_cv_412 = curr_sat_box_std/curr_sat_box_mean
-                                print(f'cv_412: {curr_sat_box_cv_412}')
+                                curr_sat_box_cv_560 = curr_sat_box_std/curr_sat_box_mean
+                                print(f'cv_560: {curr_sat_box_cv_560}')
                                 check = 1
                                 
                         else:
-                            print(f'Not included: NTP= {NTP:.0f}; numberValid= {numberValid}')
+                            print(f'Not included: NTP= {NTP:.0f}; NGP={NGP}; numberValid= {numberValid}')
 
-                    if check and curr_sat_box_cv_412 <= float(options['Filtering_options']['cv_max']):
+                    if check and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']):
                         N_MUs += 1
                         for sat_band_index in range(len(curr_bands)):
                             if curr_bands[sat_band_index] in satellite_BRDF_bands_list and options['satellite_options']['BRDF'] == 'T':
