@@ -62,6 +62,26 @@ color_dict = dict({\
  '885.00':'DarkSlateGray',\
 '1020.50':'Black'})
 
+plot_lims = dict({\
+ '400.00':[-0.002,0.015],\
+ '412.50':[-0.002,0.018],\
+ '442.50':[-0.002,0.030],\
+ '490.00':[-0.002,0.030],\
+ '510.00':[-0.002,0.030],\
+ '560.00':[-0.002,0.030],\
+ '620.00':[-0.002,0.015],\
+ '665.00':[-0.002,0.01],\
+ '673.75':[-0.002,0.01],\
+ '681.25':[-0.002,0.01],\
+ '708.75':[-0.002,0.006],\
+ '753.75':[-0.0002,0.0016],\
+ '778.75':[-0.0002,0.0016],\
+ '865.00':[-0.0001,0.0010],\
+ '885.00':[-0.0002,0.0008],\
+'1020.50':[-0.0003,0.0007]})
+
+olci_band_list  = ['400.00', '412.50', '442.50', '490.00', '510.00', '560.00', '620.00', '665.00',\
+                    '673.75', '681.25', '708.75', '753.75', '778.75', '865.00', '885.00','1020.50']
 #%%
 # create list of sat granules
 def create_list_MDBs(path_to_source,path_out,wce,type_product):
@@ -74,75 +94,84 @@ def create_list_MDBs(path_to_source,path_out,wce,type_product):
     
     return path_to_list
 
-def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max_val): 
+def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,\
+                 station,sat_proc_version_str,satellite_sensor,platform,res,insitu_sensor,brdf_str): 
 
     # replace nan in y (sat data)
     x = np.array(x)
     y = np.array(y)
-    station_vec = np.array(station_vec)
+    # station_vec = np.array(station_vec)
 
     x = x[~np.isnan(y)] # it is assumed that only sat data could be nan
-    station_vec = station_vec[~np.isnan(y)]
+    # station_vec = station_vec[~np.isnan(y)]
     y = y[~np.isnan(y)]
 
 
-    rmse_val = np.nan
-    mean_abs_rel_diff = np.nan
-    mean_rel_diff = np.nan
-    r_value = np.nan
-    rmse_val_Venise = np.nan
-    mean_abs_rel_diff_Venise = np.nan
-    mean_rel_diff_Venise = np.nan
-    r_value_Venise = np.nan
-    rmse_val_Gloria = np.nan
-    mean_abs_rel_diff_Gloria = np.nan
-    mean_rel_diff_Gloria = np.nan
-    r_value_Gloria = np.nan
-    rmse_val_Galata_Platform = np.nan
-    mean_abs_rel_diff_Galata_Platform = np.nan
-    mean_rel_diff_Galata_Platform = np.nan
-    r_value_Galata_Platform = np.nan
-    rmse_val_Helsinki_Lighthouse = np.nan
-    mean_abs_rel_diff_Helsinki_Lighthouse = np.nan
-    mean_rel_diff_Helsinki_Lighthouse = np.nan
-    r_value_Helsinki_Lighthouse = np.nan
-    rmse_val_Gustav_Dalen_Tower = np.nan
-    mean_abs_rel_diff_Gustav_Dalen_Tower = np.nan
-    mean_rel_diff_Gustav_Dalen_Tower = np.nan
-    r_value_Gustav_Dalen_Tower  = np.nan
+    # rmse_val = np.nan
+    # mean_abs_rel_diff = np.nan
+    # mean_rel_diff = np.nan
+    # r_value = np.nan
+    # rmse_val_Venise = np.nan
+    # mean_abs_rel_diff_Venise = np.nan
+    # mean_rel_diff_Venise = np.nan
+    # r_value_Venise = np.nan
+    # rmse_val_Gloria = np.nan
+    # mean_abs_rel_diff_Gloria = np.nan
+    # mean_rel_diff_Gloria = np.nan
+    # r_value_Gloria = np.nan
+    # rmse_val_Galata_Platform = np.nan
+    # mean_abs_rel_diff_Galata_Platform = np.nan
+    # mean_rel_diff_Galata_Platform = np.nan
+    # r_value_Galata_Platform = np.nan
+    # rmse_val_Helsinki_Lighthouse = np.nan
+    # mean_abs_rel_diff_Helsinki_Lighthouse = np.nan
+    # mean_rel_diff_Helsinki_Lighthouse = np.nan
+    # r_value_Helsinki_Lighthouse = np.nan
+    # rmse_val_Gustav_Dalen_Tower = np.nan
+    # mean_abs_rel_diff_Gustav_Dalen_Tower = np.nan
+    # mean_rel_diff_Gustav_Dalen_Tower = np.nan
+    # r_value_Gustav_Dalen_Tower  = np.nan
 
     count_Venise = 0
-    count_Gloria = 0
-    count_Galata_Platform = 0
-    count_Helsinki_Lighthouse = 0
-    count_Gustav_Dalen_Tower = 0
-
+    # count_Gloria = 0
+    # count_Galata_Platform = 0
+    # count_Helsinki_Lighthouse = 0
+    # count_Gustav_Dalen_Tower = 0
+    
+    # if curr_bands[sat_band_index] in satellite_BRDF_bands_list and options['satellite_options']['BRDF'] == 'T':
+    #     mfc = 'Gray'
+    #     lw = 1.5
+    # else:
+    #     mfc = None
+    #     lw = None
+    
     plt.figure()
     #plt.errorbar(x, y, xerr=e_x, yerr=e_y, fmt='or')
     for cnt, line in enumerate(y):
-        if station_vec[cnt] == 'Venise_PAN':
+        if station == 'Venise_PAN':
             mrk_color = 'r'
             count_Venise = count_Venise+1
-        elif station_vec[cnt] == 'Gloria':
-            mrk_color = 'g'
-            count_Gloria = count_Gloria+1
-        elif station_vec[cnt] == 'Galata_Platform':
-            mrk_color = 'b'
-            count_Galata_Platform = count_Galata_Platform+1
-        elif station_vec[cnt] == 'Helsinki_Lighthouse':
-            mrk_color = 'm'
-            count_Helsinki_Lighthouse = count_Helsinki_Lighthouse+1
-        elif station_vec[cnt] == 'Gustav_Dalen_Tower':
-            mrk_color = 'c'
-            count_Gustav_Dalen_Tower = count_Gustav_Dalen_Tower+1
+        # elif station == 'Gloria':
+        #     mrk_color = 'g'
+        #     count_Gloria = count_Gloria+1
+        # elif station == 'Galata_Platform':
+        #     mrk_color = 'b'
+        #     count_Galata_Platform = count_Galata_Platform+1
+        # elif station == 'Helsinki_Lighthouse':
+        #     mrk_color = 'm'
+        #     count_Helsinki_Lighthouse = count_Helsinki_Lighthouse+1
+        # elif station == 'Gustav_Dalen_Tower':
+        #     mrk_color = 'c'
+        #     count_Gustav_Dalen_Tower = count_Gustav_Dalen_Tower+1
 
         if prot_name == 'ba':
-            mrk_style = 'x'
+            mrk_style = 'o'
         elif  prot_name == 'zi':
             mrk_style = '+' 
 
         plt.plot(x[cnt], y[cnt],color=mrk_color,marker=mrk_style)
-    plt.axis([min_val, max_val, min_val, max_val])
+    plt.xlim(plot_lims[f'{float(str1):0.2f}'])
+    plt.ylim(plot_lims[f'{float(str1):0.2f}'])
     plt.gca().set_aspect('equal', adjustable='box')
     # plot 1:1 line
     xmin, xmax = plt.gca().get_xlim()
@@ -151,11 +180,11 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
     
     # Generated linear fit
     slope, intercept, r_value, p_value, std_err = stats.linregress(x,y)
-    line = slope*np.array([xmin,xmax],dtype=np.float32)+intercept
-    plt.plot([xmin,xmax], line)
+    # line = slope*np.array([xmin,xmax],dtype=np.float32)+intercept
+    # plt.plot([xmin,xmax], line)
     # plt.legend(['1:1','Regression Line'])
-    plt.xlabel(r'$\rho^{PANTHYR}_{W}$',fontsize=12)
-    plt.ylabel(r'$\rho^{'+sensor_name+'}_{W}$',fontsize=12)
+    plt.xlabel(r'PANTHYR $R_{rs}$',fontsize=12)
+    plt.ylabel(r'OLCI $R_{rs}$',fontsize=12)  
     if (xmin<0 or ymin<0):
         plt.plot([xmin,xmax],[0, 0],'--k',linewidth = 0.7)  
     
@@ -172,57 +201,6 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
         
         #  the mean of absolute (unsigned) percent differences
     mean_abs_rel_diff = np.mean(np.abs(rel_diff))
-
-    cond_station = np.asarray(station_vec)=='Venise_PAN'
-    if sum(cond_station):
-        ref_obs_Venise = ref_obs[cond_station]
-        sat_obs_Venise = sat_obs[cond_station]
-        slope_Venise, intercept_Venise, r_value_Venise, p_value_Venise, std_err_Venise = stats.linregress(ref_obs_Venise,sat_obs_Venise)
-        rmse_val_Venise = cfs.rmse(sat_obs_Venise,ref_obs_Venise)
-        rel_diff_Venise = 100*(ref_obs_Venise-sat_obs_Venise)/ref_obs_Venise
-        mean_rel_diff_Venise = np.mean(rel_diff_Venise)
-        mean_abs_rel_diff_Venise = np.mean(np.abs(rel_diff_Venise))
-    
-        cond_station = np.asarray(station_vec)=='Gloria'
-    if sum(cond_station):    
-        ref_obs_Gloria = ref_obs[cond_station]
-        sat_obs_Gloria = sat_obs[cond_station]
-        slope_Gloria, intercept_Gloria, r_value_Gloria, p_value_Gloria, std_err_Gloria = stats.linregress(ref_obs_Gloria,sat_obs_Gloria)
-        rmse_val_Gloria = cfs.rmse(sat_obs_Gloria,ref_obs_Gloria)
-        rel_diff_Gloria = 100*(ref_obs_Gloria-sat_obs_Gloria)/ref_obs_Gloria
-        mean_rel_diff_Gloria = np.mean(rel_diff_Gloria)
-        mean_abs_rel_diff_Gloria = np.mean(np.abs(rel_diff_Gloria))
-        
-        cond_station = np.asarray(station_vec)=='Galata_Platform'
-    if sum(cond_station):    
-        ref_obs_Galata_Platform = ref_obs[cond_station]
-        sat_obs_Galata_Platform = sat_obs[cond_station]
-        slope_Galata_Platform, intercept_Galata_Platform, r_value_Galata_Platform, p_value_Galata_Platform, std_err_Galata_Platform = stats.linregress(ref_obs_Galata_Platform,sat_obs_Galata_Platform)
-        rmse_val_Galata_Platform = cfs.rmse(sat_obs_Galata_Platform,ref_obs_Galata_Platform)
-        rel_diff_Galata_Platform = 100*(ref_obs_Galata_Platform-sat_obs_Galata_Platform)/ref_obs_Galata_Platform
-        mean_rel_diff_Galata_Platform = np.mean(rel_diff_Galata_Platform)
-        mean_abs_rel_diff_Galata_Platform = np.mean(np.abs(rel_diff_Galata_Platform))
-        
-        cond_station = np.asarray(station_vec)=='Helsinki_Lighthouse'
-    if sum(cond_station):    
-        ref_obs_Helsinki_Lighthouse = ref_obs[cond_station]
-        sat_obs_Helsinki_Lighthouse = sat_obs[cond_station]
-        slope_Helsinki_Lighthouse, intercept_Helsinki_Lighthouse, r_value_Helsinki_Lighthouse, p_value_Helsinki_Lighthouse, std_err_Helsinki_Lighthouse = stats.linregress(ref_obs_Helsinki_Lighthouse,sat_obs_Helsinki_Lighthouse)
-        rmse_val_Helsinki_Lighthouse = cfs.rmse(sat_obs_Helsinki_Lighthouse,ref_obs_Helsinki_Lighthouse)
-        rel_diff_Helsinki_Lighthouse = 100*(ref_obs_Helsinki_Lighthouse-sat_obs_Helsinki_Lighthouse)/ref_obs_Helsinki_Lighthouse
-        mean_rel_diff_Helsinki_Lighthouse = np.mean(rel_diff_Helsinki_Lighthouse)
-        mean_abs_rel_diff_Helsinki_Lighthouse = np.mean(np.abs(rel_diff_Helsinki_Lighthouse))
-        
-        cond_station = np.asarray(station_vec)=='Gustav_Dalen_Tower'
-    if sum(cond_station):    
-        ref_obs_Gustav_Dalen_Tower = ref_obs[cond_station]
-        sat_obs_Gustav_Dalen_Tower = sat_obs[cond_station]
-        slope_Gustav_Dalen_Tower, intercept_Gustav_Dalen_Tower, r_value_Gustav_Dalen_Tower, p_value_Gustav_Dalen_Tower, std_err_Gustav_Dalen_Tower = stats.linregress(ref_obs_Gustav_Dalen_Tower,sat_obs_Gustav_Dalen_Tower)
-        rmse_val_Gustav_Dalen_Tower = cfs.rmse(sat_obs_Gustav_Dalen_Tower,ref_obs_Gustav_Dalen_Tower)
-        rel_diff_Gustav_Dalen_Tower = 100*(ref_obs_Gustav_Dalen_Tower-sat_obs_Gustav_Dalen_Tower)/ref_obs_Gustav_Dalen_Tower
-        mean_rel_diff_Gustav_Dalen_Tower = np.mean(rel_diff_Gustav_Dalen_Tower)
-        mean_abs_rel_diff_Gustav_Dalen_Tower = np.mean(np.abs(rel_diff_Gustav_Dalen_Tower))
-    
 
     str2 = str1
     # to print without .0
@@ -245,10 +223,11 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
     elif  prot_name == 'zi':
         prot_name_str = 'ZMB18' 
 
-    plt.title(prot_name_str)    
+    ofname = f'{satellite_sensor}{platform}_{res}_{insitu_sensor}'
+    plt.title(ofname+ f'; {sat_proc_version_str}')  
     
-    ofname = sensor_name+'_scatter_matchups_'+str1.replace(".","p")+'_'+prot_name+'.pdf'
-    ofname = os.path.join(path_out,'source',ofname)
+    ofname = f'{satellite_sensor}{platform}_{res}_{insitu_sensor}_{sat_proc_version_str[-5:].replace(".","p")}{"_"+brdf_str}_{str1.replace(".","p")}.pdf'
+    ofname = os.path.join(path_out,ofname)
     
     plt.savefig(ofname, dpi=300)
 
@@ -273,12 +252,12 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,station_vec,min_val,max
     # print('count_Gustav_Dalen_Tower: '+str(count_Gustav_Dalen_Tower))
 
     # plt.show()   
-    return rmse_val, mean_abs_rel_diff, mean_rel_diff, r_value**2,\
-        rmse_val_Venise, mean_abs_rel_diff_Venise, mean_rel_diff_Venise, r_value_Venise**2,\
-        rmse_val_Gloria, mean_abs_rel_diff_Gloria, mean_rel_diff_Gloria, r_value_Gloria**2,\
-        rmse_val_Galata_Platform, mean_abs_rel_diff_Galata_Platform, mean_rel_diff_Galata_Platform, r_value_Galata_Platform**2,\
-        rmse_val_Helsinki_Lighthouse, mean_abs_rel_diff_Helsinki_Lighthouse, mean_rel_diff_Helsinki_Lighthouse, r_value_Helsinki_Lighthouse**2,\
-        rmse_val_Gustav_Dalen_Tower, mean_abs_rel_diff_Gustav_Dalen_Tower, mean_rel_diff_Gustav_Dalen_Tower, r_value_Gustav_Dalen_Tower**2
+    # return rmse_val, mean_abs_rel_diff, mean_rel_diff, r_value**2,\
+    #     rmse_val_Venise, mean_abs_rel_diff_Venise, mean_rel_diff_Venise, r_value_Venise**2,\
+    #     rmse_val_Gloria, mean_abs_rel_diff_Gloria, mean_rel_diff_Gloria, r_value_Gloria**2,\
+    #     rmse_val_Galata_Platform, mean_abs_rel_diff_Galata_Platform, mean_rel_diff_Galata_Platform, r_value_Galata_Platform**2,\
+    #     rmse_val_Helsinki_Lighthouse, mean_abs_rel_diff_Helsinki_Lighthouse, mean_rel_diff_Helsinki_Lighthouse, r_value_Helsinki_Lighthouse**2,\
+        # rmse_val_Gustav_Dalen_Tower, mean_abs_rel_diff_Gustav_Dalen_Tower, mean_rel_diff_Gustav_Dalen_Tower, r_value_Gustav_Dalen_Tower**2
 #%%
 
 # class PANTHYR_class(object):
@@ -395,8 +374,6 @@ class PANTHYR_class(object):
         res = options['satellite_options']['resolution']
         wce = f'"{type_product}*{satellite_sensor}{platform}*{res}*{insitu_sensor}*.nc"' # wild card expression
         path_to_list = create_list_MDBs(path_to_source,output_directory,wce,type_product)
-        
-        plt.figure()
 
         with open(path_to_list) as file:
             for idx, line in enumerate(file):
@@ -412,7 +389,10 @@ class PANTHYR_class(object):
         #extracting data from MDB
         # MDB_index = 0
         # check = 0
-
+        
+        matchups_sat_array = np.empty([0,len(olci_band_list)]) # dim: MU number, band number
+        matchups_ins_array = np.empty([0,len(olci_band_list)])
+        
         for MDBpath in input_list:
             # open each MDB
             print('------------------')
@@ -425,6 +405,7 @@ class PANTHYR_class(object):
             except Exception as e:
                 print(f'Exception: {e}')
                 pass    
+            
             
             #check if it is an AERONET MDB
             if nc.satellite+nc.platform == str(options['satellite_options']['satellite']).replace(" ", "").upper()+str(options['satellite_options']['platform']).replace(" ", "")\
@@ -537,7 +518,7 @@ class PANTHYR_class(object):
                             curr_sat_box_std = np.ma.std(curr_sat_box_filtered)
 
 
-                            # in situ
+                            # in situ. curr_ins_rrs is a list with N=number of bands elements
                             curr_ins_rrs.append(insitu_rrs[ins_band_index,ins_time_index])
                             curr_sat_rrs_mean.append(curr_sat_box_mean/np.pi) # transform rhow to Rrs
                             curr_bands.append(wl)
@@ -551,9 +532,12 @@ class PANTHYR_class(object):
                                 
                         else:
                             print(f'Not included: NTP= {NTP:.0f}; NGP={NGP}; numberValid= {numberValid}')
-
+                    
                     if check and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']):
                         N_MUs += 1
+                        matchups_ins_array = np.append(matchups_ins_array,[curr_ins_rrs],axis=0)
+                        matchups_sat_array = np.append(matchups_sat_array,[curr_sat_rrs_mean],axis=0)
+                        # plotting all bands
                         for sat_band_index in range(len(curr_bands)):
                             if curr_bands[sat_band_index] in satellite_BRDF_bands_list and options['satellite_options']['BRDF'] == 'T':
                                 mfc = 'Gray'
@@ -570,7 +554,7 @@ class PANTHYR_class(object):
                                     c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
                             
 
-
+        # plot all bands
         plt.gca().set_aspect('equal', adjustable='box')
 
         if options['plot_options']['to_plot'] == 'rhow':
@@ -595,15 +579,23 @@ class PANTHYR_class(object):
         ofname = f'{satellite_sensor}{platform}_{res}_{insitu_sensor}'
         plt.title(ofname+ f'; N = {N_MUs}; {sat_proc_version_str}')
         if options['satellite_options']['BRDF'] == 'T':
-            brdf_str = '_BRDF'
+            brdf_str = 'BRDF'
         else:
             brdf_str = ''
-        ofname = ofname +'_'+ sat_proc_version_str.replace(' ','_').replace('.','p')+brdf_str+ '.pdf'
+        ofname = ofname +'_'+ sat_proc_version_str.replace(' ','_').replace('.','p')+f'_{brdf_str}'+ '.pdf'
         ofname = os.path.join(output_directory,ofname)
         if 'T' in options['plot_options']['save_plot']:
             plt.savefig(ofname,dpi=300)
         print(ofname)
         print(f'N match-ups: {N_MUs}')
+        
+        # plot by band
+        for sat_band_index in range(len(curr_bands)):
+            x = matchups_sat_array[:,sat_band_index]
+            y = matchups_ins_array[:,sat_band_index]
+            plot_scatter(x,y,olci_band_list[sat_band_index],output_directory,'ba','OLCI','Venise_PAN',sat_proc_version_str,\
+                         satellite_sensor,platform,res,insitu_sensor,brdf_str)
+    
       
 # #%%                
 # def main():
