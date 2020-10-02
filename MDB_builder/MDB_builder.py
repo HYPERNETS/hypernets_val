@@ -90,6 +90,7 @@ parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-e', "--enddate", help="The End Date - format YYYY-MM-DD ")
+parser.add_argument('-p', "--path", help="Path to source")
 parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR ")
 parser.add_argument('-n', "--nolist", help="Do not create satellite and in situ lists.",action="store_true")
 
@@ -634,7 +635,11 @@ def main():
     else:
         print('Error: host flag is not either mac or vm')
     print('Main Code!')
-    
+
+    if args.path:
+       satellite_path_source = args.path 
+    print(f'Path to satellite source: {satellite_path_source}')
+
     if args.debug:
         print('Entering Debugging Mode:')
 
