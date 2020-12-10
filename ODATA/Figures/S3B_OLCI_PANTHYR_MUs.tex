@@ -1,0 +1,196 @@
+\documentclass[preview]{standalone}
+
+\standaloneenv{my}
+
+%%% MY PACKAGES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{graphicx}
+% \usepackage[outdir=./]{epstopdf}
+\usepackage{epstopdf}
+\epstopdfsetup{update} % only regenerate pdf files when eps file is newer
+\usepackage{amsmath,epsfig}
+
+\usepackage{tikz} % for flow charts
+  \usetikzlibrary{shapes,arrows,positioning,shadows,calc}
+  % \usetikzlibrary{external}
+  % \tikzexternalize[prefix=Figures/]
+
+% \usepackage[nostamp]{draftwatermark}
+% \SetWatermarkLightness{0.8}
+% \SetWatermarkScale{4}
+
+\usepackage[percent]{overpic}
+\usepackage{morefloats} % for the error "Too many unprocessed floats"
+
+\usepackage{multirow}
+
+
+\usepackage{float}
+\usepackage{hyperref}
+%%% END MY PACKAGES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+\tiny
+    
+    \vspace{-0.1cm}
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_400p0.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.8cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_400p0.pdf}
+      \end{overpic}
+    \end{minipage}        
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_412p5.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.8cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_412p5.pdf}
+      \end{overpic}
+    \end{minipage} 
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_442p5.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.8cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_442p5.pdf}
+      \end{overpic}
+    \end{minipage} 
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_490p0.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.8cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_490p0.pdf}
+      \end{overpic}
+    \end{minipage} 
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_510p0.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_510p0.pdf}
+      \end{overpic}
+    \end{minipage} 
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_560p0.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_560p0.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_620p0.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_620p0.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_665p0.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_665p0.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_673p75.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_673p75.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_681p25.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_681p25.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_708p75.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_708p75.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_753p75.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_753p75.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_778p75.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_778p75.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_865p0.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_865p0.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_885p0.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_885p0.pdf}
+      \end{overpic}
+    \end{minipage}
+
+    \begin{minipage}[c]{0.49\linewidth}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_06p13_1020p5.pdf}
+      \end{overpic}
+    \end{minipage}
+    \begin{minipage}[c]{0.49\linewidth}
+    \hspace{-0.7cm}
+        \begin{overpic}[trim=0 0 0 0,clip,height=4.5cm]{./S3B_WRR_PANTHYR_07p00_1020p5.pdf}
+      \end{overpic}
+    \end{minipage}
+
+
+\end{document}

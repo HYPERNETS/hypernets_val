@@ -1,0 +1,91 @@
+\documentclass[preview]{standalone}
+
+\standaloneenv{my}
+
+%%% MY PACKAGES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{graphicx}
+% \usepackage[outdir=./]{epstopdf}
+\usepackage{epstopdf}
+\epstopdfsetup{update} % only regenerate pdf files when eps file is newer
+\usepackage{amsmath,epsfig}
+
+\usepackage{tikz} % for flow charts
+  \usetikzlibrary{shapes,arrows,positioning,shadows,calc}
+  % \usetikzlibrary{external}
+  % \tikzexternalize[prefix=Figures/]
+
+% \usepackage[nostamp]{draftwatermark}
+% \SetWatermarkLightness{0.8}
+% \SetWatermarkScale{4}
+
+\usepackage[percent]{overpic}
+\usepackage{morefloats} % for the error "Too many unprocessed floats"
+
+\usepackage{multirow}
+
+\usepackage{float}
+\usepackage{hyperref}
+
+\usepackage[utf8]{inputenc}
+% \usepackage[x11names]{xcolor}
+\usepackage{fourier}
+\usepackage{booktabs}
+\usepackage{threeparttable, tablefootnote}
+
+\usepackage{cellspace}
+\setlength\cellspacetoplimit{3pt}
+\setlength\cellspacebottomlimit{0pt}
+%%% END MY PACKAGES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+\footnotesize
+
+
+
+\begin{table}
+
+\begin{tabular}{llllrrrr}
+\toprule
+                   proc & platform &      wl &   N &  rmse &   MAPD &     MPD &  r\textasciicircum 2 \\
+\midrule
+06.13 &  S3B &   400.0 &  63 &  0.63 &   81.81 &  -51.67 & 0.42 \\
+07.00 &  S3B &   400.0 &  62 &  0.53 &  76.05 &  -34.89 & 0.19 \\\hline
+06.13 &  S3B &   412.5 &  63 &  0.56 &   71.47 &  -51.12 & 0.53 \\
+07.00 &  S3B &   412.5 &  62 &  0.47 &  63.47 &  -25.79 & 0.29 \\\hline
+06.13 &  S3B &   442.5 &  63 &  0.45 &   42.27 &  -21.82 & 0.76 \\
+07.00 &  S3B &   442.5 &  62 &  0.41 &  40.39 &  -10.01 & 0.66 \\\hline
+06.13 &  S3B &   490.0 &  63 &  0.33 &   23.63 &   -8.65 & 0.90 \\
+07.00 &  S3B &   490.0 &  62 &  0.37 &  24.10 &    3.44 & 0.88 \\\hline
+06.13 &  S3B &   510.0 &  63 &  0.27 &   19.90 &   -3.97 & 0.91 \\
+07.00 &  S3B &   510.0 &  62 &  0.32 &  20.67 &    4.33 & 0.91 \\\hline
+06.13 &  S3B &   560.0 &  63 &  0.19 &   15.71 &    1.04 & 0.95 \\
+07.00 &  S3B &   560.0 &  62 &  0.24 &  16.62 &    6.47 & 0.95 \\\hline
+06.13 &  S3B &   620.0 &  63 &  0.11 &   33.37 &   14.84 & 0.93 \\
+07.00 &  S3B &   620.0 &  62 &  0.14 &  35.42 &   20.69 & 0.94 \\\hline
+06.13 &  S3B &   665.0 &  63 &  0.08 &   39.47 &   22.68 & 0.93 \\
+07.00 &  S3B &   665.0 &  62 &  0.11 &  45.68 &   34.01 & 0.93 \\\hline
+06.13 &  S3B &  673.75 &  63 &  0.07 &   38.38 &   24.76 & 0.93 \\
+07.00 &  S3B &  673.75 &  62 &  0.10 &  45.61 &   35.08 & 0.93 \\\hline
+06.13 &  S3B &  681.25 &  63 &  0.07 &   37.97 &   28.69 & 0.93 \\
+07.00 &  S3B &  681.25 &  62 &  0.10 &  44.91 &   36.37 & 0.93 \\\hline
+06.13 &  S3B &  708.75 &  63 &  0.06 &   60.06 &   35.03 & 0.89 \\
+07.00 &  S3B &  708.75 &  62 &  0.08 &  76.04 &   53.94 & 0.87 \\\hline
+06.13 &  S3B &  753.75 &  63 &  0.02 &  105.22 &   10.59 & 0.72 \\
+07.00 &  S3B &  753.75 &  62 &  0.04 & 141.06 &   34.00 & 0.29 \\\hline
+06.13 &  S3B &  778.75 &  63 &  0.01 &   53.93 &   47.76 & 0.94 \\
+07.00 &  S3B &  778.75 &  62 &  0.03 &  80.60 &   80.60 & 0.50 \\\hline
+06.13 &  S3B &   865.0 &  63 &  0.00 &  208.55 & -123.95 & 0.91 \\
+07.00 &  S3B &   865.0 &  62 &  0.01 & 130.69 &   75.88 & 0.39 \\\hline
+06.13 &  S3B &   885.0 &  63 &  0.00 &  960.70 & -749.44 & 0.86 \\
+07.00 &  S3B &   885.0 &  62 &  0.01 & 662.74 & -473.39 & 0.36 \\\hline
+% 06.13 &  S3B &  1020.5 &  63 &  0.04 & 1476.12 &   35.79 & 0.00 \\
+% 07.00 &  S3B &  1020.5 &  62 &  0.02 & 604.94 &  141.01 & 0.01 \\\hline
+\bottomrule
+\end{tabular}
+
+
+
+\end{table}
+
+\end{document}
+
