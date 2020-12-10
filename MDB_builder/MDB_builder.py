@@ -141,7 +141,7 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
 
 def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon,res_str,insitu_sensor):
     # extract IFP-OL-2 version
-    with open(os.path.join(path_source,'xfdumanifest.xml'),'r') as read_obj:
+    with open(os.path.join(path_source,'xfdumanifest.xml'),'r', encoding="utf-8") as read_obj:
         for line in read_obj:
             if 'IPF-OL-2' in line:
                 IPF_OL_2_version = line.split('"')[3]
@@ -481,7 +481,7 @@ def add_OL_12_to_list(path_source,path_output,res_str):
     elif res_str == 'WRR':
         res_L1_str = 'ERR'
         
-    cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v trim|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
+    cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
     out, err = prog.communicate()
     if err:
@@ -490,7 +490,7 @@ def add_OL_12_to_list(path_source,path_output,res_str):
         print('Run:')
         print(cmd)
     
-    cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_trimmed_list.txt'
+    cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_list.txt'
     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
     out, err = prog.communicate()
     if err:
@@ -512,7 +512,7 @@ def clean_lists(path_out,res_str):
     list_path = f'{path_out}/OL_2_{res_str}_list.txt'
     sort_uniq(list_path,path_out)
     
-    list_path = f'{path_out}/OL_2_{res_str}_trimmed_list.txt'
+    list_path = f'{path_out}/OL_2_{res_str}_list.txt'
     sort_uniq(list_path,path_out)
     
     if res_str == 'WFR':
@@ -661,14 +661,14 @@ def main():
     else:
         res = 'WFR'
         
-    wce = f'"*OL_2_{res}*trim*"' # wild card expression
+    wce = f'"*OL_2_{res}*"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,res,'satellite')
     
     if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
         os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
-    if os.path.exists(f'{path_out}/OL_2_{res}_trimmed_list.txt'):
-        os.remove(f'{path_out}/OL_2_{res}_trimmed_list.txt')
+    if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
+        os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
     if res == 'WFR':
         res_L1_str = 'EFR'
