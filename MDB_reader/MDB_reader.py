@@ -28,7 +28,7 @@ import numpy.ma as ma
 import datetime
 import time
 import calendar
-import pandas
+import pandas as pd
 from matplotlib import pyplot as plt
 plt.rc('xtick',labelsize=12)
 plt.rc('ytick',labelsize=12)
@@ -62,7 +62,7 @@ color_dict = dict({\
  '885.00':'DarkSlateGray',\
 '1020.50':'Black'})
 
-plot_lims = dict({\
+plot_lims_Rrs = dict({\
  '400.00':[-0.002,0.015],\
  '412.50':[-0.002,0.018],\
  '442.50':[-0.002,0.030],\
@@ -79,6 +79,24 @@ plot_lims = dict({\
  '865.00':[-0.0001,0.0010],\
  '885.00':[-0.0002,0.0008],\
 '1020.50':[-0.0003,0.0007]})
+    
+plot_lims_LWN = dict({\
+ '400.00':[-0.4,3.0],\
+ '412.50':[-0.4,3.0],\
+ '442.50':[-0.2,4.0],\
+ '490.00':[-0.2,6.0],\
+ '510.00':[-0.1,6.0],\
+ '560.00':[-0.1,6.0],\
+ '620.00':[-0.1,2.5],\
+ '665.00':[-0.1,1.7],\
+ '673.75':[-0.1,1.6],\
+ '681.25':[-0.1,1.6],\
+ '708.75':[-0.1,0.9],\
+ '753.75':[-0.02,0.24],\
+ '778.75':[-0.02,0.2],\
+ '865.00':[-0.01,0.09],\
+ '885.00':[-0.02,0.08],\
+'1020.50':[-0.04,0.1]})    
 
 olci_band_list  = ['400.00', '412.50', '442.50', '490.00', '510.00', '560.00', '620.00', '665.00',\
                     '673.75', '681.25', '708.75', '753.75', '778.75', '865.00', '885.00','1020.50']
@@ -94,8 +112,9 @@ def create_list_MDBs(path_to_source,path_out,wce,type_product):
     
     return path_to_list
 
-def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,\
-                 station,sat_proc_version_str,satellite_sensor,platform,res,insitu_sensor,brdf_str): 
+def plot_scatter(x,y,sat_band,ins_band,path_out,prot_name,sensor_name,\
+                 station,sat_proc_version_str,satellite_sensor,\
+                 platform,res,insitu_sensor,brdf_str,options,df): 
 
     # replace nan in y (sat data)
     x = np.array(x)
@@ -106,7 +125,9 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,\
     # station_vec = station_vec[~np.isnan(y)]
     y = y[~np.isnan(y)]
 
-
+    if options['plot_options']['to_plot'] == 'LWN':
+        x = x*cfs.get_F0(ins_band)
+        y = y*cfs.get_F0(sat_band)   
     # rmse_val = np.nan
     # mean_abs_rel_diff = np.nan
     # mean_rel_diff = np.nan
@@ -170,8 +191,15 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,\
             mrk_style = '+' 
 
         plt.plot(x[cnt], y[cnt],color=mrk_color,marker=mrk_style)
-    plt.xlim(plot_lims[f'{float(str1):0.2f}'])
-    plt.ylim(plot_lims[f'{float(str1):0.2f}'])
+        
+    plot_lims_Rrs     
+    if options['plot_options']['to_plot'] == 'rhow':    
+        plt.xlim(plot_lims_Rrs[f'{sat_band:0.2f}'])
+        plt.ylim(plot_lims_Rrs[f'{sat_band:0.2f}'])
+    elif options['plot_options']['to_plot'] == 'LWN':
+        plt.xlim(plot_lims_LWN[f'{sat_band:0.2f}'])
+        plt.ylim(plot_lims_LWN[f'{sat_band:0.2f}'])
+        
     plt.gca().set_aspect('equal', adjustable='box')
     # plot 1:1 line
     xmin, xmax = plt.gca().get_xlim()
@@ -185,6 +213,17 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,\
     # plt.legend(['1:1','Regression Line'])
     plt.xlabel(r'PANTHYR $R_{rs}$',fontsize=12)
     plt.ylabel(r'OLCI $R_{rs}$',fontsize=12)  
+    
+    if options['plot_options']['to_plot'] == 'rhow':
+        plt.xlabel(r'PANTHYR $\rho_{W}$',fontsize=12)
+        plt.ylabel(r'OLCI $\rho_{W}$',fontsize=12)    
+    elif options['plot_options']['to_plot'] == 'Rrs':
+        plt.xlabel(r'PANTHYR $R_{rs}$',fontsize=12)
+        plt.ylabel(r'OLCI $R_{rs}$',fontsize=12) 
+    elif options['plot_options']['to_plot'] == 'LWN':
+        plt.xlabel(r'PANTHYR $L_{WN}$'+f'({str(ins_band)})',fontsize=12)
+        plt.ylabel(r'OLCI $L_{WN}$'+f'({str(sat_band)})',fontsize=12)     
+    
     if (xmin<0 or ymin<0):
         plt.plot([xmin,xmax],[0, 0],'--k',linewidth = 0.7)  
     
@@ -202,19 +241,21 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,\
         #  the mean of absolute (unsigned) percent differences
     mean_abs_rel_diff = np.mean(np.abs(rel_diff))
 
-    str2 = str1
-    # to print without .0
-    if str1[-2:]=='.0':
-        str2 = str2[:-2]
+    sat_band_str = str(sat_band)
+    str2 = sat_band_str
+    # # to print without .0
+    # if str1[-2:]=='.0':
+    #     str2 = str2[:-2]
         
     
-    str0 = '{}nm\nN={:d}\nrmse={:,.4f}\nMAPD={:,.0f}%\nMPD={:,.0f}%\n$r^2$={:,.2f}'\
-    .format(str2,\
+    str0 = '{}\nN={:d}\nrmse={:,.4f}\nMAPD={:,.0f}%\nMPD={:,.0f}%\n$r^2$={:,.2f}'\
+    .format(sat_band_str,\
             N,\
             rmse_val,\
             mean_abs_rel_diff,\
             mean_rel_diff,\
             r_value**2)
+         
         
     plt.text(0.05, 0.65, str0,horizontalalignment='left', fontsize=12,transform=plt.gca().transAxes)
 
@@ -226,13 +267,13 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,\
     ofname = f'{satellite_sensor}{platform}_{res}_{insitu_sensor}'
     plt.title(ofname+ f'; {sat_proc_version_str}')  
     
-    ofname = f'{satellite_sensor}{platform}_{res}_{insitu_sensor}_{sat_proc_version_str[-5:].replace(".","p")}{"_"+brdf_str}_{str1.replace(".","p")}.pdf'
+    ofname = f'{satellite_sensor}{platform}_{res}_{insitu_sensor}_{sat_proc_version_str[-5:].replace(".","p")}_{sat_band_str.replace(".","p")}.pdf'
     ofname = os.path.join(path_out,ofname)
     
     plt.savefig(ofname, dpi=300)
 
     # latex table
-    if str1 == '412.5':
+    if sat_band_str == '412.5':
         print('proto & nm & N & rmse & MAPD & MPD & $r^2$\n')
     str_table = '{} & {} & {:d} & {:,.4f} & {:,.1f} & {:,.1f} & {:,.2f}\\\\'\
     .format(prot_name_str,\
@@ -244,8 +285,15 @@ def plot_scatter(x,y,str1,path_out,prot_name,sensor_name,\
             r_value**2)
 
     print(str_table)
+    df = df.append({'proc':sat_proc_version_str,'sat':satellite_sensor,\
+                 'platform':platform,'wl':sat_band_str,'N':N,\
+                    'rmse':rmse_val,'MAPD':mean_abs_rel_diff,'MPD':mean_rel_diff,\
+                    'r^2':r_value**2},ignore_index=True) 
+    
  
     print('count_Venise: '+str(count_Venise))
+    
+    return df
     # print('count_Gloria: '+str(count_Gloria))
     # print('count_Galata_Platform: '+str(count_Galata_Platform))
     # print('count_Helsinki_Lighthouse: '+str(count_Helsinki_Lighthouse))
@@ -533,6 +581,7 @@ class PANTHYR_class(object):
                         else:
                             print(f'Not included: NTP= {NTP:.0f}; NGP={NGP}; numberValid= {numberValid}')
                     
+                    # scatter plots
                     if check and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']):
                         N_MUs += 1
                         matchups_ins_array = np.append(matchups_ins_array,[curr_ins_rrs],axis=0)
@@ -545,16 +594,24 @@ class PANTHYR_class(object):
                             else:
                                 mfc = None
                                 lw = None
+                                
+                            ins_band_index = np.argmin(np.abs(curr_bands[sat_band_index]-insitu_bands))
+                            ins_band = insitu_bands[ins_band_index]
+                            sat_band = curr_bands[sat_band_index]
                             if options['plot_options']['to_plot'] == 'rhow':
                                 plt.scatter(curr_ins_rrs[sat_band_index]*np.pi,curr_sat_rrs_mean[sat_band_index]*np.pi,\
                                     c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
-                            
                             elif options['plot_options']['to_plot'] == 'Rrs':
                                 plt.scatter(curr_ins_rrs[sat_band_index],curr_sat_rrs_mean[sat_band_index],\
                                     c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
+                            elif options['plot_options']['to_plot'] == 'LWN':
+                                plt.scatter(curr_ins_rrs[sat_band_index]*cfs.get_F0(ins_band),\
+                                    curr_sat_rrs_mean[sat_band_index]*cfs.get_F0(sat_band),\
+                                    c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
+                                
                             
 
-        # plot all bands
+        # scatter plot all bands
         plt.gca().set_aspect('equal', adjustable='box')
 
         if options['plot_options']['to_plot'] == 'rhow':
@@ -562,7 +619,10 @@ class PANTHYR_class(object):
             plt.ylabel(r'OLCI $\rho_{W}$',fontsize=12)    
         elif options['plot_options']['to_plot'] == 'Rrs':
             plt.xlabel(r'PANTHYR $R_{rs}$',fontsize=12)
-            plt.ylabel(r'OLCI $R_{rs}$',fontsize=12)               
+            plt.ylabel(r'OLCI $R_{rs}$',fontsize=12) 
+        elif options['plot_options']['to_plot'] == 'LWN':
+            plt.xlabel(r'PANTHYR $L_{WN}$',fontsize=12)
+            plt.ylabel(r'OLCI $L_{WN}$',fontsize=12)               
 
 
         plt.legend(['400.00', '412.50', '442.50', '490.00', '510.00', '560.00', '620.00', '665.00',\
@@ -589,25 +649,36 @@ class PANTHYR_class(object):
         print(ofname)
         print(f'N match-ups: {N_MUs}')
         
+        columns = ['proc','sat',\
+                 'platform','wl','N','rmse','MAPD','MPD','r^2']
+        df = pd.DataFrame(columns=columns)
+        
         # plot by band
         for sat_band_index in range(len(curr_bands)):
-            x = matchups_sat_array[:,sat_band_index]
-            y = matchups_ins_array[:,sat_band_index]
-            plot_scatter(x,y,olci_band_list[sat_band_index],output_directory,'ba','OLCI','Venise_PAN',sat_proc_version_str,\
-                         satellite_sensor,platform,res,insitu_sensor,brdf_str)
-    
-      
-# #%%                
+            x = matchups_ins_array[:,sat_band_index]
+            y = matchups_sat_array[:,sat_band_index]
+            ins_band_index = np.argmin(np.abs(curr_bands[sat_band_index]-insitu_bands))
+            ins_band = insitu_bands[ins_band_index]
+            sat_band = curr_bands[sat_band_index]
+            df = plot_scatter(x,y,sat_band,ins_band,output_directory,'ba','OLCI','Venise_PAN',sat_proc_version_str,\
+                         satellite_sensor,platform,res,insitu_sensor,brdf_str,options,df)
+
+        print(df.to_latex(index=False,float_format="{:0.2f}".format))
+# # #%%                
 # def main():
-"""business logic for when running this module as the primary one!"""
-print('Main Code!')
+#     """business logic for when running this module as the primary one!"""
+#     print('Main Code!')
 
 path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/'
 
 # Read config. file
 # config_file = file_config_parse.config_file
-config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
-
+sat_proc_version = '6.13' # '6.13' 0r '7.00'
+if sat_proc_version == '6.13':
+    config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
+elif sat_proc_version == '7.00':
+    config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR_newflags.ini')
+    
 if os.path.isfile(config_file) == True:
     options = config_reader(config_file)
 else:
