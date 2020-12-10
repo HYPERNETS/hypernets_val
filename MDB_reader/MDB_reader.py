@@ -664,6 +664,9 @@ class PANTHYR_class(object):
                          satellite_sensor,platform,res,insitu_sensor,brdf_str,options,df)
 
         print(df.to_latex(index=False,float_format="{:0.2f}".format))
+        ofname_csv = os.path.join(output_directory,f'{satellite_sensor}{platform}_{sat_proc_version_str}.csv')
+        print(ofname_csv)
+        print(ofname_csv,df.to_csv(index=False))
 # # #%%                
 # def main():
 #     """business logic for when running this module as the primary one!"""
