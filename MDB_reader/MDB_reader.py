@@ -248,7 +248,7 @@ def plot_scatter(x,y,sat_band,ins_band,path_out,prot_name,sensor_name,\
     #     str2 = str2[:-2]
         
     
-    str0 = '{}\nN={:d}\nrmse={:,.4f}\nMAPD={:,.0f}%\nMPD={:,.0f}%\n$r^2$={:,.2f}'\
+    str0 = '{}\nN={:d}\nRMSD={:,.4f}\nMAPD={:,.0f}%\nMPD={:,.0f}%\n$r^2$={:,.2f}'\
     .format(sat_band_str,\
             N,\
             rmse_val,\
@@ -274,7 +274,7 @@ def plot_scatter(x,y,sat_band,ins_band,path_out,prot_name,sensor_name,\
 
     # latex table
     if sat_band_str == '412.5':
-        print('proto & nm & N & rmse & MAPD & MPD & $r^2$\n')
+        print('proto & nm & N & RMSD & MAPD & MPD & $r^2$\n')
     str_table = '{} & {} & {:d} & {:,.4f} & {:,.1f} & {:,.1f} & {:,.2f}\\\\'\
     .format(prot_name_str,\
             str2,\
@@ -664,9 +664,9 @@ class PANTHYR_class(object):
                          satellite_sensor,platform,res,insitu_sensor,brdf_str,options,df)
 
         print(df.to_latex(index=False,float_format="{:0.2f}".format))
-        ofname_csv = os.path.join(output_directory,f'{satellite_sensor}{platform}_{sat_proc_version_str}.csv')
+        ofname_csv = os.path.join(output_directory,f'metrics_{satellite_sensor}{platform}_{res}_{sat_proc_version_str[-5:].replace(".","p")}.csv')
         print(ofname_csv)
-        print(ofname_csv,df.to_csv(index=False))
+        df.to_csv(ofname_csv,index=False)
 # # #%%                
 # def main():
 #     """business logic for when running this module as the primary one!"""
@@ -676,7 +676,7 @@ path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNET
 
 # Read config. file
 # config_file = file_config_parse.config_file
-sat_proc_version = '6.13' # '6.13' 0r '7.00'
+sat_proc_version = '7.00' # '6.13' 0r '7.00'
 if sat_proc_version == '6.13':
     config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
 elif sat_proc_version == '7.00':
