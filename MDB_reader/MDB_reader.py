@@ -192,7 +192,7 @@ def plot_scatter(x,y,sat_band,ins_band,path_out,prot_name,sensor_name,\
 
         plt.plot(x[cnt], y[cnt],color=mrk_color,marker=mrk_style)
         
-    plot_lims_Rrs     
+    # plot_lims_Rrs     
     if options['plot_options']['to_plot'] == 'rhow':    
         plt.xlim(plot_lims_Rrs[f'{sat_band:0.2f}'])
         plt.ylim(plot_lims_Rrs[f'{sat_band:0.2f}'])
@@ -441,6 +441,15 @@ class PANTHYR_class(object):
         matchups_sat_array = np.empty([0,len(olci_band_list)]) # dim: MU number, band number
         matchups_ins_array = np.empty([0,len(olci_band_list)])
         
+        columns = ['version','PDU','ins: LWN(753.75)','sat: LWN(753.75)']
+        df_outliers = pd.DataFrame(columns=columns)
+        
+        date_list = []
+        outliers_ins_753p75 = []
+        outliers_ins_753p75_values = []
+        outliers_sat_753p75_values = []
+        
+        
         for MDBpath in input_list:
             # open each MDB
             print('------------------')
@@ -455,9 +464,10 @@ class PANTHYR_class(object):
                 pass    
             
             
-            #check if it is an AERONET MDB
+#check if it is an AERONET MDB
             if nc.satellite+nc.platform == str(options['satellite_options']['satellite']).replace(" ", "").upper()+str(options['satellite_options']['platform']).replace(" ", "")\
-                and (options['satellite_options']['proc_version'] in nc.satellite_proc_version):
+                and (options['satellite_options']['proc_version'] in nc.satellite_proc_version)\
+                    and MDBpath.split('_')[-3][:8] not in date_list:
                 #import current MDB variables
                 insitu_bands = nc.variables['insitu_bands'][:] # insitu_bands(insitu_bands)
                 satellite_bands = nc.variables['satellite_bands'][:]
@@ -508,7 +518,9 @@ class PANTHYR_class(object):
                     and SZA <= float(options['Filtering_options']['sun_zenith_max'])\
                     and cond_min_valid_pxs:
                     # print(f'time difference: {time_difference[ins_time_index]}, within delta_t: {delta_t}')
-
+                    
+                    date_list.append(MDBpath.split('_')[-3][:8]) # to avoid multiple MUs per day
+                    
                     satellite_rhow = nc.variables['satellite_rhow'][:]
                     satellite_BRDF_rhow = nc.variables['satellite_BRDF_rhow'][:]
                     insitu_rrs = nc.variables['insitu_rhow'][:]
@@ -558,7 +570,7 @@ class PANTHYR_class(object):
                             mask_outlier = np.ma.zeros(curr_sat_box.shape)
                             mask_outlier[np.where(curr_sat_box > tresh_up)] = 1 
                             mask_outlier[np.where(curr_sat_box < tresh_bottom)] = 1
-                            if options['Filtering_options']['outliers'] == 'False' or options['Filtering_options']['outliers'] == 'F' or options['Filtering_options']['outliers'] == 'FALSE':
+                            if options['Filtering_options']['outliers'] in ['False','F','FALSE']:
                                 mask_outlier = mask_outlier * 0
                             curr_sat_box_filtered = np.ma.masked_array(curr_sat_box,mask_outlier)
     
@@ -567,7 +579,8 @@ class PANTHYR_class(object):
 
 
                             # in situ. curr_ins_rrs is a list with N=number of bands elements
-                            curr_ins_rrs.append(insitu_rrs[ins_band_index,ins_time_index])
+                            ins_value = insitu_rrs[ins_band_index,ins_time_index]
+                            curr_ins_rrs.append(ins_value)
                             curr_sat_rrs_mean.append(curr_sat_box_mean/np.pi) # transform rhow to Rrs
                             curr_bands.append(wl)
                             print(f'in situ: {insitu_rrs[ins_band_index,ins_time_index]}; sat: {curr_sat_box_mean}')
@@ -577,6 +590,20 @@ class PANTHYR_class(object):
                                 curr_sat_box_cv_560 = curr_sat_box_std/curr_sat_box_mean
                                 print(f'cv_560: {curr_sat_box_cv_560}')
                                 check = 1
+                            
+                            # to detect outliers from the in situ data
+                            if wl == 753.75 \
+                                and cfs.get_F0(753.75)*ins_value>0.05 \
+                                    and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']):
+                                print('in situ 753.75 band > 0.05')
+                                print(nc.satellite_PDU)
+                                outliers_ins_753p75.append(nc.satellite_PDU)
+                                outliers_ins_753p75_values.append(cfs.get_F0(753.75)*ins_value)
+                                outliers_sat_753p75_values.append(cfs.get_F0(753.75)*curr_sat_box_mean/np.pi)
+                                df_outliers =  df_outliers.append({'version':sat_proc_version_str,\
+                                                    'PDU':nc.satellite_PDU,\
+                                                    'ins: LWN(753.75)':cfs.get_F0(753.75)*ins_value,\
+                                                    'sat: LWN(753.75)':cfs.get_F0(753.75)*curr_sat_box_mean/np.pi},ignore_index=True)
                                 
                         else:
                             print(f'Not included: NTP= {NTP:.0f}; NGP={NGP}; numberValid= {numberValid}')
@@ -587,7 +614,7 @@ class PANTHYR_class(object):
                         matchups_ins_array = np.append(matchups_ins_array,[curr_ins_rrs],axis=0)
                         matchups_sat_array = np.append(matchups_sat_array,[curr_sat_rrs_mean],axis=0)
                         # plotting all bands
-                        for sat_band_index in range(len(curr_bands)):
+                        for sat_band_index in range(len(curr_bands)-1):
                             if curr_bands[sat_band_index] in satellite_BRDF_bands_list and options['satellite_options']['BRDF'] == 'T':
                                 mfc = 'Gray'
                                 lw = 1.5
@@ -608,10 +635,8 @@ class PANTHYR_class(object):
                                 plt.scatter(curr_ins_rrs[sat_band_index]*cfs.get_F0(ins_band),\
                                     curr_sat_rrs_mean[sat_band_index]*cfs.get_F0(sat_band),\
                                     c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
-                                
-                            
 
-        # scatter plot all bands
+# scatter plot all bands
         plt.gca().set_aspect('equal', adjustable='box')
 
         if options['plot_options']['to_plot'] == 'rhow':
@@ -626,7 +651,7 @@ class PANTHYR_class(object):
 
 
         plt.legend(['400.00', '412.50', '442.50', '490.00', '510.00', '560.00', '620.00', '665.00',\
-                    '673.75', '681.25', '708.75', '753.75', '778.75', '865.00', '885.00','1020.50'],
+                    '673.75', '681.25', '708.75', '753.75', '778.75', '865.00', '885.00'],
                    loc='upper left',\
                    bbox_to_anchor=(1.001, 1))
         xmin, xmax = plt.gca().get_xlim()
@@ -667,6 +692,17 @@ class PANTHYR_class(object):
         ofname_csv = os.path.join(output_directory,f'metrics_{satellite_sensor}{platform}_{res}_{sat_proc_version_str[-5:].replace(".","p")}.csv')
         print(ofname_csv)
         df.to_csv(ofname_csv,index=False)
+        
+        # outliers 
+        plt.figure()
+        plt.scatter(outliers_ins_753p75_values,outliers_sat_753p75_values)
+        for i, txt in enumerate(outliers_ins_753p75):
+            plt.annotate(txt[:31], (outliers_ins_753p75_values[i],outliers_sat_753p75_values[i]),rotation=40)
+        plt.xlim(plot_lims_LWN['753.75'])
+        plt.ylim(plot_lims_LWN['753.75'])
+        plt.gca().set_aspect('equal', adjustable='box')
+        
+        print(df_outliers.to_csv(index=False))
 # # #%%                
 # def main():
 #     """business logic for when running this module as the primary one!"""
@@ -676,7 +712,7 @@ path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNET
 
 # Read config. file
 # config_file = file_config_parse.config_file
-sat_proc_version = '7.00' # '6.13' 0r '7.00'
+sat_proc_version = '6.13' # '6.13' 0r '7.00'
 if sat_proc_version == '6.13':
     config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
 elif sat_proc_version == '7.00':
