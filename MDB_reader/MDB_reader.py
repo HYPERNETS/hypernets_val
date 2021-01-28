@@ -30,8 +30,8 @@ import time
 import calendar
 import pandas as pd
 from matplotlib import pyplot as plt
-plt.rc('xtick',labelsize=12)
-plt.rc('ytick',labelsize=12)
+plt.rc('xtick',labelsize=14)
+plt.rc('ytick',labelsize=14)
 from scipy import stats
 
 import configparser
@@ -42,6 +42,8 @@ sys.path.append(code_home)
 import COMMON.common_functions as cfs
 # import COMMON.apply_OLCI_flags as apply_OLCI_flags
 import COMMON.Class_Flags_OLCI as flag
+
+debug = False
 
 # for plotting
 color_dict = dict({\
@@ -81,19 +83,19 @@ plot_lims_Rrs = dict({\
 '1020.50':[-0.0003,0.0007]})
     
 plot_lims_LWN = dict({\
- '400.00':[-0.4,3.0],\
- '412.50':[-0.4,3.0],\
- '442.50':[-0.2,4.0],\
- '490.00':[-0.2,6.0],\
- '510.00':[-0.1,6.0],\
- '560.00':[-0.1,6.0],\
+ '400.00':[-0.4,4.0],\
+ '412.50':[-0.4,4.0],\
+ '442.50':[-0.2,6.0],\
+ '490.00':[-0.2,8.0],\
+ '510.00':[-0.1,8.0],\
+ '560.00':[-0.1,8.0],\
  '620.00':[-0.1,2.5],\
- '665.00':[-0.1,1.7],\
+ '665.00':[-0.1,3.0],\
  '673.75':[-0.1,1.6],\
  '681.25':[-0.1,1.6],\
  '708.75':[-0.1,0.9],\
- '753.75':[-0.02,0.24],\
- '778.75':[-0.02,0.2],\
+ '753.75':[-0.02,0.36],\
+ '778.75':[-0.02,0.4],\
  '865.00':[-0.01,0.09],\
  '885.00':[-0.02,0.08],\
 '1020.50':[-0.04,0.1]})    
@@ -379,6 +381,15 @@ class PANTHYR_class(object):
         Used for internal purpose and should not be called directly.
 
         """
+        
+        columns = ['datetime','PDU','OZA','SZA','bands','MU','outlier','version','ws',\
+            'LWN_ins_400.00','LWN_ins_412.50','LWN_ins_442.50','LWN_ins_490.00','LWN_ins_510.00','LWN_ins_560.00','LWN_ins_620.00',\
+            'LWN_ins_665.00','LWN_ins_673.75','LWN_ins_681.25','LWN_ins_708.75','LWN_ins_753.75','LWN_ins_778.75','LWN_ins_865.00',\
+            'LWN_ins_885.00','LWN_ins_1020.50','LWN_sat_400.00','LWN_sat_412.50','LWN_sat_442.50','LWN_sat_490.00','LWN_sat_510.00',\
+            'LWN_sat_560.00','LWN_sat_620.00','LWN_sat_665.00','LWN_sat_673.75','LWN_sat_681.25','LWN_sat_708.75','LWN_sat_753.75',\
+            'LWN_sat_778.75','LWN_sat_865.00','LWN_sat_885.00','LWN_sat_1020.50']
+        df_matchups = pd.DataFrame(columns=columns)
+        
         startDate = datetime.datetime.strptime(options['Time_and_sites_selection']['time_start'],'%Y-%m-%d')
         endDate = datetime.datetime.strptime(options['Time_and_sites_selection']['time_stop'],'%Y-%m-%d')
         startDate = calendar.timegm(startDate.timetuple())
@@ -454,7 +465,7 @@ class PANTHYR_class(object):
             # open each MDB
             print('------------------')
             print(MDBpath.split('/')[-1])
-            check = 0
+            check_cv560 = False
             try:
                 nc = Dataset(os.path.join(MDBpath))
                 
@@ -477,8 +488,7 @@ class PANTHYR_class(object):
 
                 self.insitu_bands = insitu_bands
                 self.satellite_bands = satellite_bands
-                nc.satellite_stop_time
-                # curr_satellite_date = nc.satellite_stop_time
+                curr_satellite_date = nc.satellite_stop_time
 #                 curr_level = nc.variables[options['insitu_prefix']+'level'][:]
                 # curr_insitu_date = nc.variables['insitu_time'][:] # insitu_time(insitu_id)
                 curr_site = nc.insitu_site_name
@@ -488,7 +498,11 @@ class PANTHYR_class(object):
 
                 OZA = nc.satellite_VZA_center_pixel
                 SZA = nc.satellite_SZA_center_pixel
-                print(f'OZA: {OZA:.1f}; SZA: {SZA:.1f}')
+                ws0 = nc.satellite_ws0
+                ws1 = nc.satellite_ws1
+                ws = np.sqrt((float(ws0)**2)+(float(ws1)**2))
+                if debug:
+                    print(f'OZA: {OZA:.1f}; SZA: {SZA:.1f}; ws: {ws:.1.f}')
                 
                 sat_proc_version_str = nc.satellite_proc_version
 
@@ -531,11 +545,12 @@ class PANTHYR_class(object):
                     curr_bands = []
                     
                     # print(f'size insitu_rrs: {insitu_rrs.shape}')
-
+                    outlier_flag = False
                     for sat_band_index in range(0,satellite_rhow.shape[0]):
                         wl = satellite_bands[sat_band_index]
                         if options['satellite_options']['BRDF'] == 'T' and (wl in satellite_BRDF_bands_list):
-                            print(f'Band {wl} in BRDF bands.')
+                            if debug:
+                                print(f'Band {wl} in BRDF bands.')
                             sat_BRDF_band_index = np.argmin(np.abs(wl-satellite_BRDF_bands))
                             # satellite extract
                             curr_sat_box = satellite_BRDF_rhow[sat_BRDF_band_index,r_s:r_e,c_s:c_e]
@@ -544,7 +559,8 @@ class PANTHYR_class(object):
                             curr_sat_box = satellite_rhow[sat_band_index,r_s:r_e,c_s:c_e]
 
                         ins_band_index = np.argmin(np.abs(wl-insitu_bands))
-                        print(f'Closest in situ band to sat band {wl}: {insitu_bands[ins_band_index]} nm')
+                        if debug:
+                            print(f'Closest in situ band to sat band {wl}: {insitu_bands[ins_band_index]} nm')
 
                         curr_sat_box = np.ma.masked_where(curr_sat_box == 65535,curr_sat_box)
                         curr_sat_box = np.ma.masked_invalid(curr_sat_box)
@@ -583,20 +599,23 @@ class PANTHYR_class(object):
                             curr_ins_rrs.append(ins_value)
                             curr_sat_rrs_mean.append(curr_sat_box_mean/np.pi) # transform rhow to Rrs
                             curr_bands.append(wl)
-                            print(f'in situ: {insitu_rrs[ins_band_index,ins_time_index]}; sat: {curr_sat_box_mean}')
+                            if debug:
+                                print(f'in situ: {insitu_rrs[ins_band_index,ins_time_index]}; sat: {curr_sat_box_mean}')
                             
                             if wl == 560:
                                 #name is 412 but is done on 560
                                 curr_sat_box_cv_560 = curr_sat_box_std/curr_sat_box_mean
                                 print(f'cv_560: {curr_sat_box_cv_560}')
-                                check = 1
+                                check_cv560 = True
                             
                             # to detect outliers from the in situ data
                             if wl == 753.75 \
                                 and cfs.get_F0(753.75)*ins_value>0.05 \
-                                    and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']):
+                                    and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']): # a MU
                                 print('in situ 753.75 band > 0.05')
                                 print(nc.satellite_PDU)
+                                outlier_flag = True
+                                print(outlier_flag)
                                 outliers_ins_753p75.append(nc.satellite_PDU)
                                 outliers_ins_753p75_values.append(cfs.get_F0(753.75)*ins_value)
                                 outliers_sat_753p75_values.append(cfs.get_F0(753.75)*curr_sat_box_mean/np.pi)
@@ -608,35 +627,79 @@ class PANTHYR_class(object):
                         else:
                             print(f'Not included: NTP= {NTP:.0f}; NGP={NGP}; numberValid= {numberValid}')
                     
-                    # scatter plots
-                    if check and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']):
-                        N_MUs += 1
-                        matchups_ins_array = np.append(matchups_ins_array,[curr_ins_rrs],axis=0)
-                        matchups_sat_array = np.append(matchups_sat_array,[curr_sat_rrs_mean],axis=0)
-                        # plotting all bands
-                        for sat_band_index in range(len(curr_bands)-1):
-                            if curr_bands[sat_band_index] in satellite_BRDF_bands_list and options['satellite_options']['BRDF'] == 'T':
-                                mfc = 'Gray'
-                                lw = 1.5
-                            else:
-                                mfc = None
-                                lw = None
-                                
-                            ins_band_index = np.argmin(np.abs(curr_bands[sat_band_index]-insitu_bands))
-                            ins_band = insitu_bands[ins_band_index]
-                            sat_band = curr_bands[sat_band_index]
-                            if options['plot_options']['to_plot'] == 'rhow':
-                                plt.scatter(curr_ins_rrs[sat_band_index]*np.pi,curr_sat_rrs_mean[sat_band_index]*np.pi,\
-                                    c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
-                            elif options['plot_options']['to_plot'] == 'Rrs':
-                                plt.scatter(curr_ins_rrs[sat_band_index],curr_sat_rrs_mean[sat_band_index],\
-                                    c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
-                            elif options['plot_options']['to_plot'] == 'LWN':
-                                plt.scatter(curr_ins_rrs[sat_band_index]*cfs.get_F0(ins_band),\
-                                    curr_sat_rrs_mean[sat_band_index]*cfs.get_F0(sat_band),\
-                                    c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
+            # scatter plots  
+            MU_flag = False
+            if check_cv560 and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']):
+                N_MUs += 1
+                MU_flag = True
+                matchups_ins_array = np.append(matchups_ins_array,[curr_ins_rrs],axis=0)
+                matchups_sat_array = np.append(matchups_sat_array,[curr_sat_rrs_mean],axis=0)
+                # plotting all bands
+                for sat_band_index in range(len(curr_bands)-1):
+                    if curr_bands[sat_band_index] in satellite_BRDF_bands_list and options['satellite_options']['BRDF'] == 'T':
+                        mfc = 'Gray'
+                        lw = 1.5
+                    else:
+                        mfc = None
+                        lw = None
+                        
+                    ins_band_index = np.argmin(np.abs(curr_bands[sat_band_index]-insitu_bands))
+                    ins_band = insitu_bands[ins_band_index]
+                    sat_band = curr_bands[sat_band_index]
+                    if options['plot_options']['to_plot'] == 'rhow':
+                        plt.scatter(curr_ins_rrs[sat_band_index]*np.pi,curr_sat_rrs_mean[sat_band_index]*np.pi,\
+                            c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
+                    elif options['plot_options']['to_plot'] == 'Rrs':
+                        plt.scatter(curr_ins_rrs[sat_band_index],curr_sat_rrs_mean[sat_band_index],\
+                            c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
+                    elif options['plot_options']['to_plot'] == 'LWN':
+                        plt.scatter(curr_ins_rrs[sat_band_index]*cfs.get_F0(ins_band),\
+                            curr_sat_rrs_mean[sat_band_index]*cfs.get_F0(sat_band),\
+                            c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
 
-# scatter plot all bands
+                df_matchups = df_matchups.append(\
+                            {'datetime':curr_satellite_date,\
+                            'PDU':nc.satellite_PDU,\
+                            'OZA':OZA,'SZA':SZA,\
+                            'LWN_ins_400.00':cfs.get_F0(400.00)*curr_ins_rrs[0],\
+                            'LWN_ins_412.50':cfs.get_F0(412.50)*curr_ins_rrs[1],\
+                            'LWN_ins_442.50':cfs.get_F0(442.50)*curr_ins_rrs[2],\
+                            'LWN_ins_490.00':cfs.get_F0(490.00)*curr_ins_rrs[3],\
+                            'LWN_ins_510.00':cfs.get_F0(510.00)*curr_ins_rrs[4],\
+                            'LWN_ins_560.00':cfs.get_F0(560.00)*curr_ins_rrs[5],\
+                            'LWN_ins_620.00':cfs.get_F0(620.00)*curr_ins_rrs[6],\
+                            'LWN_ins_665.00':cfs.get_F0(665.00)*curr_ins_rrs[7],\
+                            'LWN_ins_673.75':cfs.get_F0(673.75)*curr_ins_rrs[8],\
+                            'LWN_ins_681.25':cfs.get_F0(681.25)*curr_ins_rrs[9],\
+                            'LWN_ins_708.75':cfs.get_F0(708.75)*curr_ins_rrs[10],\
+                            'LWN_ins_753.75':cfs.get_F0(753.75)*curr_ins_rrs[11],\
+                            'LWN_ins_778.75':cfs.get_F0(778.75)*curr_ins_rrs[12],\
+                            'LWN_ins_865.00':cfs.get_F0(865.00)*curr_ins_rrs[13],\
+                            'LWN_ins_885.00':cfs.get_F0(885.00)*curr_ins_rrs[14],\
+                            'LWN_ins_1020.50':cfs.get_F0(1020.5)*curr_ins_rrs[15],\
+                            'LWN_sat_400.00':cfs.get_F0(400.00)*curr_sat_rrs_mean[0],\
+                            'LWN_sat_412.50':cfs.get_F0(412.50)*curr_sat_rrs_mean[1],\
+                            'LWN_sat_442.50':cfs.get_F0(442.50)*curr_sat_rrs_mean[2],\
+                            'LWN_sat_490.00':cfs.get_F0(490.00)*curr_sat_rrs_mean[3],\
+                            'LWN_sat_510.00':cfs.get_F0(510.00)*curr_sat_rrs_mean[4],\
+                            'LWN_sat_560.00':cfs.get_F0(560.00)*curr_sat_rrs_mean[5],\
+                            'LWN_sat_620.00':cfs.get_F0(620.00)*curr_sat_rrs_mean[6],\
+                            'LWN_sat_665.00':cfs.get_F0(665.00)*curr_sat_rrs_mean[7],\
+                            'LWN_sat_673.75':cfs.get_F0(673.75)*curr_sat_rrs_mean[8],\
+                            'LWN_sat_681.25':cfs.get_F0(681.25)*curr_sat_rrs_mean[9],\
+                            'LWN_sat_708.75':cfs.get_F0(708.75)*curr_sat_rrs_mean[10],\
+                            'LWN_sat_753.75':cfs.get_F0(753.75)*curr_sat_rrs_mean[11],\
+                            'LWN_sat_778.75':cfs.get_F0(778.75)*curr_sat_rrs_mean[12],\
+                            'LWN_sat_865.00':cfs.get_F0(865.00)*curr_sat_rrs_mean[13],\
+                            'LWN_sat_885.00':cfs.get_F0(885.00)*curr_sat_rrs_mean[14],\
+                            'LWN_sat_1020.50':cfs.get_F0(1020.5)*curr_sat_rrs_mean[15],\
+                            'bands':curr_bands,\
+                            'MU':MU_flag,\
+                            'outlier':outlier_flag,\
+                            'version':sat_proc_version_str,\
+                            'ws':ws},ignore_index=True)
+            
+        # scatter plot all bands
         plt.gca().set_aspect('equal', adjustable='box')
 
         if options['plot_options']['to_plot'] == 'rhow':
@@ -703,16 +766,18 @@ class PANTHYR_class(object):
         plt.gca().set_aspect('equal', adjustable='box')
         
         print(df_outliers.to_csv(index=False))
+        
+        self.df_matchups = df_matchups
 # # #%%                
 # def main():
 #     """business logic for when running this module as the primary one!"""
 #     print('Main Code!')
 
-path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/'
+path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/'
 
 # Read config. file
 # config_file = file_config_parse.config_file
-sat_proc_version = '6.13' # '6.13' 0r '7.00'
+sat_proc_version = '7.00' # '6.13' 0r '7.00'
 if sat_proc_version == '6.13':
     config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
 elif sat_proc_version == '7.00':
@@ -737,6 +802,107 @@ if options['insitu_options']['sensor'] == 'PANTHYR':
     #     write_csv_stat(df_data,df_overall,header,options)   
 
 
+
+
+#%% Plot scatter
+bands = np.array(olci_band_list[:-1],dtype=float)
+df_MU = dataTOplot.df_matchups
+
+# ins_data = df_MU['LWN_ins_753.75']
+# sat_data = df_MU['LWN_sat_753.75']
+# plt.figure()
+# plt.scatter(ins_data,sat_data)
+# plt.gca().set_aspect('equal', adjustable='box')
+
+#% Plot spectra
+outlier_flag = True
+
+df_outliers = df_MU.loc[(df_MU['outlier'] == outlier_flag)]
+LWN_outliers_ins = df_outliers.loc[:,'LWN_ins_400.00':'LWN_ins_885.00'].to_numpy()
+LWN_outliers_sat = df_outliers.loc[:,'LWN_sat_400.00':'LWN_sat_885.00'].to_numpy()
+if outlier_flag:
+    path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/OCTAC/EUMETSAT/Figures/OUTLIERS'
+else:
+    path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/OCTAC/EUMETSAT/Figures/'
+    
+# sat_bands = ['400.00', '412.50', '442.50', '490.00', '510.00', '560.00', '620.00', '665.00',\
+#                     '673.75', '681.25', '708.75', '753.75', '778.75', '865.00', '885.00']
+sat_bands = ['442.50','490.00','560.00','665.00', '753.75', '778.75']
+    
+for idx in range(len(LWN_outliers_ins)):
+    plt.figure(figsize = (20,10))
+    plt.subplot(2,2,4)
+    plt.plot(bands,LWN_outliers_sat[idx],'k.-')
+    plt.plot(bands,LWN_outliers_ins[idx],'b.--')
+    plt.ylim([-0.5,7])
+    plt.xlim([400,885])
+    PDU = df_outliers.iloc[idx]['PDU']
+    ws = df_outliers.iloc[idx]['ws']
+    plt.suptitle(PDU+'\n'+f'IPF-OL-2 version: {sat_proc_version}; wind speed = {ws:.1f}')
+    plt.legend([PDU[:3],'PANTHYR'])
+    plt.ylabel(r'$L_{WN}$',fontsize=14)
+    plt.xlabel('Wavelength (nm)',fontsize=14)
+    
+    for idx2 in range(len(sat_bands)):
+        ins_data = df_MU[f'LWN_ins_{sat_bands[idx2]}']
+        sat_data = df_MU[f'LWN_sat_{sat_bands[idx2]}']
+        plt.subplot(2,4,idx2+1)
+        plt.scatter(ins_data,sat_data)
+        plt.scatter(df_outliers.iloc[idx][f'LWN_ins_{sat_bands[idx2]}'],df_outliers.iloc[idx][f'LWN_sat_{sat_bands[idx2]}'])
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.xlim(plot_lims_LWN[f'{sat_bands[idx2]}'])
+        plt.ylim(plot_lims_LWN[f'{sat_bands[idx2]}']) 
+        plt.title(f'{sat_bands[idx2]} nm', x=0.5, y=0.9)
+        plt.xlabel(r'PANTHYR $L_{WN}$',fontsize=10)
+        plt.ylabel(r'OLCI $L_{WN}$',fontsize=10)  
+
+        # plot 1:1 line
+        xmin, xmax = plt.gca().get_xlim()
+        ymin, ymax = plt.gca().get_ylim()
+        plt.plot([xmin,xmax],[ymin, ymax],'--k')
+        
+        ofname = os.path.join(path_out,f'{PDU[:31]}_{sat_proc_version}_spectra.pdf')
+        plt.savefig(ofname)
+    
+#%% all
+plt.figure(figsize = (20,10))
+# sat
+plt.subplot(2,1,1)
+df_outliers = df_MU.loc[(df_MU['outlier'] == False)]
+LWN_outliers_sat = df_outliers.loc[:,'LWN_sat_400.00':'LWN_sat_885.00'].to_numpy()
+for idx in range(len(LWN_outliers_sat)):
+    plt.plot(bands,LWN_outliers_sat[idx],'k.-')
+df_outliers = df_MU.loc[(df_MU['outlier'] == True)]
+LWN_outliers_sat = df_outliers.loc[:,'LWN_sat_400.00':'LWN_sat_885.00'].to_numpy()
+for idx in range(len(LWN_outliers_sat)):
+    plt.plot(bands,LWN_outliers_sat[idx],'r.-')
+plt.ylim([-0.5,7])
+plt.xlim([400,885])
+plt.title(PDU[:3]+f' IPF-OL-2 version: {sat_proc_version}', x=0.5, y=0.9)
+plt.ylabel(r'$L_{WN}$',fontsize=14)
+# plt.xlabel('Wavelength (nm)',fontsize=14)
+
+# ins
+plt.subplot(2,1,2)
+df_outliers = df_MU.loc[(df_MU['outlier'] == False)]
+LWN_outliers_ins = df_outliers.loc[:,'LWN_ins_400.00':'LWN_ins_885.00'].to_numpy()
+for idx in range(len(LWN_outliers_ins)):
+    plt.plot(bands,LWN_outliers_ins[idx],'k.-')
+df_outliers = df_MU.loc[(df_MU['outlier'] == True)]
+LWN_outliers_ins = df_outliers.loc[:,'LWN_ins_400.00':'LWN_ins_885.00'].to_numpy()
+for idx in range(len(LWN_outliers_ins)):
+    plt.plot(bands,LWN_outliers_ins[idx],'r.-')    
+plt.ylim([-0.5,7])
+plt.xlim([400,885])
+plt.title('PANTHYR', x=0.5, y=0.9)
+plt.ylabel(r'$L_{WN}$',fontsize=14)
+plt.xlabel('Wavelength (nm)',fontsize=14)
+
+plt.suptitle('(*) in red: Outliers identified from the 778.5 nm band for IPF-OL-2 version 7.00.')
+
+path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/OCTAC/EUMETSAT/Figures/OUTLIERS'
+ofname = os.path.join(path_out,f'{PDU[:3]}_{sat_proc_version}_spectra.pdf')
+plt.savefig(ofname)
 #%%
 # if __name__ == '__main__':
 #     main()
