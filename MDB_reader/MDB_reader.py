@@ -385,9 +385,9 @@ class PANTHYR_class(object):
         columns = ['datetime','PDU','OZA','SZA','bands','MU','outlier','version','ws',\
             'LWN_ins_400.00','LWN_ins_412.50','LWN_ins_442.50','LWN_ins_490.00','LWN_ins_510.00','LWN_ins_560.00','LWN_ins_620.00',\
             'LWN_ins_665.00','LWN_ins_673.75','LWN_ins_681.25','LWN_ins_708.75','LWN_ins_753.75','LWN_ins_778.75','LWN_ins_865.00',\
-            'LWN_ins_885.00','LWN_ins_1020.50','LWN_sat_400.00','LWN_sat_412.50','LWN_sat_442.50','LWN_sat_490.00','LWN_sat_510.00',\
+            'LWN_ins_885.00','LWN_sat_400.00','LWN_sat_412.50','LWN_sat_442.50','LWN_sat_490.00','LWN_sat_510.00',\
             'LWN_sat_560.00','LWN_sat_620.00','LWN_sat_665.00','LWN_sat_673.75','LWN_sat_681.25','LWN_sat_708.75','LWN_sat_753.75',\
-            'LWN_sat_778.75','LWN_sat_865.00','LWN_sat_885.00','LWN_sat_1020.50']
+            'LWN_sat_778.75','LWN_sat_865.00','LWN_sat_885.00']
         df_matchups = pd.DataFrame(columns=columns)
         
         startDate = datetime.datetime.strptime(options['Time_and_sites_selection']['time_start'],'%Y-%m-%d')
@@ -676,7 +676,6 @@ class PANTHYR_class(object):
                             'LWN_ins_778.75':cfs.get_F0(778.75)*curr_ins_rrs[12],\
                             'LWN_ins_865.00':cfs.get_F0(865.00)*curr_ins_rrs[13],\
                             'LWN_ins_885.00':cfs.get_F0(885.00)*curr_ins_rrs[14],\
-                            'LWN_ins_1020.50':cfs.get_F0(1020.5)*curr_ins_rrs[15],\
                             'LWN_sat_400.00':cfs.get_F0(400.00)*curr_sat_rrs_mean[0],\
                             'LWN_sat_412.50':cfs.get_F0(412.50)*curr_sat_rrs_mean[1],\
                             'LWN_sat_442.50':cfs.get_F0(442.50)*curr_sat_rrs_mean[2],\
@@ -692,7 +691,6 @@ class PANTHYR_class(object):
                             'LWN_sat_778.75':cfs.get_F0(778.75)*curr_sat_rrs_mean[12],\
                             'LWN_sat_865.00':cfs.get_F0(865.00)*curr_sat_rrs_mean[13],\
                             'LWN_sat_885.00':cfs.get_F0(885.00)*curr_sat_rrs_mean[14],\
-                            'LWN_sat_1020.50':cfs.get_F0(1020.5)*curr_sat_rrs_mean[15],\
                             'bands':curr_bands,\
                             'MU':MU_flag,\
                             'outlier':outlier_flag,\
@@ -902,6 +900,36 @@ plt.suptitle('(*) in red: Outliers identified from the 778.5 nm band for IPF-OL-
 
 path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/OCTAC/EUMETSAT/Figures/OUTLIERS'
 ofname = os.path.join(path_out,f'{PDU[:3]}_{sat_proc_version}_spectra.pdf')
+plt.savefig(ofname)
+
+#%% plot 865/665
+plt.figure(figsize = (20,10))
+plt.subplot(1,2,1)
+rhow_778_75 = df_MU['LWN_sat_778.75']*np.pi/cfs.get_F0(778.75)
+rhow_665 = df_MU['LWN_sat_665.00']*np.pi/cfs.get_F0(665.00)
+plt.scatter(rhow_778_75,rhow_665, facecolors='none', edgecolors='b')
+# plt.gca().set_aspect('equal', adjustable='box')
+plt.xlim([0,0.01])
+plt.ylim([0,0.06])
+plt.xlabel(f'{PDU[:3]}'+r' $\rho_{W}(778.75)$',fontsize=14)
+plt.ylabel(f'{PDU[:3]}'+r' $\rho_{W}(665)$',fontsize=14)
+x = np.array([0,0.01])
+y = 4.228*x # from Kevin
+plt.plot(x,y,'k--')
+
+
+plt.subplot(1,2,2)
+rhow_778_75 = df_MU['LWN_ins_778.75']*np.pi/cfs.get_F0(778.75)
+rhow_665 = df_MU['LWN_ins_665.00']*np.pi/cfs.get_F0(665.00)
+plt.scatter(rhow_778_75,rhow_665, facecolors='none', edgecolors='b')
+# plt.gca().set_aspect('equal', adjustable='box')
+plt.xlim([0,0.01])
+plt.ylim([0,0.06])
+plt.xlabel(r'PANTHYR $\rho_{W}(778.75)$',fontsize=14)
+plt.ylabel(r'PANTHYR $\rho_{W}(665)$',fontsize=14)
+plt.plot(x,y,'k--')
+plt.suptitle(f'{PDU[:3]}; IPF-OL-2 version: {sat_proc_version}',fontsize=14)
+ofname = os.path.join(path_out,f'{PDU[:3]}_{sat_proc_version}_779-665.pdf')
 plt.savefig(ofname)
 #%%
 # if __name__ == '__main__':
