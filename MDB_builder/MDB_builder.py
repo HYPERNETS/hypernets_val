@@ -85,7 +85,7 @@ import COMMON.common_functions as cfs
 os.environ['QT_QPA_PLATFORM']='offscreen' # to avoid error "QXcbConnection: Could not connect to display"
 
 import argparse
-parser = argparse.ArgumentParser(description="Create list of OLCI WFR files from DataArchive in the virtual machine.")
+parser = argparse.ArgumentParser(description="Create MDB files.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
@@ -178,6 +178,8 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
     
     lat = nc_f0.variables['latitude'][:,:]
     lon = nc_f0.variables['longitude'][:,:]
+    
+    
     
     contain_flag = cfs.contain_location(lat,lon,in_situ_lat,in_situ_lon)
     
@@ -282,6 +284,8 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             filepah = os.path.join(path_source,WQSF_filename)
             nc_f1 = Dataset(filepah,'r')
             WQSF = nc_f1.variables['WQSF'][:]
+            WQSF_flag_masks = nc_f1.variables['WQSF'].flag_masks
+            WQSF_flag_meanings = nc_f1.variables['WQSF'].flag_meanings
             nc_f1.close()
 
             #%% Calculate BRDF
@@ -342,6 +346,8 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             fmb.satellite_path_source = path_source
             fmb.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
             fmb.satellite_proc_version = proc_version_str
+            fmb.satellite_WQSF_flag_masks = WQSF_flag_masks
+            fmb.satellite_WQSF_flag_meanings = WQSF_flag_meanings
 
             fmb.datapolicy = 'Notice to users: Add data policy'
             fmb.insitu_sensor_processor_version = '0.0'
@@ -442,7 +448,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
             fmb.close()
-            print('Extract created!')
+            # print('Extract created!')
                 
         else:
             print('Index out of bound!')
@@ -546,7 +552,7 @@ def create_insitu_list_daily(path_to_insitu_list,date_str):
  
     
 def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
-    print(f'Satellite time {datetime_str}')
+    # print(f'Satellite time {datetime_str}')
     date_format = '%Y%m%dT%H%M%S'
     satellite_datetime = datetime.strptime(datetime_str, date_format)
       
@@ -631,7 +637,7 @@ def main():
         satellite_path_source2 = 'trimmed_sources/'
         satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)  
         insitu_path_source = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data' 
-        path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS_D7p2/MDB_py/ODATA'
+        path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/ODATA'
     else:
         print('Error: host flag is not either mac or vm')
     print('Main Code!')
@@ -713,6 +719,7 @@ def main():
                 
                 date_format = '%Y%m%dT%H%M%S'
                 satellite_datetime = datetime.strptime(datetime_str, date_format)
+                datetime_creation = datetime.today().strftime(date_format)
                 if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
                     if args.debug:
                         print('-----------------')
@@ -723,10 +730,11 @@ def main():
                             extract_path = \
                                 create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)
                 
-                            ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{insitu_sensor}_{station_name}.nc')
+                            ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc')
                 
                             if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                                 add_OL_12_to_list(path_to_sat_source,path_out,res_str)
+                                print(f'file created: {ofile}')
                         else:
                             if args.debug:
                                 print('No in situ measurements found!')
