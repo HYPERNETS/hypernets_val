@@ -716,14 +716,13 @@ def main():
                 sensor_str = path_to_sat_source.split('/')[-1].split('_')[0]
                 res_str = path_to_sat_source.split('/')[-1].split('_')[3]
                 datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
-                
+                if args.debug:
+                    print('-----------------')
+                    print(f'{datetime_str} {sensor_str} {res_str}')                
                 date_format = '%Y%m%dT%H%M%S'
                 satellite_datetime = datetime.strptime(datetime_str, date_format)
                 datetime_creation = datetime.today().strftime(date_format)
                 if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
-                    if args.debug:
-                        print('-----------------')
-                        print(f'{datetime_str} {sensor_str} {res_str}')
                     try:              
                         path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
                         if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
@@ -747,7 +746,9 @@ def main():
                     
                     if os.path.exists(path_to_list_daily):
                             os.remove(path_to_list_daily)
-                    
+                else:
+                    if args.debug:
+                        print('Out of time frame.')
 # %%
 if __name__ == '__main__':
     main()        
