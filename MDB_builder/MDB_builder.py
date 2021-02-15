@@ -91,6 +91,7 @@ parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-e', "--enddate", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument('-p', "--path", help="Path to source")
+parser.add_argument('-o', "--output", help="Path to output")
 parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR ")
 parser.add_argument('-n', "--nolist", help="Do not create satellite and in situ lists.",action="store_true")
 
@@ -651,6 +652,13 @@ def main():
 
     if args.test:
         path_out = path_out + '/test/'
+        
+    if args.output:
+        path_out = os.path.join(path_out,args.output)
+        if not os.path.isdir(path_out):
+            os.mkdir(path_out)
+        if not os.path.isdir(os.path.join(path_out,'EXTRACTS')):
+             os.mkdir(os.path.join(path_out,'EXTRACTS'))
     
     # look for in situ data within t hours
     # save nc file
@@ -728,8 +736,11 @@ def main():
                         if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
                             extract_path = \
                                 create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)
-                
-                            ofile = os.path.join(path_out,'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc')
+                            
+                            if args.output:
+                                ofile = os.path.join(path_out,f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc')
+                            else:
+                                ofile = os.path.join(path_out,f'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc')
                 
                             if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                                 add_OL_12_to_list(path_to_sat_source,path_out,res_str)
