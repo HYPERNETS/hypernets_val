@@ -100,7 +100,7 @@ args = parser.parse_args()
 def create_list_products(path_source,path_out,wce,res_str,type_product):
     path_to_list = f'{path_out}/file_{type_product}_{res_str}_list.txt'
     if not args.nolist:
-        cmd = f'find {path_source} -maxdepth 1 -name {wce}|sort|uniq> {path_to_list}'
+        cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
         prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:
@@ -667,7 +667,7 @@ def main():
     else:
         res = 'WFR'
         
-    wce = f'"*OL_2_{res}*"' # wild card expression
+    wce = f'"*OL_2_{res}*SEN3"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,res,'satellite')
     
     if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
