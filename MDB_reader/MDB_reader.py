@@ -43,7 +43,7 @@ import COMMON.common_functions as cfs
 # import COMMON.apply_OLCI_flags as apply_OLCI_flags
 import COMMON.Class_Flags_OLCI as flag
 
-debug = False
+debug = True
 
 # for plotting
 color_dict = dict({\
@@ -444,7 +444,6 @@ class PANTHYR_class(object):
         flag_list = str(options['Filtering_options']['flags'])
         flag_list = flag_list.replace(" ", "")
         flag_list = str.split(flag_list,',')
-        flagging = flag.Class_Flags_OLCI()
         #extracting data from MDB
         # MDB_index = 0
         # check = 0
@@ -475,10 +474,10 @@ class PANTHYR_class(object):
                 pass    
             
             
-#check if it is an AERONET MDB
+            #check if it is an AERONET MDB
             if nc.satellite+nc.platform == str(options['satellite_options']['satellite']).replace(" ", "").upper()+str(options['satellite_options']['platform']).replace(" ", "")\
                 and (options['satellite_options']['proc_version'] in nc.satellite_proc_version)\
-                    and MDBpath.split('_')[-3][:8] not in date_list:
+                    and MDBpath.split('_')[-4][:8] not in date_list: # check repeated
                 #import current MDB variables
                 insitu_bands = nc.variables['insitu_bands'][:] # insitu_bands(insitu_bands)
                 satellite_bands = nc.variables['satellite_bands'][:]
@@ -501,18 +500,19 @@ class PANTHYR_class(object):
                 ws0 = nc.satellite_ws0
                 ws1 = nc.satellite_ws1
                 ws = np.sqrt((float(ws0)**2)+(float(ws1)**2))
-                if debug:
-                    print(f'OZA: {OZA:.1f}; SZA: {SZA:.1f}; ws: {ws:.1.f}')
+
                 
                 sat_proc_version_str = nc.satellite_proc_version
 
                 #flags mask
+                flagging = flag.Class_Flags_OLCI(nc.satellite_WQSF_flag_masks,nc.satellite_WQSF_flag_meanings)
                 satellite_WQSF = nc.variables['satellite_WQSF'][r_s:r_e,c_s:c_e]
                 if (str(flag_list[0])) != 'None':
                     mask = flagging.Mask(satellite_WQSF,flag_list)
                     mask [np.where(mask != 0)] = 1
                 else: 
                     mask = np.full(satellite_WQSF.shape,0,dtype=int)
+                print(mask)
                 NGP = np.power(dim_window,2) - np.sum(mask) # Number Good Pixels excluding flagged pixels
                 #NTP = Number Total non-LAND Pixels
                 land = flagging.Mask(satellite_WQSF,(['LAND']))
@@ -526,14 +526,15 @@ class PANTHYR_class(object):
                 else:
                     cond_min_valid_pxs = NGP > (float(options['Filtering_options']['valid_min_pixel']) * NTP + 1)
 
-
+                if debug:
+                    print(f'OZA: {OZA:.1f}; SZA: {SZA:.1f}; ws: {ws:.1f}; NGP: {NGP}')
                 if time_difference[ins_time_index] < delta_t*60*60\
                     and OZA <= float(options['Filtering_options']['sensor_zenith_max'])\
                     and SZA <= float(options['Filtering_options']['sun_zenith_max'])\
                     and cond_min_valid_pxs:
                     # print(f'time difference: {time_difference[ins_time_index]}, within delta_t: {delta_t}')
                     
-                    date_list.append(MDBpath.split('_')[-3][:8]) # to avoid multiple MUs per day
+                    date_list.append(MDBpath.split('_')[-4][:8]) # to avoid multiple MUs per day
                     
                     satellite_rhow = nc.variables['satellite_rhow'][:]
                     satellite_BRDF_rhow = nc.variables['satellite_BRDF_rhow'][:]
@@ -780,6 +781,8 @@ if sat_proc_version == '6.13':
     config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
 elif sat_proc_version == '7.00':
     config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR_newflags.ini')
+elif sat_proc_version == '7.01':
+    config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR_07.01.ini')
     
 if os.path.isfile(config_file) == True:
     options = config_reader(config_file)
