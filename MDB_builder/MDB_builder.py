@@ -2,12 +2,14 @@
 # coding: utf-8
 """
 Created on Tue Jun 16 12:02:40 2020
-Create Matchup Data Set MDB file (NetCDF4 file)
+Create Matchup Data Base (MDB) file (NetCDF4 file)
 @author: javier.concha
+
+Based on EUMETSAT MDB_Builder module (https://ocdb.readthedocs.io/en/latest/ocdb-MDB-user-manual.html)
 
 Run as:
 
-python MDB_builder.py -sat S3A -ins AERONET -idir IDATA/AERONET -odir ODATA/ 
+python MDB_builder.py -p PATH_TO_SAT_SOURCES
 
 """
 """
@@ -85,14 +87,14 @@ import COMMON.common_functions as cfs
 os.environ['QT_QPA_PLATFORM']='offscreen' # to avoid error "QXcbConnection: Could not connect to display"
 
 import argparse
-parser = argparse.ArgumentParser(description="Create MDB files.")
+parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MDB) files.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-e', "--enddate", help="The End Date - format YYYY-MM-DD ")
-parser.add_argument('-p', "--path", help="Path to source")
+parser.add_argument('-p', "--path", help="Path to satellite sources.")
 parser.add_argument('-o', "--output", help="Path to output")
-parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR ")
+parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR (for OLCI)")
 parser.add_argument('-n', "--nolist", help="Do not create satellite and in situ lists.",action="store_true")
 
 args = parser.parse_args()
