@@ -25,12 +25,15 @@ import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import numpy as np
 
-# User defined functions
-sys.path.insert(0,'/Users/javier.concha/Desktop/Javier/2019_ROMA/CNR_Research/HYPERNETS_Validation_Protocols/python_scripts')
-import common_functions
+# import user defined functions from other .py
+code_home = os.path.abspath('./')
+sys.path.append(code_home)
+
+import BRDF.brdf_olci as brdf
+import COMMON.common_functions as cfs
 
 #%%
-path_main = '/Users/javier.concha/Desktop/Javier/2019_ROMA/CNR_Research/HYPERNETS_D7p2/data/AERONET-OC'
+path_main = '/Users/javier.concha/Desktop/Javier/2019_ROMA/CNR_Research/HYPERNETS/HYPERNETS_D7p2/data/AERONET-OC'
 filename = 'MDB_S3A_OLCI_L2_AERONET_Venise.nc'
 path_file = os.path.join(path_main,filename)
 nc_f0 = Dataset(path_file,'r')
@@ -198,7 +201,7 @@ for sat_idx in range(10):
     lon = satellite_longitude[sat_idx,:,:]
     lat0 = central_latitude[sat_idx]
     lon0 = central_longitude[sat_idx]
-    r,c = common_functions.find_row_column_from_lat_lon(lat,lon,lat0,lon0)
+    r,c = cfs.find_row_column_from_lat_lon(lat,lon,lat0,lon0)
     
     wl_idx = 0
     wl = satellite_bands[wl_idx]
@@ -206,24 +209,24 @@ for sat_idx in range(10):
     
     
     size_box = 3
-    extract = common_functions.extract_box(satellite_Oa01_Rrs[sat_idx,:,:],r,c,size_box)
+    extract = cfs.extract_box(satellite_Oa01_Rrs[sat_idx,:,:],r,c,size_box)
     
-    Rrs_0400p00_extract = common_functions.extract_box(satellite_Oa01_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0412p50_extract = common_functions.extract_box(satellite_Oa02_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0442p50_extract = common_functions.extract_box(satellite_Oa03_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0490p00_extract = common_functions.extract_box(satellite_Oa04_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0510p00_extract = common_functions.extract_box(satellite_Oa05_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0560p00_extract = common_functions.extract_box(satellite_Oa06_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0620p00_extract = common_functions.extract_box(satellite_Oa07_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0665p00_extract = common_functions.extract_box(satellite_Oa08_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0673p75_extract = common_functions.extract_box(satellite_Oa09_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0681p25_extract = common_functions.extract_box(satellite_Oa10_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0708p75_extract = common_functions.extract_box(satellite_Oa11_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0753p75_extract = common_functions.extract_box(satellite_Oa12_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0778p75_extract = common_functions.extract_box(satellite_Oa16_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0865p00_extract = common_functions.extract_box(satellite_Oa17_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_0885p00_extract = common_functions.extract_box(satellite_Oa18_Rrs[sat_idx,:,:],r,c,size_box)
-    Rrs_1020p00_extract = common_functions.extract_box(satellite_Oa21_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0400p00_extract = cfs.extract_box(satellite_Oa01_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0412p50_extract = cfs.extract_box(satellite_Oa02_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0442p50_extract = cfs.extract_box(satellite_Oa03_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0490p00_extract = cfs.extract_box(satellite_Oa04_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0510p00_extract = cfs.extract_box(satellite_Oa05_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0560p00_extract = cfs.extract_box(satellite_Oa06_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0620p00_extract = cfs.extract_box(satellite_Oa07_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0665p00_extract = cfs.extract_box(satellite_Oa08_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0673p75_extract = cfs.extract_box(satellite_Oa09_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0681p25_extract = cfs.extract_box(satellite_Oa10_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0708p75_extract = cfs.extract_box(satellite_Oa11_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0753p75_extract = cfs.extract_box(satellite_Oa12_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0778p75_extract = cfs.extract_box(satellite_Oa16_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0865p00_extract = cfs.extract_box(satellite_Oa17_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_0885p00_extract = cfs.extract_box(satellite_Oa18_Rrs[sat_idx,:,:],r,c,size_box)
+    Rrs_1020p00_extract = cfs.extract_box(satellite_Oa21_Rrs[sat_idx,:,:],r,c,size_box)
 
     sat_spectrum = np.array([Rrs_0400p00_extract.mean()
         ,Rrs_0412p50_extract.mean()
@@ -245,6 +248,7 @@ for sat_idx in range(10):
     plt.figure()
     plt.title(satellite_PDU[sat_idx][:31])
     plt.plot(satellite_bands,sat_spectrum,'-*')
+    plt.legend(['Satellite'])
 
     for ins_idx, line in enumerate(insitu_time[sat_idx,:]):
         ins_spectrum = np.array([insitu_Oa01_Rrs[sat_idx,ins_idx]
@@ -283,3 +287,60 @@ for sat_idx in range(10):
             print(insitu_Oa18_Rrs[sat_idx,ins_idx])
             print(insitu_Oa21_Rrs[sat_idx,ins_idx])
             plt.plot(satellite_bands,ins_spectrum)
+
+
+#%% OPEN HYSPTAR file
+path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPSTAR/data/'
+path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPSTAR/data/Figures'
+filename = 'HYPERNETS_W_TEST_L2A_REF_202102020931_202102040352_v0.1.nc'
+path_file = os.path.join(path_main,filename)
+nc_f0 = Dataset(path_file,'r')
+
+ins_wavelength = nc_f0.variables['wavelength'][:]
+ins_reflectance = nc_f0.variables['reflectance'][:]
+ins_water_leaving_radiance = nc_f0.variables['water_leaving_radiance'][:]
+
+# acquisition_time:long_name = "Acquisition time in seconds since 1970-01-01 00:00:00" ;
+acquisition_time = nc_f0.variables['acquisition_time'][:]
+
+plt.figure(figsize = (20,10))
+# plt.title(satellite_PDU[sat_idx][:31])
+plt.subplot(2,1,1)
+plt.plot(ins_wavelength,ins_reflectance)
+plt.legend(['HYPSTAR'])
+plt.xlabel('wavelength (nm)')
+plt.ylabel(r'HYPSTAR $l_s$ (-)',fontsize=12)
+
+plt.subplot(2,1,2)
+plt.plot(ins_wavelength,ins_reflectance)
+plt.legend(['HYPSTAR'])
+plt.xlim([436,710])
+plt.ylim([-0.01,0.05])
+plt.xlabel('wavelength (nm)')
+plt.ylabel(r'HYPSTAR $l_s$ (-)',fontsize=12)
+
+plt.suptitle(filename+'\nsurface_upwelling_radiance_per_unit_wavelength_in_air_reflected_by_water')
+
+plt.savefig(os.path.join(path_out,filename+'_ls.png'))
+
+plt.figure(figsize = (20,10))
+# plt.title(satellite_PDU[sat_idx][:31])
+plt.subplot(2,1,1)
+plt.plot(ins_wavelength,ins_water_leaving_radiance)
+plt.legend(['HYPSTAR'])
+plt.xlabel('wavelength (nm)')
+plt.ylabel(r'HYPSTAR $nl_w$ $(mW m^{-2} nm^{-1} sr^{-1})$',fontsize=12)
+
+plt.subplot(2,1,2)
+plt.plot(ins_wavelength,ins_water_leaving_radiance)
+plt.legend(['HYPSTAR'])
+plt.xlim([320,823])
+plt.ylim([-0.1,0.5])
+plt.xlabel('wavelength (nm)')
+plt.ylabel(r'HYPSTAR $nl_w$ $(mW m^{-2} nm^{-1} sr^{-1})$',fontsize=12)
+
+
+plt.suptitle(filename+'\nwater_leaving_radiance')
+
+plt.savefig(os.path.join(path_out,filename+'_nlw.png'))
+
