@@ -90,12 +90,16 @@ import argparse
 parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MDB) files.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
-parser.add_argument('-s', "--startdate", help="The Start Date - format YYYY-MM-DD ")
-parser.add_argument('-e', "--enddate", help="The End Date - format YYYY-MM-DD ")
-parser.add_argument('-p', "--path", help="Path to satellite sources.")
+parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
+parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
+parser.add_argument('-site', "--sitename", help="Site name.",required=True,choices=['VEIT'])
+parser.add_argument('-ins', "--insitu", help="Satellite sensor name.",required=True,choices=['PANTHYR', 'HYPERNETS']) # ,'HYPSTAR'])
+parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.",required=True)
+parser.add_argument('-sat', "--satellite", help="Satellite sensor name.",choices=['OLCI', 'MSI'])
+parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
 parser.add_argument('-o', "--output", help="Path to output")
-parser.add_argument('-r', "--res", help="Resolution OL_2: WRR or WFR (for OLCI)")
-parser.add_argument('-n', "--nolist", help="Do not create satellite and in situ lists.",action="store_true")
+parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
+parser.add_argument('-nl', "--nolist", help="Do not create satellite and in situ lists.",action="store_true")
 
 args = parser.parse_args()
 
@@ -559,7 +563,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     date_format = '%Y%m%dT%H%M%S'
     satellite_datetime = datetime.strptime(datetime_str, date_format)
       
-    # append to nc file
+    # to append to nc file
     nc_f0 = copy_nc(extract_path,ofile)
 
     # add time window diff
@@ -631,24 +635,25 @@ def main():
     if sys.platform == 'linux':
         satellite_path_source1 = '/dst04-data1/OC/OLCI'
         satellite_path_source2 = 'trimmed_sources/'
-        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2) 
-        insitu_path_source = '/store3/PANTHYR/AAOT/data'   
+        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)    
         path_out = '/home/Javier.Concha/MDB_py/ODATA'
     elif sys.platform == 'darwin':
         # satellite_path_source = os.path.join(code_home,'IDATA','SAT','S3A')
         satellite_path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
         satellite_path_source2 = 'trimmed_sources/'
         satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)  
-        insitu_path_source = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/PANTHYR/AAOT/data' 
         path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/ODATA'
     else:
         print('Error: host flag is not either mac or vm')
     print('Main Code!')
 
-    if args.path:
-       satellite_path_source = args.path 
-    print(f'Path to satellite source: {satellite_path_source}')
-
+    if args.path_to_sat:
+       satellite_path_source = args.path_to_sat 
+    print(f'Path to satellite sources: {satellite_path_source}')
+    
+    insitu_path_source = args.path_to_ins
+    print(f'Path to in situ {args.insitu} sources: {insitu_path_source}')
+    
     if args.debug:
         print('Entering Debugging Mode:')
 
@@ -665,14 +670,14 @@ def main():
     # look for in situ data within t hours
     # save nc file
     
-    station_name = 'Venise'
+    station_name = args.sitename
     
     
     # in situ location based on the station name
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
     
     # create list of sat granules
-    if args.res == 'WRR':
+    if args.resolution == 'WRR':
         res = 'WRR'
     else:
         res = 'WFR'
@@ -695,12 +700,16 @@ def main():
         os.remove(f'{path_out}/OL_1_{res_L1_str}_list.txt')   
     
     # create list of in situ files
-    wce = f'"*AZI_270_data.csv"' # wild card expression
+    if args.insitu == 'PANTHYR':
+        wce = f'"*AZI_270_data.csv"' # wild card expression
+    elif args.insitu == 'HYPERNETS': # 'HYPSTAR':
+        wce =  f'"HYPERNETS*L2A_REF*_v0.1.nc"'
+    
     path_to_insitu_list = create_list_products(insitu_path_source,path_out,wce,res,'insitu')
     
     # create extract and save it in internal folder
     size_box = 25
-    insitu_sensor = 'PANTHYR'
+    insitu_sensor = args.insitu
     # in situ 
     
     time_window = 3 # in hours (+- hours)
@@ -733,8 +742,9 @@ def main():
                 satellite_datetime = datetime.strptime(datetime_str, date_format)
                 datetime_creation = datetime.today().strftime(date_format)
                 if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
-                    try:              
+                    try:
                         path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
+                        print(path_to_list_daily)
                         if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
                             extract_path = \
                                 create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)

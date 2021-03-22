@@ -52,7 +52,7 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'USC_SEAPRISM_2':
         Latitude=33.563710
         Longitude=-118.117820
-    elif (station_name == 'Venise' or station_name == 'Venise_PANTHYR'): # Adriatic Sea
+    elif (station_name == 'Venise' or station_name == 'Venise_PANTHYR' or 'VEIT'): # Adriatic Sea
         Latitude=45.313900
         Longitude=12.508300
     elif station_name == 'WaveCIS_Site_CSI_6':
