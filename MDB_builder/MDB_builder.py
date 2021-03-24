@@ -92,7 +92,7 @@ parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
-parser.add_argument('-site', "--sitename", help="Site name.",required=True,choices=['VEIT'])
+parser.add_argument('-site', "--sitename", help="Site name.",required=True,choices=['VEIT','BEFR','BSBE'])
 parser.add_argument('-ins', "--insitu", help="Satellite sensor name.",required=True,choices=['PANTHYR', 'HYPERNETS']) # ,'HYPSTAR'])
 parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.",required=True)
 parser.add_argument('-sat', "--satellite", help="Satellite sensor name.",choices=['OLCI', 'MSI'])
@@ -149,11 +149,13 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
 def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon,res_str,insitu_sensor):
     # extract IFP-OL-2 version
     with open(os.path.join(path_source,'xfdumanifest.xml'),'r', encoding="utf-8") as read_obj:
+        check_version = False
         for line in read_obj:
-            if 'IPF-OL-2' in line:
+            if 'IPF-OL-2' in line and check_version == False:
                 IPF_OL_2_version = line.split('"')[3]
                 proc_version_str = f'IPF-OL-2 version {IPF_OL_2_version}'
                 print(proc_version_str)
+                check_version = True
                 pass
 
     
@@ -499,27 +501,27 @@ def add_OL_12_to_list(path_source,path_output,res_str):
     out, err = prog.communicate()
     if err:
         print(err)  
-    elif args.debug:
-        print('Run:')
-        print(cmd)
+    # elif args.debug:
+    #     print('Run:')
+    #     print(cmd)
     
     cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_list.txt'
     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
     out, err = prog.communicate()
     if err:
         print(err) 
-    elif args.debug:
-        print('Run:')
-        print(cmd)
+    # elif args.debug:
+    #     print('Run:')
+    #     print(cmd)
         
     cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
     out, err = prog.communicate()
     if err:
         print(err) 
-    elif args.debug:
-        print('Run:')
-        print(cmd)
+    # elif args.debug:
+    #     print('Run:')
+    #     print(cmd)
         
 def clean_lists(path_out,res_str):
     list_path = f'{path_out}/OL_2_{res_str}_list.txt'
@@ -591,9 +593,15 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     # extract in situ data
     with open(path_to_list_daily) as file:
         for idx, line in enumerate(file):
+            # HYPERNETS ex: HYPERNETS_W_BEFR_L2A_REF_202103151201_202103231711_v1.1.nc
+            # PANTHYR ex: AAOT_20190923_019046_20200923_104022_AZI_225_data.csv
             # time in ISO 8601 format (UTC). Ex: "2020-01-05T09:27:27.934965Z"
-            date_str = os.path.basename(line[:-1]).split('_')[3]
-            time_str = os.path.basename(line[:-1]).split('_')[4]
+            if args.insitu == 'PANTHYR':             
+                date_str = os.path.basename(line[:-1]).split('_')[3]
+                time_str = os.path.basename(line[:-1]).split('_')[4]
+            elif args.insitu == 'HYPERNETS':
+                date_str = os.path.basename(line[:-1]).split('_')[5][0:8]
+                time_str = os.path.basename(line[:-1]).split('_')[5][-4:]+'00'            
                      
             YYYY_str = date_str[:4]
             MM_str = date_str[4:6]
@@ -609,7 +617,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                 insitu_time[insitu_idx] = insitu_datetime_str
                 time_difference[insitu_idx] = float(time_diff)*60*60 # in seconds
 
-                        
+            if args.insitu == 'PANTHYR':            
                 # get data from csv using pandas
                 data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
                 
@@ -618,7 +626,17 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                     insitu_bands[:] = wl0
                 insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
                 insitu_idx += 1
-                # print(rhow0)
+                    # print(rhow0)
+            elif args.insitu == 'HYPERNETS':
+                
+                nc_fi = Dataset(line[:-1],'r')
+                if insitu_idx == 0:
+                    insitu_bands[:] = nc_fi.variables['wavelength'][:].tolist()
+                # ins_water_leaving_radiance = nc_f1.variables['water_leaving_radiance'][:]
+                
+                insitu_rhow[:,insitu_idx] =  nc_fi.variables['reflectance'][:].tolist()
+                insitu_idx += 1
+                nc_fi.close()
     if insitu_idx == 0:
         if os.path.exists(ofile):
             os.remove(ofile)
@@ -629,6 +647,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
         return True
     
     nc_f0.close()
+    
 # #############################
 #%%
 def main():
@@ -675,6 +694,9 @@ def main():
     
     # in situ location based on the station name
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
+    if args.debug:
+        print(f'station_name: {station_name} with lat: {in_situ_lat}, lon: {in_situ_lon}')
+        
     
     # create list of sat granules
     if args.resolution == 'WRR':
@@ -703,7 +725,7 @@ def main():
     if args.insitu == 'PANTHYR':
         wce = f'"*AZI_270_data.csv"' # wild card expression
     elif args.insitu == 'HYPERNETS': # 'HYPSTAR':
-        wce =  f'"HYPERNETS*L2A_REF*_v0.1.nc"'
+        wce =  f'"HYPERNETS_W_*{args.sitename}*L2A_REF*_v1.1.nc"'
     
     path_to_insitu_list = create_list_products(insitu_path_source,path_out,wce,res,'insitu')
     
@@ -744,7 +766,6 @@ def main():
                 if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
                     try:
                         path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
-                        print(path_to_list_daily)
                         if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
                             extract_path = \
                                 create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)

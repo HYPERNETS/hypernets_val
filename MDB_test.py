@@ -290,57 +290,63 @@ for sat_idx in range(10):
 
 
 #%% OPEN HYSPTAR file
-path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPSTAR/data/'
+path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/IDATA/INSITU/HYPERNETS/BEFR/'
 path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPSTAR/data/Figures'
-filename = 'HYPERNETS_W_TEST_L2A_REF_202102020931_202102040352_v0.1.nc'
-path_file = os.path.join(path_main,filename)
-nc_f0 = Dataset(path_file,'r')
+filename = 'HYPERNETS_W_BEFR_L2A_REF_202102231109_202103231501_v1.1.nc'
 
-ins_wavelength = nc_f0.variables['wavelength'][:]
-ins_reflectance = nc_f0.variables['reflectance'][:]
-ins_water_leaving_radiance = nc_f0.variables['water_leaving_radiance'][:]
-
-# acquisition_time:long_name = "Acquisition time in seconds since 1970-01-01 00:00:00" ;
-acquisition_time = nc_f0.variables['acquisition_time'][:]
-
-plt.figure(figsize = (20,10))
-# plt.title(satellite_PDU[sat_idx][:31])
-plt.subplot(2,1,1)
-plt.plot(ins_wavelength,ins_reflectance)
-plt.legend(['HYPSTAR'])
-plt.xlabel('wavelength (nm)')
-plt.ylabel(r'HYPSTAR $l_s$ (-)',fontsize=12)
-
-plt.subplot(2,1,2)
-plt.plot(ins_wavelength,ins_reflectance)
-plt.legend(['HYPSTAR'])
-plt.xlim([436,710])
-plt.ylim([-0.01,0.05])
-plt.xlabel('wavelength (nm)')
-plt.ylabel(r'HYPSTAR $l_s$ (-)',fontsize=12)
-
-plt.suptitle(filename+'\nsurface_upwelling_radiance_per_unit_wavelength_in_air_reflected_by_water')
-
-plt.savefig(os.path.join(path_out,filename+'_ls.png'))
-
-plt.figure(figsize = (20,10))
-# plt.title(satellite_PDU[sat_idx][:31])
-plt.subplot(2,1,1)
-plt.plot(ins_wavelength,ins_water_leaving_radiance)
-plt.legend(['HYPSTAR'])
-plt.xlabel('wavelength (nm)')
-plt.ylabel(r'HYPSTAR $nl_w$ $(mW m^{-2} nm^{-1} sr^{-1})$',fontsize=12)
-
-plt.subplot(2,1,2)
-plt.plot(ins_wavelength,ins_water_leaving_radiance)
-plt.legend(['HYPSTAR'])
-plt.xlim([320,823])
-plt.ylim([-0.1,0.5])
-plt.xlabel('wavelength (nm)')
-plt.ylabel(r'HYPSTAR $nl_w$ $(mW m^{-2} nm^{-1} sr^{-1})$',fontsize=12)
-
-
-plt.suptitle(filename+'\nwater_leaving_radiance')
-
-plt.savefig(os.path.join(path_out,filename+'_nlw.png'))
+with open(os.path.join(path_main,'file_list.txt'),'r') as file:
+    for cnt, line in enumerate(file):
+        filename = line[2:-1]
+        path_file = os.path.join(path_main,filename)
+        nc_f0 = Dataset(path_file,'r')
+        
+        ins_wavelength = nc_f0.variables['wavelength'][:]
+        ins_reflectance = nc_f0.variables['reflectance'][:]
+        ins_water_leaving_radiance = nc_f0.variables['water_leaving_radiance'][:]
+        
+        # acquisition_time:long_name = "Acquisition time in seconds since 1970-01-01 00:00:00" ;
+        acquisition_time = nc_f0.variables['acquisition_time'][:]
+        
+        plt.figure(figsize = (20,10))
+        # plt.title(satellite_PDU[sat_idx][:31])
+        plt.subplot(2,1,1)
+        plt.plot(ins_wavelength,ins_reflectance)
+        plt.legend(['HYPSTAR'])
+        plt.xlabel('wavelength (nm)')
+        plt.ylabel(r'HYPSTAR $l_s$ (-)',fontsize=12)
+        
+        plt.subplot(2,1,2)
+        plt.plot(ins_wavelength,ins_reflectance)
+        plt.legend(['HYPSTAR'])
+        plt.xlim([436,710])
+        plt.ylim([-0.01,0.05])
+        plt.xlabel('wavelength (nm)')
+        plt.ylabel(r'HYPSTAR $l_s$ (-)',fontsize=12)
+        
+        plt.suptitle(filename+'\nsurface_upwelling_radiance_per_unit_wavelength_in_air_reflected_by_water')
+        
+        plt.savefig(os.path.join(path_out,filename+'_ls.png'))
+        plt.close()
+        
+        plt.figure(figsize = (20,10))
+        # plt.title(satellite_PDU[sat_idx][:31])
+        plt.subplot(2,1,1)
+        plt.plot(ins_wavelength,ins_water_leaving_radiance)
+        plt.legend(['HYPSTAR'])
+        plt.xlabel('wavelength (nm)')
+        plt.ylabel(r'HYPSTAR $nl_w$ $(mW m^{-2} nm^{-1} sr^{-1})$',fontsize=12)
+        
+        plt.subplot(2,1,2)
+        plt.plot(ins_wavelength,ins_water_leaving_radiance)
+        plt.legend(['HYPSTAR'])
+        plt.xlim([320,823])
+        plt.ylim([-0.1,0.5])
+        plt.xlabel('wavelength (nm)')
+        plt.ylabel(r'HYPSTAR $nl_w$ $(mW m^{-2} nm^{-1} sr^{-1})$',fontsize=12)
+        
+        
+        plt.suptitle(filename+'\nwater_leaving_radiance')
+        
+        plt.savefig(os.path.join(path_out,filename+'_nlw.png'))
+        plt.close()
 
