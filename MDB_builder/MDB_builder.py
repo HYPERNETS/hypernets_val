@@ -579,6 +579,12 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     insitu_time=nc_f0.createVariable('insitu_time', 'S2', ('insitu_id'), zlib=True, complevel=6)
     insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
     
+    insitu_filename=nc_f0.createVariable('insitu_filename', 'S2', ('insitu_id'), zlib=True, complevel=6)
+    insitu_filename.description  = 'In situ filename.'
+    
+    insitu_filepath=nc_f0.createVariable('insitu_filepath', 'S2', ('insitu_id'), zlib=True, complevel=6)
+    insitu_filepath.description  = 'In situ file path.'
+    
     insitu_bands=nc_f0.createVariable('insitu_bands', 'f4', ('insitu_bands'), fill_value=-999, zlib=True, complevel=6)
     insitu_bands.description  = 'In situ bands in nm.'
     
@@ -615,28 +621,29 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
             time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
             if np.abs(time_diff) <= time_window:
                 insitu_time[insitu_idx] = insitu_datetime_str
+                insitu_filename[insitu_idx] = os.path.basename(line[:-1])
+                insitu_filepath[insitu_idx] = line[:-1]
                 time_difference[insitu_idx] = float(time_diff)*60*60 # in seconds
 
-            if args.insitu == 'PANTHYR':            
-                # get data from csv using pandas
-                data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
-                
-                if insitu_idx == 0:
-                    wl0 = data['wavelength'].tolist()
-                    insitu_bands[:] = wl0
-                insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
-                insitu_idx += 1
-                    # print(rhow0)
-            elif args.insitu == 'HYPERNETS':
-                
-                nc_fi = Dataset(line[:-1],'r')
-                if insitu_idx == 0:
-                    insitu_bands[:] = nc_fi.variables['wavelength'][:].tolist()
-                # ins_water_leaving_radiance = nc_f1.variables['water_leaving_radiance'][:]
-                
-                insitu_rhow[:,insitu_idx] =  nc_fi.variables['reflectance'][:].tolist()
-                insitu_idx += 1
-                nc_fi.close()
+                if args.insitu == 'PANTHYR':            
+                    # get data from csv using pandas
+                    data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
+                    
+                    if insitu_idx == 0:
+                        wl0 = data['wavelength'].tolist()
+                        insitu_bands[:] = wl0
+                    insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
+                    insitu_idx += 1
+                        # print(rhow0)
+                elif args.insitu == 'HYPERNETS':
+                    nc_fi = Dataset(line[:-1],'r')
+                    if insitu_idx == 0:
+                        insitu_bands[:] = nc_fi.variables['wavelength'][:].tolist()
+                        ins_water_leaving_radiance = nc_fi.variables['water_leaving_radiance'][:]
+                    
+                    insitu_rhow[:,insitu_idx] =  nc_fi.variables['reflectance'][:].tolist()
+                    insitu_idx += 1
+                    nc_fi.close()
     if insitu_idx == 0:
         if os.path.exists(ofile):
             os.remove(ofile)
@@ -740,7 +747,6 @@ def main():
         datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
     else:
         datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
-        
     if args.enddate:
         datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59,minutes=59,hours=23)
     else:
