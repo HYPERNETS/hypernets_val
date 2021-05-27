@@ -118,22 +118,22 @@ def create_list_products(path_source,path_out,wce,res_str,type_product):
 def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
     # from Tie-Points grid (a coarser grid)
     filepah = os.path.join(path_source,'tie_geo_coordinates.nc')
-    nc_f0 = Dataset(filepah,'r')
-    tie_lon = nc_f0.variables['longitude'][:]
-    tie_lat = nc_f0.variables['latitude'][:]
+    nc_sat = Dataset(filepah,'r')
+    tie_lon = nc_sat.variables['longitude'][:]
+    tie_lat = nc_sat.variables['latitude'][:]
     
     filepah = os.path.join(path_source,'tie_meteo.nc')
-    nc_f0 = Dataset(filepah,'r')
-    horizontal_wind = nc_f0.variables['horizontal_wind'][:]
-    nc_f0.close()
+    nc_sat = Dataset(filepah,'r')
+    horizontal_wind = nc_sat.variables['horizontal_wind'][:]
+    nc_sat.close()
     
     filepah = os.path.join(path_source,'tie_geometries.nc')
-    nc_f1 = Dataset(filepah,'r')
-    SZA = nc_f1.variables['SZA'][:]    
-    SAA = nc_f1.variables['SAA'][:]  
-    OZA = nc_f1.variables['OZA'][:]  
-    OAA = nc_f1.variables['OAA'][:] 
-    nc_f1.close()        
+    nc_sat = Dataset(filepah,'r')
+    SZA = nc_sat.variables['SZA'][:]    
+    SAA = nc_sat.variables['SAA'][:]  
+    OZA = nc_sat.variables['OZA'][:]  
+    OAA = nc_sat.variables['OAA'][:] 
+    nc_sat.close()        
       
     r, c = cfs.find_row_column_from_lat_lon(tie_lat,tie_lon,in_situ_lat,in_situ_lon)
     
@@ -183,10 +183,10 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
     WQSF_filename = 'wqsf.nc'
     
     filepah = os.path.join(path_source,coordinates_filename)
-    nc_f0 = Dataset(filepah,'r')
+    nc_sat = Dataset(filepah,'r')
     
-    lat = nc_f0.variables['latitude'][:,:]
-    lon = nc_f0.variables['longitude'][:,:]
+    lat = nc_sat.variables['latitude'][:,:]
+    lon = nc_sat.variables['longitude'][:,:]
     
     
     
@@ -206,104 +206,104 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
         if r>=0 and r+1<lat.shape[0] and c>=0 and c+1<lat.shape[1]:
             # read nc file
             filepah = os.path.join(path_source,rhow_0400p00_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0400p00 = nc_f1.variables['Oa01_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0400p00 = nc_sat.variables['Oa01_reflectance'][:]
+            nc_sat.close()
 
             filepah = os.path.join(path_source,rhow_0412p50_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0412p50 = nc_f1.variables['Oa02_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0412p50 = nc_sat.variables['Oa02_reflectance'][:]
+            nc_sat.close()
             
             filepah = os.path.join(path_source,rhow_0442p50_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0442p50 = nc_f1.variables['Oa03_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0442p50 = nc_sat.variables['Oa03_reflectance'][:]
+            nc_sat.close()
             
             filepah = os.path.join(path_source,rhow_0490p00_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0490p00 = nc_f1.variables['Oa04_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0490p00 = nc_sat.variables['Oa04_reflectance'][:]
+            nc_sat.close()
             
             filepah = os.path.join(path_source,rhow_0510p00_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0510p00 = nc_f1.variables['Oa05_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0510p00 = nc_sat.variables['Oa05_reflectance'][:]
+            nc_sat.close()
             
             filepah = os.path.join(path_source,rhow_0560p00_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0560p00 = nc_f1.variables['Oa06_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0560p00 = nc_sat.variables['Oa06_reflectance'][:]
+            nc_sat.close()
     
             filepah = os.path.join(path_source,rhow_0620p00_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0620p00 = nc_f1.variables['Oa07_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0620p00 = nc_sat.variables['Oa07_reflectance'][:]
+            nc_sat.close()
             
             filepah = os.path.join(path_source,rhow_0665p00_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0665p00 = nc_f1.variables['Oa08_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0665p00 = nc_sat.variables['Oa08_reflectance'][:]
+            nc_sat.close()
             
             filepah = os.path.join(path_source,rhow_0673p75_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0673p75 = nc_f1.variables['Oa09_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0673p75 = nc_sat.variables['Oa09_reflectance'][:]
+            nc_sat.close()
 
             filepah = os.path.join(path_source,rhow_0681p25_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0681p25 = nc_f1.variables['Oa10_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0681p25 = nc_sat.variables['Oa10_reflectance'][:]
+            nc_sat.close()
 
             filepah = os.path.join(path_source,rhow_0708p75_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0708p75 = nc_f1.variables['Oa11_reflectance'][:]
-            nc_f1.close() 
+            nc_sat = Dataset(filepah,'r')
+            rhow_0708p75 = nc_sat.variables['Oa11_reflectance'][:]
+            nc_sat.close() 
 
             filepah = os.path.join(path_source,rhow_0753p75_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0753p75 = nc_f1.variables['Oa12_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0753p75 = nc_sat.variables['Oa12_reflectance'][:]
+            nc_sat.close()
 
             filepah = os.path.join(path_source,rhow_0778p75_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0778p75 = nc_f1.variables['Oa16_reflectance'][:]
-            nc_f1.close()          
+            nc_sat = Dataset(filepah,'r')
+            rhow_0778p75 = nc_sat.variables['Oa16_reflectance'][:]
+            nc_sat.close()          
             
             filepah = os.path.join(path_source,rhow_0865p00_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0865p00 = nc_f1.variables['Oa17_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0865p00 = nc_sat.variables['Oa17_reflectance'][:]
+            nc_sat.close()
 
             filepah = os.path.join(path_source,rhow_0885p00_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_0885p00 = nc_f1.variables['Oa18_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_0885p00 = nc_sat.variables['Oa18_reflectance'][:]
+            nc_sat.close()
             
             filepah = os.path.join(path_source,rhow_1020p50_filename)
-            nc_f1 = Dataset(filepah,'r')
-            rhow_1020p50 = nc_f1.variables['Oa21_reflectance'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            rhow_1020p50 = nc_sat.variables['Oa21_reflectance'][:]
+            nc_sat.close()
             
             filepah = os.path.join(path_source,AOT_0865p50_filename)
-            nc_f1 = Dataset(filepah,'r')
-            AOT_0865p50 = nc_f1.variables['T865'][:]
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            AOT_0865p50 = nc_sat.variables['T865'][:]
+            nc_sat.close()
     
             filepah = os.path.join(path_source,WQSF_filename)
-            nc_f1 = Dataset(filepah,'r')
-            WQSF = nc_f1.variables['WQSF'][:]
-            WQSF_flag_masks = nc_f1.variables['WQSF'].flag_masks
-            WQSF_flag_meanings = nc_f1.variables['WQSF'].flag_meanings
-            nc_f1.close()
+            nc_sat = Dataset(filepah,'r')
+            WQSF = nc_sat.variables['WQSF'][:]
+            WQSF_flag_masks = nc_sat.variables['WQSF'].flag_masks
+            WQSF_flag_meanings = nc_sat.variables['WQSF'].flag_meanings
+            nc_sat.close()
 
             #%% Calculate BRDF
             ws0, ws1, sza, saa, vza, vaa = extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon)
             
             filepah = os.path.join(path_source,'chl_oc4me.nc')
-            nc_f11 = Dataset(filepah,'r')
-            CHL_OC4ME = nc_f11.variables['CHL_OC4ME'][:]
-            nc_f11.close()
+            nc_sat1 = Dataset(filepah,'r')
+            CHL_OC4ME = nc_sat1.variables['CHL_OC4ME'][:]
+            nc_sat1.close()
             CHL_OC4ME_extract = ma.array(CHL_OC4ME[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])
             BRDF0 = np.full(CHL_OC4ME_extract.shape,np.nan)
             BRDF1 = np.full(CHL_OC4ME_extract.shape,np.nan)
@@ -342,44 +342,45 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             if os.path.exists(ofname):
               os.remove(ofname)
             
-            fmb = Dataset(ofname, 'w', format='NETCDF4')
-            fmb.MDB_software_version = '0.0'
-            fmb.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")            
-            fmb.satellite = satellite
-            fmb.platform = platform
-            fmb.sensor = sensor
-            fmb.description = f'{satellite}{platform} {sensor.upper()} {res_str} L2 - {insitu_sensor} Matchup Data Base'
-            fmb.satellite_start_time = nc_f0.start_time
-            fmb.satellite_stop_time = nc_f0.stop_time    
-            fmb.satellite_PDU = path_source.split('/')[-1]
-            fmb.satellite_path_source = path_source
-            fmb.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
-            fmb.satellite_proc_version = proc_version_str
-            fmb.satellite_WQSF_flag_masks = WQSF_flag_masks
-            fmb.satellite_WQSF_flag_meanings = WQSF_flag_meanings
+            new_MDB = Dataset(ofname, 'w', format='NETCDF4')
+            new_MDB.MDB_software_version = '0.0'
+            new_MDB.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")            
+            new_MDB.satellite = satellite
+            new_MDB.platform = platform
+            new_MDB.sensor = sensor
+            new_MDB.description = f'{satellite}{platform} {sensor.upper()} {res_str} L2 - {insitu_sensor} Matchup Data Base'
+            new_MDB.satellite_start_time = nc_sat.start_time
+            new_MDB.satellite_stop_time = nc_sat.stop_time    
+            new_MDB.satellite_PDU = path_source.split('/')[-1]
+            new_MDB.satellite_path_source = path_source
+            new_MDB.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
+            new_MDB.satellite_proc_version = proc_version_str
+            new_MDB.satellite_WQSF_flag_masks = WQSF_flag_masks
+            new_MDB.satellite_WQSF_flag_meanings = WQSF_flag_meanings
 
-            fmb.datapolicy = 'Notice to users: Add data policy'
-            fmb.insitu_sensor_processor_version = '0.0'
-            fmb.insitu_site_name = station_name
+            new_MDB.datapolicy = 'Notice to users: Add data policy'
+            new_MDB.insitu_sensor_processor_version = '0.0'
+            new_MDB.insitu_site_name = station_name
 
-            fmb.insitu_lat = in_situ_lat
-            fmb.insitu_lon = in_situ_lon
+            new_MDB.insitu_lat = in_situ_lat
+            new_MDB.insitu_lon = in_situ_lon
 
-            fmb.satellite_ws0 = ws0
-            fmb.satellite_ws1 = ws1
-            fmb.satellite_SZA_center_pixel = sza
-            fmb.satellite_SAA_center_pixel = saa
-            fmb.satellite_VZA_center_pixel = vza
-            fmb.satellite_VAA_center_pixel = vaa
+            new_MDB.satellite_ws0 = ws0
+            new_MDB.satellite_ws1 = ws1
+            new_MDB.satellite_SZA_center_pixel = sza
+            new_MDB.satellite_SAA_center_pixel = saa
+            new_MDB.satellite_VZA_center_pixel = vza
+            new_MDB.satellite_VAA_center_pixel = vaa
             
             # dimensions
-            fmb.createDimension('satellite_size_box_x', size_box)
-            fmb.createDimension('satellite_size_box_y', size_box)
-            fmb.createDimension('satellite_bands', 16)
-            fmb.createDimension('satellite_BRDF_bands', 7)
+            new_MDB.createDimension('rows', size_box)
+            new_MDB.createDimension('columns', size_box)
+            new_MDB.createDimension('satellite_bands', 16)
+            new_MDB.createDimension('satellite_BRDF_Bands', 7)
+            new_MDB.createDimension('satellite_id', 7)
             
             # variables  
-            # satellite_SZA = fmb.createVariable('satellite_SZA', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            # satellite_SZA = new_MDB.createVariable('satellite_SZA', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
             # satellite_SZA[:] = [SZA[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
             # satellite_SZA.long_name = 'Sun Zenith Angle'
             # satellite_SZA.long_name = 'Sun Zenith Angle'    
@@ -389,22 +390,22 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
 # OZA
 # OAA
 
-            satellite_latitude = fmb.createVariable('satellite_latitude',  'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_latitude = new_MDB.createVariable('satellite_latitude',  'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6) 
             satellite_latitude[:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
             
-            satellite_longitude = fmb.createVariable('satellite_longitude',  'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_longitude = new_MDB.createVariable('satellite_longitude',  'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_longitude[:,:] = [lon[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
 
             # double satellite_bands          (satellite_bands) ;
-            satellite_bands = fmb.createVariable('satellite_bands',  'f4', ('satellite_bands'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_bands = new_MDB.createVariable('satellite_bands',  'f4', ('satellite_bands'), fill_value=-999, zlib=True, complevel=6) 
             satellite_bands[:] = [0400.00,0412.50,0442.50,0490.00,0510.00,0560.00,0620.00,0665.00,0673.75,0681.25,0708.75,0753.75,0778.75,0865.00,0885.00,1020.50]
 
             # double satellite_BRDF_Bands     (satellite_BRDF_Bands) ;
-            satellite_BRDF_bands = fmb.createVariable('satellite_BRDF_bands',  'f4', ('satellite_BRDF_bands'), fill_value=-999, zlib=True, complevel=6) 
-            satellite_BRDF_bands[:] = [412.50,442.50,490.00,510.00,560.00,620.00,665.00]
+            satellite_BRDF_Bands = new_MDB.createVariable('satellite_BRDF_Bands',  'f4', ('satellite_BRDF_Bands'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_BRDF_Bands[:] = [412.50,442.50,490.00,510.00,560.00,620.00,665.00]
     
             # NOT BRDF-corrected
-            satellite_rhow = fmb.createVariable('satellite_rhow', 'f4', ('satellite_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_rhow = new_MDB.createVariable('satellite_rhow', 'f4', ('satellite_bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_rhow[0,:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_rhow[1,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_rhow[2,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
@@ -424,7 +425,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_rhow.description = 'Satellite rhow.'
             
             # BRDF-corrected
-            satellite_BRDF_rhow = fmb.createVariable('satellite_BRDF_rhow', 'f4', ('satellite_BRDF_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_rhow = new_MDB.createVariable('satellite_BRDF_rhow', 'f4', ('satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_BRDF_rhow[0,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
             satellite_BRDF_rhow[1,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
             satellite_BRDF_rhow[2,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
@@ -434,15 +435,15 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_BRDF_rhow[6,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
             satellite_BRDF_rhow.description = 'Satellite rhow BRDF-corrected'
             
-            satellite_AOT_0865p50_box = fmb.createVariable('satellite_AOT_0865p50', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_AOT_0865p50_box = new_MDB.createVariable('satellite_AOT_0865p50', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_AOT_0865p50_box[:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
     
-            satellite_WQSF = fmb.createVariable('satellite_WQSF', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_WQSF = new_MDB.createVariable('satellite_WQSF', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_WQSF[:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
             
-            satellite_BRDF_fQ = fmb.createVariable('satellite_BRDF_fQ', 'f4', ('satellite_BRDF_bands','satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_fQ = new_MDB.createVariable('satellite_BRDF_fQ', 'f4', ('satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_BRDF_fQ[0,:,:] = [ma.array(BRDF0)]
             satellite_BRDF_fQ[1,:,:] = [ma.array(BRDF1)]
             satellite_BRDF_fQ[2,:,:] = [ma.array(BRDF2)]
@@ -452,11 +453,11 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_BRDF_fQ[6,:,:] = [ma.array(BRDF6)]
             satellite_BRDF_fQ.description = 'Satellite BRDF fQ coefficients'
 
-            satellite_chl_oc4me = fmb.createVariable('chl_oc4me', 'f4', ('satellite_size_box_x','satellite_size_box_y'), fill_value=-999, zlib=True, complevel=6)
+            satellite_chl_oc4me = new_MDB.createVariable('chl_oc4me', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_chl_oc4me[:,:] = [ma.array(CHL_OC4ME_extract)]
             satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
-            fmb.close()
+            new_MDB.close()
             # print('Extract created!')
                 
         else:
@@ -566,32 +567,33 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     satellite_datetime = datetime.strptime(datetime_str, date_format)
       
     # to append to nc file
-    nc_f0 = copy_nc(extract_path,ofile)
+    new_MDB = copy_nc(extract_path,ofile)
 
     # add time window diff
-    nc_f0.time_diff = f'{time_window*60*60}' # in seconds
+    new_MDB.time_diff = f'{time_window*60*60}' # in seconds
     
     # create in situ dimensions
-    nc_f0.createDimension('insitu_id', None)
-    nc_f0.createDimension('insitu_bands', None)
+    new_MDB.createDimension('insitu_id', None)
+    new_MDB.createDimension('insitu_original_bands', None)
+    new_MDB.createDimension('insitu_Rrs_bands', None)
     
     # create variable 
-    insitu_time=nc_f0.createVariable('insitu_time', 'S2', ('insitu_id'), zlib=True, complevel=6)
+    insitu_time=new_MDB.createVariable('insitu_time', 'S2', ('insitu_id'), zlib=True, complevel=6)
     insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
     
-    insitu_filename=nc_f0.createVariable('insitu_filename', 'S2', ('insitu_id'), zlib=True, complevel=6)
+    insitu_filename=new_MDB.createVariable('insitu_filename', 'S2', ('insitu_id'), zlib=True, complevel=6)
     insitu_filename.description  = 'In situ filename.'
     
-    insitu_filepath=nc_f0.createVariable('insitu_filepath', 'S2', ('insitu_id'), zlib=True, complevel=6)
+    insitu_filepath=new_MDB.createVariable('insitu_filepath', 'S2', ('insitu_id'), zlib=True, complevel=6)
     insitu_filepath.description  = 'In situ file path.'
     
-    insitu_bands=nc_f0.createVariable('insitu_bands', 'f4', ('insitu_bands'), fill_value=-999, zlib=True, complevel=6)
-    insitu_bands.description  = 'In situ bands in nm.'
+    insitu_original_bands=new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'), fill_value=-999, zlib=True, complevel=6)
+    insitu_original_bands.description  = 'In situ bands in nm.'
     
-    insitu_rhow=nc_f0.createVariable('insitu_rhow', 'f4', ('insitu_bands','insitu_id'), fill_value=-999, zlib=True, complevel=6)
+    insitu_rhow=new_MDB.createVariable('insitu_rhow', 'f4', ('insitu_original_bands','insitu_id'), fill_value=-999, zlib=True, complevel=6)
     insitu_rhow.description  = 'In situ rhow.'
 
-    time_difference=nc_f0.createVariable('time_difference', 'f4', ('insitu_bands'), fill_value=-999, zlib=True, complevel=6)
+    time_difference=new_MDB.createVariable('time_difference', 'f4', ('insitu_original_bands'), fill_value=-999, zlib=True, complevel=6)
     time_difference.long_name = "Absolute time difference between satellite acquisition and AERONET acquisition"
     time_difference.units = "seconds"
      
@@ -631,19 +633,19 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                     
                     if insitu_idx == 0:
                         wl0 = data['wavelength'].tolist()
-                        insitu_bands[:] = wl0
+                        insitu_original_bands[:] = wl0
                     insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
                     insitu_idx += 1
                         # print(rhow0)
                 elif args.insitu == 'HYPERNETS':
-                    nc_fi = Dataset(line[:-1],'r')
+                    nc_ins = Dataset(line[:-1],'r')
                     if insitu_idx == 0:
-                        insitu_bands[:] = nc_fi.variables['wavelength'][:].tolist()
-                        ins_water_leaving_radiance = nc_fi.variables['water_leaving_radiance'][:]
+                        insitu_original_bands[:] = nc_ins.variables['wavelength'][:].tolist()
+                        ins_water_leaving_radiance = nc_ins.variables['water_leaving_radiance'][:]
                     
-                    insitu_rhow[:,insitu_idx] =  nc_fi.variables['reflectance'][:].tolist()
+                    insitu_rhow[:,insitu_idx] =  nc_ins.variables['reflectance'][:].tolist()
                     insitu_idx += 1
-                    nc_fi.close()
+                    nc_ins.close()
     if insitu_idx == 0:
         if os.path.exists(ofile):
             os.remove(ofile)
@@ -653,7 +655,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     else:
         return True
     
-    nc_f0.close()
+    new_MDB.close()
     
 # #############################
 #%%
