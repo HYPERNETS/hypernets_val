@@ -377,7 +377,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             new_MDB.createDimension('columns', size_box)
             new_MDB.createDimension('satellite_bands', 16)
             new_MDB.createDimension('satellite_BRDF_Bands', 7)
-            new_MDB.createDimension('satellite_id', 7)
+            new_MDB.createDimension('satellite_id', 1)
             
             # variables  
             # satellite_SZA = new_MDB.createVariable('satellite_SZA', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
@@ -390,11 +390,18 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
 # OZA
 # OAA
 
-            satellite_latitude = new_MDB.createVariable('satellite_latitude',  'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6) 
-            satellite_latitude[:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+            satellite_time = new_MDB.createVariable('satellite_time',  'S2', ('satellite_id'), zlib=True, complevel=6)  
+            satellite_time[0] = nc_sat.start_time
+
+            satellite_PDU = new_MDB.createVariable('satellite_PDU',  'S2', ('satellite_id'), zlib=True, complevel=6) # strint or char
+            satellite_PDU[0] = path_source.split('/')[-1]
+            satellite_PDU.long_name = "OLCI source PDU name"
+
+            satellite_latitude = new_MDB.createVariable('satellite_latitude',  'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_latitude[0,:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
             
-            satellite_longitude = new_MDB.createVariable('satellite_longitude',  'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_longitude[:,:] = [lon[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+            satellite_longitude = new_MDB.createVariable('satellite_longitude',  'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_longitude[0,:,:] = [lon[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
 
             # double satellite_bands          (satellite_bands) ;
             satellite_bands = new_MDB.createVariable('satellite_bands',  'f4', ('satellite_bands'), fill_value=-999, zlib=True, complevel=6) 
@@ -405,52 +412,52 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_BRDF_Bands[:] = [412.50,442.50,490.00,510.00,560.00,620.00,665.00]
     
             # NOT BRDF-corrected
-            satellite_rhow = new_MDB.createVariable('satellite_rhow', 'f4', ('satellite_bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_rhow[0,:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[1,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[2,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[3,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[4,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[5,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[6,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[7,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[8,:,:] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[9,:,:] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[10,:,:] = [ma.array(rhow_0708p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[11,:,:] = [ma.array(rhow_0753p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[12,:,:] = [ma.array(rhow_0778p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[13,:,:] = [ma.array(rhow_0865p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[14,:,:] = [ma.array(rhow_0885p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[15,:,:] = [ma.array(rhow_1020p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow = new_MDB.createVariable('satellite_rhow', 'f4', ('satellite_id','satellite_bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_rhow[0,0,:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,1,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,2,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,3,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,4,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,5,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,6,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,7,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,8,:,:] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,9,:,:] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,10,:,:] = [ma.array(rhow_0708p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,11,:,:] = [ma.array(rhow_0753p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,12,:,:] = [ma.array(rhow_0778p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,13,:,:] = [ma.array(rhow_0865p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,14,:,:] = [ma.array(rhow_0885p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_rhow[0,15,:,:] = [ma.array(rhow_1020p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_rhow.description = 'Satellite rhow.'
             
             # BRDF-corrected
-            satellite_BRDF_rhow = new_MDB.createVariable('satellite_BRDF_rhow', 'f4', ('satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_BRDF_rhow[0,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
-            satellite_BRDF_rhow[1,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
-            satellite_BRDF_rhow[2,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
-            satellite_BRDF_rhow[3,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF3)]
-            satellite_BRDF_rhow[4,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF4)]
-            satellite_BRDF_rhow[5,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF5)]
-            satellite_BRDF_rhow[6,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
+            satellite_BRDF_rhow = new_MDB.createVariable('satellite_BRDF_rhow', 'f4', ('satellite_id','satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_rhow[0,0,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
+            satellite_BRDF_rhow[0,1,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
+            satellite_BRDF_rhow[0,2,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
+            satellite_BRDF_rhow[0,3,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF3)]
+            satellite_BRDF_rhow[0,4,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF4)]
+            satellite_BRDF_rhow[0,5,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF5)]
+            satellite_BRDF_rhow[0,6,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
             satellite_BRDF_rhow.description = 'Satellite rhow BRDF-corrected'
             
-            satellite_AOT_0865p50_box = new_MDB.createVariable('satellite_AOT_0865p50', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_AOT_0865p50_box[:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_AOT_0865p50_box = new_MDB.createVariable('satellite_AOT_0865p50', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_AOT_0865p50_box[0,:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
     
-            satellite_WQSF = new_MDB.createVariable('satellite_WQSF', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_WQSF[:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
+            satellite_WQSF = new_MDB.createVariable('satellite_WQSF', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_WQSF[0,:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
             
-            satellite_BRDF_fQ = new_MDB.createVariable('satellite_BRDF_fQ', 'f4', ('satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_BRDF_fQ[0,:,:] = [ma.array(BRDF0)]
-            satellite_BRDF_fQ[1,:,:] = [ma.array(BRDF1)]
-            satellite_BRDF_fQ[2,:,:] = [ma.array(BRDF2)]
-            satellite_BRDF_fQ[3,:,:] = [ma.array(BRDF3)]
-            satellite_BRDF_fQ[4,:,:] = [ma.array(BRDF4)]
-            satellite_BRDF_fQ[5,:,:] = [ma.array(BRDF5)]
-            satellite_BRDF_fQ[6,:,:] = [ma.array(BRDF6)]
+            satellite_BRDF_fQ = new_MDB.createVariable('satellite_BRDF_fQ', 'f4', ('satellite_id','satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_fQ[0,0,:,:] = [ma.array(BRDF0)]
+            satellite_BRDF_fQ[0,1,:,:] = [ma.array(BRDF1)]
+            satellite_BRDF_fQ[0,2,:,:] = [ma.array(BRDF2)]
+            satellite_BRDF_fQ[0,3,:,:] = [ma.array(BRDF3)]
+            satellite_BRDF_fQ[0,4,:,:] = [ma.array(BRDF4)]
+            satellite_BRDF_fQ[0,5,:,:] = [ma.array(BRDF5)]
+            satellite_BRDF_fQ[0,6,:,:] = [ma.array(BRDF6)]
             satellite_BRDF_fQ.description = 'Satellite BRDF fQ coefficients'
 
             satellite_chl_oc4me = new_MDB.createVariable('chl_oc4me', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
@@ -578,23 +585,23 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     new_MDB.createDimension('insitu_Rrs_bands', None)
     
     # create variable 
-    insitu_time=new_MDB.createVariable('insitu_time', 'S2', ('insitu_id'), zlib=True, complevel=6)
+    insitu_time=new_MDB.createVariable('insitu_time', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
     insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
     
-    insitu_filename=new_MDB.createVariable('insitu_filename', 'S2', ('insitu_id'), zlib=True, complevel=6)
+    insitu_filename=new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
     insitu_filename.description  = 'In situ filename.'
     
-    insitu_filepath=new_MDB.createVariable('insitu_filepath', 'S2', ('insitu_id'), zlib=True, complevel=6)
+    insitu_filepath=new_MDB.createVariable('insitu_filepath', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
     insitu_filepath.description  = 'In situ file path.'
     
     insitu_original_bands=new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'), fill_value=-999, zlib=True, complevel=6)
     insitu_original_bands.description  = 'In situ bands in nm.'
     
-    insitu_rhow=new_MDB.createVariable('insitu_rhow', 'f4', ('insitu_original_bands','insitu_id'), fill_value=-999, zlib=True, complevel=6)
+    insitu_rhow=new_MDB.createVariable('insitu_rhow', 'f4', ('satellite_id','insitu_original_bands','insitu_id'), fill_value=-999, zlib=True, complevel=6)
     insitu_rhow.description  = 'In situ rhow.'
 
-    time_difference=new_MDB.createVariable('time_difference', 'f4', ('insitu_original_bands'), fill_value=-999, zlib=True, complevel=6)
-    time_difference.long_name = "Absolute time difference between satellite acquisition and AERONET acquisition"
+    time_difference=new_MDB.createVariable('time_difference', 'f4', ('satellite_id','insitu_id'), fill_value=-999, zlib=True, complevel=6)
+    time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
     time_difference.units = "seconds"
      
     insitu_idx = 0
@@ -622,10 +629,10 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
             
             time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
             if np.abs(time_diff) <= time_window:
-                insitu_time[insitu_idx] = insitu_datetime_str
-                insitu_filename[insitu_idx] = os.path.basename(line[:-1])
-                insitu_filepath[insitu_idx] = line[:-1]
-                time_difference[insitu_idx] = float(time_diff)*60*60 # in seconds
+                insitu_time[0,insitu_idx] = insitu_datetime_str
+                insitu_filename[0,insitu_idx] = os.path.basename(line[:-1])
+                insitu_filepath[0,insitu_idx] = line[:-1]
+                time_difference[0,insitu_idx] = float(time_diff)*60*60 # in seconds
 
                 if args.insitu == 'PANTHYR':            
                     # get data from csv using pandas
@@ -634,7 +641,10 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                     if insitu_idx == 0:
                         wl0 = data['wavelength'].tolist()
                         insitu_original_bands[:] = wl0
-                    insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
+                    # insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
+                    insitu_rhow_vec = [x for x, in data['rhow'][:]] 
+                    insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
+                    
                     insitu_idx += 1
                         # print(rhow0)
                 elif args.insitu == 'HYPERNETS':
@@ -642,8 +652,9 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                     if insitu_idx == 0:
                         insitu_original_bands[:] = nc_ins.variables['wavelength'][:].tolist()
                         ins_water_leaving_radiance = nc_ins.variables['water_leaving_radiance'][:]
-                    
-                    insitu_rhow[:,insitu_idx] =  nc_ins.variables['reflectance'][:].tolist()
+
+                    insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]] 
+                    insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
                     insitu_idx += 1
                     nc_ins.close()
     if insitu_idx == 0:
