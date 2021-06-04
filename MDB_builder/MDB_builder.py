@@ -188,8 +188,6 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
     lat = nc_sat.variables['latitude'][:,:]
     lon = nc_sat.variables['longitude'][:,:]
     
-    
-    
     contain_flag = cfs.contain_location(lat,lon,in_situ_lat,in_situ_lon)
     
     if contain_flag:
@@ -349,14 +347,12 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             new_MDB.platform = platform
             new_MDB.sensor = sensor
             new_MDB.description = f'{satellite}{platform} {sensor.upper()} {res_str} L2 - {insitu_sensor} Matchup Data Base'
-            new_MDB.satellite_start_time = nc_sat.start_time
-            new_MDB.satellite_stop_time = nc_sat.stop_time    
-            new_MDB.satellite_PDU = path_source.split('/')[-1]
-            new_MDB.satellite_path_source = path_source
+            # new_MDB.satellite_start_time = nc_sat.start_time
+            # new_MDB.satellite_stop_time = nc_sat.stop_time    
+            # new_MDB.satellite_PDU = path_source.split('/')[-1]
+            # new_MDB.satellite_path_source = path_source
             new_MDB.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
             new_MDB.satellite_proc_version = proc_version_str
-            new_MDB.satellite_WQSF_flag_masks = WQSF_flag_masks
-            new_MDB.satellite_WQSF_flag_meanings = WQSF_flag_meanings
 
             new_MDB.datapolicy = 'Notice to users: Add data policy'
             new_MDB.insitu_sensor_processor_version = '0.0'
@@ -377,7 +373,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             new_MDB.createDimension('columns', size_box)
             new_MDB.createDimension('satellite_bands', 16)
             new_MDB.createDimension('satellite_BRDF_Bands', 7)
-            new_MDB.createDimension('satellite_id', 1)
+            new_MDB.createDimension('satellite_id', None)
             
             # variables  
             # satellite_SZA = new_MDB.createVariable('satellite_SZA', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
@@ -390,10 +386,10 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
 # OZA
 # OAA
 
-            satellite_time = new_MDB.createVariable('satellite_time',  'S2', ('satellite_id'), zlib=True, complevel=6)  
-            satellite_time[0] = nc_sat.start_time
+            satellite_time = new_MDB.createVariable('satellite_time',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6)  
+            satellite_time[0] = float(datetime.strptime(nc_sat.start_time,"%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
 
-            satellite_PDU = new_MDB.createVariable('satellite_PDU',  'S2', ('satellite_id'), zlib=True, complevel=6) # strint or char
+            satellite_PDU = new_MDB.createVariable('satellite_PDU',  'S2', ('satellite_id'), zlib=True, complevel=6) # string
             satellite_PDU[0] = path_source.split('/')[-1]
             satellite_PDU.long_name = "OLCI source PDU name"
 
@@ -449,6 +445,8 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_WQSF = new_MDB.createVariable('satellite_WQSF', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_WQSF[0,:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
+            satellite_WQSF.flag_masks = WQSF_flag_masks
+            satellite_WQSF.flag_meanings = WQSF_flag_meanings
             
             satellite_BRDF_fQ = new_MDB.createVariable('satellite_BRDF_fQ', 'f4', ('satellite_id','satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_BRDF_fQ[0,0,:,:] = [ma.array(BRDF0)]
@@ -460,8 +458,8 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_BRDF_fQ[0,6,:,:] = [ma.array(BRDF6)]
             satellite_BRDF_fQ.description = 'Satellite BRDF fQ coefficients'
 
-            satellite_chl_oc4me = new_MDB.createVariable('chl_oc4me', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_chl_oc4me[:,:] = [ma.array(CHL_OC4ME_extract)]
+            satellite_chl_oc4me = new_MDB.createVariable('chl_oc4me', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_chl_oc4me[0,:,:] = [ma.array(CHL_OC4ME_extract)]
             satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
             new_MDB.close()
@@ -644,7 +642,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                     # insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
                     insitu_rhow_vec = [x for x, in data['rhow'][:]] 
                     insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
-                    
+
                     insitu_idx += 1
                         # print(rhow0)
                 elif args.insitu == 'HYPERNETS':
@@ -797,6 +795,7 @@ def main():
                             if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                                 add_OL_12_to_list(path_to_sat_source,path_out,res_str)
                                 print(f'file created: {ofile}')
+                                # ncecat -u satellite_id -h MDB_S3*.nc outcat.nc
                         else:
                             if args.debug:
                                 print('No in situ measurements found!')
