@@ -85,6 +85,7 @@ import BRDF.brdf_olci as brdf
 import COMMON.common_functions as cfs
 
 os.environ['QT_QPA_PLATFORM']='offscreen' # to avoid error "QXcbConnection: Could not connect to display"
+path2ncrcat = '/opt/local/bin/ncrcat'
 
 import argparse
 parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MDB) files.")
@@ -388,6 +389,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
 
             satellite_time = new_MDB.createVariable('satellite_time',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6)  
             satellite_time[0] = float(datetime.strptime(nc_sat.start_time,"%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
+            satellite_time.units = "Seconds since 1970-1-1"
 
             satellite_PDU = new_MDB.createVariable('satellite_PDU',  'S2', ('satellite_id'), zlib=True, complevel=6) # string
             satellite_PDU[0] = path_source.split('/')[-1]
@@ -578,12 +580,13 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
     new_MDB.time_diff = f'{time_window*60*60}' # in seconds
     
     # create in situ dimensions
-    new_MDB.createDimension('insitu_id', None)
-    new_MDB.createDimension('insitu_original_bands', None)
-    new_MDB.createDimension('insitu_Rrs_bands', None)
+    new_MDB.createDimension('insitu_id', 30)
+    new_MDB.createDimension('insitu_original_bands', 1602)
+    # new_MDB.createDimension('insitu_Rrs_bands', None)
     
     # create variable 
-    insitu_time=new_MDB.createVariable('insitu_time', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
+    insitu_time=new_MDB.createVariable('insitu_time', 'f4', ('satellite_id','insitu_id',), zlib=True, complevel=6)
+    insitu_time.units = "Seconds since 1970-1-1"
     insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
     
     insitu_filename=new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
@@ -627,7 +630,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
             
             time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
             if np.abs(time_diff) <= time_window:
-                insitu_time[0,insitu_idx] = insitu_datetime_str
+                insitu_time[0,insitu_idx] = float(datetime.strptime(insitu_datetime_str,"%Y-%m-%dT%H:%M:%SZ").timestamp()) # Ex: 2021-02-24T11:31:00Z
                 insitu_filename[0,insitu_idx] = os.path.basename(line[:-1])
                 insitu_filepath[0,insitu_idx] = line[:-1]
                 time_difference[0,insitu_idx] = float(time_diff)*60*60 # in seconds
@@ -709,7 +712,6 @@ def main():
     
     station_name = args.sitename
     
-    
     # in situ location based on the station name
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
     if args.debug:
@@ -753,6 +755,8 @@ def main():
     # in situ 
     
     time_window = 3 # in hours (+- hours)
+
+    file_list = [] # for the concatenation later
     
     if args.startdate:
         datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
@@ -787,15 +791,21 @@ def main():
                             extract_path = \
                                 create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)
                             
+                            filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc'
                             if args.output:
-                                ofile = os.path.join(path_out,f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc')
+                                ofile = os.path.join(path_out,filename)
+                                temp_ofile = os.path.join(path_out,'temp.'+filename)
                             else:
-                                ofile = os.path.join(path_out,f'MDBs',f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc')
+                                ofile = os.path.join(path_out,'MDBs',filename)
+                                temp_ofile = os.path.join(path_out,'MDBs','temp.'+filename)
                 
                             if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                                 add_OL_12_to_list(path_to_sat_source,path_out,res_str)
+
                                 print(f'file created: {ofile}')
-                                # ncecat -u satellite_id -h MDB_S3*.nc outcat.nc
+
+                                file_list.append(ofile)
+
                         else:
                             if args.debug:
                                 print('No in situ measurements found!')
@@ -811,6 +821,32 @@ def main():
                 else:
                     if args.debug:
                         print('Out of time frame.')
+
+    satellite = 'S3'
+    platform = 'AB'
+    sensor = 'OLCI'
+    level_prod = 'L2'
+
+    #calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nc
+
+    if args.output:
+        ncout_file = os.path.join(path_out,f'MDB_{satellite}{platform}_{sensor}_{res_str}_{level_prod}_{insitu_sensor}_{station_name}.nc')
+    else:
+        ncout_file = os.path.join(path_out,'MDBs',f'MDB_{satellite}{platform}_{sensor}_{res_str}_{level_prod}_{insitu_sensor}_{station_name}.nc')
+    file_list.append(ncout_file)
+
+    # concatenation
+    cmd = [f"ncrcat -O -h"] + file_list
+    cmd  = " ".join(cmd)
+    print(cmd)
+    os.system(cmd)
+    # llll = subprocess.Popen(cmd, shell=True)
+    # out, err = llll.communicate()
+    # if err:
+    #     print ('ncrcat process failed!')
+    #     print(err)  
+    # else:
+    #     print (f'ncrcat process successful!\nfile created: {ncout_file}')
 # %%
 if __name__ == '__main__':
     main()        
