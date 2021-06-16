@@ -9,7 +9,7 @@ Based on EUMETSAT MDB_Builder module (https://ocdb.readthedocs.io/en/latest/ocdb
 
 Run as:
 
-python MDB_builder.py -p PATH_TO_SAT_SOURCES
+python MDB_builder.py -c path_to_config_file
 
 """
 """
@@ -26,45 +26,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-"""
-Sat:
-- filename (path to zip or unzip?)
-- datetime (1)
-- xsize
-- ysize
-- bands
-dimensions: (xsize,ysize,bands)
-
-In situ:
-- station name OR lat, lon in situ
-- lat in situ
-- lon in situ
-- time window
-- datetime (N)
-- bands
-dimensions: (bands,datetime)
-
-from $ ncdump -h MDB_S3A_OLCI_L2_AERONET_Venise.nc:
-dimensions:
-    satellite_id = UNLIMITED ; // (456 currently)
-    rows = 25 ;
-    columns = 25 ;
-    wind_vectors = 2 ;
-    satellite_detectors = 3700 ;
-    satellite_BRDF_Bands = 11 ;
-    satellite_bands = 16 ;
-    insitu_id = 24 ;
-    insitu_original_bands = 29 ;
-    insitu_Rrs_bands = 16 ;
-
-(base) 203$ ncdump -h extract_Venise.nc 
-netcdf extract_Venise {
-dimensions:
-    satellite_id = UNLIMITED ; // (1 currently)
-    size_box_x = 25 ;
-    size_box_y = 25 ;   
-
-"""
 #%% imports
 import os
 import sys
@@ -76,6 +37,7 @@ import numpy.ma as ma
 from datetime import datetime
 from datetime import timedelta
 import pandas as pd
+import configparser
 
 # import user defined functions from other .py
 code_home = os.path.abspath('../')
@@ -95,14 +57,28 @@ parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-
 parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument('-site', "--sitename", help="Site name.",required=True,choices=['VEIT','BEFR','BSBE'])
 parser.add_argument('-ins', "--insitu", help="Satellite sensor name.",required=True,choices=['PANTHYR', 'HYPERNETS']) # ,'HYPSTAR'])
-parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.",required=True)
+parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.")
 parser.add_argument('-sat', "--satellite", help="Satellite sensor name.",choices=['OLCI', 'MSI'])
+parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
 parser.add_argument('-o', "--output", help="Path to output")
 parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
 parser.add_argument('-nl', "--nolist", help="Do not create satellite and in situ lists.",action="store_true")
 
 args = parser.parse_args()
+
+def config_reader(FILEconfig):
+    """
+    Reads and checks configuration file for the validation
+    Args:
+        FILEconfig(str): configuration file path
+    
+    Return:
+        options object
+    """
+    options = configparser.ConfigParser()
+    options.read(FILEconfig)
+    return options
 
 # user defined functions
 def create_list_products(path_source,path_out,wce,res_str,type_product):
@@ -370,11 +346,12 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             new_MDB.satellite_VAA_center_pixel = vaa
             
             # dimensions
+            new_MDB.createDimension('satellite_id', None)
             new_MDB.createDimension('rows', size_box)
             new_MDB.createDimension('columns', size_box)
             new_MDB.createDimension('satellite_bands', 16)
             new_MDB.createDimension('satellite_BRDF_Bands', 7)
-            new_MDB.createDimension('satellite_id', None)
+            
             
             # variables  
             # satellite_SZA = new_MDB.createVariable('satellite_SZA', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
@@ -658,6 +635,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                     insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
                     insitu_idx += 1
                     nc_ins.close()
+    new_MDB.close()
     if insitu_idx == 0:
         if os.path.exists(ofile):
             os.remove(ofile)
@@ -666,8 +644,6 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
         return False
     else:
         return True
-    
-    new_MDB.close()
     
 # #############################
 #%%
@@ -686,26 +662,45 @@ def main():
     else:
         print('Error: host flag is not either mac or vm')
     print('Main Code!')
-
-    if args.path_to_sat:
-       satellite_path_source = args.path_to_sat 
-    print(f'Path to satellite sources: {satellite_path_source}')
-    
-    insitu_path_source = args.path_to_ins
-    print(f'Path to in situ {args.insitu} sources: {insitu_path_source}')
-    
     if args.debug:
         print('Entering Debugging Mode:')
+    # load config file
+    if args.config_file:
+        if os.path.isfile(args.config_file) == True:
+            options = config_reader(args.config_file)
+    # else:
+    #     print(args.config_file + ' does not exist. Please provide a valid config file path')
+    #     sys.exit()    
+
+    # path to satellite source
+    if args.path_to_sat:
+        satellite_path_source = args.path_to_sat
+    elif args.config_file:
+        if options['file_path']['sat_source_dir']:
+            satellite_path_source = options['file_path']['sat_source_dir']
+    print(f'Path to satellite sources: {satellite_path_source}')
+    
+    # path to in situ source
+    if args.path_to_ins:
+        insitu_path_source = args.path_to_ins
+    elif args.config_file:
+        if options['file_path']['sat_source_dir']:
+            insitu_path_source = options['file_path']['ins_source_dir']    
+    print(f'Path to in situ {args.insitu} sources: {insitu_path_source}')
 
     if args.test:
         path_out = path_out + '/test/'
         
+    # path to ouput
     if args.output:
         path_out = os.path.join(path_out,args.output)
-        if not os.path.isdir(path_out):
-            os.mkdir(path_out)
-        if not os.path.isdir(os.path.join(path_out,'EXTRACTS')):
-             os.mkdir(os.path.join(path_out,'EXTRACTS'))
+    elif args.config_file:
+        if options['file_path']['output_dir']:
+            path_out = options['file_path']['output_dir']
+    if not os.path.isdir(path_out):
+        os.mkdir(path_out)
+    if not os.path.isdir(os.path.join(path_out,'EXTRACTS')):
+         os.mkdir(os.path.join(path_out,'EXTRACTS'))
     
     # look for in situ data within t hours
     # save nc file
@@ -794,16 +789,18 @@ def main():
                             filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc'
                             if args.output:
                                 ofile = os.path.join(path_out,filename)
-                                temp_ofile = os.path.join(path_out,'temp.'+filename)
+                                # temp_ofile = os.path.join(path_out,'temp.'+filename)
                             else:
                                 ofile = os.path.join(path_out,'MDBs',filename)
-                                temp_ofile = os.path.join(path_out,'MDBs','temp.'+filename)
+                                # temp_ofile = os.path.join(path_out,'MDBs','temp.'+filename)
                 
                             if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                                 add_OL_12_to_list(path_to_sat_source,path_out,res_str)
 
                                 print(f'file created: {ofile}')
-
+                                # cmd = f'ncks -O --mk_rec_dmn satellite_id {ofile} {temp_ofile}'
+                                # print(f'CMD="{cmd}"')
+                                # os.system(cmd)
                                 file_list.append(ofile)
 
                         else:
@@ -838,7 +835,7 @@ def main():
     # concatenation
     cmd = [f"ncrcat -O -h"] + file_list
     cmd  = " ".join(cmd)
-    print(cmd)
+    print(f'CMD="{cmd}"')
     os.system(cmd)
     # llll = subprocess.Popen(cmd, shell=True)
     # out, err = llll.communicate()
