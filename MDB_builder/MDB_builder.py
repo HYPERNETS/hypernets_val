@@ -81,51 +81,6 @@ def config_reader(FILEconfig):
     options.read(FILEconfig)
     return options
 
-# user defined functions
-def create_list_products(path_source,path_out,wce,res_str,type_product):
-    path_to_list = f'{path_out}/file_{type_product}_{res_str}_list.txt'
-    if not args.nolist:
-        cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
-        prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-        out, err = prog.communicate()
-        if err:
-            print(err)  
-    
-    return path_to_list
-
-def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
-    # from Tie-Points grid (a coarser grid)
-    filepah = os.path.join(path_source,'tie_geo_coordinates.nc')
-    nc_sat = Dataset(filepah,'r')
-    tie_lon = nc_sat.variables['longitude'][:]
-    tie_lat = nc_sat.variables['latitude'][:]
-    
-    filepah = os.path.join(path_source,'tie_meteo.nc')
-    nc_sat = Dataset(filepah,'r')
-    horizontal_wind = nc_sat.variables['horizontal_wind'][:]
-    nc_sat.close()
-    
-    filepah = os.path.join(path_source,'tie_geometries.nc')
-    nc_sat = Dataset(filepah,'r')
-    SZA = nc_sat.variables['SZA'][:]    
-    SAA = nc_sat.variables['SAA'][:]  
-    OZA = nc_sat.variables['OZA'][:]  
-    OAA = nc_sat.variables['OAA'][:] 
-    nc_sat.close()        
-      
-    r, c = cfs.find_row_column_from_lat_lon(tie_lat,tie_lon,in_situ_lat,in_situ_lon)
-    
-    ws0 = horizontal_wind[r,c,0]
-    ws1 = horizontal_wind[r,c,1]  
-    sza = SZA[r,c]
-    saa = SAA[r,c]
-    vza = OZA[r,c]
-    vaa = OAA[r,c]
-
-    return ws0, ws1, sza, saa, vza, vaa
-
-
-
 def copy_nc(ifile,ofile):
     with Dataset(ifile) as src:
         dst = Dataset(ofile, "w")
@@ -148,63 +103,7 @@ def copy_nc(ifile,ofile):
             dst[name][:] = src[name][:]
     return dst
 
-def add_OL_12_to_list(path_source,path_output,res_str):
-    # create OL_1 and OL_2 and OL_2 trimmed lists
-    if res_str == 'WFR':
-        res_L1_str = 'EFR' 
-    elif res_str == 'WRR':
-        res_L1_str = 'ERR'
-        
-    cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
-    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-    out, err = prog.communicate()
-    if err:
-        print(err)  
-    # elif args.debug:
-    #     print('Run:')
-    #     print(cmd)
-    
-    cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_list.txt'
-    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-    out, err = prog.communicate()
-    if err:
-        print(err) 
-    # elif args.debug:
-    #     print('Run:')
-    #     print(cmd)
-        
-    cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
-    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-    out, err = prog.communicate()
-    if err:
-        print(err) 
-    # elif args.debug:
-    #     print('Run:')
-    #     print(cmd)
-        
-def clean_lists(path_out,res_str):
-    list_path = f'{path_out}/OL_2_{res_str}_list.txt'
-    sort_uniq(list_path,path_out)
-    
-    list_path = f'{path_out}/OL_2_{res_str}_list.txt'
-    sort_uniq(list_path,path_out)
-    
-    if res_str == 'WFR':
-        res_L1_str = 'EFR'
-    elif res_str == 'WRR':
-        res_L1_str = 'ERR'
 
-    list_path = f'{path_out}/OL_1_{res_L1_str}_list.txt'
-    sort_uniq(list_path,path_out)
-    
-def sort_uniq(list_path,path_out): 
-    if os.path.exists(list_path):
-        cmd = f'sort {list_path}|uniq > {path_out}/temp_list.txt && {path_out}/temp_list.txt {list_path}'  
-        prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-        out, err = prog.communicate()
-        if err:
-            print(err) 
-        os.remove(f'{path_out}/temp_list.txt')   
    
 def create_insitu_list_daily(path_to_insitu_list,date_str):
     # create list in situ per date YYYYMMDD
