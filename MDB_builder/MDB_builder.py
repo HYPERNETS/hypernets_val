@@ -52,6 +52,7 @@ path2ncrcat = '/opt/local/bin/ncrcat'
 import argparse
 parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MDB) files.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
+parser.add_argument("-v", "--verbose", help="Verbose mode.",action="store_true")
 parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
@@ -168,7 +169,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
     contain_flag = cfs.contain_location(lat,lon,in_situ_lat,in_situ_lon)
     
     if contain_flag:
-        if not args.debug:
+        if not args.verbose:
             print('-----------------')
         r, c = cfs.find_row_column_from_lat_lon(lat,lon,in_situ_lat,in_situ_lon)
         
@@ -447,7 +448,7 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
         else:
             print('Index out of bound!')
     else:
-        if args.debug:
+        if args.verbose:
             print('File does NOT contains the in situ location!')
     
     return ofname
@@ -619,7 +620,6 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                     if insitu_idx == 0:
                         wl0 = data['wavelength'].tolist()
                         insitu_original_bands[:] = wl0
-                    # insitu_rhow[:,insitu_idx] =  data['rhow'].tolist()
                     insitu_rhow_vec = [x for x, in data['rhow'][:]] 
                     insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
 
@@ -709,7 +709,7 @@ def main():
     
     # in situ location based on the station name
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
-    if args.debug:
+    if args.verbose:
         print(f'station_name: {station_name} with lat: {in_situ_lat}, lon: {in_situ_lon}')
         
     
@@ -762,7 +762,7 @@ def main():
     else:
         datetime_end = datetime.today()      
          
-    if args.debug:
+    if args.verbose:
         print(f'Start date: {datetime_start}')  
         print(f'End date: {datetime_end}')
     
@@ -773,7 +773,7 @@ def main():
                 sensor_str = path_to_sat_source.split('/')[-1].split('_')[0]
                 res_str = path_to_sat_source.split('/')[-1].split('_')[3]
                 datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
-                if args.debug:
+                if args.verbose:
                     print('-----------------')
                     print(f'{datetime_str} {sensor_str} {res_str}')                
                 date_format = '%Y%m%dT%H%M%S'
@@ -789,22 +789,17 @@ def main():
                             filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc'
                             if args.output:
                                 ofile = os.path.join(path_out,filename)
-                                # temp_ofile = os.path.join(path_out,'temp.'+filename)
                             else:
                                 ofile = os.path.join(path_out,'MDBs',filename)
-                                # temp_ofile = os.path.join(path_out,'MDBs','temp.'+filename)
                 
                             if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
                                 add_OL_12_to_list(path_to_sat_source,path_out,res_str)
 
                                 print(f'file created: {ofile}')
-                                # cmd = f'ncks -O --mk_rec_dmn satellite_id {ofile} {temp_ofile}'
-                                # print(f'CMD="{cmd}"')
-                                # os.system(cmd)
-                                file_list.append(ofile)
+                                file_list.append(ofile) # for ncrcat later
 
                         else:
-                            if args.debug:
+                            if args.verbose:
                                 print('No in situ measurements found!')
                     
                     # except:
@@ -816,7 +811,7 @@ def main():
                     if os.path.exists(path_to_list_daily):
                             os.remove(path_to_list_daily)
                 else:
-                    if args.debug:
+                    if args.verbose:
                         print('Out of time frame.')
 
     satellite = 'S3'
@@ -825,17 +820,16 @@ def main():
     level_prod = 'L2'
 
     #calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nc
-
     if args.output:
         ncout_file = os.path.join(path_out,f'MDB_{satellite}{platform}_{sensor}_{res_str}_{level_prod}_{insitu_sensor}_{station_name}.nc')
     else:
         ncout_file = os.path.join(path_out,'MDBs',f'MDB_{satellite}{platform}_{sensor}_{res_str}_{level_prod}_{insitu_sensor}_{station_name}.nc')
     file_list.append(ncout_file)
-
     # concatenation
     cmd = [f"ncrcat -O -h"] + file_list
     cmd  = " ".join(cmd)
-    print(f'CMD="{cmd}"')
+    if args.debug:
+        print(f'CMD="{cmd}"')
     os.system(cmd)
     # llll = subprocess.Popen(cmd, shell=True)
     # out, err = llll.communicate()
