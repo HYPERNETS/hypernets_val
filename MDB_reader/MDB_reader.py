@@ -62,7 +62,7 @@ color_dict = dict({\
  '778.75':'DimGray',\
  '865.00':'SlateGray',\
  '885.00':'DarkSlateGray',\
-'1020.50':'Black'})
+'1020.50':'Pink'})
 
 plot_lims_Rrs = dict({\
  '400.00':[-0.002,0.015],\
@@ -80,7 +80,7 @@ plot_lims_Rrs = dict({\
  '778.75':[-0.0002,0.0016],\
  '865.00':[-0.0001,0.0010],\
  '885.00':[-0.0002,0.0008],\
-'1020.50':[-0.0003,0.0007]})
+'1020.50':[-0.0003,0.002]})
     
 plot_lims_LWN = dict({\
  '400.00':[-0.4,4.0],\
@@ -130,36 +130,9 @@ def plot_scatter(x,y,sat_band,ins_band,path_out,prot_name,sensor_name,\
     if options['plot_options']['to_plot'] == 'LWN':
         x = x*cfs.get_F0(ins_band)
         y = y*cfs.get_F0(sat_band)   
-    # rmse_val = np.nan
-    # mean_abs_rel_diff = np.nan
-    # mean_rel_diff = np.nan
-    # r_value = np.nan
-    # rmse_val_Venise = np.nan
-    # mean_abs_rel_diff_Venise = np.nan
-    # mean_rel_diff_Venise = np.nan
-    # r_value_Venise = np.nan
-    # rmse_val_Gloria = np.nan
-    # mean_abs_rel_diff_Gloria = np.nan
-    # mean_rel_diff_Gloria = np.nan
-    # r_value_Gloria = np.nan
-    # rmse_val_Galata_Platform = np.nan
-    # mean_abs_rel_diff_Galata_Platform = np.nan
-    # mean_rel_diff_Galata_Platform = np.nan
-    # r_value_Galata_Platform = np.nan
-    # rmse_val_Helsinki_Lighthouse = np.nan
-    # mean_abs_rel_diff_Helsinki_Lighthouse = np.nan
-    # mean_rel_diff_Helsinki_Lighthouse = np.nan
-    # r_value_Helsinki_Lighthouse = np.nan
-    # rmse_val_Gustav_Dalen_Tower = np.nan
-    # mean_abs_rel_diff_Gustav_Dalen_Tower = np.nan
-    # mean_rel_diff_Gustav_Dalen_Tower = np.nan
-    # r_value_Gustav_Dalen_Tower  = np.nan
+
 
     count_Venise = 0
-    # count_Gloria = 0
-    # count_Galata_Platform = 0
-    # count_Helsinki_Lighthouse = 0
-    # count_Gustav_Dalen_Tower = 0
     
     # if curr_bands[sat_band_index] in satellite_BRDF_bands_list and options['satellite_options']['BRDF'] == 'T':
     #     mfc = 'Gray'
@@ -174,18 +147,7 @@ def plot_scatter(x,y,sat_band,ins_band,path_out,prot_name,sensor_name,\
         if station == 'Venise_PAN':
             mrk_color = 'r'
             count_Venise = count_Venise+1
-        # elif station == 'Gloria':
-        #     mrk_color = 'g'
-        #     count_Gloria = count_Gloria+1
-        # elif station == 'Galata_Platform':
-        #     mrk_color = 'b'
-        #     count_Galata_Platform = count_Galata_Platform+1
-        # elif station == 'Helsinki_Lighthouse':
-        #     mrk_color = 'm'
-        #     count_Helsinki_Lighthouse = count_Helsinki_Lighthouse+1
-        # elif station == 'Gustav_Dalen_Tower':
-        #     mrk_color = 'c'
-        #     count_Gustav_Dalen_Tower = count_Gustav_Dalen_Tower+1
+
 
         if prot_name == 'ba':
             mrk_style = 'o'
@@ -195,7 +157,7 @@ def plot_scatter(x,y,sat_band,ins_band,path_out,prot_name,sensor_name,\
         plt.plot(x[cnt], y[cnt],color=mrk_color,marker=mrk_style)
         
     # plot_lims_Rrs     
-    if options['plot_options']['to_plot'] == 'rhow':    
+    if options['plot_options']['to_plot'] == 'Rrs':    
         plt.xlim(plot_lims_Rrs[f'{sat_band:0.2f}'])
         plt.ylim(plot_lims_Rrs[f'{sat_band:0.2f}'])
     elif options['plot_options']['to_plot'] == 'LWN':
@@ -213,17 +175,15 @@ def plot_scatter(x,y,sat_band,ins_band,path_out,prot_name,sensor_name,\
     # line = slope*np.array([xmin,xmax],dtype=np.float32)+intercept
     # plt.plot([xmin,xmax], line)
     # plt.legend(['1:1','Regression Line'])
-    plt.xlabel(r'PANTHYR $R_{rs}$',fontsize=12)
-    plt.ylabel(r'OLCI $R_{rs}$',fontsize=12)  
     
     if options['plot_options']['to_plot'] == 'rhow':
-        plt.xlabel(r'PANTHYR $\rho_{W}$',fontsize=12)
+        plt.xlabel(f'{insitu_sensor} '+r'$\rho_{W}$',fontsize=12)
         plt.ylabel(r'OLCI $\rho_{W}$',fontsize=12)    
     elif options['plot_options']['to_plot'] == 'Rrs':
-        plt.xlabel(r'PANTHYR $R_{rs}$',fontsize=12)
+        plt.xlabel(f'{insitu_sensor} '+r'$R_{rs}$',fontsize=12)
         plt.ylabel(r'OLCI $R_{rs}$',fontsize=12) 
     elif options['plot_options']['to_plot'] == 'LWN':
-        plt.xlabel(r'PANTHYR $L_{WN}$'+f'({str(ins_band)})',fontsize=12)
+        plt.xlabel(f'{insitu_sensor} '+r'$L_{WN}$'+f'({str(ins_band)})',fontsize=12)
         plt.ylabel(r'OLCI $L_{WN}$'+f'({str(sat_band)})',fontsize=12)     
     
     if (xmin<0 or ymin<0):
@@ -329,8 +289,8 @@ def config_reader(FILEconfig):
     if input_path == '' or input_path == ' ' or output_path == '' or output_path == ' ':
         print ('please provide input and output directories path')
         sys.exit()
-    if options['insitu_options']['sensor'] not in (['PANTHYR']):
-        print ("please select a valid in situ type: 'PANTHYR'")
+    if options['insitu_options']['sensor'] not in (['PANTHYR','HYPERNETS']):
+        print ("please select a valid in situ type: PANTHYR or HYPERNETS ")
         sys.exit()
     if options['satellite_options']['platform'] not in (['A','B']):
         print ("please select a valid name for platform: A or B")
@@ -382,12 +342,18 @@ class PANTHYR_class(object):
 
         """
         
-        columns = ['datetime','PDU','OZA','SZA','bands','MU','outlier','version','ws',\
-            'LWN_ins_400.00','LWN_ins_412.50','LWN_ins_442.50','LWN_ins_490.00','LWN_ins_510.00','LWN_ins_560.00','LWN_ins_620.00',\
-            'LWN_ins_665.00','LWN_ins_673.75','LWN_ins_681.25','LWN_ins_708.75','LWN_ins_753.75','LWN_ins_778.75','LWN_ins_865.00',\
-            'LWN_ins_885.00','LWN_sat_400.00','LWN_sat_412.50','LWN_sat_442.50','LWN_sat_490.00','LWN_sat_510.00',\
-            'LWN_sat_560.00','LWN_sat_620.00','LWN_sat_665.00','LWN_sat_673.75','LWN_sat_681.25','LWN_sat_708.75','LWN_sat_753.75',\
-            'LWN_sat_778.75','LWN_sat_865.00','LWN_sat_885.00']
+        columns = ['datetime','PDU','insitu_filename','OZA','SZA','LWN_ins_400.00','LWN_ins_412.50','LWN_ins_442.50',\
+            'LWN_ins_490.00','LWN_ins_510.00','LWN_ins_560.00','LWN_ins_620.00','LWN_ins_665.00','LWN_ins_673.75',\
+            'LWN_ins_681.25','LWN_ins_708.75','LWN_ins_753.75','LWN_ins_778.75','LWN_ins_865.00','LWN_ins_885.00',\
+            'LWN_ins_1020.50','LWN_sat_400.00','LWN_sat_412.50','LWN_sat_442.50','LWN_sat_490.00','LWN_sat_510.00',\
+            'LWN_sat_560.00','LWN_sat_620.00','LWN_sat_665.00','LWN_sat_673.75','LWN_sat_681.25','LWN_sat_708.75',\
+            'LWN_sat_753.75','LWN_sat_778.75','LWN_sat_865.00','LWN_sat_885.00','LWN_sat_1020.50','Rrs_ins_400.00',\
+            'Rrs_ins_412.50','Rrs_ins_442.50','Rrs_ins_490.00','Rrs_ins_510.00','Rrs_ins_560.00','Rrs_ins_620.00',\
+            'Rrs_ins_665.00','Rrs_ins_673.75','Rrs_ins_681.25','Rrs_ins_708.75','Rrs_ins_753.75','Rrs_ins_778.75',\
+            'Rrs_ins_865.00','Rrs_ins_885.00','Rrs_ins_1020.50','Rrs_sat_400.00','Rrs_sat_412.50','Rrs_sat_442.50',\
+            'Rrs_sat_490.00','Rrs_sat_510.00','Rrs_sat_560.00','Rrs_sat_620.00','Rrs_sat_665.00','Rrs_sat_673.75',\
+            'Rrs_sat_681.25','Rrs_sat_708.75','Rrs_sat_753.75','Rrs_sat_778.75','Rrs_sat_865.00','Rrs_sat_885.00',\
+            'Rrs_sat_1020.50','bands','MU','outlier','version','ws','NGP','NTP','cv_560']
         df_matchups = pd.DataFrame(columns=columns)
         
         startDate = datetime.datetime.strptime(options['Time_and_sites_selection']['time_start'],'%Y-%m-%d')
@@ -423,7 +389,7 @@ class PANTHYR_class(object):
         date_list.txt created as:
         % cat file_list_local.txt|cut -d _ -f4|sort|uniq>date_list.txt
         ''' 
-        # PANTHYR Data
+        # In situ data
         insitu_sensor = options['insitu_options']['sensor']
         satellite_sensor = options['satellite_options']['satellite'] # S3
         platform = options['satellite_options']['platform']
@@ -540,6 +506,7 @@ class PANTHYR_class(object):
                     satellite_BRDF_rhow = nc.variables['satellite_BRDF_rhow'][:]
                     insitu_rrs = nc.variables['insitu_rhow'][:]
                     insitu_rrs = insitu_rrs/np.pi # transform from rhow to Rrs
+                    insitu_finame_list = nc.variables['insitu_filename'][:]
 
                     curr_ins_rrs = []
                     curr_sat_rrs_mean = []
@@ -597,6 +564,7 @@ class PANTHYR_class(object):
 
                             # in situ. curr_ins_rrs is a list with N=number of bands elements
                             ins_value = insitu_rrs[ins_band_index,ins_time_index]
+                            insitu_filename = insitu_finame_list[ins_time_index]
                             curr_ins_rrs.append(ins_value)
                             curr_sat_rrs_mean.append(curr_sat_box_mean/np.pi) # transform rhow to Rrs
                             curr_bands.append(wl)
@@ -610,20 +578,20 @@ class PANTHYR_class(object):
                                 check_cv560 = True
                             
                             # to detect outliers from the in situ data
-                            if wl == 753.75 \
-                                and cfs.get_F0(753.75)*ins_value>0.05 \
-                                    and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']): # a MU
-                                print('in situ 753.75 band > 0.05')
-                                print(nc.satellite_PDU)
-                                outlier_flag = True
-                                print(outlier_flag)
-                                outliers_ins_753p75.append(nc.satellite_PDU)
-                                outliers_ins_753p75_values.append(cfs.get_F0(753.75)*ins_value)
-                                outliers_sat_753p75_values.append(cfs.get_F0(753.75)*curr_sat_box_mean/np.pi)
-                                df_outliers =  df_outliers.append({'version':sat_proc_version_str,\
-                                                    'PDU':nc.satellite_PDU,\
-                                                    'ins: LWN(753.75)':cfs.get_F0(753.75)*ins_value,\
-                                                    'sat: LWN(753.75)':cfs.get_F0(753.75)*curr_sat_box_mean/np.pi},ignore_index=True)
+                            # if wl == 753.75 \
+                            #     and cfs.get_F0(753.75)*ins_value>0.05 \
+                            #         and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']): # a MU
+                            #     print('in situ 753.75 band > 0.05')
+                            #     print(nc.satellite_PDU)
+                            #     outlier_flag = True
+                            #     print(outlier_flag)
+                            #     outliers_ins_753p75.append(nc.satellite_PDU)
+                            #     outliers_ins_753p75_values.append(cfs.get_F0(753.75)*ins_value)
+                            #     outliers_sat_753p75_values.append(cfs.get_F0(753.75)*curr_sat_box_mean/np.pi)
+                            #     df_outliers =  df_outliers.append({'version':sat_proc_version_str,\
+                            #                         'PDU':nc.satellite_PDU,\
+                            #                         'ins: LWN(753.75)':cfs.get_F0(753.75)*ins_value,\
+                            #                         'sat: LWN(753.75)':cfs.get_F0(753.75)*curr_sat_box_mean/np.pi},ignore_index=True)
                                 
                         else:
                             print(f'Not included: NTP= {NTP:.0f}; NGP={NGP}; numberValid= {numberValid}')
@@ -658,57 +626,93 @@ class PANTHYR_class(object):
                             curr_sat_rrs_mean[sat_band_index]*cfs.get_F0(sat_band),\
                             c=color_dict[f'{curr_bands[sat_band_index]:.2f}'],edgecolors=mfc,linewidths=lw)
 
-                df_matchups = df_matchups.append(\
-                            {'datetime':curr_satellite_date,\
-                            'PDU':nc.satellite_PDU,\
-                            'OZA':OZA,'SZA':SZA,\
-                            'LWN_ins_400.00':cfs.get_F0(400.00)*curr_ins_rrs[0],\
-                            'LWN_ins_412.50':cfs.get_F0(412.50)*curr_ins_rrs[1],\
-                            'LWN_ins_442.50':cfs.get_F0(442.50)*curr_ins_rrs[2],\
-                            'LWN_ins_490.00':cfs.get_F0(490.00)*curr_ins_rrs[3],\
-                            'LWN_ins_510.00':cfs.get_F0(510.00)*curr_ins_rrs[4],\
-                            'LWN_ins_560.00':cfs.get_F0(560.00)*curr_ins_rrs[5],\
-                            'LWN_ins_620.00':cfs.get_F0(620.00)*curr_ins_rrs[6],\
-                            'LWN_ins_665.00':cfs.get_F0(665.00)*curr_ins_rrs[7],\
-                            'LWN_ins_673.75':cfs.get_F0(673.75)*curr_ins_rrs[8],\
-                            'LWN_ins_681.25':cfs.get_F0(681.25)*curr_ins_rrs[9],\
-                            'LWN_ins_708.75':cfs.get_F0(708.75)*curr_ins_rrs[10],\
-                            'LWN_ins_753.75':cfs.get_F0(753.75)*curr_ins_rrs[11],\
-                            'LWN_ins_778.75':cfs.get_F0(778.75)*curr_ins_rrs[12],\
-                            'LWN_ins_865.00':cfs.get_F0(865.00)*curr_ins_rrs[13],\
-                            'LWN_ins_885.00':cfs.get_F0(885.00)*curr_ins_rrs[14],\
-                            'LWN_sat_400.00':cfs.get_F0(400.00)*curr_sat_rrs_mean[0],\
-                            'LWN_sat_412.50':cfs.get_F0(412.50)*curr_sat_rrs_mean[1],\
-                            'LWN_sat_442.50':cfs.get_F0(442.50)*curr_sat_rrs_mean[2],\
-                            'LWN_sat_490.00':cfs.get_F0(490.00)*curr_sat_rrs_mean[3],\
-                            'LWN_sat_510.00':cfs.get_F0(510.00)*curr_sat_rrs_mean[4],\
-                            'LWN_sat_560.00':cfs.get_F0(560.00)*curr_sat_rrs_mean[5],\
-                            'LWN_sat_620.00':cfs.get_F0(620.00)*curr_sat_rrs_mean[6],\
-                            'LWN_sat_665.00':cfs.get_F0(665.00)*curr_sat_rrs_mean[7],\
-                            'LWN_sat_673.75':cfs.get_F0(673.75)*curr_sat_rrs_mean[8],\
-                            'LWN_sat_681.25':cfs.get_F0(681.25)*curr_sat_rrs_mean[9],\
-                            'LWN_sat_708.75':cfs.get_F0(708.75)*curr_sat_rrs_mean[10],\
-                            'LWN_sat_753.75':cfs.get_F0(753.75)*curr_sat_rrs_mean[11],\
-                            'LWN_sat_778.75':cfs.get_F0(778.75)*curr_sat_rrs_mean[12],\
-                            'LWN_sat_865.00':cfs.get_F0(865.00)*curr_sat_rrs_mean[13],\
-                            'LWN_sat_885.00':cfs.get_F0(885.00)*curr_sat_rrs_mean[14],\
-                            'bands':curr_bands,\
-                            'MU':MU_flag,\
-                            'outlier':outlier_flag,\
-                            'version':sat_proc_version_str,\
-                            'ws':ws},ignore_index=True)
+            df_matchups = df_matchups.append(\
+                        {'datetime':curr_satellite_date,\
+                        'PDU':nc.satellite_PDU,\
+                        'insitu_filename': insitu_filename,\
+                        'OZA':OZA,'SZA':SZA,\
+                        'LWN_ins_400.00':cfs.get_F0(400.00)*curr_ins_rrs[0],\
+                        'LWN_ins_412.50':cfs.get_F0(412.50)*curr_ins_rrs[1],\
+                        'LWN_ins_442.50':cfs.get_F0(442.50)*curr_ins_rrs[2],\
+                        'LWN_ins_490.00':cfs.get_F0(490.00)*curr_ins_rrs[3],\
+                        'LWN_ins_510.00':cfs.get_F0(510.00)*curr_ins_rrs[4],\
+                        'LWN_ins_560.00':cfs.get_F0(560.00)*curr_ins_rrs[5],\
+                        'LWN_ins_620.00':cfs.get_F0(620.00)*curr_ins_rrs[6],\
+                        'LWN_ins_665.00':cfs.get_F0(665.00)*curr_ins_rrs[7],\
+                        'LWN_ins_673.75':cfs.get_F0(673.75)*curr_ins_rrs[8],\
+                        'LWN_ins_681.25':cfs.get_F0(681.25)*curr_ins_rrs[9],\
+                        'LWN_ins_708.75':cfs.get_F0(708.75)*curr_ins_rrs[10],\
+                        'LWN_ins_753.75':cfs.get_F0(753.75)*curr_ins_rrs[11],\
+                        'LWN_ins_778.75':cfs.get_F0(778.75)*curr_ins_rrs[12],\
+                        'LWN_ins_865.00':cfs.get_F0(865.00)*curr_ins_rrs[13],\
+                        'LWN_ins_885.00':cfs.get_F0(885.00)*curr_ins_rrs[14],\
+                        'LWN_ins_1020.50':cfs.get_F0(1020.50)*curr_ins_rrs[15],\
+                        'LWN_sat_400.00':cfs.get_F0(400.00)*curr_sat_rrs_mean[0],\
+                        'LWN_sat_412.50':cfs.get_F0(412.50)*curr_sat_rrs_mean[1],\
+                        'LWN_sat_442.50':cfs.get_F0(442.50)*curr_sat_rrs_mean[2],\
+                        'LWN_sat_490.00':cfs.get_F0(490.00)*curr_sat_rrs_mean[3],\
+                        'LWN_sat_510.00':cfs.get_F0(510.00)*curr_sat_rrs_mean[4],\
+                        'LWN_sat_560.00':cfs.get_F0(560.00)*curr_sat_rrs_mean[5],\
+                        'LWN_sat_620.00':cfs.get_F0(620.00)*curr_sat_rrs_mean[6],\
+                        'LWN_sat_665.00':cfs.get_F0(665.00)*curr_sat_rrs_mean[7],\
+                        'LWN_sat_673.75':cfs.get_F0(673.75)*curr_sat_rrs_mean[8],\
+                        'LWN_sat_681.25':cfs.get_F0(681.25)*curr_sat_rrs_mean[9],\
+                        'LWN_sat_708.75':cfs.get_F0(708.75)*curr_sat_rrs_mean[10],\
+                        'LWN_sat_753.75':cfs.get_F0(753.75)*curr_sat_rrs_mean[11],\
+                        'LWN_sat_778.75':cfs.get_F0(778.75)*curr_sat_rrs_mean[12],\
+                        'LWN_sat_865.00':cfs.get_F0(865.00)*curr_sat_rrs_mean[13],\
+                        'LWN_sat_885.00':cfs.get_F0(885.00)*curr_sat_rrs_mean[14],\
+                        'LWN_sat_1020.50':cfs.get_F0(1020.50)*curr_sat_rrs_mean[15],\
+                        'Rrs_ins_400.00':curr_ins_rrs[0],\
+                        'Rrs_ins_412.50':curr_ins_rrs[1],\
+                        'Rrs_ins_442.50':curr_ins_rrs[2],\
+                        'Rrs_ins_490.00':curr_ins_rrs[3],\
+                        'Rrs_ins_510.00':curr_ins_rrs[4],\
+                        'Rrs_ins_560.00':curr_ins_rrs[5],\
+                        'Rrs_ins_620.00':curr_ins_rrs[6],\
+                        'Rrs_ins_665.00':curr_ins_rrs[7],\
+                        'Rrs_ins_673.75':curr_ins_rrs[8],\
+                        'Rrs_ins_681.25':curr_ins_rrs[9],\
+                        'Rrs_ins_708.75':curr_ins_rrs[10],\
+                        'Rrs_ins_753.75':curr_ins_rrs[11],\
+                        'Rrs_ins_778.75':curr_ins_rrs[12],\
+                        'Rrs_ins_865.00':curr_ins_rrs[13],\
+                        'Rrs_ins_885.00':curr_ins_rrs[14],\
+                        'Rrs_ins_1020.50':curr_ins_rrs[15],\
+                        'Rrs_sat_400.00':curr_sat_rrs_mean[0],\
+                        'Rrs_sat_412.50':curr_sat_rrs_mean[1],\
+                        'Rrs_sat_442.50':curr_sat_rrs_mean[2],\
+                        'Rrs_sat_490.00':curr_sat_rrs_mean[3],\
+                        'Rrs_sat_510.00':curr_sat_rrs_mean[4],\
+                        'Rrs_sat_560.00':curr_sat_rrs_mean[5],\
+                        'Rrs_sat_620.00':curr_sat_rrs_mean[6],\
+                        'Rrs_sat_665.00':curr_sat_rrs_mean[7],\
+                        'Rrs_sat_673.75':curr_sat_rrs_mean[8],\
+                        'Rrs_sat_681.25':curr_sat_rrs_mean[9],\
+                        'Rrs_sat_708.75':curr_sat_rrs_mean[10],\
+                        'Rrs_sat_753.75':curr_sat_rrs_mean[11],\
+                        'Rrs_sat_778.75':curr_sat_rrs_mean[12],\
+                        'Rrs_sat_865.00':curr_sat_rrs_mean[13],\
+                        'Rrs_sat_885.00':curr_sat_rrs_mean[14],\
+                        'Rrs_sat_1020.50':curr_sat_rrs_mean[15],\
+                        'bands':curr_bands,\
+                        'MU':MU_flag,\
+                        'outlier':outlier_flag,\
+                        'version':sat_proc_version_str,\
+                        'ws':ws,\
+                        'NGP':NGP,'NTP':NTP,'cv_560':curr_sat_box_cv_560},ignore_index=True)
             
         # scatter plot all bands
         plt.gca().set_aspect('equal', adjustable='box')
 
         if options['plot_options']['to_plot'] == 'rhow':
-            plt.xlabel(r'PANTHYR $\rho_{W}$',fontsize=12)
+            plt.xlabel(f'{insitu_sensor} '+r'$\rho_{W}$',fontsize=12)
             plt.ylabel(r'OLCI $\rho_{W}$',fontsize=12)    
         elif options['plot_options']['to_plot'] == 'Rrs':
-            plt.xlabel(r'PANTHYR $R_{rs}$',fontsize=12)
+            plt.xlabel(f'{insitu_sensor} '+r'$R_{rs}$',fontsize=12)
             plt.ylabel(r'OLCI $R_{rs}$',fontsize=12) 
         elif options['plot_options']['to_plot'] == 'LWN':
-            plt.xlabel(r'PANTHYR $L_{WN}$',fontsize=12)
+            plt.xlabel(f'{insitu_sensor} '+r'$L_{WN}$',fontsize=12)
             plt.ylabel(r'OLCI $L_{WN}$',fontsize=12)               
 
 
@@ -755,6 +759,10 @@ class PANTHYR_class(object):
         print(ofname_csv)
         df.to_csv(ofname_csv,index=False)
         
+        ofname_csv = os.path.join(output_directory,f'MUs_{satellite_sensor}{platform}_{res}_{sat_proc_version_str[-5:].replace(".","p")}.csv')
+        print(ofname_csv)
+        df_matchups.to_csv(ofname_csv,index=False)
+        
         # outliers 
         plt.figure()
         plt.scatter(outliers_ins_753p75_values,outliers_sat_753p75_values)
@@ -773,6 +781,7 @@ class PANTHYR_class(object):
 #     print('Main Code!')
 
 path_main = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/'
+path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/ODATA/Figures/HYPERNETS'
 
 # Read config. file
 # config_file = file_config_parse.config_file
@@ -780,7 +789,7 @@ sat_proc_version = '7.00' # '6.13' 0r '7.00'
 if sat_proc_version == '6.13':
     config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR.ini')
 elif sat_proc_version == '7.00':
-    config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR_newflags.ini')
+    config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_HYPERNETS.ini')
 elif sat_proc_version == '7.01':
     config_file = os.path.join(path_main,'MDB_reader','config_file_OLCI_PANTHYR_07.01.ini')
     
@@ -790,7 +799,7 @@ else:
     print(config_file + ' does not exist. Please provide a valid config file path')
     sys.exit()
 
-if options['insitu_options']['sensor'] == 'PANTHYR':
+if options['insitu_options']['sensor'] == 'HYPERNETS':
     #read AERONET MDB
     dataTOplot = PANTHYR_class(options)
     # if dataTOplot.RRS.size == 0:
@@ -800,7 +809,9 @@ if options['insitu_options']['sensor'] == 'PANTHYR':
     # else:
     #     #plot data and save stats
     #     [df_data,df_overall,header] = plot_matchups(dataTOplot,options)
-    #     write_csv_stat(df_data,df_overall,header,options)   
+    #     write_csv_stat(df_data,df_overall,header,options)
+    
+    
 
 
 
@@ -816,7 +827,7 @@ df_MU = dataTOplot.df_matchups
 # plt.gca().set_aspect('equal', adjustable='box')
 
 #% Plot spectra
-outlier_flag = True
+outlier_flag = False
 
 df_outliers = df_MU.loc[(df_MU['outlier'] == outlier_flag)]
 LWN_outliers_ins = df_outliers.loc[:,'LWN_ins_400.00':'LWN_ins_885.00'].to_numpy()
@@ -864,76 +875,117 @@ for idx in range(len(LWN_outliers_ins)):
         
         ofname = os.path.join(path_out,f'{PDU[:31]}_{sat_proc_version}_spectra.pdf')
         plt.savefig(ofname)
+#%% Plot spectra
+path_insitu = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/IDATA/INSITU/HYPERNETS/BEFR/'
+bands = np.array(olci_band_list,dtype=float)
+df_MU = dataTOplot.df_matchups
+
+# ins_data = df_MU['LWN_ins_753.75']
+# sat_data = df_MU['LWN_sat_753.75']
+# plt.figure()
+# plt.scatter(ins_data,sat_data)
+# plt.gca().set_aspect('equal', adjustable='box')
+
+#% Plot spectra
+Rrs_ins = df_MU.loc[:,'Rrs_ins_400.00':'Rrs_ins_1020.50'].to_numpy()
+Rrs_sat = df_MU.loc[:,'Rrs_sat_400.00':'Rrs_sat_1020.50'].to_numpy()
+path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/ODATA/Figures/HYPERNETS'
     
-#%% all
-plt.figure(figsize = (20,10))
-# sat
-plt.subplot(2,1,1)
-df_outliers = df_MU.loc[(df_MU['outlier'] == False)]
-LWN_outliers_sat = df_outliers.loc[:,'LWN_sat_400.00':'LWN_sat_885.00'].to_numpy()
-for idx in range(len(LWN_outliers_sat)):
-    plt.plot(bands,LWN_outliers_sat[idx],'k.-')
-df_outliers = df_MU.loc[(df_MU['outlier'] == True)]
-LWN_outliers_sat = df_outliers.loc[:,'LWN_sat_400.00':'LWN_sat_885.00'].to_numpy()
-for idx in range(len(LWN_outliers_sat)):
-    plt.plot(bands,LWN_outliers_sat[idx],'r.-')
-plt.ylim([-0.5,7])
-plt.xlim([400,885])
-plt.title(PDU[:3]+f' IPF-OL-2 version: {sat_proc_version}', x=0.5, y=0.9)
-plt.ylabel(r'$L_{WN}$',fontsize=14)
+# sat_bands = ['400.00', '412.50', '442.50', '490.00', '510.00', '560.00', '620.00', '665.00',\
+#                     '673.75', '681.25', '708.75', '753.75', '778.75', '865.00', '885.00']
+# sat_bands = ['442.50','490.00','560.00','665.00', '753.75', '778.75']
+    
+for idx in range(len(Rrs_ins)):
+    plt.figure(figsize = (20,10))
+    plt.plot(bands,Rrs_sat[idx],'k.-')
+    plt.plot(bands,Rrs_ins[idx],'b.--')
+    insitu_filename = df_MU['insitu_filename'][idx]
+    nc_fi = Dataset(os.path.join(path_insitu,insitu_filename),'r')
+    ins_wavelength = nc_fi.variables['wavelength'][:]
+    ins_reflectance = nc_fi.variables['reflectance'][:]
+    plt.plot(ins_wavelength,ins_reflectance/np.pi)
+    # plt.ylim([-0.5,7])
+    # plt.xlim([400,885])
+    PDU = df_outliers.iloc[idx]['PDU']
+    ws = df_outliers.iloc[idx]['ws']
+    plt.suptitle(PDU+'\n'+f'IPF-OL-2 version: {sat_proc_version}; wind speed = {ws:.1f}'+f'\n{insitu_filename}')
+    plt.legend([PDU[:3],'HYPERNETS spectrally sampled','HYPERNETS'],fontsize=16)
+    plt.ylabel(r'$R_{rs}$',fontsize=18)
+    plt.xlabel('Wavelength (nm)',fontsize=18)
+         
+    ofname = os.path.join(path_out,f'{PDU[:31]}_{sat_proc_version}_spectra.pdf')
+    plt.savefig(ofname)
+        
+# #%% all
+# bands = np.array(olci_band_list,dtype=float)
+# plt.figure(figsize = (20,10))
+# # sat
+# plt.subplot(2,1,1)
+# df_outliers = df_MU.loc[(df_MU['outlier'] == False)]
+# Rrs_outliers_sat = df_outliers.loc[:,'LWN_sat_400.00':'LWN_sat_885.00'].to_numpy()
+# for idx in range(len(LWN_outliers_sat)):
+#     plt.plot(bands,LWN_outliers_sat[idx],'k.-')
+# df_outliers = df_MU.loc[(df_MU['outlier'] == True)]
+# LWN_outliers_sat = df_outliers.loc[:,'LWN_sat_400.00':'LWN_sat_885.00'].to_numpy()
+# for idx in range(len(LWN_outliers_sat)):
+#     plt.plot(bands,LWN_outliers_sat[idx],'r.-')
+# plt.ylim([-0.5,7])
+# plt.xlim([400,885])
+# plt.title(PDU[:3]+f' IPF-OL-2 version: {sat_proc_version}', x=0.5, y=0.9)
+# plt.ylabel(r'$L_{WN}$',fontsize=14)
+# # plt.xlabel('Wavelength (nm)',fontsize=14)
+
+# # ins
+# plt.subplot(2,1,2)
+# df_outliers = df_MU.loc[(df_MU['outlier'] == False)]
+# LWN_outliers_ins = df_outliers.loc[:,'LWN_ins_400.00':'LWN_ins_885.00'].to_numpy()
+# for idx in range(len(LWN_outliers_ins)):
+#     plt.plot(bands,LWN_outliers_ins[idx],'k.-')
+# df_outliers = df_MU.loc[(df_MU['outlier'] == True)]
+# LWN_outliers_ins = df_outliers.loc[:,'LWN_ins_400.00':'LWN_ins_885.00'].to_numpy()
+# for idx in range(len(LWN_outliers_ins)):
+#     plt.plot(bands,LWN_outliers_ins[idx],'r.-')    
+# plt.ylim([-0.5,7])
+# plt.xlim([400,885])
+# plt.title('PANTHYR', x=0.5, y=0.9)
+# plt.ylabel(r'$L_{WN}$',fontsize=14)
 # plt.xlabel('Wavelength (nm)',fontsize=14)
 
-# ins
-plt.subplot(2,1,2)
-df_outliers = df_MU.loc[(df_MU['outlier'] == False)]
-LWN_outliers_ins = df_outliers.loc[:,'LWN_ins_400.00':'LWN_ins_885.00'].to_numpy()
-for idx in range(len(LWN_outliers_ins)):
-    plt.plot(bands,LWN_outliers_ins[idx],'k.-')
-df_outliers = df_MU.loc[(df_MU['outlier'] == True)]
-LWN_outliers_ins = df_outliers.loc[:,'LWN_ins_400.00':'LWN_ins_885.00'].to_numpy()
-for idx in range(len(LWN_outliers_ins)):
-    plt.plot(bands,LWN_outliers_ins[idx],'r.-')    
-plt.ylim([-0.5,7])
-plt.xlim([400,885])
-plt.title('PANTHYR', x=0.5, y=0.9)
-plt.ylabel(r'$L_{WN}$',fontsize=14)
-plt.xlabel('Wavelength (nm)',fontsize=14)
+# plt.suptitle('(*) in red: Outliers identified from the 778.5 nm band for IPF-OL-2 version 7.00.')
 
-plt.suptitle('(*) in red: Outliers identified from the 778.5 nm band for IPF-OL-2 version 7.00.')
+# path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/OCTAC/EUMETSAT/Figures/OUTLIERS'
+# ofname = os.path.join(path_out,f'{PDU[:3]}_{sat_proc_version}_spectra.pdf')
+# plt.savefig(ofname)
 
-path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/OCTAC/EUMETSAT/Figures/OUTLIERS'
-ofname = os.path.join(path_out,f'{PDU[:3]}_{sat_proc_version}_spectra.pdf')
-plt.savefig(ofname)
-
-#%% plot 865/665
-plt.figure(figsize = (20,10))
-plt.subplot(1,2,1)
-rhow_778_75 = df_MU['LWN_sat_778.75']*np.pi/cfs.get_F0(778.75)
-rhow_665 = df_MU['LWN_sat_665.00']*np.pi/cfs.get_F0(665.00)
-plt.scatter(rhow_778_75,rhow_665, facecolors='none', edgecolors='b')
-# plt.gca().set_aspect('equal', adjustable='box')
-plt.xlim([0,0.01])
-plt.ylim([0,0.06])
-plt.xlabel(f'{PDU[:3]}'+r' $\rho_{W}(778.75)$',fontsize=14)
-plt.ylabel(f'{PDU[:3]}'+r' $\rho_{W}(665)$',fontsize=14)
-x = np.array([0,0.01])
-y = 4.228*x # from Kevin
-plt.plot(x,y,'k--')
+# #%% plot 865/665
+# plt.figure(figsize = (20,10))
+# plt.subplot(1,2,1)
+# rhow_778_75 = df_MU['LWN_sat_778.75']*np.pi/cfs.get_F0(778.75)
+# rhow_665 = df_MU['LWN_sat_665.00']*np.pi/cfs.get_F0(665.00)
+# plt.scatter(rhow_778_75,rhow_665, facecolors='none', edgecolors='b')
+# # plt.gca().set_aspect('equal', adjustable='box')
+# plt.xlim([0,0.01])
+# plt.ylim([0,0.06])
+# plt.xlabel(f'{PDU[:3]}'+r' $\rho_{W}(778.75)$',fontsize=14)
+# plt.ylabel(f'{PDU[:3]}'+r' $\rho_{W}(665)$',fontsize=14)
+# x = np.array([0,0.01])
+# y = 4.228*x # from Kevin
+# plt.plot(x,y,'k--')
 
 
-plt.subplot(1,2,2)
-rhow_778_75 = df_MU['LWN_ins_778.75']*np.pi/cfs.get_F0(778.75)
-rhow_665 = df_MU['LWN_ins_665.00']*np.pi/cfs.get_F0(665.00)
-plt.scatter(rhow_778_75,rhow_665, facecolors='none', edgecolors='b')
-# plt.gca().set_aspect('equal', adjustable='box')
-plt.xlim([0,0.01])
-plt.ylim([0,0.06])
-plt.xlabel(r'PANTHYR $\rho_{W}(778.75)$',fontsize=14)
-plt.ylabel(r'PANTHYR $\rho_{W}(665)$',fontsize=14)
-plt.plot(x,y,'k--')
-plt.suptitle(f'{PDU[:3]}; IPF-OL-2 version: {sat_proc_version}',fontsize=14)
-ofname = os.path.join(path_out,f'{PDU[:3]}_{sat_proc_version}_779-665.pdf')
-plt.savefig(ofname)
+# plt.subplot(1,2,2)
+# rhow_778_75 = df_MU['LWN_ins_778.75']*np.pi/cfs.get_F0(778.75)
+# rhow_665 = df_MU['LWN_ins_665.00']*np.pi/cfs.get_F0(665.00)
+# plt.scatter(rhow_778_75,rhow_665, facecolors='none', edgecolors='b')
+# # plt.gca().set_aspect('equal', adjustable='box')
+# plt.xlim([0,0.01])
+# plt.ylim([0,0.06])
+# plt.xlabel(r'PANTHYR $\rho_{W}(778.75)$',fontsize=14)
+# plt.ylabel(r'PANTHYR $\rho_{W}(665)$',fontsize=14)
+# plt.plot(x,y,'k--')
+# plt.suptitle(f'{PDU[:3]}; IPF-OL-2 version: {sat_proc_version}',fontsize=14)
+# ofname = os.path.join(path_out,f'{PDU[:3]}_{sat_proc_version}_779-665.pdf')
+# plt.savefig(ofname)
 #%%
 # if __name__ == '__main__':
 #     main()
