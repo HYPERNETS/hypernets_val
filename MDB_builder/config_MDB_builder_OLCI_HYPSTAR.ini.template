@@ -1,0 +1,14 @@
+## file config for MDBs builder
+[file_path]
+sat_source_dir: /Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/MDB_test
+ins_source_dir: /Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/IDATA/INSITU/HYPERNETS/BEFR
+output_dir: /Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/ODATA/
+
+[Time_and_sites_selection]
+#first and last dates for analysis. Format: YYYY-MM-DD
+time_start: 2019-09-01
+time_stop: 2020-08-01
+#insitu_type: PANTHYR, AERONET, MOBY,HPLC,KD490,ADG,TSM,RRS,....
+insitu_type: HYPERNETS
+#AERONET-OC  or PANTHYR sites:  ALL or any from AERONET-OC listDefault is ALL
+sites: Venise
