@@ -57,8 +57,8 @@ parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument('-site', "--sitename", help="Site name.",required=True,choices=['VEIT','BEFR','BSBE'])
-parser.add_argument('-ins', "--insitu", help="Satellite sensor name.",required=True,choices=['PANTHYR', 'HYPERNETS']) # ,'HYPSTAR'])
-parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.")
+# parser.add_argument('-ins', "--insitu", help="Satellite sensor name.",required=True,choices=['PANTHYR', 'HYPERNETS']) # ,'HYPSTAR'])
+# parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.")
 parser.add_argument('-sat', "--satellite", help="Satellite sensor name.",choices=['OLCI', 'MSI'])
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
@@ -453,60 +453,60 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
     
     return ofname
 
-def copy_nc(ifile,ofile):
-    with Dataset(ifile) as src:
-        dst = Dataset(ofile, "w")
+# def copy_nc(ifile,ofile):
+#     with Dataset(ifile) as src:
+#         dst = Dataset(ofile, "w")
         
-        # copy global attributes all at once via dictionary
-        dst.setncatts(src.__dict__)
+#         # copy global attributes all at once via dictionary
+#         dst.setncatts(src.__dict__)
         
-        # copy dimensions
-        for name, dimension in src.dimensions.items():
-            dst.createDimension(
-                name, (len(dimension) if not dimension.isunlimited() else None))
+#         # copy dimensions
+#         for name, dimension in src.dimensions.items():
+#             dst.createDimension(
+#                 name, (len(dimension) if not dimension.isunlimited() else None))
             
-        # copy all file data except for the excluded
-        for name, variable in src.variables.items():
-            dst.createVariable(name, variable.datatype, variable.dimensions)
+#         # copy all file data except for the excluded
+#         for name, variable in src.variables.items():
+#             dst.createVariable(name, variable.datatype, variable.dimensions)
             
-            # copy variable attributes all at once via dictionary
-            dst[name].setncatts(src[name].__dict__)
+#             # copy variable attributes all at once via dictionary
+#             dst[name].setncatts(src[name].__dict__)
             
-            dst[name][:] = src[name][:]
-    return dst
+#             dst[name][:] = src[name][:]
+#     return dst
 
-def add_OL_12_to_list(path_source,path_output,res_str):
-    # create OL_1 and OL_2 and OL_2 trimmed lists
-    if res_str == 'WFR':
-        res_L1_str = 'EFR' 
-    elif res_str == 'WRR':
-        res_L1_str = 'ERR'
+# def add_OL_12_to_list(path_source,path_output,res_str):
+#     # create OL_1 and OL_2 and OL_2 trimmed lists
+#     if res_str == 'WFR':
+#         res_L1_str = 'EFR' 
+#     elif res_str == 'WRR':
+#         res_L1_str = 'ERR'
         
-    cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
-    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-    out, err = prog.communicate()
-    if err:
-        print(err)  
-    # elif args.debug:
-    #     print('Run:')
-    #     print(cmd)
+#     cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
+#     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+#     out, err = prog.communicate()
+#     if err:
+#         print(err)  
+#     # elif args.debug:
+#     #     print('Run:')
+#     #     print(cmd)
     
-    cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_list.txt'
-    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-    out, err = prog.communicate()
-    if err:
-        print(err) 
-    # elif args.debug:
-    #     print('Run:')
-    #     print(cmd)
+#     cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_list.txt'
+#     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+#     out, err = prog.communicate()
+#     if err:
+#         print(err) 
+#     # elif args.debug:
+#     #     print('Run:')
+#     #     print(cmd)
         
-    cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
-    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-    out, err = prog.communicate()
-    if err:
-        print(err) 
-    # elif args.debug:
-    #     print('Run:')
+#     cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
+#     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+#     out, err = prog.communicate()
+#     if err:
+#         print(err) 
+#     # elif args.debug:
+#     #     print('Run:')
     #     print(cmd)
         
 def clean_lists(path_out,res_str):
@@ -533,117 +533,117 @@ def sort_uniq(list_path,path_out):
             print(err) 
         os.remove(f'{path_out}/temp_list.txt')   
    
-def create_insitu_list_daily(path_to_insitu_list,date_str):
-    # create list in situ per date YYYYMMDD
-    YYYYMMDD_str = date_str[:8]
-    path_to_list = f'{path_to_insitu_list[:-4]}_{YYYYMMDD_str}.txt'
-    cmd = f'cat {path_to_insitu_list}|grep {YYYYMMDD_str}|sort|uniq> {path_to_list}'
-    prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-    out, err = prog.communicate()
-    if err:
-        print(err)
+# def create_insitu_list_daily(path_to_insitu_list,date_str):
+#     # create list in situ per date YYYYMMDD
+#     YYYYMMDD_str = date_str[:8]
+#     path_to_list = f'{path_to_insitu_list[:-4]}_{YYYYMMDD_str}.txt'
+#     cmd = f'cat {path_to_insitu_list}|grep {YYYYMMDD_str}|sort|uniq> {path_to_list}'
+#     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
+#     out, err = prog.communicate()
+#     if err:
+#         print(err)
         
-    return path_to_list
+#     return path_to_list
  
     
-def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
-    # print(f'Satellite time {datetime_str}')
-    date_format = '%Y%m%dT%H%M%S'
-    satellite_datetime = datetime.strptime(datetime_str, date_format)
+# def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
+#     # print(f'Satellite time {datetime_str}')
+#     date_format = '%Y%m%dT%H%M%S'
+#     satellite_datetime = datetime.strptime(datetime_str, date_format)
       
-    # to append to nc file
-    new_MDB = copy_nc(extract_path,ofile)
+#     # to append to nc file
+#     new_MDB = copy_nc(extract_path,ofile)
 
-    # add time window diff
-    new_MDB.time_diff = f'{time_window*60*60}' # in seconds
+#     # add time window diff
+#     new_MDB.time_diff = f'{time_window*60*60}' # in seconds
     
-    # create in situ dimensions
-    new_MDB.createDimension('insitu_id', 30)
-    new_MDB.createDimension('insitu_original_bands', 1602)
-    # new_MDB.createDimension('insitu_Rrs_bands', None)
+#     # create in situ dimensions
+#     new_MDB.createDimension('insitu_id', 30)
+#     new_MDB.createDimension('insitu_original_bands', 1602)
+#     # new_MDB.createDimension('insitu_Rrs_bands', None)
     
-    # create variable 
-    insitu_time=new_MDB.createVariable('insitu_time', 'f4', ('satellite_id','insitu_id',), zlib=True, complevel=6)
-    insitu_time.units = "Seconds since 1970-1-1"
-    insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
+#     # create variable 
+#     insitu_time=new_MDB.createVariable('insitu_time', 'f4', ('satellite_id','insitu_id',), zlib=True, complevel=6)
+#     insitu_time.units = "Seconds since 1970-1-1"
+#     insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
     
-    insitu_filename=new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
-    insitu_filename.description  = 'In situ filename.'
+#     insitu_filename=new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
+#     insitu_filename.description  = 'In situ filename.'
     
-    insitu_filepath=new_MDB.createVariable('insitu_filepath', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
-    insitu_filepath.description  = 'In situ file path.'
+#     insitu_filepath=new_MDB.createVariable('insitu_filepath', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
+#     insitu_filepath.description  = 'In situ file path.'
     
-    insitu_original_bands=new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'), fill_value=-999, zlib=True, complevel=6)
-    insitu_original_bands.description  = 'In situ bands in nm.'
+#     insitu_original_bands=new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'), fill_value=-999, zlib=True, complevel=6)
+#     insitu_original_bands.description  = 'In situ bands in nm.'
     
-    insitu_rhow=new_MDB.createVariable('insitu_rhow', 'f4', ('satellite_id','insitu_original_bands','insitu_id'), fill_value=-999, zlib=True, complevel=6)
-    insitu_rhow.description  = 'In situ rhow.'
+#     insitu_rhow=new_MDB.createVariable('insitu_rhow', 'f4', ('satellite_id','insitu_original_bands','insitu_id'), fill_value=-999, zlib=True, complevel=6)
+#     insitu_rhow.description  = 'In situ rhow.'
 
-    time_difference=new_MDB.createVariable('time_difference', 'f4', ('satellite_id','insitu_id'), fill_value=-999, zlib=True, complevel=6)
-    time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
-    time_difference.units = "seconds"
+#     time_difference=new_MDB.createVariable('time_difference', 'f4', ('satellite_id','insitu_id'), fill_value=-999, zlib=True, complevel=6)
+#     time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
+#     time_difference.units = "seconds"
      
-    insitu_idx = 0
-    # extract in situ data
-    with open(path_to_list_daily) as file:
-        for idx, line in enumerate(file):
-            # HYPERNETS ex: HYPERNETS_W_BEFR_L2A_REF_202103151201_202103231711_v1.1.nc
-            # PANTHYR ex: AAOT_20190923_019046_20200923_104022_AZI_225_data.csv
-            # time in ISO 8601 format (UTC). Ex: "2020-01-05T09:27:27.934965Z"
-            if args.insitu == 'PANTHYR':             
-                date_str = os.path.basename(line[:-1]).split('_')[3]
-                time_str = os.path.basename(line[:-1]).split('_')[4]
-            elif args.insitu == 'HYPERNETS':
-                date_str = os.path.basename(line[:-1]).split('_')[5][0:8]
-                time_str = os.path.basename(line[:-1]).split('_')[5][-4:]+'00'            
+#     insitu_idx = 0
+#     # extract in situ data
+#     with open(path_to_list_daily) as file:
+#         for idx, line in enumerate(file):
+#             # HYPERNETS ex: HYPERNETS_W_BEFR_L2A_REF_202103151201_202103231711_v1.1.nc
+#             # PANTHYR ex: AAOT_20190923_019046_20200923_104022_AZI_225_data.csv
+#             # time in ISO 8601 format (UTC). Ex: "2020-01-05T09:27:27.934965Z"
+#             if args.insitu == 'PANTHYR':             
+#                 date_str = os.path.basename(line[:-1]).split('_')[3]
+#                 time_str = os.path.basename(line[:-1]).split('_')[4]
+#             elif args.insitu == 'HYPERNETS':
+#                 date_str = os.path.basename(line[:-1]).split('_')[5][0:8]
+#                 time_str = os.path.basename(line[:-1]).split('_')[5][-4:]+'00'            
                      
-            YYYY_str = date_str[:4]
-            MM_str = date_str[4:6]
-            DD_str = date_str[6:8]
-            HH_str = time_str[:2]
-            mm_str = time_str[2:4]
-            ss_str = time_str[4:6]
-            insitu_datetime_str = f'{YYYY_str}-{MM_str}-{DD_str}T{HH_str}:{mm_str}:{ss_str}Z'
-            insitu_datetime = datetime(int(YYYY_str),int(MM_str),int(DD_str),int(HH_str),int(mm_str),int(ss_str))
+#             YYYY_str = date_str[:4]
+#             MM_str = date_str[4:6]
+#             DD_str = date_str[6:8]
+#             HH_str = time_str[:2]
+#             mm_str = time_str[2:4]
+#             ss_str = time_str[4:6]
+#             insitu_datetime_str = f'{YYYY_str}-{MM_str}-{DD_str}T{HH_str}:{mm_str}:{ss_str}Z'
+#             insitu_datetime = datetime(int(YYYY_str),int(MM_str),int(DD_str),int(HH_str),int(mm_str),int(ss_str))
             
-            time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
-            if np.abs(time_diff) <= time_window:
-                insitu_time[0,insitu_idx] = float(datetime.strptime(insitu_datetime_str,"%Y-%m-%dT%H:%M:%SZ").timestamp()) # Ex: 2021-02-24T11:31:00Z
-                insitu_filename[0,insitu_idx] = os.path.basename(line[:-1])
-                insitu_filepath[0,insitu_idx] = line[:-1]
-                time_difference[0,insitu_idx] = float(time_diff)*60*60 # in seconds
+#             time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
+#             if np.abs(time_diff) <= time_window:
+#                 insitu_time[0,insitu_idx] = float(datetime.strptime(insitu_datetime_str,"%Y-%m-%dT%H:%M:%SZ").timestamp()) # Ex: 2021-02-24T11:31:00Z
+#                 insitu_filename[0,insitu_idx] = os.path.basename(line[:-1])
+#                 insitu_filepath[0,insitu_idx] = line[:-1]
+#                 time_difference[0,insitu_idx] = float(time_diff)*60*60 # in seconds
 
-                if args.insitu == 'PANTHYR':            
-                    # get data from csv using pandas
-                    data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
+#                 if args.insitu == 'PANTHYR':            
+#                     # get data from csv using pandas
+#                     data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
                     
-                    if insitu_idx == 0:
-                        wl0 = data['wavelength'].tolist()
-                        insitu_original_bands[:] = wl0
-                    insitu_rhow_vec = [x for x, in data['rhow'][:]] 
-                    insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
+#                     if insitu_idx == 0:
+#                         wl0 = data['wavelength'].tolist()
+#                         insitu_original_bands[:] = wl0
+#                     insitu_rhow_vec = [x for x, in data['rhow'][:]] 
+#                     insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
 
-                    insitu_idx += 1
-                        # print(rhow0)
-                elif args.insitu == 'HYPERNETS':
-                    nc_ins = Dataset(line[:-1],'r')
-                    if insitu_idx == 0:
-                        insitu_original_bands[:] = nc_ins.variables['wavelength'][:].tolist()
-                        ins_water_leaving_radiance = nc_ins.variables['water_leaving_radiance'][:]
+#                     insitu_idx += 1
+#                         # print(rhow0)
+#                 elif args.insitu == 'HYPERNETS':
+#                     nc_ins = Dataset(line[:-1],'r')
+#                     if insitu_idx == 0:
+#                         insitu_original_bands[:] = nc_ins.variables['wavelength'][:].tolist()
+#                         ins_water_leaving_radiance = nc_ins.variables['water_leaving_radiance'][:]
 
-                    insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]] 
-                    insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
-                    insitu_idx += 1
-                    nc_ins.close()
-    new_MDB.close()
-    if insitu_idx == 0:
-        if os.path.exists(ofile):
-            os.remove(ofile)
-        if args.debug:
-            print('Not in situ measurements within the time window. MDB file deleted!')
-        return False
-    else:
-        return True
+#                     insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]] 
+#                     insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
+#                     insitu_idx += 1
+#                     nc_ins.close()
+#     new_MDB.close()
+#     if insitu_idx == 0:
+#         if os.path.exists(ofile):
+#             os.remove(ofile)
+#         if args.debug:
+#             print('Not in situ measurements within the time window. MDB file deleted!')
+#         return False
+#     else:
+#         return True
     
 # #############################
 #%%
@@ -781,26 +781,26 @@ def main():
                 datetime_creation = datetime.today().strftime(date_format)
                 if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
                     try:
-                        path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
-                        if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
-                            extract_path = \
-                                create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)
-                            
-                            filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc'
-                            if args.output:
-                                ofile = os.path.join(path_out,filename)
-                            else:
-                                ofile = os.path.join(path_out,'MDBs',filename)
-                
-                            if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
-                                add_OL_12_to_list(path_to_sat_source,path_out,res_str)
-
-                                print(f'file created: {ofile}')
-                                file_list.append(ofile) # for ncrcat later
-
+                        # path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
+                        # if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
+                        extract_path = \
+                            create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)
+                        
+                        filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc'
+                        if args.output:
+                            ofile = os.path.join(path_out,filename)
                         else:
-                            if args.verbose:
-                                print('No in situ measurements found!')
+                            ofile = os.path.join(path_out,'MDBs',filename)
+            
+                        # if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
+                        #     add_OL_12_to_list(path_to_sat_source,path_out,res_str)
+
+                        print(f'file created: {ofile}')
+                            # file_list.append(ofile) # for ncrcat later
+
+                        # else:
+                        #     if args.verbose:
+                        #         print('No in situ measurements found!')
                     
                     # except:
                     except Exception as e:
@@ -808,8 +808,8 @@ def main():
                             print(f'Exception: {e}')
                         pass
                     
-                    if os.path.exists(path_to_list_daily):
-                            os.remove(path_to_list_daily)
+                    # if os.path.exists(path_to_list_daily):
+                    #         os.remove(path_to_list_daily)
                 else:
                     if args.verbose:
                         print('Out of time frame.')
