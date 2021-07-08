@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # coding: utf-8
 """
-Created on Tue Jun 16 12:02:40 2020
-Create Matchup Data Base (MDB) file (NetCDF4 file)
+Created on Tue Jul 8 12:02:40 2021
+Create extract from OLCI data as a NetCDF4 file
 @author: javier.concha
 
 Based on EUMETSAT MDB_Builder module (https://ocdb.readthedocs.io/en/latest/ocdb-MDB-user-manual.html)
@@ -36,7 +36,6 @@ import numpy as np
 import numpy.ma as ma
 from datetime import datetime
 from datetime import timedelta
-import pandas as pd
 import configparser
 
 # import user defined functions from other .py
@@ -53,12 +52,9 @@ import argparse
 parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MDB) files.")
 parser.add_argument("-d", "--debug", help="Debugging mode.",action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.",action="store_true")
-parser.add_argument("-t", "--test", help="Test mode.",action="store_true")
 parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
-parser.add_argument('-site', "--sitename", help="Site name.",required=True,choices=['VEIT','BEFR','BSBE'])
-# parser.add_argument('-ins', "--insitu", help="Satellite sensor name.",required=True,choices=['PANTHYR', 'HYPERNETS']) # ,'HYPSTAR'])
-# parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.")
+parser.add_argument('-site', "--sitename", help="Site name.",choices=['VEIT','BEFR','BSBE'])
 parser.add_argument('-sat', "--satellite", help="Satellite sensor name.",choices=['OLCI', 'MSI'])
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
@@ -124,7 +120,9 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
 
     return ws0, ws1, sza, saa, vza, vaa
 
-def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon,res_str,insitu_sensor):
+def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_situ_lon,res_str):
+    if args.verbose:
+        print(f'Creating extract for {station_name} from {path_source}')
     # extract IFP-OL-2 version
     with open(os.path.join(path_source,'xfdumanifest.xml'),'r', encoding="utf-8") as read_obj:
         check_version = False
@@ -305,11 +303,8 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
                     BRDF6[ind0,ind1] = brdf_coeffs[0,6]
 
             #%% Save extract as netCDF4 file
-            path_out = os.path.join(path_output,'EXTRACTS')
             filename = path_source.split('/')[-1].replace('.','_')+'_extract_'+station_name+'.nc'
-            ofname = os.path.join(path_out,filename)
-            
-            print(filename)
+            ofname = os.path.join(path_output,filename)
 
             satellite = filename[0:2]
             platform = filename[2]
@@ -318,117 +313,121 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             if os.path.exists(ofname):
               os.remove(ofname)
             
-            new_MDB = Dataset(ofname, 'w', format='NETCDF4')
-            new_MDB.MDB_software_version = '0.0'
-            new_MDB.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")            
-            new_MDB.satellite = satellite
-            new_MDB.platform = platform
-            new_MDB.sensor = sensor
-            new_MDB.description = f'{satellite}{platform} {sensor.upper()} {res_str} L2 - {insitu_sensor} Matchup Data Base'
-            # new_MDB.satellite_start_time = nc_sat.start_time
-            # new_MDB.satellite_stop_time = nc_sat.stop_time    
-            # new_MDB.satellite_PDU = path_source.split('/')[-1]
-            # new_MDB.satellite_path_source = path_source
-            new_MDB.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
-            new_MDB.satellite_proc_version = proc_version_str
+            new_EXTRACT = Dataset(ofname, 'w', format='NETCDF4')
+            new_EXTRACT.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")            
+            new_EXTRACT.satellite = satellite
+            new_EXTRACT.platform = platform
+            new_EXTRACT.sensor = sensor
+            new_EXTRACT.description = f'{satellite}{platform} {sensor.upper()} {res_str} L2 extract'
+            # new_EXTRACT.satellite_start_time = nc_sat.start_time
+            # new_EXTRACT.satellite_stop_time = nc_sat.stop_time    
+            # new_EXTRACT.satellite_PDU = path_source.split('/')[-1]
+            # new_EXTRACT.satellite_path_source = path_source
+            new_EXTRACT.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
+            new_EXTRACT.satellite_proc_version = proc_version_str
 
-            new_MDB.datapolicy = 'Notice to users: Add data policy'
-            new_MDB.insitu_sensor_processor_version = '0.0'
-            new_MDB.insitu_site_name = station_name
+            # new_EXTRACT.datapolicy = 'Notice to users: Add data policy'
+            # new_EXTRACT.insitu_sensor_processor_version = '0.0'
+            new_EXTRACT.insitu_site_name = station_name
 
-            new_MDB.insitu_lat = in_situ_lat
-            new_MDB.insitu_lon = in_situ_lon
+            new_EXTRACT.insitu_lat = in_situ_lat
+            new_EXTRACT.insitu_lon = in_situ_lon
 
-            new_MDB.satellite_ws0 = ws0
-            new_MDB.satellite_ws1 = ws1
-            new_MDB.satellite_SZA_center_pixel = sza
-            new_MDB.satellite_SAA_center_pixel = saa
-            new_MDB.satellite_VZA_center_pixel = vza
-            new_MDB.satellite_VAA_center_pixel = vaa
+            new_EXTRACT.satellite_ws0 = ws0
+            new_EXTRACT.satellite_ws1 = ws1
+            new_EXTRACT.satellite_SZA_center_pixel = sza
+            new_EXTRACT.satellite_SAA_center_pixel = saa
+            new_EXTRACT.satellite_VZA_center_pixel = vza
+            new_EXTRACT.satellite_VAA_center_pixel = vaa
             
             # dimensions
-            new_MDB.createDimension('satellite_id', None)
-            new_MDB.createDimension('rows', size_box)
-            new_MDB.createDimension('columns', size_box)
-            new_MDB.createDimension('satellite_bands', 16)
-            new_MDB.createDimension('satellite_BRDF_Bands', 7)
+            new_EXTRACT.createDimension('satellite_id', None)
+            new_EXTRACT.createDimension('rows', size_box)
+            new_EXTRACT.createDimension('columns', size_box)
+            new_EXTRACT.createDimension('satellite_bands', 16)
+            new_EXTRACT.createDimension('satellite_BRDF_bands', 7)
             
             
             # variables  
-            # satellite_SZA = new_MDB.createVariable('satellite_SZA', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            # satellite_SZA = new_EXTRACT.createVariable('satellite_SZA', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
             # satellite_SZA[:] = [SZA[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
             # satellite_SZA.long_name = 'Sun Zenith Angle'
             # satellite_SZA.long_name = 'Sun Zenith Angle'    
             # satellite_SZA.units = 'degrees'
-# SZA
-# SAA
-# OZA
-# OAA
 
-            satellite_time = new_MDB.createVariable('satellite_time',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6)  
+            satellite_time = new_EXTRACT.createVariable('satellite_time',  'f4', ('satellite_id'), fill_value=-999, zlib=True, complevel=6)  
             satellite_time[0] = float(datetime.strptime(nc_sat.start_time,"%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
             satellite_time.units = "Seconds since 1970-1-1"
 
-            satellite_PDU = new_MDB.createVariable('satellite_PDU',  'S2', ('satellite_id'), zlib=True, complevel=6) # string
+            satellite_PDU = new_EXTRACT.createVariable('satellite_PDU',  'S2', ('satellite_id'), zlib=True, complevel=6) # string
             satellite_PDU[0] = path_source.split('/')[-1]
             satellite_PDU.long_name = "OLCI source PDU name"
 
-            satellite_latitude = new_MDB.createVariable('satellite_latitude',  'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_latitude = new_EXTRACT.createVariable('satellite_latitude',  'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6) 
             satellite_latitude[0,:,:] = [lat[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+            satellite_latitude.short_name = 'latitude'
             
-            satellite_longitude = new_MDB.createVariable('satellite_longitude',  'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_longitude = new_EXTRACT.createVariable('satellite_longitude',  'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_longitude[0,:,:] = [lon[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
+            satellite_longitude.short_name = 'longitude'
 
             # double satellite_bands          (satellite_bands) ;
-            satellite_bands = new_MDB.createVariable('satellite_bands',  'f4', ('satellite_bands'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_bands = new_EXTRACT.createVariable('satellite_bands',  'f4', ('satellite_bands'), fill_value=-999, zlib=True, complevel=6) 
             satellite_bands[:] = [0400.00,0412.50,0442.50,0490.00,0510.00,0560.00,0620.00,0665.00,0673.75,0681.25,0708.75,0753.75,0778.75,0865.00,0885.00,1020.50]
+            satellite_bands.units = 'nm'
+            # double satellite_BRDF_bands     (satellite_BRDF_bands) ;
+            satellite_BRDF_bands = new_EXTRACT.createVariable('satellite_BRDF_bands',  'f4', ('satellite_BRDF_bands'), fill_value=-999, zlib=True, complevel=6) 
+            satellite_BRDF_bands[:] = [412.50,442.50,490.00,510.00,560.00,620.00,665.00]
+            satellite_BRDF_bands.units = 'nm'
 
-            # double satellite_BRDF_Bands     (satellite_BRDF_Bands) ;
-            satellite_BRDF_Bands = new_MDB.createVariable('satellite_BRDF_Bands',  'f4', ('satellite_BRDF_Bands'), fill_value=-999, zlib=True, complevel=6) 
-            satellite_BRDF_Bands[:] = [412.50,442.50,490.00,510.00,560.00,620.00,665.00]
     
             # NOT BRDF-corrected
-            satellite_rhow = new_MDB.createVariable('satellite_rhow', 'f4', ('satellite_id','satellite_bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_rhow[0,0,:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,1,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,2,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,3,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,4,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,5,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,6,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,7,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,8,:,:] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,9,:,:] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,10,:,:] = [ma.array(rhow_0708p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,11,:,:] = [ma.array(rhow_0753p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,12,:,:] = [ma.array(rhow_0778p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,13,:,:] = [ma.array(rhow_0865p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,14,:,:] = [ma.array(rhow_0885p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow[0,15,:,:] = [ma.array(rhow_1020p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
-            satellite_rhow.description = 'Satellite rhow.'
+            satellite_Rrs = new_EXTRACT.createVariable('satellite_Rrs', 'f4', ('satellite_id','satellite_bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_Rrs[0,0,:,:] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,1,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,2,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,3,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,4,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,5,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,6,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,7,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,8,:,:] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,9,:,:] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,10,:,:] = [ma.array(rhow_0708p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,11,:,:] = [ma.array(rhow_0753p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,12,:,:] = [ma.array(rhow_0778p75[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,13,:,:] = [ma.array(rhow_0865p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,14,:,:] = [ma.array(rhow_0885p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs[0,15,:,:] = [ma.array(rhow_1020p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])/np.pi]
+            satellite_Rrs.short_name = 'Satellite Rrs.'
+            satellite_Rrs.long_name = "Above water Remote Sensing Reflectance for OLCI acquisition without BRDF correction applied";
+            satellite_Rrs.units = "sr-1";
             
             # BRDF-corrected
-            satellite_BRDF_rhow = new_MDB.createVariable('satellite_BRDF_rhow', 'f4', ('satellite_id','satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            satellite_BRDF_rhow[0,0,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)]
-            satellite_BRDF_rhow[0,1,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)]
-            satellite_BRDF_rhow[0,2,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)]
-            satellite_BRDF_rhow[0,3,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF3)]
-            satellite_BRDF_rhow[0,4,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF4)]
-            satellite_BRDF_rhow[0,5,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF5)]
-            satellite_BRDF_rhow[0,6,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)]
-            satellite_BRDF_rhow.description = 'Satellite rhow BRDF-corrected'
+            satellite_BRDF_Rrs = new_EXTRACT.createVariable('satellite_BRDF_Rrs', 'f4', ('satellite_id','satellite_BRDF_bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_Rrs[0,0,:,:] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF0)/np.pi]
+            satellite_BRDF_Rrs[0,1,:,:] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF1)/np.pi]
+            satellite_BRDF_Rrs[0,2,:,:] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF2)/np.pi]
+            satellite_BRDF_Rrs[0,3,:,:] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF3)/np.pi]
+            satellite_BRDF_Rrs[0,4,:,:] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF4)/np.pi]
+            satellite_BRDF_Rrs[0,5,:,:] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF5)/np.pi]
+            satellite_BRDF_Rrs[0,6,:,:] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]*BRDF6)/np.pi]
+            satellite_BRDF_Rrs.description = 'Satellite Rrs BRDF-corrected'
+            satellite_BRDF_Rrs.short_name = 'Satellite Rrs.'
+            satellite_BRDF_Rrs.long_name = "Above water Remote Sensing Reflectance for OLCI acquisition with BRDF correction applied";
+            satellite_BRDF_Rrs.units = "sr-1";
             
-            satellite_AOT_0865p50_box = new_MDB.createVariable('satellite_AOT_0865p50', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_AOT_0865p50_box = new_EXTRACT.createVariable('satellite_AOT_0865p50', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_AOT_0865p50_box[0,:,:] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
     
-            satellite_WQSF = new_MDB.createVariable('satellite_WQSF', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_WQSF = new_EXTRACT.createVariable('satellite_WQSF', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_WQSF[0,:,:] = [ma.array(WQSF[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y])]
             satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
             satellite_WQSF.flag_masks = WQSF_flag_masks
             satellite_WQSF.flag_meanings = WQSF_flag_meanings
             
-            satellite_BRDF_fQ = new_MDB.createVariable('satellite_BRDF_fQ', 'f4', ('satellite_id','satellite_BRDF_Bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_BRDF_fQ = new_EXTRACT.createVariable('satellite_BRDF_fQ', 'f4', ('satellite_id','satellite_BRDF_bands','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_BRDF_fQ[0,0,:,:] = [ma.array(BRDF0)]
             satellite_BRDF_fQ[0,1,:,:] = [ma.array(BRDF1)]
             satellite_BRDF_fQ[0,2,:,:] = [ma.array(BRDF2)]
@@ -438,230 +437,25 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             satellite_BRDF_fQ[0,6,:,:] = [ma.array(BRDF6)]
             satellite_BRDF_fQ.description = 'Satellite BRDF fQ coefficients'
 
-            satellite_chl_oc4me = new_MDB.createVariable('chl_oc4me', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
+            satellite_chl_oc4me = new_EXTRACT.createVariable('chl_oc4me', 'f4', ('satellite_id','rows','columns'), fill_value=-999, zlib=True, complevel=6)
             satellite_chl_oc4me[0,:,:] = [ma.array(CHL_OC4ME_extract)]
             satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
-            new_MDB.close()
+            new_EXTRACT.close()
             # print('Extract created!')
                 
         else:
-            print('Index out of bound!')
+            print('Warning: Index out of bound!')
     else:
         if args.verbose:
-            print('File does NOT contains the in situ location!')
+            print('Warning: File does NOT contains the in situ location!')
     
     return ofname
-
-# def copy_nc(ifile,ofile):
-#     with Dataset(ifile) as src:
-#         dst = Dataset(ofile, "w")
-        
-#         # copy global attributes all at once via dictionary
-#         dst.setncatts(src.__dict__)
-        
-#         # copy dimensions
-#         for name, dimension in src.dimensions.items():
-#             dst.createDimension(
-#                 name, (len(dimension) if not dimension.isunlimited() else None))
-            
-#         # copy all file data except for the excluded
-#         for name, variable in src.variables.items():
-#             dst.createVariable(name, variable.datatype, variable.dimensions)
-            
-#             # copy variable attributes all at once via dictionary
-#             dst[name].setncatts(src[name].__dict__)
-            
-#             dst[name][:] = src[name][:]
-#     return dst
-
-# def add_OL_12_to_list(path_source,path_output,res_str):
-#     # create OL_1 and OL_2 and OL_2 trimmed lists
-#     if res_str == 'WFR':
-#         res_L1_str = 'EFR' 
-#     elif res_str == 'WRR':
-#         res_L1_str = 'ERR'
-        
-#     cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_2_{res_str}|grep -v product|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_2_{res_str}_list.txt'  
-#     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-#     out, err = prog.communicate()
-#     if err:
-#         print(err)  
-#     # elif args.debug:
-#     #     print('Run:')
-#     #     print(cmd)
-    
-#     cmd = f'echo {path_source.split("/")[-1]}>> {path_output}/OL_2_{res_str}_list.txt'
-#     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-#     out, err = prog.communicate()
-#     if err:
-#         print(err) 
-#     # elif args.debug:
-#     #     print('Run:')
-#     #     print(cmd)
-        
-#     cmd = f'cat {path_source}/xfdumanifest.xml | grep OL_1_{res_L1_str}|cut -d '+"'"+'"'+"'"+f' -f2>> {path_output}/OL_1_{res_L1_str}_list.txt'  
-#     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-#     out, err = prog.communicate()
-#     if err:
-#         print(err) 
-#     # elif args.debug:
-#     #     print('Run:')
-    #     print(cmd)
-        
-def clean_lists(path_out,res_str):
-    list_path = f'{path_out}/OL_2_{res_str}_list.txt'
-    sort_uniq(list_path,path_out)
-    
-    list_path = f'{path_out}/OL_2_{res_str}_list.txt'
-    sort_uniq(list_path,path_out)
-    
-    if res_str == 'WFR':
-        res_L1_str = 'EFR'
-    elif res_str == 'WRR':
-        res_L1_str = 'ERR'
-
-    list_path = f'{path_out}/OL_1_{res_L1_str}_list.txt'
-    sort_uniq(list_path,path_out)
-    
-def sort_uniq(list_path,path_out): 
-    if os.path.exists(list_path):
-        cmd = f'sort {list_path}|uniq > {path_out}/temp_list.txt && {path_out}/temp_list.txt {list_path}'  
-        prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-        out, err = prog.communicate()
-        if err:
-            print(err) 
-        os.remove(f'{path_out}/temp_list.txt')   
-   
-# def create_insitu_list_daily(path_to_insitu_list,date_str):
-#     # create list in situ per date YYYYMMDD
-#     YYYYMMDD_str = date_str[:8]
-#     path_to_list = f'{path_to_insitu_list[:-4]}_{YYYYMMDD_str}.txt'
-#     cmd = f'cat {path_to_insitu_list}|grep {YYYYMMDD_str}|sort|uniq> {path_to_list}'
-#     prog = subprocess.Popen(cmd, shell=True,stderr=subprocess.PIPE)
-#     out, err = prog.communicate()
-#     if err:
-#         print(err)
-        
-#     return path_to_list
- 
-    
-# def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
-#     # print(f'Satellite time {datetime_str}')
-#     date_format = '%Y%m%dT%H%M%S'
-#     satellite_datetime = datetime.strptime(datetime_str, date_format)
-      
-#     # to append to nc file
-#     new_MDB = copy_nc(extract_path,ofile)
-
-#     # add time window diff
-#     new_MDB.time_diff = f'{time_window*60*60}' # in seconds
-    
-#     # create in situ dimensions
-#     new_MDB.createDimension('insitu_id', 30)
-#     new_MDB.createDimension('insitu_original_bands', 1602)
-#     # new_MDB.createDimension('insitu_Rrs_bands', None)
-    
-#     # create variable 
-#     insitu_time=new_MDB.createVariable('insitu_time', 'f4', ('satellite_id','insitu_id',), zlib=True, complevel=6)
-#     insitu_time.units = "Seconds since 1970-1-1"
-#     insitu_time.description  = 'In situ time in ISO 8601 format (UTC).'
-    
-#     insitu_filename=new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
-#     insitu_filename.description  = 'In situ filename.'
-    
-#     insitu_filepath=new_MDB.createVariable('insitu_filepath', 'S2', ('satellite_id','insitu_id'), zlib=True, complevel=6)
-#     insitu_filepath.description  = 'In situ file path.'
-    
-#     insitu_original_bands=new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'), fill_value=-999, zlib=True, complevel=6)
-#     insitu_original_bands.description  = 'In situ bands in nm.'
-    
-#     insitu_rhow=new_MDB.createVariable('insitu_rhow', 'f4', ('satellite_id','insitu_original_bands','insitu_id'), fill_value=-999, zlib=True, complevel=6)
-#     insitu_rhow.description  = 'In situ rhow.'
-
-#     time_difference=new_MDB.createVariable('time_difference', 'f4', ('satellite_id','insitu_id'), fill_value=-999, zlib=True, complevel=6)
-#     time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
-#     time_difference.units = "seconds"
-     
-#     insitu_idx = 0
-#     # extract in situ data
-#     with open(path_to_list_daily) as file:
-#         for idx, line in enumerate(file):
-#             # HYPERNETS ex: HYPERNETS_W_BEFR_L2A_REF_202103151201_202103231711_v1.1.nc
-#             # PANTHYR ex: AAOT_20190923_019046_20200923_104022_AZI_225_data.csv
-#             # time in ISO 8601 format (UTC). Ex: "2020-01-05T09:27:27.934965Z"
-#             if args.insitu == 'PANTHYR':             
-#                 date_str = os.path.basename(line[:-1]).split('_')[3]
-#                 time_str = os.path.basename(line[:-1]).split('_')[4]
-#             elif args.insitu == 'HYPERNETS':
-#                 date_str = os.path.basename(line[:-1]).split('_')[5][0:8]
-#                 time_str = os.path.basename(line[:-1]).split('_')[5][-4:]+'00'            
-                     
-#             YYYY_str = date_str[:4]
-#             MM_str = date_str[4:6]
-#             DD_str = date_str[6:8]
-#             HH_str = time_str[:2]
-#             mm_str = time_str[2:4]
-#             ss_str = time_str[4:6]
-#             insitu_datetime_str = f'{YYYY_str}-{MM_str}-{DD_str}T{HH_str}:{mm_str}:{ss_str}Z'
-#             insitu_datetime = datetime(int(YYYY_str),int(MM_str),int(DD_str),int(HH_str),int(mm_str),int(ss_str))
-            
-#             time_diff = (insitu_datetime-satellite_datetime).total_seconds()/(60*60)
-#             if np.abs(time_diff) <= time_window:
-#                 insitu_time[0,insitu_idx] = float(datetime.strptime(insitu_datetime_str,"%Y-%m-%dT%H:%M:%SZ").timestamp()) # Ex: 2021-02-24T11:31:00Z
-#                 insitu_filename[0,insitu_idx] = os.path.basename(line[:-1])
-#                 insitu_filepath[0,insitu_idx] = line[:-1]
-#                 time_difference[0,insitu_idx] = float(time_diff)*60*60 # in seconds
-
-#                 if args.insitu == 'PANTHYR':            
-#                     # get data from csv using pandas
-#                     data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
-                    
-#                     if insitu_idx == 0:
-#                         wl0 = data['wavelength'].tolist()
-#                         insitu_original_bands[:] = wl0
-#                     insitu_rhow_vec = [x for x, in data['rhow'][:]] 
-#                     insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
-
-#                     insitu_idx += 1
-#                         # print(rhow0)
-#                 elif args.insitu == 'HYPERNETS':
-#                     nc_ins = Dataset(line[:-1],'r')
-#                     if insitu_idx == 0:
-#                         insitu_original_bands[:] = nc_ins.variables['wavelength'][:].tolist()
-#                         ins_water_leaving_radiance = nc_ins.variables['water_leaving_radiance'][:]
-
-#                     insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]] 
-#                     insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
-#                     insitu_idx += 1
-#                     nc_ins.close()
-#     new_MDB.close()
-#     if insitu_idx == 0:
-#         if os.path.exists(ofile):
-#             os.remove(ofile)
-#         if args.debug:
-#             print('Not in situ measurements within the time window. MDB file deleted!')
-#         return False
-#     else:
-#         return True
     
 # #############################
 #%%
 def main():
-    if sys.platform == 'linux':
-        satellite_path_source1 = '/dst04-data1/OC/OLCI'
-        satellite_path_source2 = 'trimmed_sources/'
-        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)    
-        path_out = '/home/Javier.Concha/MDB_py/ODATA'
-    elif sys.platform == 'darwin':
-        # satellite_path_source = os.path.join(code_home,'IDATA','SAT','S3A')
-        satellite_path_source1 = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/'
-        satellite_path_source2 = 'trimmed_sources/'
-        satellite_path_source = os.path.join(satellite_path_source1,satellite_path_source2)  
-        path_out = '/Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/ODATA'
-    else:
-        print('Error: host flag is not either mac or vm')
-    print('Main Code!')
+    print('Creating satellite extracts.')
     if args.debug:
         print('Entering Debugging Mode:')
     # load config file
@@ -678,89 +472,71 @@ def main():
     elif args.config_file:
         if options['file_path']['sat_source_dir']:
             satellite_path_source = options['file_path']['sat_source_dir']
-    print(f'Path to satellite sources: {satellite_path_source}')
-    
-    # path to in situ source
-    if args.path_to_ins:
-        insitu_path_source = args.path_to_ins
-    elif args.config_file:
-        if options['file_path']['sat_source_dir']:
-            insitu_path_source = options['file_path']['ins_source_dir']    
-    print(f'Path to in situ {args.insitu} sources: {insitu_path_source}')
-
-    if args.test:
-        path_out = path_out + '/test/'
-        
+    if args.verbose:
+        print(f'Path to satellite sources: {satellite_path_source}')
+            
     # path to ouput
     if args.output:
-        path_out = os.path.join(path_out,args.output)
+        path_out = args.output
     elif args.config_file:
         if options['file_path']['output_dir']:
             path_out = options['file_path']['output_dir']
+    if args.verbose:
+        print(f'Path to output: {path_out}')
+            
     if not os.path.isdir(path_out):
         os.mkdir(path_out)
-    if not os.path.isdir(os.path.join(path_out,'EXTRACTS')):
-         os.mkdir(os.path.join(path_out,'EXTRACTS'))
     
-    # look for in situ data within t hours
     # save nc file
-    
-    station_name = args.sitename
-    
+    if args.sitename:
+        station_name = args.sitename
+    elif args.config_file:
+        station_name = options['Time_and_sites_selection']['sites']
+        
     # in situ location based on the station name
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
     if args.verbose:
         print(f'station_name: {station_name} with lat: {in_situ_lat}, lon: {in_situ_lon}')
         
-    
     # create list of sat granules
-    if args.resolution == 'WRR':
-        res = 'WRR'
+    if not args.config_file:
+        if args.resolution == 'WRR':
+            res = 'WRR'
+        else:
+            res = 'WFR'
     else:
-        res = 'WFR'
-        
+        res = options['satellite_options']['resolution']
+            
     wce = f'"*OL_2_{res}*SEN3"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,res,'satellite')
     
+    if args.verbose:
+        print(f'Satellite List: {path_to_satellite_list}')
+    
     if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
         os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
     if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
         os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
-    if res == 'WFR':
-        res_L1_str = 'EFR'
-    elif res == 'WRR':
-        res_L1_str = 'ERR'
-        
-    if os.path.exists(f'{path_out}/OL_1_{res_L1_str}_list.txt'):
-        os.remove(f'{path_out}/OL_1_{res_L1_str}_list.txt')   
-    
-    # create list of in situ files
-    if args.insitu == 'PANTHYR':
-        wce = f'"*AZI_270_data.csv"' # wild card expression
-    elif args.insitu == 'HYPERNETS': # 'HYPSTAR':
-        wce =  f'"HYPERNETS_W_*{args.sitename}*L2A_REF*_v1.1.nc"'
-    
-    path_to_insitu_list = create_list_products(insitu_path_source,path_out,wce,res,'insitu')
-    
     # create extract and save it in internal folder
-    size_box = 25
-    insitu_sensor = args.insitu
-    # in situ 
-    
-    time_window = 3 # in hours (+- hours)
+    if args.config_file:
+        size_box = int(options['satellite_options']['extract_size'])
+    else:    
+        size_box = 25
 
-    file_list = [] # for the concatenation later
-    
-    if args.startdate:
-        datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
+    if args.config_file:
+        datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+        datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(seconds=59,minutes=59,hours=23)
     else:
-        datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
-    if args.enddate:
-        datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59,minutes=59,hours=23)
-    else:
-        datetime_end = datetime.today()      
+        if args.startdate:
+            datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
+        else:
+            datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+        if args.enddate:
+            datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59,minutes=59,hours=23)
+        else:
+            datetime_end = datetime.today()      
          
     if args.verbose:
         print(f'Start date: {datetime_start}')  
@@ -778,29 +554,12 @@ def main():
                     print(f'{datetime_str} {sensor_str} {res_str}')                
                 date_format = '%Y%m%dT%H%M%S'
                 satellite_datetime = datetime.strptime(datetime_str, date_format)
-                datetime_creation = datetime.today().strftime(date_format)
                 if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
                     try:
-                        # path_to_list_daily = create_insitu_list_daily(path_to_insitu_list,datetime_str)
-                        # if not os.stat(path_to_list_daily).st_size == 0: # no PANTHYR data or not for that angle
                         extract_path = \
-                            create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str,insitu_sensor)
-                        
-                        filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{insitu_sensor}_{station_name}.nc'
-                        if args.output:
-                            ofile = os.path.join(path_out,filename)
-                        else:
-                            ofile = os.path.join(path_out,'MDBs',filename)
-            
-                        # if add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window):
-                        #     add_OL_12_to_list(path_to_sat_source,path_out,res_str)
+                            create_extract(size_box,station_name,path_to_sat_source,path_out,in_situ_lat,in_situ_lon,res_str)
 
-                        print(f'file created: {ofile}')
-                            # file_list.append(ofile) # for ncrcat later
-
-                        # else:
-                        #     if args.verbose:
-                        #         print('No in situ measurements found!')
+                        print(f'file created: {extract_path}')
                     
                     # except:
                     except Exception as e:
@@ -812,32 +571,7 @@ def main():
                     #         os.remove(path_to_list_daily)
                 else:
                     if args.verbose:
-                        print('Out of time frame.')
-
-    satellite = 'S3'
-    platform = 'AB'
-    sensor = 'OLCI'
-    level_prod = 'L2'
-
-    #calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nc
-    if args.output:
-        ncout_file = os.path.join(path_out,f'MDB_{satellite}{platform}_{sensor}_{res_str}_{level_prod}_{insitu_sensor}_{station_name}.nc')
-    else:
-        ncout_file = os.path.join(path_out,'MDBs',f'MDB_{satellite}{platform}_{sensor}_{res_str}_{level_prod}_{insitu_sensor}_{station_name}.nc')
-    file_list.append(ncout_file)
-    # concatenation
-    cmd = [f"ncrcat -O -h"] + file_list
-    cmd  = " ".join(cmd)
-    if args.debug:
-        print(f'CMD="{cmd}"')
-    os.system(cmd)
-    # llll = subprocess.Popen(cmd, shell=True)
-    # out, err = llll.communicate()
-    # if err:
-    #     print ('ncrcat process failed!')
-    #     print(err)  
-    # else:
-    #     print (f'ncrcat process successful!\nfile created: {ncout_file}')
+                        print('Warning: Out of time frame.')
 # %%
 if __name__ == '__main__':
     main()        

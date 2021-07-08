@@ -684,7 +684,7 @@ def main():
     if args.path_to_ins:
         insitu_path_source = args.path_to_ins
     elif args.config_file:
-        if options['file_path']['sat_source_dir']:
+        if options['file_path']['ins_source_dir']:
             insitu_path_source = options['file_path']['ins_source_dir']    
     print(f'Path to in situ {args.insitu} sources: {insitu_path_source}')
 
