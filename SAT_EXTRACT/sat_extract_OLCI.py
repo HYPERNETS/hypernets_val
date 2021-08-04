@@ -89,7 +89,7 @@ def create_list_products(path_source,path_out,wce,res_str,type_product):
     
     return path_to_list
 
-def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon):
+def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon): # for OLCI
     # from Tie-Points grid (a coarser grid)
     filepah = os.path.join(path_source,'tie_geo_coordinates.nc')
     nc_sat = Dataset(filepah,'r')
@@ -474,29 +474,6 @@ def main():
             satellite_path_source = options['file_path']['sat_source_dir']
     if args.verbose:
         print(f'Path to satellite sources: {satellite_path_source}')
-            
-    # path to ouput
-    if args.output:
-        path_out = args.output
-    elif args.config_file:
-        if options['file_path']['output_dir']:
-            path_out = options['file_path']['output_dir']
-    if args.verbose:
-        print(f'Path to output: {path_out}')
-            
-    if not os.path.isdir(path_out):
-        os.mkdir(path_out)
-    
-    # save nc file
-    if args.sitename:
-        station_name = args.sitename
-    elif args.config_file:
-        station_name = options['Time_and_sites_selection']['sites']
-        
-    # in situ location based on the station name
-    in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)
-    if args.verbose:
-        print(f'station_name: {station_name} with lat: {in_situ_lat}, lon: {in_situ_lon}')
         
     # create list of sat granules
     if not args.config_file:
@@ -506,6 +483,26 @@ def main():
             res = 'WFR'
     else:
         res = options['satellite_options']['resolution']
+        
+    # in situ site
+    if args.sitename:
+        station_name = args.sitename
+    elif args.config_file:
+        station_name = options['Time_and_sites_selection']['sites']
+    in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name) # in situ location based on the station name
+    if args.verbose:
+        print(f'station_name: {station_name} with lat: {in_situ_lat}, lon: {in_situ_lon}')
+
+    # path to output
+    if args.output:
+        path_out = args.output
+    elif args.config_file:
+        if options['file_path']['output_dir']:
+            path_out = options['file_path']['output_dir']
+    if args.verbose:
+        print(f'Path to output: {path_out}')           
+    if not os.path.isdir(path_out):
+        os.mkdir(path_out)
             
     wce = f'"*OL_2_{res}*SEN3"' # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,res,'satellite')
