@@ -1,4 +1,4 @@
-# Match-up DataBase for Validation of Satellite Data using HYPSTAR_
+# Match-up DataBase for Validation of Satellite Data using HYPSTAR
 
 The Match-up Data Base (MDB) includes match-ups between different satellite sensors and in situ data. It was developed as a way to improve the exchange, and processing of match-up data among different entities based on the concept by EUMETSAT (https://ocdb.readthedocs.io/en/latest/ocdb-MDB-user-manual.html). There is one MDB file for each site and satellite sensor.
 
@@ -13,7 +13,7 @@ The `sat_extract_OLCI.py` script creates the single satellite extracts in a NetC
 cd SAT_EXTRACT
 ./sat_extract_OLCI.py -c CONFIG_FILE
 ```
-where the config file has the parameters needed to select and extract the data from the satellite granules. An example of config file (hypernets_val/SAT_EXTRACT/config_sat_extract_OLCI.ini):
+where the config file has the parameters needed to select and extract the data from the satellite granules. An example of config file (hypernets_val/SAT_EXTRACT/config_sat_extract_OLCI.ini) used for the extract of EUMETSAT Sentinel-3/OLCI WFR data:
 ```
 ## config file for creating satellite extracts
 [file_path]
