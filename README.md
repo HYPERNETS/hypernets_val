@@ -8,7 +8,7 @@ The workflow of the MDB creation:
 - Concatenation of all extract files to one single MDB file 
 
 ## Creation of Satellite Extract
-The `sat_extract_OLCI.py` script creates the single satellite extracts in a NetCDF format. It can be run as:
+The `hypernets_val/SAT_EXTRACT/sat_extract_OLCI.py` script creates the single satellite extracts in a NetCDF format. It can be run as:
 ```sh
 cd SAT_EXTRACT
 ./sat_extract_OLCI.py -c CONFIG_FILE
