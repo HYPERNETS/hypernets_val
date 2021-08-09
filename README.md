@@ -9,7 +9,8 @@ The workflow of the MDB creation:
 
 ## Creation of Satellite Extract
 The `sat_extract_OLCI.py` script creates the single satellite extracts in a NetCDF format. It can be run as:
-``` cd SAT_EXTRACT
+``` 
+cd SAT_EXTRACT
 ./sat_extract_OLCI.py -c CONFIG_FILE
 ```
 where the config file has the parameters needed to select and extract the data from the satellite granules.
