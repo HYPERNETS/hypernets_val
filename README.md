@@ -42,3 +42,42 @@ n_bands: 16
 BRDF: F
 ```
 
+## Creation of the MDB file
+The `hypernets_val//MDB_builder/MDB_builder.py` adds the _in situ_ data to the satellite extracts and concatenates them to a single MDB file in NetCDF format. It can be run as:
+```sh
+cd MDB_builder
+MDB_builder.py -c CONFIG_FILE
+```
+where the config file has the parameters needed to select the satellite extracts and the in situ data. An example of config file (hypernets_val//MDB_builder/cconfig_MDB_builder_OLCI_HYPSTAR.ini.template) used for creating a MDB for EUMETSAT Sentinel-3/OLCI WFR data and HYPSTAR data:
+```
+## config file for MDBs builder
+[file_path]
+sat_extract_dir: /path/to/sat/extracts
+ins_source_dir: /path/to/in/situ/data
+output_dir: /path/where/to/save/output
+
+[Time_and_sites_selection]
+#first and last dates for analysis. Format: YYYY-MM-DD
+time_start: 2021-01-01
+time_stop: 2021-07-07
+#insitu_type: PANTHYR, AERONET
+insitu_type: HYPERNETS
+#AERONET-OC  or PANTHYR sites:  ALL or any from AERONET-OC list. Default is ALL
+sites: BEFR
+
+[satellite_options]
+sat_prefix: satellite_
+satellite: S3
+platform: A,B
+sensor: olci
+# WRR o WFR for olci
+resolution: WFR
+# processor version. Note: without zeros to the left
+proc_version: 7.00
+extract_size: 25
+window_size: 3
+n_bands: 16
+#apply BRDF to OLCI reflectance
+BRDF: F
+
+```
