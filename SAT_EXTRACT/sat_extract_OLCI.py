@@ -130,7 +130,8 @@ def create_extract(size_box,station_name,path_source,path_output,in_situ_lat,in_
             if 'IPF-OL-2' in line and check_version == False:
                 IPF_OL_2_version = line.split('"')[3]
                 proc_version_str = f'IPF-OL-2 version {IPF_OL_2_version}'
-                print(proc_version_str)
+                if args.verbose:
+                    print(proc_version_str)
                 check_version = True
                 pass
 
