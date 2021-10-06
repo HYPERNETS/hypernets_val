@@ -283,9 +283,13 @@ def main():
         sat_sensor = args.satellite
     elif args.config_file:
         sat_sensor = options['satellite_options']['sensor']
+        sat_satellite = options['satellite_options']['satellite']
+        sat_platform = options['satellite_options']['platform']
     if args.verbose:
-        print(f'Satellite sensor: {sat_sensor.upper()}')        
-            
+        print(f'Satellite: {sat_satellite.upper()}')  
+        print(f'Satellite sensor: {sat_sensor.upper()}')   
+        print(f'Satellite platform: {sat_platform.upper()}') 
+        
     # path to output
     if args.output:
         path_out = args.output
@@ -303,15 +307,7 @@ def main():
         res = args.resolution
     elif args.config_file:
         res = options['satellite_options']['resolution']
-        
-    if sat_sensor.upper() == 'OLCI':
-        wce = f'"*OL_2_{res}*SEN3*"' # wild card expression
-    if args.debug:
-        print(f'Satellite extract Wild Card Expression: {wce}')
-    
-    path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,res,'satellite')
-    if args.debug:
-        print(f'Path to satellite extract list: {path_to_satellite_list}')
+
     
     if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
         os.remove(f'{path_out}/OL_2_{res}_list.txt')
@@ -327,6 +323,15 @@ def main():
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name) # in situ location based on the station name
     if args.verbose:
         print(f'station_name: {station_name} with lat: {in_situ_lat}, lon: {in_situ_lon}')
+        
+    if sat_sensor.upper() == 'OLCI':
+        wce = f'"{sat_satellite}{sat_platform}*OL_2_{res}*{station_name}*"' # wild card expression
+    if args.debug:
+        print(f'Satellite extract Wild Card Expression: {wce}')
+    
+    path_to_satellite_list = create_list_products(satellite_path_source,path_out,wce,res,'satellite')
+    if args.debug:
+        print(f'Path to satellite extract list: {path_to_satellite_list}')        
     
     # create list of in situ files
     if args.insitu:
@@ -354,8 +359,6 @@ def main():
     if args.debug:
         print(f'Path to in situ list: {path_to_insitu_list}')
     
-    # create extract and save it in internal folder
-    size_box = 25
     # in situ
     time_window = 3 # in hours (+- hours)
 
@@ -415,24 +418,26 @@ def main():
                 else:
                     if args.verbose:
                         print('Out of time frame.')
-
-    satellite = 'S3'
-    platform = 'AB'
-    sensor = 'OLCI'
+   
     level_prod = 'L2'
 
     #calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nc
     if args.output:
-        ncout_file = os.path.join(path_out,f'MDB_{satellite}{platform}_{sensor}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
+        ncout_file = os.path.join(path_out,f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
     else:
-        ncout_file = os.path.join(path_out,'MDBs',f'MDB_{satellite}{platform}_{sensor}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
+        ncout_file = os.path.join(path_out,'MDBs',f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
     file_list.append(ncout_file)
     # concatenation
+    
     cmd = [f"ncrcat -O -h"] + file_list
     cmd  = " ".join(cmd)
     if args.debug:
         print(f'CMD="{cmd}"')
     os.system(cmd)
+    
+    [os.remove(f) for f in file_list[:-1]]
+    
+    print(f'Concatenated file created: {ncout_file}')
     # llll = subprocess.Popen(cmd, shell=True)
     # out, err = llll.communicate()
     # if err:
