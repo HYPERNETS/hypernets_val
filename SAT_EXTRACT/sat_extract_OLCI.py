@@ -95,6 +95,7 @@ def extract_wind_and_angles(path_source,in_situ_lat,in_situ_lon): # for OLCI
     nc_sat = Dataset(filepah,'r')
     tie_lon = nc_sat.variables['longitude'][:]
     tie_lat = nc_sat.variables['latitude'][:]
+    nc_sat.close()
     
     filepah = os.path.join(path_source,'tie_meteo.nc')
     nc_sat = Dataset(filepah,'r')
