@@ -177,17 +177,12 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             print('-----------------')
         r, c = cfs.find_row_column_from_lat_lon(lat, lon, in_situ_lat, in_situ_lon)
 
-        r = 2031
-        c = 4050
-
         start_idx_x = (r - int(size_box / 2))
         stop_idx_x = (r + int(size_box / 2) + 1)
         start_idx_y = (c - int(size_box / 2))
         stop_idx_y = (c + int(size_box / 2) + 1)
 
         if r >= 0 and r + 1 < lat.shape[0] and c >= 0 and c + 1 < lat.shape[1]:
-
-
 
             # read nc file
             filepah = os.path.join(path_source, rhow_0400p00_filename)
@@ -290,12 +285,9 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             CHL_OC4ME = nc_sat1.variables['CHL_OC4ME'][:]
             nc_sat1.close()
             CHL_OC4ME_extract = ma.array(CHL_OC4ME[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])
-            print(CHL_OC4ME_extract.mask[12,12],CHL_OC4ME_extract[12,12])
-            print(CHL_OC4ME_extract.mask[13, 12], CHL_OC4ME_extract[13, 12])
-            CHL_OC4ME_extract[~CHL_OC4ME_extract.mask] = ma.power(10,CHL_OC4ME_extract[~CHL_OC4ME_extract.mask])
-
-
-
+            CHL_OC4ME_extract[~CHL_OC4ME_extract.mask] = ma.power(10, CHL_OC4ME_extract[~CHL_OC4ME_extract.mask])
+            mask_chl = np.copy(CHL_OC4ME_extract.mask)
+            CHL_OC4ME_extract[mask_chl] = 1  ##temporal value
 
             # Calculate BRDF (it uses CHL_OC4ME_extract)
             if make_brdf:
@@ -322,6 +314,19 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                         BRDF4[ind0, ind1] = brdf_coeffs[0, 4]
                         BRDF5[ind0, ind1] = brdf_coeffs[0, 5]
                         BRDF6[ind0, ind1] = brdf_coeffs[0, 6]
+                BRDF0[mask_chl] = -999
+                BRDF1[mask_chl] = -999
+                BRDF2[mask_chl] = -999
+                BRDF3[mask_chl] = -999
+                BRDF4[mask_chl] = -999
+                BRDF5[mask_chl] = -999
+                BRDF6[mask_chl] = -999
+
+
+
+
+            CHL_OC4ME_extract[mask_chl] = -999  #fill value
+
 
             # %% Save extract as netCDF4 file
             filename = path_source.split('/')[-1].replace('.', '_') + '_extract_' + station_name + '.nc'
@@ -418,28 +423,22 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_Rrs = new_EXTRACT.createVariable('satellite_Rrs', 'f4',
                                                        ('satellite_id', 'satellite_bands', 'rows', 'columns'),
                                                        fill_value=-999, zlib=True, complevel=6)
-            satellite_Rrs[0, 0, :, :] = [ma.array(rhow_0400p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 1, :, :] = [ma.array(rhow_0412p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 2, :, :] = [ma.array(rhow_0442p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 3, :, :] = [ma.array(rhow_0490p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 4, :, :] = [ma.array(rhow_0510p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 5, :, :] = [ma.array(rhow_0560p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 6, :, :] = [ma.array(rhow_0620p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 7, :, :] = [ma.array(rhow_0665p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 8, :, :] = [ma.array(rhow_0673p75[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 9, :, :] = [ma.array(rhow_0681p25[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 10, :, :] = [
-                ma.array(rhow_0708p75[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 11, :, :] = [
-                ma.array(rhow_0753p75[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 12, :, :] = [
-                ma.array(rhow_0778p75[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 13, :, :] = [
-                ma.array(rhow_0865p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 14, :, :] = [
-                ma.array(rhow_0885p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
-            satellite_Rrs[0, 15, :, :] = [
-                ma.array(rhow_1020p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi]
+            satellite_Rrs[0, 0, :, :] = ma.array(rhow_0400p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 1, :, :] = ma.array(rhow_0412p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 2, :, :] = ma.array(rhow_0442p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 3, :, :] = ma.array(rhow_0490p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 4, :, :] = ma.array(rhow_0510p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 5, :, :] = ma.array(rhow_0560p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 6, :, :] = ma.array(rhow_0620p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 7, :, :] = ma.array(rhow_0665p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 8, :, :] = ma.array(rhow_0673p75[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 9, :, :] = ma.array(rhow_0681p25[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 10, :, :] = ma.array(rhow_0708p75[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 11, :, :] = ma.array(rhow_0753p75[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 12, :, :] = ma.array(rhow_0778p75[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 13, :, :] = ma.array(rhow_0865p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 14, :, :] = ma.array(rhow_0885p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
+            satellite_Rrs[0, 15, :, :] = ma.array(rhow_1020p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
             satellite_Rrs.short_name = 'Satellite Rrs.'
             satellite_Rrs.long_name = "Above water Remote Sensing Reflectance for OLCI acquisition without BRDF correction applied"
             satellite_Rrs.units = "sr-1"
@@ -450,20 +449,27 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                                                                 ('satellite_id', 'satellite_BRDF_bands', 'rows',
                                                                  'columns'),
                                                                 fill_value=-999, zlib=True, complevel=6)
-                satellite_BRDF_Rrs[0, 0, :, :] = [
-                    ma.array(rhow_0412p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF0) / np.pi]
-                satellite_BRDF_Rrs[0, 1, :, :] = [
-                    ma.array(rhow_0442p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF1) / np.pi]
-                satellite_BRDF_Rrs[0, 2, :, :] = [
-                    ma.array(rhow_0490p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF2) / np.pi]
-                satellite_BRDF_Rrs[0, 3, :, :] = [
-                    ma.array(rhow_0510p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF3) / np.pi]
-                satellite_BRDF_Rrs[0, 4, :, :] = [
-                    ma.array(rhow_0560p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF4) / np.pi]
-                satellite_BRDF_Rrs[0, 5, :, :] = [
-                    ma.array(rhow_0620p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF5) / np.pi]
-                satellite_BRDF_Rrs[0, 6, :, :] = [
-                    ma.array(rhow_0665p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF6) / np.pi]
+                BRDF_Rrs = ma.array(rhow_0412p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF0) / np.pi
+                BRDF_Rrs[mask_chl] = -999
+                satellite_BRDF_Rrs[0, 0, :, :] = BRDF_Rrs
+                BRDF_Rrs = ma.array(rhow_0442p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF1) / np.pi
+                BRDF_Rrs[mask_chl] = -999
+                satellite_BRDF_Rrs[0, 1, :, :] = BRDF_Rrs
+                BRDF_Rrs = ma.array(rhow_0490p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF2) / np.pi
+                BRDF_Rrs[mask_chl] = -999
+                satellite_BRDF_Rrs[0, 2, :, :] = BRDF_Rrs
+                BRDF_Rrs = ma.array(rhow_0510p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF3) / np.pi
+                BRDF_Rrs[mask_chl] = -999
+                satellite_BRDF_Rrs[0, 3, :, :] = BRDF_Rrs
+                BRDF_Rrs = ma.array(rhow_0560p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF4) / np.pi
+                BRDF_Rrs[mask_chl] = -999
+                satellite_BRDF_Rrs[0, 4, :, :] = BRDF_Rrs
+                BRDF_Rrs = ma.array(rhow_0620p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF5) / np.pi
+                BRDF_Rrs[mask_chl] = -999
+                satellite_BRDF_Rrs[0, 5, :, :] = BRDF_Rrs
+                BRDF_Rrs = ma.array(rhow_0665p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y] * BRDF6) / np.pi
+                BRDF_Rrs[mask_chl] = -999
+                satellite_BRDF_Rrs[0, 6, :, :] = BRDF_Rrs
                 satellite_BRDF_Rrs.description = 'Satellite Rrs BRDF-corrected'
                 satellite_BRDF_Rrs.short_name = 'Satellite Rrs.'
                 satellite_BRDF_Rrs.long_name = "Above water Remote Sensing Reflectance for OLCI acquisition with BRDF correction applied";
@@ -472,7 +478,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_AOT_0865p50_box = new_EXTRACT.createVariable('satellite_AOT_0865p50', 'f4',
                                                                    ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                                    zlib=True, complevel=6)
-            satellite_AOT_0865p50_box[0, :, :] = [ma.array(AOT_0865p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])]
+            satellite_AOT_0865p50_box[0, :, :] = ma.array(AOT_0865p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])
             satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
 
             satellite_WQSF = new_EXTRACT.createVariable('satellite_WQSF', 'f4', ('satellite_id', 'rows', 'columns'),
@@ -498,7 +504,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
 
             satellite_chl_oc4me = new_EXTRACT.createVariable('chl_oc4me', 'f4', ('satellite_id', 'rows', 'columns'),
                                                              fill_value=-999, zlib=True, complevel=6)
-            satellite_chl_oc4me[0, :, :] = [ma.array(CHL_OC4ME_extract)]
+            satellite_chl_oc4me[0, :, :] = ma.array(CHL_OC4ME_extract)
             satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
             new_EXTRACT.close()
