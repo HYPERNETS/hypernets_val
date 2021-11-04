@@ -168,7 +168,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window,in
     
     # create in situ dimensions
     new_MDB.createDimension('insitu_id', 30)
-    new_MDB.createDimension('insitu_original_bands', 1602)
+    new_MDB.createDimension('insitu_original_bands', 1605)
     # new_MDB.createDimension('insitu_Rrs_bands', None)
     
     # create variable 
@@ -224,6 +224,8 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window,in
                 insitu_filepath[0,insitu_idx] = line[:-1]
                 time_difference[0,insitu_idx] = float(time_diff)*60*60 # in seconds
 
+
+
                 if ins_sensor == 'PANTHYR':            
                     # get data from csv using pandas
                     data = pd.read_csv(line[:-1],parse_dates=['timestamp'])   
@@ -242,7 +244,7 @@ def add_insitu(extract_path,ofile,path_to_list_daily,datetime_str,time_window,in
                         insitu_original_bands[:] = nc_ins.variables['wavelength'][:].tolist()
                         ins_water_leaving_radiance = nc_ins.variables['water_leaving_radiance'][:]
 
-                    insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]] 
+                    insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]]
                     insitu_rhow[0,:,insitu_idx] =  [ma.array(insitu_rhow_vec).transpose()]
                     insitu_idx += 1
                     nc_ins.close()
@@ -343,7 +345,7 @@ def main():
     if ins_sensor == 'PANTHYR':
         wce = f'"*AZI_270_data.csv"' # wild card expression
     elif ins_sensor == 'HYPERNETS': # 'HYPSTAR':
-        wce =  f'"HYPERNETS_W_*{station_name}*L2A_REF*_v1.1.nc"'
+        wce =  f'"HYPERNETS_W_*{station_name}*L2A_REF*_v1.2.nc"'
     if args.debug:
         print(f'In Situ Wild Card Expression: {wce}')
         
@@ -366,10 +368,20 @@ def main():
     
     if args.startdate:
         datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
+    elif args.config_file:
+        if options['Time_and_sites_selection']['time_start']:
+            datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+        else:
+            datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
     else:
         datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
     if args.enddate:
         datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59,minutes=59,hours=23)
+    elif args.config_file:
+        if options['Time_and_sites_selection']['time_stop']:
+            datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(seconds=59,minutes=59,hours=23)
+        else:
+            datetime_end = datetime.today()
     else:
         datetime_end = datetime.today()      
          
@@ -422,18 +434,21 @@ def main():
     level_prod = 'L2'
 
     #calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nc
-    if args.output:
-        ncout_file = os.path.join(path_out,f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
-    else:
-        ncout_file = os.path.join(path_out,'MDBs',f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
+    ncout_file = os.path.join(path_out,
+                              f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
+    # if args.output:
+    #     ncout_file = os.path.join(path_out,f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
+    # else:
+    #     ncout_file = os.path.join(path_out,'MDBs',f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
     file_list.append(ncout_file)
+
     # concatenation
-    
     cmd = [f"ncrcat -O -h"] + file_list
     cmd  = " ".join(cmd)
     if args.debug:
         print(f'CMD="{cmd}"')
     os.system(cmd)
+
     
     [os.remove(f) for f in file_list[:-1]]
     
