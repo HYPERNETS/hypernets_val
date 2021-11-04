@@ -64,6 +64,8 @@ parser.add_argument('-ps', "--path_to_sat", help="Path to satellite extracts.")
 parser.add_argument('-o', "--output", help="Path to output")
 parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
 parser.add_argument('-nl', "--nolist", help="Do not create satellite and in situ lists.",action="store_true")
+parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.",action="store_true")
+
 
 args = parser.parse_args()
 
@@ -444,8 +446,8 @@ def main():
         print(f'CMD="{cmd}"')
     os.system(cmd)
 
-    
-    [os.remove(f) for f in file_list[:-1]]
+    if args.nodelfiles:
+        [os.remove(f) for f in file_list[:-1]]
     
     print(f'Concatenated file created: {ncout_file}')
     # llll = subprocess.Popen(cmd, shell=True)
