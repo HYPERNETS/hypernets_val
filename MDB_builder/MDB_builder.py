@@ -434,12 +434,7 @@ def main():
     level_prod = 'L2'
 
     #calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nc
-    ncout_file = os.path.join(path_out,
-                              f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
-    # if args.output:
-    #     ncout_file = os.path.join(path_out,f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
-    # else:
-    #     ncout_file = os.path.join(path_out,'MDBs',f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
+    ncout_file = os.path.join(path_out,f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{level_prod}_{ins_sensor}_{station_name}.nc')
     file_list.append(ncout_file)
 
     # concatenation
