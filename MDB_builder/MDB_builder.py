@@ -446,7 +446,7 @@ def main():
         print(f'CMD="{cmd}"')
     os.system(cmd)
 
-    if args.nodelfiles:
+    if not args.nodelfiles:
         [os.remove(f) for f in file_list[:-1]]
     
     print(f'Concatenated file created: {ncout_file}')
