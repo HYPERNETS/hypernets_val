@@ -145,6 +145,8 @@ def plot_spectra(index_mu,wavelenghts,ydata,platform,sat_time,insitu_time):
     plt.savefig(ofname, dpi=300)
     plt.close()
 
+    return ofname
+
 
 def plot_scatter(x, y, sat_band, ins_band, path_out, prot_name, sensor_name, \
                  station, sat_proc_version_str, satellite_sensor, \
@@ -789,6 +791,11 @@ class PANTHYR_class(object):
                     print(f'Not included (Flag Mask): NTP= {NTP:.0f}; NGP={NGP}; numberValid= {numberValid}')
                     check_insitu = False
 
+                #bad_id = [0,1,37,38] ##Sentinel 3A
+                # bad_id = [0,32,33,35,37] ##Sentinel 3B
+                # if iday in bad_id:
+                #     check_insitu = False
+
                 # adding MU
                 MU_flag = False
                 if check_insitu and check_cv560 and curr_sat_box_cv_560 <= float(options['Filtering_options']['cv_max']):
@@ -801,19 +808,32 @@ class PANTHYR_class(object):
                     ydata = np.array([curr_sat_rrs_mean,curr_ins_rrs])
                     sat_time = datetime.datetime(1970, 1, 1) + datetime.timedelta(seconds=int(sat_times[iday]))
                     file_name_parts = insitu_filename.split('_')
-                    path_base = 'store3/HYPERNETS/processed_data/quickviews/VEIT/2021'
+                    path_base = '/mnt/c/DATOS/HYPERNETS/quickviews/VEIT/2021'
                     mes_str = sat_time.strftime('%m')
                     day_str = sat_time.strftime('%d')
                     file_quickview_name = f'VEIT{file_name_parts[5]}.png'
                     file_quickview = os.path.join(path_base,mes_str,day_str,file_quickview_name)
                     if os.path.exists(file_quickview):
                         print('Copying file quickview...')
-                        ofname = f"Spectra_S3{platform}_{sat_time.strftime('%Y%m%d')}.png"
-                        ofname = os.path.join(path_out, ofname)
-                        cmd = f'cp {file_quickview} {ofname}'
+                        ofname = f"Hypstar_S3{platform}_{sat_time.strftime('%Y%m%d')}.png"
+                        file_quickview_out = os.path.join(path_out, ofname)
+                        cmd = f'cp {file_quickview} {file_quickview_out}'
                         os.system(cmd)
 
-                    plot_spectra(iday,satellite_bands,ydata,platform,sat_time,insitu_time)
+                    file_spectra_out = plot_spectra(iday,satellite_bands,ydata,platform,sat_time,insitu_time)
+
+                    print('FILES ARE: ', file_quickview_out,file_spectra_out)
+                    ofname = f"Combined_S3{platform}_{sat_time.strftime('%Y%m%d')}.jpg"
+                    file_combined_out = os.path.join(path_out,ofname)
+                    fig, axarr = plt.subplots(2,1)
+                    axarr[0].imshow(plt.imread(file_quickview_out))
+                    axarr[0].axis('off')
+                    axarr[1].imshow(plt.imread(file_spectra_out))
+                    axarr[1].axis('off')
+                    plt.axis('off')
+                    plt.savefig(file_combined_out, dpi=300)
+                    plt.close()
+
 
                     ##PDU is not read
                     df_matchups = df_matchups.append( \
@@ -991,6 +1011,9 @@ class PANTHYR_class(object):
                                   f'metrics_{satellite_sensor}{platform}_{res}_{sat_proc_version_str[-5:].replace(".", "p")}.csv')
         print(ofname_csv)
         df.to_csv(ofname_csv, index=False)
+
+       
+
 
         ofname_csv = os.path.join(output_directory,
                                   f'MUs_{satellite_sensor}{platform}_{res}_{sat_proc_version_str[-5:].replace(".", "p")}.csv')
