@@ -34,6 +34,7 @@ import subprocess
 from netCDF4 import Dataset
 import numpy as np
 import numpy.ma as ma
+import math
 from datetime import datetime
 from datetime import timedelta
 import configparser
@@ -91,6 +92,27 @@ def create_list_products(path_source, path_out, wce, res_str, type_product):
             print(err)
 
     return path_to_list
+
+
+def get_yx_from_tie_point_grid(yPoint, xPoint, ySubsampling, xSubsampling, dataset):
+    yTGP = math.floor(float(yPoint) / float(ySubsampling))
+    yInterp = float(yPoint) % float(ySubsampling)
+    xTGP = math.floor(float(xPoint) / float(xSubsampling))
+    xInterp = float(xPoint) % float(xSubsampling)
+    center = dataset[yTGP, xTGP]
+    ySpace = (dataset[yTGP + 1, xTGP] - center) / ySubsampling
+    yValue = center + (yInterp * ySpace)
+    xSpace = (dataset[yTGP, xTGP + 1] - center) / xSubsampling
+    xValue = center + (xInterp * xSpace)
+    if ySubsampling == 1 and xSubsampling == 1:
+        return center
+    elif ySubsampling == 1 and xSubsampling > 1:
+        return xValue
+    elif ySubsampling > 1 and xSubsampling == 1:
+        return yValue
+    else:
+        valueFin = (yValue + xValue) / 2
+        return valueFin
 
 
 def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
@@ -280,14 +302,15 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             nc_sat.close()
 
             # Exctracting Chla extract
-            filepah = os.path.join(path_source, 'chl_oc4me.nc')
-            nc_sat1 = Dataset(filepah, 'r')
-            CHL_OC4ME = nc_sat1.variables['CHL_OC4ME'][:]
-            nc_sat1.close()
-            CHL_OC4ME_extract = ma.array(CHL_OC4ME[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])
-            CHL_OC4ME_extract[~CHL_OC4ME_extract.mask] = ma.power(10, CHL_OC4ME_extract[~CHL_OC4ME_extract.mask])
-            mask_chl = np.copy(CHL_OC4ME_extract.mask)
-            CHL_OC4ME_extract[mask_chl] = 1  ##temporal value
+            if make_brdf:
+                filepah = os.path.join(path_source, 'chl_oc4me.nc')
+                nc_sat1 = Dataset(filepah, 'r')
+                CHL_OC4ME = nc_sat1.variables['CHL_OC4ME'][:]
+                nc_sat1.close()
+                CHL_OC4ME_extract = ma.array(CHL_OC4ME[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])
+                CHL_OC4ME_extract[~CHL_OC4ME_extract.mask] = ma.power(10, CHL_OC4ME_extract[~CHL_OC4ME_extract.mask])
+                mask_chl = np.copy(CHL_OC4ME_extract.mask)
+                CHL_OC4ME_extract[mask_chl] = 1  ##temporal value
 
             # Calculate BRDF (it uses CHL_OC4ME_extract)
             if make_brdf:
@@ -322,11 +345,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 BRDF5[mask_chl] = -999
                 BRDF6[mask_chl] = -999
 
-
-
-
-            CHL_OC4ME_extract[mask_chl] = -999  #fill value
-
+            if make_brdf:
+                CHL_OC4ME_extract[mask_chl] = -999  # fill value
 
             # %% Save extract as netCDF4 file
             filename = path_source.split('/')[-1].replace('.', '_') + '_extract_' + station_name + '.nc'
@@ -372,15 +392,50 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             new_EXTRACT.createDimension('rows', size_box)
             new_EXTRACT.createDimension('columns', size_box)
             new_EXTRACT.createDimension('satellite_bands', 16)
+            new_EXTRACT.createDimension('satellite_geometry', 4)
             if make_brdf:
                 new_EXTRACT.createDimension('satellite_BRDF_bands', 7)
 
-            # variables  
+            # geometry variables
+            filepah = os.path.join(path_source, 'tie_geometries.nc')
+            nc_sat = Dataset(filepah, 'r')
+            xsubsampling = nc_sat.getncattr('ac_subsampling_factor')
+            ysubsampling = nc_sat.getncattr('al_subsampling_factor')
+
+            SZA = nc_sat.variables['SZA'][:]
+            SAA = nc_sat.variables['SAA'][:]
+            OZA = nc_sat.variables['OZA'][:]
+            OAA = nc_sat.variables['OAA'][:]
+            nc_sat.close()
+            satellite_geometries = new_EXTRACT.createVariable('satellite_geometries', 'f4',
+                                                              ('satellite_geometry', 'rows', 'columns'),
+                                                              fill_value=-999, zlib=True, complevel=6)
+
+
+            for yy in range(size_box):
+                for xx in range(size_box):
+                    yPos = start_idx_x + xx
+                    xPos = start_idx_y + yy
+                    satellite_geometries[0, xx, yy] = get_yx_from_tie_point_grid(int(yPos), int(xPos), ysubsampling,
+                                                                                 xsubsampling, SZA)
+                    satellite_geometries[1, xx, yy] = get_yx_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling,
+                                                                                 SAA)
+                    satellite_geometries[2, xx, yy] = get_yx_from_tie_point_grid(yPos, xPos, ysubsampling,
+                                                                                 xsubsampling, OZA)
+                    satellite_geometries[3, xx, yy] = get_yx_from_tie_point_grid(yPos, xPos, ysubsampling,
+                                                                                 xsubsampling, OAA)
+
+            satellite_geometries.long_name = 'Satellite geometry'
+            satellite_geometries.units = 'degrees'
+
             # satellite_SZA = new_EXTRACT.createVariable('satellite_SZA', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
             # satellite_SZA[:] = [SZA[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
             # satellite_SZA.long_name = 'Sun Zenith Angle'
-            # satellite_SZA.long_name = 'Sun Zenith Angle'    
             # satellite_SZA.units = 'degrees'
+            # satellite_VZA = new_EXTRACT.createVariable('satellite_VZA', 'f4', ('rows', 'columns'), fill_value=-999,zlib=True, complevel=6)
+            # satellite_VZA[:] = [VZA[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]]
+            # satellite_VZA.long_name = 'View Zenith Angle'
+            # satellite_VZA.units = 'degrees'
 
             satellite_time = new_EXTRACT.createVariable('satellite_time', 'f4', ('satellite_id'), fill_value=-999,
                                                         zlib=True, complevel=6)
@@ -410,6 +465,12 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_bands[:] = [0400.00, 0412.50, 0442.50, 0490.00, 0510.00, 0560.00, 0620.00, 0665.00, 0673.75,
                                   0681.25, 0708.75, 0753.75, 0778.75, 0865.00, 0885.00, 1020.50]
             satellite_bands.units = 'nm'
+
+
+            satellite_geometry_bands = new_EXTRACT.createVariable('satellite_geometry_bands', 'S3', ('satellite_geometry'), fill_value=-999,
+                                                         zlib=True, complevel=6)
+            satellite_geometry_bands[:] = ['SZA','SAA','OZA','OAA']
+
 
             if make_brdf:
                 # double satellite_BRDF_bands     (satellite_BRDF_bands) ;
@@ -502,10 +563,10 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 satellite_BRDF_fQ[0, 6, :, :] = [ma.array(BRDF6)]
                 satellite_BRDF_fQ.description = 'Satellite BRDF fQ coefficients'
 
-            satellite_chl_oc4me = new_EXTRACT.createVariable('chl_oc4me', 'f4', ('satellite_id', 'rows', 'columns'),
-                                                             fill_value=-999, zlib=True, complevel=6)
-            satellite_chl_oc4me[0, :, :] = ma.array(CHL_OC4ME_extract)
-            satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
+                satellite_chl_oc4me = new_EXTRACT.createVariable('chl_oc4me', 'f4', ('satellite_id', 'rows', 'columns'),
+                                                              fill_value=-999, zlib=True, complevel=6)
+                satellite_chl_oc4me[0, :, :] = ma.array(CHL_OC4ME_extract)
+                satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
             new_EXTRACT.close()
             # print('Extract created!')
