@@ -34,6 +34,7 @@ import subprocess
 from netCDF4 import Dataset
 import numpy as np
 import numpy.ma as ma
+import math
 from datetime import datetime
 from datetime import timedelta
 import configparser
@@ -93,6 +94,27 @@ def create_list_products(path_source, path_out, wce, res_str, type_product):
     return path_to_list
 
 
+def get_val_from_tie_point_grid(yPoint, xPoint, ySubsampling, xSubsampling, dataset):
+    yTGP = math.floor(float(yPoint) / float(ySubsampling))
+    yInterp = float(yPoint) % float(ySubsampling)
+    xTGP = math.floor(float(xPoint) / float(xSubsampling))
+    xInterp = float(xPoint) % float(xSubsampling)
+    center = dataset[yTGP, xTGP]
+    ySpace = (dataset[yTGP + 1, xTGP] - center) / ySubsampling
+    yValue = center + (yInterp * ySpace)
+    xSpace = (dataset[yTGP, xTGP + 1] - center) / xSubsampling
+    xValue = center + (xInterp * xSpace)
+    if ySubsampling == 1 and xSubsampling == 1:
+        return center
+    elif ySubsampling == 1 and xSubsampling > 1:
+        return xValue
+    elif ySubsampling > 1 and xSubsampling == 1:
+        return yValue
+    else:
+        valueFin = (yValue + xValue) / 2
+        return valueFin
+
+
 def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
     # from Tie-Points grid (a coarser grid)
     filepah = os.path.join(path_source, 'tie_geo_coordinates.nc')
@@ -129,6 +151,7 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
 def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf):
     if args.verbose:
         print(f'Creating extract for {station_name} from {path_source}')
+
     # extract IFP-OL-2 version
     with open(os.path.join(path_source, 'xfdumanifest.xml'), 'r', encoding="utf-8") as read_obj:
         check_version = False
@@ -141,7 +164,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 check_version = True
                 pass
 
-    # % open nc file
+    # open nc file
     coordinates_filename = 'geo_coordinates.nc'
 
     rhow_0400p00_filename = 'Oa01_reflectance.nc'
@@ -164,12 +187,11 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
     AOT_0865p50_filename = 'w_aer.nc'
     WQSF_filename = 'wqsf.nc'
 
+    # reading latitude and longitude
     filepah = os.path.join(path_source, coordinates_filename)
     nc_sat = Dataset(filepah, 'r')
-
     lat = nc_sat.variables['latitude'][:, :]
     lon = nc_sat.variables['longitude'][:, :]
-
     contain_flag = cfs.contain_location(lat, lon, in_situ_lat, in_situ_lon)
 
     if contain_flag == 1:
@@ -188,7 +210,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             filepah = os.path.join(path_source, rhow_0400p00_filename)
             nc_sat = Dataset(filepah, 'r')
             rhow_0400p00 = nc_sat.variables['Oa01_reflectance'][:]
-            satellite_start_time = nc_sat.start_time  # reading here start and stop
+            satellite_start_time = nc_sat.start_time  # reading here start and stop times
             satellite_stop_time = nc_sat.stop_time
             nc_sat.close()
 
@@ -279,18 +301,16 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             WQSF_flag_meanings = nc_sat.variables['WQSF'].flag_meanings
             nc_sat.close()
 
-            # Exctracting Chla extract
-            filepah = os.path.join(path_source, 'chl_oc4me.nc')
-            nc_sat1 = Dataset(filepah, 'r')
-            CHL_OC4ME = nc_sat1.variables['CHL_OC4ME'][:]
-            nc_sat1.close()
-            CHL_OC4ME_extract = ma.array(CHL_OC4ME[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])
-            CHL_OC4ME_extract[~CHL_OC4ME_extract.mask] = ma.power(10, CHL_OC4ME_extract[~CHL_OC4ME_extract.mask])
-            mask_chl = np.copy(CHL_OC4ME_extract.mask)
-            CHL_OC4ME_extract[mask_chl] = 1  ##temporal value
-
             # Calculate BRDF (it uses CHL_OC4ME_extract)
             if make_brdf:
+                filepah = os.path.join(path_source, 'chl_oc4me.nc')
+                nc_sat1 = Dataset(filepah, 'r')
+                CHL_OC4ME = nc_sat1.variables['CHL_OC4ME'][:]
+                nc_sat1.close()
+                CHL_OC4ME_extract = ma.array(CHL_OC4ME[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])
+                CHL_OC4ME_extract[~CHL_OC4ME_extract.mask] = ma.power(10, CHL_OC4ME_extract[~CHL_OC4ME_extract.mask])
+                mask_chl = np.copy(CHL_OC4ME_extract.mask)
+                CHL_OC4ME_extract[mask_chl] = 1  ##temporal value
                 ws0, ws1, sza, saa, vza, vaa = extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon)
                 BRDF0 = np.full(CHL_OC4ME_extract.shape, np.nan)
                 BRDF1 = np.full(CHL_OC4ME_extract.shape, np.nan)
@@ -321,12 +341,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 BRDF4[mask_chl] = -999
                 BRDF5[mask_chl] = -999
                 BRDF6[mask_chl] = -999
-
-
-
-
-            CHL_OC4ME_extract[mask_chl] = -999  #fill value
-
+                CHL_OC4ME_extract[mask_chl] = -999  # fill value
 
             # %% Save extract as netCDF4 file
             filename = path_source.split('/')[-1].replace('.', '_') + '_extract_' + station_name + '.nc'
@@ -339,7 +354,12 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             if os.path.exists(ofname):
                 os.remove(ofname)
 
+            if args.verbose:
+                print('Starting new extract...')
+
             new_EXTRACT = Dataset(ofname, 'w', format='NETCDF4')
+
+            # Atributes
             new_EXTRACT.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
             new_EXTRACT.satellite = satellite
             new_EXTRACT.platform = platform
@@ -372,54 +392,102 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             new_EXTRACT.createDimension('rows', size_box)
             new_EXTRACT.createDimension('columns', size_box)
             new_EXTRACT.createDimension('satellite_bands', 16)
+            new_EXTRACT.createDimension('satellite_geometry', 4)
             if make_brdf:
                 new_EXTRACT.createDimension('satellite_BRDF_bands', 7)
 
-            # variables  
-            # satellite_SZA = new_EXTRACT.createVariable('satellite_SZA', 'f4', ('rows','columns'), fill_value=-999, zlib=True, complevel=6)
-            # satellite_SZA[:] = [SZA[start_idx_x:stop_idx_x,start_idx_y:stop_idx_y]]
-            # satellite_SZA.long_name = 'Sun Zenith Angle'
-            # satellite_SZA.long_name = 'Sun Zenith Angle'    
-            # satellite_SZA.units = 'degrees'
+            # geometry variables
+            # satellite_geometry_bands = new_EXTRACT.createVariable('satellite_geometry_bands', 'S3',
+            #                                                       ('satellite_geometry'), fill_value=-999,
+            #                                                       zlib=True, complevel=6)
+            # satellite_geometry_bands[0] = 'Sun Zenith Angle (SZA)'
+            # satellite_geometry_bands[1] = 'Sun Azimuth Angle (SAA)'
+            # satellite_geometry_bands[2] = 'Observation Zenith Angle (OZA)'
+            # satellite_geometry_bands[3] = 'Observation Azimuth Angle (OAA)'
 
+            filepah = os.path.join(path_source, 'tie_geometries.nc')
+            nc_sat = Dataset(filepah, 'r')
+            xsubsampling = nc_sat.getncattr('ac_subsampling_factor')
+            ysubsampling = nc_sat.getncattr('al_subsampling_factor')
+            SZA = nc_sat.variables['SZA'][:]
+            SAA = nc_sat.variables['SAA'][:]
+            OZA = nc_sat.variables['OZA'][:]
+            OAA = nc_sat.variables['OAA'][:]
+            nc_sat.close()
+            SZAO = new_EXTRACT.createVariable('SZA', 'f4',('rows', 'columns'),fill_value=-999, zlib=True, complevel=6)
+            SZAO.units = 'degress'
+            SZAO.long_name = 'Sun Zenith Angle'
+            SAAO = new_EXTRACT.createVariable('SAA', 'f4',('rows', 'columns'),fill_value=-999, zlib=True, complevel=6)
+            SAAO.units = 'degress'
+            SAAO.long_name = 'Sun Azimuth Angle'
+            OZAO = new_EXTRACT.createVariable('OZA', 'f4', ('rows', 'columns'), fill_value=-999, zlib=True,complevel=6)
+            OZAO.units = 'degress'
+            OZAO.long_name = 'Observation Zenith Angle'
+            OAAO = new_EXTRACT.createVariable('OAA', 'f4', ('rows', 'columns'), fill_value=-999, zlib=True,complevel=6)
+            OAAO.units = 'degress'
+            OAAO.long_name = 'Observation Azimuth Angle'
+
+
+
+
+            for yy in range(size_box):
+                for xx in range(size_box):
+                    yPos = start_idx_x + xx
+                    xPos = start_idx_y + yy
+                    SZAO[xx, yy] = get_val_from_tie_point_grid(int(yPos), int(xPos), ysubsampling,
+                                                                                  xsubsampling, SZA)
+
+                    SAAO[xx, yy] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling,
+                                                                                  xsubsampling,
+                                                                                  SAA)
+                    OZAO[xx, yy] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling,
+                                                                                  xsubsampling, OZA)
+                    OAAO[xx, yy] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling,
+                                                                                  xsubsampling, OAA)
+            # satellite_geometries.long_name = 'Satellite geometry'
+            # satellite_geometries.units = 'degrees'
+
+
+
+            #time
             satellite_time = new_EXTRACT.createVariable('satellite_time', 'f4', ('satellite_id'), fill_value=-999,
                                                         zlib=True, complevel=6)
             satellite_time[0] = float(datetime.strptime(satellite_start_time, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
             satellite_time.units = "Seconds since 1970-1-1"
 
+            #PDU
             satellite_PDU = new_EXTRACT.createVariable('satellite_PDU', 'S2', ('satellite_id'), zlib=True,
                                                        complevel=6)  # string
             satellite_PDU[0] = path_source.split('/')[-1]
             satellite_PDU.long_name = "OLCI source PDU name"
 
+            #latitude
             satellite_latitude = new_EXTRACT.createVariable('satellite_latitude', 'f8',
                                                             ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                             zlib=True, complevel=6)
             satellite_latitude[0, :, :] = [lat[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]]
             satellite_latitude.short_name = 'latitude'
 
+            #longitude
             satellite_longitude = new_EXTRACT.createVariable('satellite_longitude', 'f8',
                                                              ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                              zlib=True, complevel=6)
             satellite_longitude[0, :, :] = [lon[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]]
             satellite_longitude.short_name = 'longitude'
 
-            # double satellite_bands          (satellite_bands) ;
+
+
+
+
+
+            # Variable satellite_bands (wavelenghts for Rrs)
             satellite_bands = new_EXTRACT.createVariable('satellite_bands', 'f4', ('satellite_bands'), fill_value=-999,
                                                          zlib=True, complevel=6)
             satellite_bands[:] = [0400.00, 0412.50, 0442.50, 0490.00, 0510.00, 0560.00, 0620.00, 0665.00, 0673.75,
                                   0681.25, 0708.75, 0753.75, 0778.75, 0865.00, 0885.00, 1020.50]
             satellite_bands.units = 'nm'
 
-            if make_brdf:
-                # double satellite_BRDF_bands     (satellite_BRDF_bands) ;
-                satellite_BRDF_bands = new_EXTRACT.createVariable('satellite_BRDF_bands', 'f4',
-                                                                  ('satellite_BRDF_bands'),
-                                                                  fill_value=-999, zlib=True, complevel=6)
-                satellite_BRDF_bands[:] = [412.50, 442.50, 490.00, 510.00, 560.00, 620.00, 665.00]
-                satellite_BRDF_bands.units = 'nm'
-
-            # NOT BRDF-corrected
+            # Variable satellite_Rrs (NOT BRDF-corrected remote sensing reflectance)
             satellite_Rrs = new_EXTRACT.createVariable('satellite_Rrs', 'f4',
                                                        ('satellite_id', 'satellite_bands', 'rows', 'columns'),
                                                        fill_value=-999, zlib=True, complevel=6)
@@ -439,12 +507,20 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_Rrs[0, 13, :, :] = ma.array(rhow_0865p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
             satellite_Rrs[0, 14, :, :] = ma.array(rhow_0885p00[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
             satellite_Rrs[0, 15, :, :] = ma.array(rhow_1020p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y]) / np.pi
-            satellite_Rrs.short_name = 'Satellite Rrs.'
-            satellite_Rrs.long_name = "Above water Remote Sensing Reflectance for OLCI acquisition without BRDF correction applied"
+            satellite_Rrs.short_name = 'Satellite Rrs'
+            satellite_Rrs.long_name = "Above water Remote Sensing Reflectance for OLCI acquisition"
             satellite_Rrs.units = "sr-1"
 
-            # BRDF-corrected
+            # BRDF-corrected varibles: satellite_BRDF_bancs, satellite_BRDF_Rrs, satellite_BRDF_fQ, chl_oc4me
             if make_brdf:
+                # double satellite_BRDF_bands     (satellite_BRDF_bands) ;
+                satellite_BRDF_bands = new_EXTRACT.createVariable('satellite_BRDF_bands', 'f4',
+                                                                  ('satellite_BRDF_bands'),
+                                                                  fill_value=-999, zlib=True, complevel=6)
+                satellite_BRDF_bands[:] = [412.50, 442.50, 490.00, 510.00, 560.00, 620.00, 665.00]
+                satellite_BRDF_bands.units = 'nm'
+
+
                 satellite_BRDF_Rrs = new_EXTRACT.createVariable('satellite_BRDF_Rrs', 'f4',
                                                                 ('satellite_id', 'satellite_BRDF_bands', 'rows',
                                                                  'columns'),
@@ -474,21 +550,6 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 satellite_BRDF_Rrs.short_name = 'Satellite Rrs.'
                 satellite_BRDF_Rrs.long_name = "Above water Remote Sensing Reflectance for OLCI acquisition with BRDF correction applied";
                 satellite_BRDF_Rrs.units = "sr-1"
-
-            satellite_AOT_0865p50_box = new_EXTRACT.createVariable('satellite_AOT_0865p50', 'f4',
-                                                                   ('satellite_id', 'rows', 'columns'), fill_value=-999,
-                                                                   zlib=True, complevel=6)
-            satellite_AOT_0865p50_box[0, :, :] = ma.array(AOT_0865p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])
-            satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
-
-            satellite_WQSF = new_EXTRACT.createVariable('satellite_WQSF', 'f4', ('satellite_id', 'rows', 'columns'),
-                                                        fill_value=-999, zlib=True, complevel=6)
-            satellite_WQSF[0, :, :] = [ma.array(WQSF[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])]
-            satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
-            satellite_WQSF.flag_masks = WQSF_flag_masks
-            satellite_WQSF.flag_meanings = WQSF_flag_meanings
-
-            if make_brdf:
                 satellite_BRDF_fQ = new_EXTRACT.createVariable('satellite_BRDF_fQ', 'f4',
                                                                ('satellite_id', 'satellite_BRDF_bands', 'rows',
                                                                 'columns'),
@@ -501,17 +562,34 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 satellite_BRDF_fQ[0, 5, :, :] = [ma.array(BRDF5)]
                 satellite_BRDF_fQ[0, 6, :, :] = [ma.array(BRDF6)]
                 satellite_BRDF_fQ.description = 'Satellite BRDF fQ coefficients'
+                satellite_chl_oc4me = new_EXTRACT.createVariable('chl_oc4me', 'f4', ('satellite_id', 'rows', 'columns'),
+                                                                 fill_value=-999, zlib=True, complevel=6)
+                satellite_chl_oc4me[0, :, :] = ma.array(CHL_OC4ME_extract)
+                satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
-            satellite_chl_oc4me = new_EXTRACT.createVariable('chl_oc4me', 'f4', ('satellite_id', 'rows', 'columns'),
-                                                             fill_value=-999, zlib=True, complevel=6)
-            satellite_chl_oc4me[0, :, :] = ma.array(CHL_OC4ME_extract)
-            satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
+            #AOT
+            satellite_AOT_0865p50_box = new_EXTRACT.createVariable('satellite_AOT_0865p50', 'f4',
+                                                                   ('satellite_id', 'rows', 'columns'), fill_value=-999,
+                                                                   zlib=True, complevel=6)
+            satellite_AOT_0865p50_box[0, :, :] = ma.array(AOT_0865p50[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])
+            satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
+
+            #WQSF: Quality Flags
+            satellite_WQSF = new_EXTRACT.createVariable('satellite_WQSF', 'f4', ('satellite_id', 'rows', 'columns'),
+                                                        fill_value=-999, zlib=True, complevel=6)
+            satellite_WQSF[0, :, :] = [ma.array(WQSF[start_idx_x:stop_idx_x, start_idx_y:stop_idx_y])]
+            satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
+            satellite_WQSF.flag_masks = WQSF_flag_masks
+            satellite_WQSF.flag_meanings = WQSF_flag_meanings
+
+
 
             new_EXTRACT.close()
             # print('Extract created!')
 
         else:
-            print('Warning: Index out of bound!')
+            if args.verbose:
+                print('Warning: Index out of bound!')
     else:
         if args.verbose:
             print('Warning: File does NOT contains the in situ location!')
