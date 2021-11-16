@@ -392,7 +392,6 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             new_EXTRACT.createDimension('rows', size_box)
             new_EXTRACT.createDimension('columns', size_box)
             new_EXTRACT.createDimension('satellite_bands', 16)
-            new_EXTRACT.createDimension('satellite_geometry', 4)
             if make_brdf:
                 new_EXTRACT.createDimension('satellite_BRDF_bands', 7)
 
