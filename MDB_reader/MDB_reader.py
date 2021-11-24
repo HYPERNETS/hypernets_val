@@ -516,6 +516,7 @@ class PANTHYR_class(object):
                 sat_proc_version_str = nc.satellite_proc_version
 
                 # flags mask
+
                 flagging = flag.Class_Flags_OLCI(nc.satellite_WQSF_flag_masks, nc.satellite_WQSF_flag_meanings)
                 satellite_WQSF = nc.variables['satellite_WQSF'][r_s:r_e, c_s:c_e]
                 if (str(flag_list[0])) != 'None':
@@ -1073,7 +1074,8 @@ path_out = '/home/lois/DATA/ANALYSIS'
 #LOIS
 path_file = '/home/lois/DATA/MDBs/MDB_S3B_OLCI_WFR_L2_HYPERNETS_VEIT.nc'
 mdb_file = MDBFile(path_file)
-mdb_file.load_mu_data(5)
+mdb_file.load_mu_data(10)
+mdb_file.plot_spectra()
 
     # if dataTOplot.RRS.size == 0:
     #     print ('no PANTHYR MDBs found!')
