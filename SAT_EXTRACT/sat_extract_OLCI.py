@@ -155,7 +155,7 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
 def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf):
     if args.verbose:
         print(f'Creating extract for {station_name} from {path_source}')
-
+    ofname = None
     # extract IFP-OL-2 version
     with open(os.path.join(path_source, 'xfdumanifest.xml'), 'r', encoding="utf-8") as read_obj:
         check_version = False
@@ -614,6 +614,13 @@ def main():
     if args.verbose:
         print(f'Path to satellite sources: {satellite_path_source}')
 
+    #temporay path
+    tmp_path = None
+    if args.config_file:
+        if options['file_path']['tmp_dir']:
+            tmp_path = options['file_path']['tmp_dir']
+
+
     # create list of sat granules
     if not args.config_file:
         if args.resolution == 'WRR':
@@ -643,8 +650,9 @@ def main():
     if not os.path.isdir(path_out):
         os.mkdir(path_out)
 
-    wce = f'"*OL_2_{res}*SEN3"'  # wild card expression
+    wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite')
+
 
     if args.verbose:
         print(f'Satellite List: {path_to_satellite_list}')
@@ -686,13 +694,27 @@ def main():
 
     with open(path_to_satellite_list, 'r') as file:
         for cnt, line in enumerate(file):
+            if args.verbose:
+                print('-----------------')
             path_to_sat_source = line[:-1]
+            if path_to_sat_source.endswith('.zip'):
+                if not tmp_path is None and os.path.exists(tmp_path):
+                    cmd = f'unzip -o {path_to_sat_source} -d {tmp_path}'
+                    prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+                    out, err = prog.communicate()
+                    if err:
+                        print(err)
+                    namesat = path_to_sat_source.split('/')[-1]
+                    path_to_sat_source = os.path.join(tmp_path,namesat[0:namesat.find('.zip')])
+                    if not os.path.exists(path_to_sat_source):
+                        continue
+                else:
+                    continue
             # extract date time info
             sensor_str = path_to_sat_source.split('/')[-1].split('_')[0]
             res_str = path_to_sat_source.split('/')[-1].split('_')[3]
             datetime_str = path_to_sat_source.split('/')[-1].split('_')[7]
             if args.verbose:
-                print('-----------------')
                 print(f'{datetime_str} {sensor_str} {res_str}')
             date_format = '%Y%m%dT%H%M%S'
             satellite_datetime = datetime.strptime(datetime_str, date_format)
@@ -701,8 +723,8 @@ def main():
                     extract_path = \
                         create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
                                        res_str, make_brdf)
-
-                    print(f'file created: {extract_path}')
+                    if not extract_path is None:
+                        print(f'file created: {extract_path}')
 
                 # except:
                 except Exception as e:
