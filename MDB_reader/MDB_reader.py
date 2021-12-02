@@ -5,6 +5,8 @@ Created on Mon Jul 20 22:49:47 2020
 
 @author: javier.concha
 """
+
+
 """
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,6 +32,9 @@ import time
 import calendar
 import pandas as pd
 from matplotlib import pyplot as plt
+
+from MDBFile import MDBFile
+
 
 plt.rc('xtick', labelsize=14)
 plt.rc('ytick', labelsize=14)
@@ -511,6 +516,7 @@ class PANTHYR_class(object):
                 sat_proc_version_str = nc.satellite_proc_version
 
                 # flags mask
+
                 flagging = flag.Class_Flags_OLCI(nc.satellite_WQSF_flag_masks, nc.satellite_WQSF_flag_meanings)
                 satellite_WQSF = nc.variables['satellite_WQSF'][r_s:r_e, c_s:c_e]
                 if (str(flag_list[0])) != 'None':
@@ -1039,27 +1045,37 @@ class PANTHYR_class(object):
 #     """business logic for when running this module as the primary one!"""
 #     print('Main Code!')
 
-path_main = '/home/lois/PycharmProjects/hypernets_val/'
+
+##[LOIS] ATTENTION: THESE WAS THE GOOD CODE FOR THE ANALYSIS
+# path_main = '/home/lois/PycharmProjects/hypernets_val/'
 path_out = '/home/lois/DATA/ANALYSIS'
-# Read config. file
-# config_file = file_config_parse.config_file
-sat_proc_version = '7.00'  # '6.13' 0r '7.00'
-if sat_proc_version == '6.13':
-    config_file = os.path.join(path_main, 'MDB_reader', 'config_file_OLCI_PANTHYR.ini')
-elif sat_proc_version == '7.00':
-    config_file = os.path.join(path_main, 'MDB_reader', 'config_file_OLCI_HYPERNETS.ini')
-elif sat_proc_version == '7.01':
-    config_file = os.path.join(path_main, 'MDB_reader', 'config_file_OLCI_PANTHYR_07.01.ini')
+# # Read config. file
+# # config_file = file_config_parse.config_file
+# sat_proc_version = '7.00'  # '6.13' 0r '7.00'
+# if sat_proc_version == '6.13':
+#     config_file = os.path.join(path_main, 'MDB_reader', 'config_file_OLCI_PANTHYR.ini')
+# elif sat_proc_version == '7.00':
+#     config_file = os.path.join(path_main, 'MDB_reader', 'config_file_OLCI_HYPERNETS.ini')
+# elif sat_proc_version == '7.01':
+#     config_file = os.path.join(path_main, 'MDB_reader', 'config_file_OLCI_PANTHYR_07.01.ini')
+#
+# if os.path.isfile(config_file) == True:
+#     options = config_reader(config_file)
+# else:
+#     print(config_file + ' does not exist. Please provide a valid config file path')
+#     sys.exit()
+#
+# if options['insitu_options']['sensor'] == 'HYPERNETS':
+#     # read AERONET MDB
+#     dataTOplot = PANTHYR_class(options)
+##[LOIS] END OF THE GOOD CODE FOR ANALYSIS
 
-if os.path.isfile(config_file) == True:
-    options = config_reader(config_file)
-else:
-    print(config_file + ' does not exist. Please provide a valid config file path')
-    sys.exit()
 
-if options['insitu_options']['sensor'] == 'HYPERNETS':
-    # read AERONET MDB
-    dataTOplot = PANTHYR_class(options)
+#LOIS
+path_file = '/home/lois/DATA/MDBs/MDB_S3B_OLCI_WFR_L2_HYPERNETS_VEIT.nc'
+mdb_file = MDBFile(path_file)
+mdb_file.load_mu_data(10)
+mdb_file.plot_spectra()
 
     # if dataTOplot.RRS.size == 0:
     #     print ('no PANTHYR MDBs found!')
