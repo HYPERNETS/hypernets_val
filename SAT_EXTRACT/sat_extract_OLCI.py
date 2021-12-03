@@ -105,8 +105,8 @@ def get_val_from_tie_point_grid(yPoint, xPoint, ySubsampling, xSubsampling, data
     xSpace = (dataset[yTGP, xTGP + 1] - center) / xSubsampling
     xValue = center + (xInterp * xSpace)
 
-    if yPoint==1090 and xPoint==1192:
-        print('Center is: ',center, 'YTGP ',yTGP, 'XTGP ',xTGP)
+    if yPoint == 1090 and xPoint == 1192:
+        print('Center is: ', center, 'YTGP ', yTGP, 'XTGP ', xTGP)
 
     if ySubsampling == 1 and xSubsampling == 1:
         return center
@@ -151,6 +151,16 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
 
     return ws0, ws1, sza, saa, vza, vaa
 
+def launch_create_extract(in_situ_sites,size_box,path_source,res_str, make_brdf):
+    for site in in_situ_sites:
+        in_situ_lat = in_situ_sites[site]['latitude']
+        in_situ_lon = in_situ_sites[site]['longitude']
+        path_output = in_situ_sites[site]['path_output']
+        if not os.path.exists(path_output):
+            os.mkdir(path_output)
+        extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf)
+        if not extract_path is None:
+            print(f'file created: {extract_path}')
 
 def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf):
     if args.verbose:
@@ -202,7 +212,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
         if not args.verbose:
             print('-----------------')
         r, c = cfs.find_row_column_from_lat_lon(lat, lon, in_situ_lat, in_situ_lon)
-        #coordenadas son y, x
+        # coordenadas son y, x
 
         start_idx_x = (c - int(size_box / 2))
         stop_idx_x = (c + int(size_box / 2) + 1)
@@ -216,7 +226,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             nc_sat = Dataset(filepah, 'r')
             rhow_0400p00 = nc_sat.variables['Oa01_reflectance'][:]
             satellite_start_time = nc_sat.start_time  # reading here start time
-            #satellite_stop_time = nc_sat.stop_time
+            # satellite_stop_time = nc_sat.stop_time
             nc_sat.close()
 
             filepah = os.path.join(path_source, rhow_0412p50_filename)
@@ -418,60 +428,56 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             OZA = nc_sat.variables['OZA'][:]
             OAA = nc_sat.variables['OAA'][:]
             nc_sat.close()
-            SZAO = new_EXTRACT.createVariable('SZA', 'f4',('satellite_id', 'rows', 'columns'),fill_value=-999, zlib=True, complevel=6)
+            SZAO = new_EXTRACT.createVariable('SZA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
+                                              zlib=True, complevel=6)
             SZAO.units = 'degress'
             SZAO.long_name = 'Sun Zenith Angle'
-            SAAO = new_EXTRACT.createVariable('SAA', 'f4',('satellite_id', 'rows', 'columns'),fill_value=-999, zlib=True, complevel=6)
+            SAAO = new_EXTRACT.createVariable('SAA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
+                                              zlib=True, complevel=6)
             SAAO.units = 'degress'
             SAAO.long_name = 'Sun Azimuth Angle'
-            OZAO = new_EXTRACT.createVariable('OZA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999, zlib=True,complevel=6)
+            OZAO = new_EXTRACT.createVariable('OZA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
+                                              zlib=True, complevel=6)
             OZAO.units = 'degress'
             OZAO.long_name = 'Observation Zenith Angle'
-            OAAO = new_EXTRACT.createVariable('OAA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999, zlib=True,complevel=6)
+            OAAO = new_EXTRACT.createVariable('OAA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
+                                              zlib=True, complevel=6)
             OAAO.units = 'degress'
             OAAO.long_name = 'Observation Azimuth Angle'
             for yy in range(size_box):
                 for xx in range(size_box):
                     yPos = start_idx_y + yy
                     xPos = start_idx_x + xx
-                    SZAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,ysubsampling,xsubsampling,SZA)
-                    SAAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling,xsubsampling,SAA)
-                    OZAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling,xsubsampling, OZA)
-                    OAAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling,xsubsampling, OAA)
+                    SZAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, SZA)
+                    SAAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, SAA)
+                    OZAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, OZA)
+                    OAAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, OAA)
 
-
-
-
-            #time
+            # time
             satellite_time = new_EXTRACT.createVariable('satellite_time', 'f4', ('satellite_id'), fill_value=-999,
                                                         zlib=True, complevel=6)
             satellite_time[0] = float(datetime.strptime(satellite_start_time, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
             satellite_time.units = "Seconds since 1970-1-1"
 
-            #PDU
+            # PDU
             satellite_PDU = new_EXTRACT.createVariable('satellite_PDU', 'S2', ('satellite_id'), zlib=True,
                                                        complevel=6)  # string
             satellite_PDU[0] = path_source.split('/')[-1]
             satellite_PDU.long_name = "OLCI source PDU name"
 
-            #latitude
+            # latitude
             satellite_latitude = new_EXTRACT.createVariable('satellite_latitude', 'f8',
                                                             ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                             zlib=True, complevel=6)
             satellite_latitude[0, :, :] = [lat[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
             satellite_latitude.short_name = 'latitude'
 
-            #longitude
+            # longitude
             satellite_longitude = new_EXTRACT.createVariable('satellite_longitude', 'f8',
                                                              ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                              zlib=True, complevel=6)
             satellite_longitude[0, :, :] = [lon[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
             satellite_longitude.short_name = 'longitude'
-
-
-
-
-
 
             # Variable satellite_bands (wavelenghts for Rrs)
             satellite_bands = new_EXTRACT.createVariable('satellite_bands', 'f4', ('satellite_bands'), fill_value=-999,
@@ -484,22 +490,22 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_Rrs = new_EXTRACT.createVariable('satellite_Rrs', 'f4',
                                                        ('satellite_id', 'satellite_bands', 'rows', 'columns'),
                                                        fill_value=-999, zlib=True, complevel=6)
-            satellite_Rrs[0, 0, :, :] = ma.array(rhow_0400p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 1, :, :] = ma.array(rhow_0412p50[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 2, :, :] = ma.array(rhow_0442p50[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 3, :, :] = ma.array(rhow_0490p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 4, :, :] = ma.array(rhow_0510p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 5, :, :] = ma.array(rhow_0560p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 6, :, :] = ma.array(rhow_0620p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 7, :, :] = ma.array(rhow_0665p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 8, :, :] = ma.array(rhow_0673p75[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 9, :, :] = ma.array(rhow_0681p25[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 10, :, :] = ma.array(rhow_0708p75[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 11, :, :] = ma.array(rhow_0753p75[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 12, :, :] = ma.array(rhow_0778p75[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 13, :, :] = ma.array(rhow_0865p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 14, :, :] = ma.array(rhow_0885p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
-            satellite_Rrs[0, 15, :, :] = ma.array(rhow_1020p50[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 0, :, :] = ma.array(rhow_0400p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 1, :, :] = ma.array(rhow_0412p50[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 2, :, :] = ma.array(rhow_0442p50[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 3, :, :] = ma.array(rhow_0490p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 4, :, :] = ma.array(rhow_0510p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 5, :, :] = ma.array(rhow_0560p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 6, :, :] = ma.array(rhow_0620p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 7, :, :] = ma.array(rhow_0665p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 8, :, :] = ma.array(rhow_0673p75[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 9, :, :] = ma.array(rhow_0681p25[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 10, :, :] = ma.array(rhow_0708p75[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 11, :, :] = ma.array(rhow_0753p75[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 12, :, :] = ma.array(rhow_0778p75[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 13, :, :] = ma.array(rhow_0865p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 14, :, :] = ma.array(rhow_0885p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
+            satellite_Rrs[0, 15, :, :] = ma.array(rhow_1020p50[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]) / np.pi
             satellite_Rrs.short_name = 'Satellite Rrs'
             satellite_Rrs.long_name = "Above water Remote Sensing Reflectance for OLCI acquisition"
             satellite_Rrs.units = "sr-1"
@@ -513,7 +519,6 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 satellite_BRDF_bands[:] = [412.50, 442.50, 490.00, 510.00, 560.00, 620.00, 665.00]
                 satellite_BRDF_bands.units = 'nm'
 
-
                 satellite_BRDF_Rrs = new_EXTRACT.createVariable('satellite_BRDF_Rrs', 'f4',
                                                                 ('satellite_id', 'satellite_BRDF_bands', 'rows',
                                                                  'columns'),
@@ -521,22 +526,22 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 BRDF_Rrs = ma.array(rhow_0412p50[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] * BRDF0) / np.pi
                 BRDF_Rrs[mask_chl] = -999
                 satellite_BRDF_Rrs[0, 0, :, :] = BRDF_Rrs
-                BRDF_Rrs = ma.array(rhow_0442p50[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x] * BRDF1) / np.pi
+                BRDF_Rrs = ma.array(rhow_0442p50[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] * BRDF1) / np.pi
                 BRDF_Rrs[mask_chl] = -999
                 satellite_BRDF_Rrs[0, 1, :, :] = BRDF_Rrs
-                BRDF_Rrs = ma.array(rhow_0490p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x] * BRDF2) / np.pi
+                BRDF_Rrs = ma.array(rhow_0490p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] * BRDF2) / np.pi
                 BRDF_Rrs[mask_chl] = -999
                 satellite_BRDF_Rrs[0, 2, :, :] = BRDF_Rrs
-                BRDF_Rrs = ma.array(rhow_0510p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x] * BRDF3) / np.pi
+                BRDF_Rrs = ma.array(rhow_0510p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] * BRDF3) / np.pi
                 BRDF_Rrs[mask_chl] = -999
                 satellite_BRDF_Rrs[0, 3, :, :] = BRDF_Rrs
-                BRDF_Rrs = ma.array(rhow_0560p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x] * BRDF4) / np.pi
+                BRDF_Rrs = ma.array(rhow_0560p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] * BRDF4) / np.pi
                 BRDF_Rrs[mask_chl] = -999
                 satellite_BRDF_Rrs[0, 4, :, :] = BRDF_Rrs
-                BRDF_Rrs = ma.array(rhow_0620p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x] * BRDF5) / np.pi
+                BRDF_Rrs = ma.array(rhow_0620p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] * BRDF5) / np.pi
                 BRDF_Rrs[mask_chl] = -999
                 satellite_BRDF_Rrs[0, 5, :, :] = BRDF_Rrs
-                BRDF_Rrs = ma.array(rhow_0665p00[start_idx_y:stop_idx_y,start_idx_x:stop_idx_x] * BRDF6) / np.pi
+                BRDF_Rrs = ma.array(rhow_0665p00[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] * BRDF6) / np.pi
                 BRDF_Rrs[mask_chl] = -999
                 satellite_BRDF_Rrs[0, 6, :, :] = BRDF_Rrs
                 satellite_BRDF_Rrs.description = 'Satellite Rrs BRDF-corrected'
@@ -560,22 +565,20 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 satellite_chl_oc4me[0, :, :] = ma.array(CHL_OC4ME_extract)
                 satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
-            #AOT
+            # AOT
             satellite_AOT_0865p50_box = new_EXTRACT.createVariable('satellite_AOT_0865p50', 'f4',
                                                                    ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                                    zlib=True, complevel=6)
             satellite_AOT_0865p50_box[0, :, :] = ma.array(AOT_0865p50[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])
             satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
 
-            #WQSF: Quality Flags
+            # WQSF: Quality Flags
             satellite_WQSF = new_EXTRACT.createVariable('satellite_WQSF', 'f4', ('satellite_id', 'rows', 'columns'),
                                                         fill_value=-999, zlib=True, complevel=6)
             satellite_WQSF[0, :, :] = [ma.array(WQSF[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])]
             satellite_WQSF.description = 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
             satellite_WQSF.flag_masks = WQSF_flag_masks
             satellite_WQSF.flag_meanings = WQSF_flag_meanings
-
-
 
             new_EXTRACT.close()
             # print('Extract created!')
@@ -588,6 +591,30 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             print('Warning: File does NOT contains the in situ location!')
 
     return ofname
+
+
+def get_sites_from_file(file_sites,site_list,region_list,path_out):
+    if not os.path.exists(file_sites):
+        return None
+    sites_info = config_reader(file_sites)
+    in_situ_sites = {}
+    #print(site_list)
+    for site in sites_info.sections():
+        #print('-----------------------',site)
+        if sites_info[site]['make_MU'] != 'T':
+            continue
+        region = sites_info[site]['Region']
+        if not site_list is None and not site in site_list:
+            continue
+        if not region_list is None and not region in region_list:
+            continue
+
+        in_situ_sites[site] = {
+            'latitude': sites_info[site]['Latitude'],
+            'longitude': sites_info[site]['Longitude'],
+            'path_out': os.path.join(path_out, site)
+        }
+    return in_situ_sites
 
 
 # #############################
@@ -614,12 +641,11 @@ def main():
     if args.verbose:
         print(f'Path to satellite sources: {satellite_path_source}')
 
-    #temporay path
+    # temporay path
     tmp_path = None
     if args.config_file:
         if options['file_path']['tmp_dir']:
             tmp_path = options['file_path']['tmp_dir']
-
 
     # create list of sat granules
     if not args.config_file:
@@ -630,21 +656,46 @@ def main():
     else:
         res = options['satellite_options']['resolution']
 
-    # in situ site
-    if args.sitename:
-        station_name = args.sitename
-    elif args.config_file:
-        station_name = options['Time_and_sites_selection']['sites']
-    in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
-    if args.verbose:
-        print(f'station_name: {station_name} with lat: {in_situ_lat}, lon: {in_situ_lon}')
-
     # path to output
     if args.output:
         path_out = args.output
     elif args.config_file:
         if options['file_path']['output_dir']:
             path_out = options['file_path']['output_dir']
+
+
+    # in situ sites
+    in_situ_sites = {}
+    if args.sitename:
+        station_name = args.sitename
+    elif args.config_file:
+        if not options['Time_and_sites_selection']['sites_file']:
+            station_name = options['Time_and_sites_selection']['sites']
+            in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
+            in_situ_sites[station_name] = {
+                'latitude': in_situ_lat,
+                'longitude': in_situ_lon,
+                'path_out': os.path.join(path_out,station_name)
+            }
+        else:
+            site_list = None
+            region_list = None
+            if options['Time_and_sites_selection']['sites']:
+                site_list = options['Time_and_sites_selection']['sites'].split(',')
+                site_list = [s.strip() for s in site_list]
+            if not options['Time_and_sites_selection']['sites'] and options['Time_and_sites_selection']['sites_region']:
+                region_list = options['Time_and_sites_selection']['sites_region'].split(',')
+                region_list = [r.strip() for r in region_list]
+
+            in_situ_sites = get_sites_from_file(options['Time_and_sites_selection']['sites_file'],site_list,region_list,path_out)
+    #print(in_situ_sites)
+    if args.verbose:
+        for site in in_situ_sites:
+            lath = in_situ_sites[site]['latitude']
+            lonh = in_situ_sites[site]['longitude']
+            print(f'station_name: {site} with lat: {lath}, lon: {lonh}')
+
+
     if args.verbose:
         print(f'Path to output: {path_out}')
     if not os.path.isdir(path_out):
@@ -652,7 +703,6 @@ def main():
 
     wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
     path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite')
-
 
     if args.verbose:
         print(f'Satellite List: {path_to_satellite_list}')
@@ -692,6 +742,7 @@ def main():
     else:
         make_brdf = False
 
+    day_ref = -1
     with open(path_to_satellite_list, 'r') as file:
         for cnt, line in enumerate(file):
             if args.verbose:
@@ -705,7 +756,7 @@ def main():
                     if err:
                         print(err)
                     namesat = path_to_sat_source.split('/')[-1]
-                    path_to_sat_source = os.path.join(tmp_path,namesat[0:namesat.find('.zip')])
+                    path_to_sat_source = os.path.join(tmp_path, namesat[0:namesat.find('.zip')])
                     if not os.path.exists(path_to_sat_source):
                         continue
                 else:
@@ -718,13 +769,22 @@ def main():
                 print(f'{datetime_str} {sensor_str} {res_str}')
             date_format = '%Y%m%dT%H%M%S'
             satellite_datetime = datetime.strptime(datetime_str, date_format)
+            day_of_year = int(satellite_datetime.strftime('%j'))
+
             if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
                 try:
-                    extract_path = \
-                        create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
-                                       res_str, make_brdf)
-                    if not extract_path is None:
-                        print(f'file created: {extract_path}')
+                    # extract_path = \
+                    #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
+                    #                    res_str, make_brdf)
+                    launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
+                    if day_of_year!=day_ref and day_ref!=-1 and os.path.exists(tmp_path):
+                        print('Deleting temporary files...')
+                        day_ref = day_of_year
+                        cmd = f'rm -r {tmp_path}' + "\\*"
+                        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+                        out, err = prog.communicate()
+                        if err:
+                            print(err)
 
                 # except:
                 except Exception as e:
