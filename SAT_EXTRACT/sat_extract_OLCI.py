@@ -802,6 +802,8 @@ def main():
             date_format = '%Y%m%dT%H%M%S'
             satellite_datetime = datetime.strptime(datetime_str, date_format)
             day_of_year = int(satellite_datetime.strftime('%j'))
+            print(datetime_start+'...'+satellite_datetime+datetime_end)
+            print(day_of_year)
 
             if datetime_start <= satellite_datetime <= datetime_end:
                 try:
