@@ -82,14 +82,34 @@ def config_reader(FILEconfig):
 
 
 # user defined functions
-def create_list_products(path_source, path_out, wce, res_str, type_product):
+def create_list_products(path_source, path_out, wce, res_str, type_product,dt_start,dt_end,org):
+    if args.nolist:
+        return None
+
     path_to_list = f'{path_out}/file_{type_product}_{res_str}_list.txt'
-    if not args.nolist:
+    print(path_to_list)
+    print(org)
+
+    if org is None:
         cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:
             print(err)
+
+    if org=='YYYY_jjj':
+        dt = dt_start
+        while dt<=dt_end:
+            print(dt)
+            year = dt.strftime('%Y')
+            jday = dt.strftime('%j')
+            path_day = os.path.join(path_source,year,jday)
+            cmd = f'find {path_day} -name {wce}|sort|uniq> {path_to_list}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)
+            dt = dt + timedelta(hours=24)
 
     return path_to_list
 
@@ -715,17 +735,20 @@ def main():
 
 
     wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
-    path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite')
+    org = None
+    if options['file_path']['sat_source_dir_organization:']:
+        org = options['file_path']['sat_source_dir_organization']
+    path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite',datetime_start,datetime_end,org)
+
 
     if args.verbose:
         print(f'Satellite List: {path_to_satellite_list}')
         return
 
-    if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
-        os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
-    if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
-        os.remove(f'{path_out}/OL_2_{res}_list.txt')
+
+    # if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
+    #     os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
     # create extract and save it in internal folder
     if args.config_file:
