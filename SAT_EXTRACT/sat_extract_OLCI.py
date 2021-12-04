@@ -82,7 +82,7 @@ def config_reader(FILEconfig):
 
 
 # user defined functions
-def create_list_products(path_source, path_out, wce, res_str, type_product,dt_start,dt_end,org):
+def create_list_products(path_source, path_out, wce, res_str, type_product, dt_start, dt_end, org):
     if args.nolist:
         return None
 
@@ -98,13 +98,13 @@ def create_list_products(path_source, path_out, wce, res_str, type_product,dt_st
         if err:
             print(err)
 
-    if org=='YYYY_jjj':
+    if org == 'yyyy_jjj':
         dt = dt_start
-        while dt<=dt_end:
+        while dt <= dt_end:
             print(dt)
             year = dt.strftime('%Y')
             jday = dt.strftime('%j')
-            path_day = os.path.join(path_source,year,jday)
+            path_day = os.path.join(path_source, year, jday)
             cmd = f'find {path_day} -name {wce}|sort|uniq> {path_to_list}'
             prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
             out, err = prog.communicate()
@@ -172,16 +172,19 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
 
     return ws0, ws1, sza, saa, vza, vaa
 
-def launch_create_extract(in_situ_sites,size_box,path_source,res_str, make_brdf):
+
+def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_brdf):
     for site in in_situ_sites:
         in_situ_lat = in_situ_sites[site]['latitude']
         in_situ_lon = in_situ_sites[site]['longitude']
         path_output = in_situ_sites[site]['path_output']
         if not os.path.exists(path_output):
             os.mkdir(path_output)
-        extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf)
+        extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
+                                      make_brdf)
         if not extract_path is None:
             print(f'file created: {extract_path}')
+
 
 def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf):
     if args.verbose:
@@ -614,14 +617,14 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
     return ofname
 
 
-def get_sites_from_file(file_sites,site_list,region_list,path_out):
+def get_sites_from_file(file_sites, site_list, region_list, path_out):
     if not os.path.exists(file_sites):
         return None
     sites_info = config_reader(file_sites)
     in_situ_sites = {}
-    #print(site_list)
+    # print(site_list)
     for site in sites_info.sections():
-        #print('-----------------------',site)
+        # print('-----------------------',site)
         if sites_info[site]['make_MU'] != 'T':
             continue
         region = sites_info[site]['Region']
@@ -700,7 +703,7 @@ def main():
             in_situ_sites[station_name] = {
                 'latitude': in_situ_lat,
                 'longitude': in_situ_lon,
-                'path_out': os.path.join(path_out,station_name)
+                'path_out': os.path.join(path_out, station_name)
             }
         else:
             site_list = None
@@ -712,8 +715,9 @@ def main():
                 region_list = options['Time_and_sites_selection']['sites_region'].split(',')
                 region_list = [r.strip() for r in region_list]
 
-            in_situ_sites = get_sites_from_file(options['Time_and_sites_selection']['sites_file'],site_list,region_list,path_out)
-    #print(in_situ_sites)
+            in_situ_sites = get_sites_from_file(options['Time_and_sites_selection']['sites_file'], site_list,
+                                                region_list, path_out)
+    # print(in_situ_sites)
     if args.verbose:
         for site in in_situ_sites:
             lath = in_situ_sites[site]['latitude']
@@ -734,19 +738,16 @@ def main():
         else:
             datetime_end = datetime.today()
 
-
     wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
     org = None
     if options['file_path']['sat_source_dir_organization']:
         org = options['file_path']['sat_source_dir_organization']
-    path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite',datetime_start,datetime_end,org)
-
+    path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite',
+                                                  datetime_start, datetime_end, org)
 
     if args.verbose:
         print(f'Satellite List: {path_to_satellite_list}')
         return
-
-
 
     # if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
     #     os.remove(f'{path_out}/OL_2_{res}_list.txt')
@@ -756,8 +757,6 @@ def main():
         size_box = int(options['satellite_options']['extract_size'])
     else:
         size_box = 25
-
-
 
     if args.verbose:
         print(f'Start date: {datetime_start}')
@@ -803,7 +802,7 @@ def main():
                     #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
                     #                    res_str, make_brdf)
                     launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
-                    if day_of_year!=day_ref and day_ref!=-1 and os.path.exists(tmp_path):
+                    if day_of_year != day_ref and day_ref != -1 and os.path.exists(tmp_path):
                         print('Deleting temporary files...')
                         day_ref = day_of_year
                         cmd = f'rm -r {tmp_path}' + "\\*"
