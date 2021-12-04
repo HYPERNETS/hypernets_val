@@ -802,10 +802,11 @@ def main():
             date_format = '%Y%m%dT%H%M%S'
             satellite_datetime = datetime.strptime(datetime_str, date_format)
             day_of_year = int(satellite_datetime.strftime('%j'))
-            print(datetime_start+'...'+satellite_datetime+datetime_end)
+            print(datetime_start,'...',satellite_datetime,datetime_end)
             print(day_of_year)
 
             if datetime_start <= satellite_datetime <= datetime_end:
+                print('estamos aqui')
                 try:
                     # extract_path = \
                     #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
