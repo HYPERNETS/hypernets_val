@@ -181,19 +181,10 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
 
 
 def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_brdf):
-    print('y me llega aca')
     for site in in_situ_sites:
-        print('------------------------> ',site)
-
-    for site in in_situ_sites:
-        print('inicia el site: ',site)
-        print(in_situ_sites[site])
         in_situ_lat = in_situ_sites[site]['latitude']
-        print(in_situ_lat)
         in_situ_lon = in_situ_sites[site]['longitude']
-        print(in_situ_lon)
-        path_output = in_situ_sites[site]['path_output']
-        print('y el path output es: ',path_output)
+        path_output = in_situ_sites[site]['path_out']
         if not os.path.exists(path_output):
             os.mkdir(path_output)
         print(f'Creating extract for site: {site}')
@@ -815,7 +806,6 @@ def main():
             print(day_of_year)
 
             if datetime_start <= satellite_datetime <= datetime_end:
-                print('estamos aqui')
                 try:
                     # extract_path = \
                     #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
