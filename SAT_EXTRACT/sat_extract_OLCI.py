@@ -663,6 +663,10 @@ def main():
         if options['file_path']['output_dir']:
             path_out = options['file_path']['output_dir']
 
+    if args.verbose:
+        print(f'Path to output: {path_out}')
+    # if not os.path.isdir(path_out):
+    #     os.mkdir(path_out)
 
     # in situ sites
     in_situ_sites = {}
@@ -695,30 +699,6 @@ def main():
             lonh = in_situ_sites[site]['longitude']
             print(f'station_name: {site} with lat: {lath}, lon: {lonh}')
 
-
-    if args.verbose:
-        print(f'Path to output: {path_out}')
-    if not os.path.isdir(path_out):
-        os.mkdir(path_out)
-
-    wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
-    path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite')
-
-    if args.verbose:
-        print(f'Satellite List: {path_to_satellite_list}')
-
-    if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
-        os.remove(f'{path_out}/OL_2_{res}_list.txt')
-
-    if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
-        os.remove(f'{path_out}/OL_2_{res}_list.txt')
-
-    # create extract and save it in internal folder
-    if args.config_file:
-        size_box = int(options['satellite_options']['extract_size'])
-    else:
-        size_box = 25
-
     if args.config_file:
         datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
         datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(
@@ -732,6 +712,28 @@ def main():
             datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
         else:
             datetime_end = datetime.today()
+
+
+    wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
+    path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite')
+
+    if args.verbose:
+        print(f'Satellite List: {path_to_satellite_list}')
+        return
+
+    if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
+        os.remove(f'{path_out}/OL_2_{res}_list.txt')
+
+    if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
+        os.remove(f'{path_out}/OL_2_{res}_list.txt')
+
+    # create extract and save it in internal folder
+    if args.config_file:
+        size_box = int(options['satellite_options']['extract_size'])
+    else:
+        size_box = 25
+
+
 
     if args.verbose:
         print(f'Start date: {datetime_start}')
@@ -771,7 +773,7 @@ def main():
             satellite_datetime = datetime.strptime(datetime_str, date_format)
             day_of_year = int(satellite_datetime.strftime('%j'))
 
-            if satellite_datetime >= datetime_start and satellite_datetime <= datetime_end:
+            if datetime_start <= satellite_datetime <= datetime_end:
                 try:
                     # extract_path = \
                     #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
