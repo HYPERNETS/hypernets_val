@@ -181,10 +181,17 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
 
 
 def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_brdf):
-    print('y me llega aca, in_situ_sites es',in_situ_sites)
+    print('y me llega aca')
     for site in in_situ_sites:
+        print('------------------------> ',site)
+
+    for site in in_situ_sites:
+        print('inicia el site: ',site)
+        print(in_situ_sites[site])
         in_situ_lat = in_situ_sites[site]['latitude']
+        print(in_situ_lat)
         in_situ_lon = in_situ_sites[site]['longitude']
+        print(in_situ_lon)
         path_output = in_situ_sites[site]['path_output']
         print('y el path output es: ',path_output)
         if not os.path.exists(path_output):
@@ -699,8 +706,8 @@ def main():
 
     if args.verbose:
         print(f'Path to output: {path_out}')
-    if not os.path.isdir(path_out):
-        os.mkdir(path_out)
+    # if not os.path.isdir(path_out):
+    #     os.mkdir(path_out)
 
     # in situ sites
     in_situ_sites = {}
@@ -727,7 +734,7 @@ def main():
 
             in_situ_sites = get_sites_from_file(options['Time_and_sites_selection']['sites_file'], site_list,
                                                 region_list, path_out)
-    # print(in_situ_sites)
+
     if args.verbose:
         for site in in_situ_sites:
             lath = in_situ_sites[site]['latitude']
