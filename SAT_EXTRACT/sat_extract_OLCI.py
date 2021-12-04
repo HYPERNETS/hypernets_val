@@ -802,30 +802,29 @@ def main():
             date_format = '%Y%m%dT%H%M%S'
             satellite_datetime = datetime.strptime(datetime_str, date_format)
             day_of_year = int(satellite_datetime.strftime('%j'))
-            print(datetime_start,'...',satellite_datetime,datetime_end)
-            print(day_of_year)
+
 
             if datetime_start <= satellite_datetime <= datetime_end:
-                try:
+                #try:
                     # extract_path = \
                     #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
                     #                    res_str, make_brdf)
-                    launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
-                    if day_of_year != day_ref and os.path.exists(tmp_path):
-                        print('Deleting temporary files...')
-                        day_ref = day_of_year
-                        cmd = f'rm -r {tmp_path}' + "\\*"
-                        print(cmd)
-                        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
-                        out, err = prog.communicate()
-                        if err:
-                            print(err)
+                launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
+                if day_of_year != day_ref and os.path.exists(tmp_path):
+                    print('Deleting temporary files...')
+                    day_ref = day_of_year
+                    cmd = f'rm -r {tmp_path}' + "\\*"
+                    print(cmd)
+                    prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+                    out, err = prog.communicate()
+                    if err:
+                        print(err)
 
                 # except:
-                except Exception as e:
-                    if args.debug:
-                        print(f'Exception: {e}')
-                    pass
+                # except Exception as e:
+                #     if args.debug:
+                #         print(f'Exception: {e}')
+                #     pass
 
                 # if os.path.exists(path_to_list_daily):
                 #         os.remove(path_to_list_daily)
