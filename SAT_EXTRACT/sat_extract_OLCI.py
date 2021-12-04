@@ -89,6 +89,7 @@ def create_list_products(path_source, path_out, wce, res_str, type_product,dt_st
     path_to_list = f'{path_out}/file_{type_product}_{res_str}_list.txt'
     print(path_to_list)
     print(org)
+    print('estamos aqui...')
 
     if org is None:
         cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
@@ -736,7 +737,7 @@ def main():
 
     wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
     org = None
-    if options['file_path']['sat_source_dir_organization:']:
+    if options['file_path']['sat_source_dir_organization']:
         org = options['file_path']['sat_source_dir_organization']
     path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite',datetime_start,datetime_end,org)
 
