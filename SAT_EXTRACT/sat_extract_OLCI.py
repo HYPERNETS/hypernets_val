@@ -87,9 +87,16 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
         return None
 
     path_to_list = f'{path_out}/file_{type_product}_{res_str}_list.txt'
-    print(path_to_list)
-    print(org)
-    print('estamos aqui...')
+
+    if os.path.exists(path_to_list):
+        print('Deleting previous file list...')
+        cmd = f'rm {path_to_list}'
+        print(cmd)
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(err)
+
 
     if org is None:
         cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
@@ -105,7 +112,7 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
             year = dt.strftime('%Y')
             jday = dt.strftime('%j')
             path_day = os.path.join(path_source, year, jday)
-            cmd = f'find {path_day} -name {wce}|sort|uniq> {path_to_list}'
+            cmd = f'find {path_day} -name {wce}|sort|uniq>> {path_to_list}'
             prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
@@ -689,8 +696,8 @@ def main():
 
     if args.verbose:
         print(f'Path to output: {path_out}')
-    # if not os.path.isdir(path_out):
-    #     os.mkdir(path_out)
+    if not os.path.isdir(path_out):
+        os.mkdir(path_out)
 
     # in situ sites
     in_situ_sites = {}
