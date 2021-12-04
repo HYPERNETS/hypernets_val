@@ -108,7 +108,7 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
     if org == 'yyyy_jjj':
         dt = dt_start
         while dt <= dt_end:
-            print(dt)
+            print('Date: ',dt)
             year = dt.strftime('%Y')
             jday = dt.strftime('%j')
             path_day = os.path.join(path_source, year, jday)
@@ -187,6 +187,7 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
         path_output = in_situ_sites[site]['path_output']
         if not os.path.exists(path_output):
             os.mkdir(path_output)
+        print(f'Creating extract for site: {site}')
         extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
                                       make_brdf)
         if not extract_path is None:
@@ -754,7 +755,6 @@ def main():
 
     if args.verbose:
         print(f'Satellite List: {path_to_satellite_list}')
-        return
 
     # if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
     #     os.remove(f'{path_out}/OL_2_{res}_list.txt')
@@ -809,10 +809,11 @@ def main():
                     #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
                     #                    res_str, make_brdf)
                     launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
-                    if day_of_year != day_ref and day_ref != -1 and os.path.exists(tmp_path):
+                    if day_of_year != day_ref and os.path.exists(tmp_path):
                         print('Deleting temporary files...')
                         day_ref = day_of_year
                         cmd = f'rm -r {tmp_path}' + "\\*"
+                        print(cmd)
                         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
                         out, err = prog.communicate()
                         if err:
