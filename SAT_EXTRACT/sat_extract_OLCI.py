@@ -682,16 +682,13 @@ def main():
     if args.config_file:
         if options['file_path']['tmp_dir']:
             tmp_path = options['file_path']['tmp_dir']
-            tmp_path_del = os.path.join(tmp_path,'*')
+            tmp_path_del = os.path.join(tmp_path, '*')
             cmd = f'rm -r {tmp_path_del}'
             print(cmd)
             prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
                 print(err)
-        if args.verbose:
-            return
-
 
 
     # create list of sat granules
@@ -712,8 +709,8 @@ def main():
 
     if args.verbose:
         print(f'Path to output: {path_out}')
-    # if not os.path.isdir(path_out):
-    #     os.mkdir(path_out)
+    if not os.path.isdir(path_out):
+        os.mkdir(path_out)
 
     # in situ sites
     in_situ_sites = {}
@@ -825,14 +822,15 @@ def main():
                 #                    res_str, make_brdf)
                 launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
                 if day_of_year != day_ref and os.path.exists(tmp_path):
-                    print('Deleting temporary files...')
+                    if day_ref != -1:
+                        print('Deleting temporary files...')
+                        tmp_path_del = os.path.join(tmp_path, '*')
+                        cmd = f'rm -r {tmp_path_del}'
+                        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+                        out, err = prog.communicate()
+                        if err:
+                            print(err)
                     day_ref = day_of_year
-                    cmd = f'rm -r {tmp_path}' + "\\*"
-                    print(cmd)
-                    prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
-                    out, err = prog.communicate()
-                    if err:
-                        print(err)
 
                 # except:
                 # except Exception as e:
