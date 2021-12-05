@@ -682,7 +682,8 @@ def main():
     if args.config_file:
         if options['file_path']['tmp_dir']:
             tmp_path = options['file_path']['tmp_dir']
-            cmd = f'rm -r {tmp_path}' + "\\*"
+            tmp_path_del = os.path.join(tmp_path,'*')
+            cmd = f'rm -r {tmp_path_del}'
             print(cmd)
             prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
             out, err = prog.communicate()
