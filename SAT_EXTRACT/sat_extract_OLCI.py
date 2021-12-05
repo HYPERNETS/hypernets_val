@@ -97,7 +97,6 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
         if err:
             print(err)
 
-
     if org is None:
         cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
@@ -108,7 +107,7 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
     if org == 'yyyy_jjj':
         dt = dt_start
         while dt <= dt_end:
-            print('Date: ',dt)
+            print('Date: ', dt)
             year = dt.strftime('%Y')
             jday = dt.strftime('%j')
             path_day = os.path.join(path_source, year, jday)
@@ -182,16 +181,21 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
 
 def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_brdf):
     for site in in_situ_sites:
-        in_situ_lat = float(in_situ_sites[site]['latitude'])
-        in_situ_lon = float(in_situ_sites[site]['longitude'])
-        path_output = in_situ_sites[site]['path_out']
-        if not os.path.exists(path_output):
-            os.mkdir(path_output)
-        print(f'Creating extract for site: {site}')
-        extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
-                                      make_brdf)
-        if not extract_path is None:
-            print(f'file created: {extract_path}')
+        try:
+            in_situ_lat = float(in_situ_sites[site]['latitude'])
+            in_situ_lon = float(in_situ_sites[site]['longitude'])
+            path_output = in_situ_sites[site]['path_out']
+            if not os.path.exists(path_output):
+                os.mkdir(path_output)
+            print(f'Creating extract for site: {site}')
+            extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
+                                          make_brdf)
+            if not extract_path is None:
+                print(f'file created: {extract_path}')
+        except Exception as e:
+            if args.debug:
+                print(f'Exception: {e}')
+                pass
 
 
 def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf):
@@ -678,6 +682,16 @@ def main():
     if args.config_file:
         if options['file_path']['tmp_dir']:
             tmp_path = options['file_path']['tmp_dir']
+            cmd = f'rm -r {tmp_path}' + "\\*"
+            print(cmd)
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)
+        if args.verbose:
+            return
+
+
 
     # create list of sat granules
     if not args.config_file:
@@ -803,12 +817,11 @@ def main():
             satellite_datetime = datetime.strptime(datetime_str, date_format)
             day_of_year = int(satellite_datetime.strftime('%j'))
 
-
             if datetime_start <= satellite_datetime <= datetime_end:
-                #try:
-                    # extract_path = \
-                    #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
-                    #                    res_str, make_brdf)
+                # try:
+                # extract_path = \
+                #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
+                #                    res_str, make_brdf)
                 launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
                 if day_of_year != day_ref and os.path.exists(tmp_path):
                     print('Deleting temporary files...')
