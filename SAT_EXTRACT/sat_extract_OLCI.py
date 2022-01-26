@@ -139,26 +139,6 @@ def get_val_from_tie_point_grid(yPoint, xPoint, ySubsampling, xSubsampling, data
     val = x00 + (wi * (x10 - x00)) + (wj * (x01 - x00)) + (wi * wj * (x11 + x00 - x01 - x10))
     return val
 
-    # yTGP = math.floor(float(yPoint) / float(ySubsampling))
-    # yInterp = float(yPoint) % float(ySubsampling)
-    # xTGP = math.floor(float(xPoint) / float(xSubsampling))
-    # xInterp = float(xPoint) % float(xSubsampling)
-    # center = dataset[yTGP, xTGP]
-    # ySpace = (dataset[yTGP + 1, xTGP] - center) / ySubsampling
-    # yValue = center + (yInterp * ySpace)
-    # xSpace = (dataset[yTGP, xTGP + 1] - center) / xSubsampling
-    # xValue = center + (xInterp * xSpace)
-    #
-    # if ySubsampling == 1 and xSubsampling == 1:
-    #     return center
-    # elif ySubsampling == 1 and xSubsampling > 1:
-    #     return xValue
-    # elif ySubsampling > 1 and xSubsampling == 1:
-    #     return yValue
-    # else:
-    #     valueFin = (yValue + xValue) / 2
-    #     return valueFin
-
 
 def floor_and_crop(v, minV, maxV):
     rv = math.floor(v)
