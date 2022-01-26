@@ -1075,7 +1075,7 @@ path_out = '/home/lois/DATA/ANALYSIS'
 path_file = '/home/lois/DATA/MDBs/MDB_S3B_OLCI_WFR_L2_HYPERNETS_VEIT.nc'
 mdb_file = MDBFile(path_file)
 mdb_file.load_mu_data(10)
-mdb_file.plot_spectra()
+mdb_file.plot_spectra(None)
 
     # if dataTOplot.RRS.size == 0:
     #     print ('no PANTHYR MDBs found!')
