@@ -1,13 +1,13 @@
 ## config file for creating satellite extracts
 [file_path]
-sat_source_dir: /Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/Images/OLCI/MDB_test
-output_dir: /Users/javier.concha/Desktop/Javier/2019_Roma/CNR_Research/HYPERNETS/HYPERNETS_D7p2/MDB_py/ODATA/EXTRACTS
+sat_source_dir: /home/lois/DATA/INPUT_SAT
+output_dir: /home/lois/DATA/EXTRACTS
 
 [Time_and_sites_selection]
 #first and last dates for analysis. Format: YYYY-MM-DD
-time_start: 2021-01-01
-time_stop: 2021-07-07
-sites: BEFR
+time_start: 2021-02-15
+time_stop: 2021-03-25
+sites: VEIT
 
 [satellite_options]
 sat_prefix: satellite_

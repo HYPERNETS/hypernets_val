@@ -122,28 +122,51 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
 
 
 def get_val_from_tie_point_grid(yPoint, xPoint, ySubsampling, xSubsampling, dataset):
-    yTGP = math.floor(float(yPoint) / float(ySubsampling))
-    yInterp = float(yPoint) % float(ySubsampling)
-    xTGP = math.floor(float(xPoint) / float(xSubsampling))
-    xInterp = float(xPoint) % float(xSubsampling)
-    center = dataset[yTGP, xTGP]
-    ySpace = (dataset[yTGP + 1, xTGP] - center) / ySubsampling
-    yValue = center + (yInterp * ySpace)
-    xSpace = (dataset[yTGP, xTGP + 1] - center) / xSubsampling
-    xValue = center + (xInterp * xSpace)
+    grid_height = dataset.shape[0]
+    grid_width = dataset.shape[1]
+    fi = (xPoint + 0.5) / xSubsampling
+    fj = (yPoint + 0.5) / ySubsampling
+    i0 = floor_and_crop(fi, 0, grid_width - 2)
+    j0 = floor_and_crop(fj, 0, grid_height - 2)
+    i1 = i0 + 1
+    j1 = j0 + 1
+    wi = fi - i0
+    wj = fj - j0
+    x00 = dataset[j0, i0]
+    x10 = dataset[j0, i1]
+    x01 = dataset[j1, i0]
+    x11 = dataset[j1, i1]
+    val = x00 + (wi * (x10 - x00)) + (wj * (x01 - x00)) + (wi * wj * (x11 + x00 - x01 - x10))
+    return val
 
-    if yPoint == 1090 and xPoint == 1192:
-        print('Center is: ', center, 'YTGP ', yTGP, 'XTGP ', xTGP)
+    # yTGP = math.floor(float(yPoint) / float(ySubsampling))
+    # yInterp = float(yPoint) % float(ySubsampling)
+    # xTGP = math.floor(float(xPoint) / float(xSubsampling))
+    # xInterp = float(xPoint) % float(xSubsampling)
+    # center = dataset[yTGP, xTGP]
+    # ySpace = (dataset[yTGP + 1, xTGP] - center) / ySubsampling
+    # yValue = center + (yInterp * ySpace)
+    # xSpace = (dataset[yTGP, xTGP + 1] - center) / xSubsampling
+    # xValue = center + (xInterp * xSpace)
+    #
+    # if ySubsampling == 1 and xSubsampling == 1:
+    #     return center
+    # elif ySubsampling == 1 and xSubsampling > 1:
+    #     return xValue
+    # elif ySubsampling > 1 and xSubsampling == 1:
+    #     return yValue
+    # else:
+    #     valueFin = (yValue + xValue) / 2
+    #     return valueFin
 
-    if ySubsampling == 1 and xSubsampling == 1:
-        return center
-    elif ySubsampling == 1 and xSubsampling > 1:
-        return xValue
-    elif ySubsampling > 1 and xSubsampling == 1:
-        return yValue
-    else:
-        valueFin = (yValue + xValue) / 2
-        return valueFin
+
+def floor_and_crop(v, minV, maxV):
+    rv = math.floor(v)
+    if rv < minV:
+        return minV
+    if rv > maxV:
+        return maxV
+    return rv
 
 
 def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
@@ -255,14 +278,20 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
         start_idx_y = (r - int(size_box / 2))
         stop_idx_y = (r + int(size_box / 2) + 1)
 
-        if r >= 0 and r + 1 < lat.shape[0] and c >= 0 and c + 1 < lat.shape[1]:
+        if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < lat.shape[
+            1]:
 
+            # print(r, c, in_situ_lat, in_situ_lon)
             # read variables
+            if args.verbose:
+                print('Reading variables...')
+
             filepah = os.path.join(path_source, rhow_0400p00_filename)
             nc_sat = Dataset(filepah, 'r')
             rhow_0400p00 = nc_sat.variables['Oa01_reflectance'][:]
             satellite_start_time = nc_sat.start_time  # reading here start time
             # satellite_stop_time = nc_sat.stop_time
+
             nc_sat.close()
 
             filepah = os.path.join(path_source, rhow_0412p50_filename)
@@ -354,6 +383,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
 
             # Calculate BRDF (it uses CHL_OC4ME_extract)
             if make_brdf:
+                if args.verbose:
+                    print('Making BRDF...')
                 filepah = os.path.join(path_source, 'chl_oc4me.nc')
                 nc_sat1 = Dataset(filepah, 'r')
                 CHL_OC4ME = nc_sat1.variables['CHL_OC4ME'][:]
@@ -447,14 +478,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 new_EXTRACT.createDimension('satellite_BRDF_bands', 7)
 
             # geometry variables
-            # satellite_geometry_bands = new_EXTRACT.createVariable('satellite_geometry_bands', 'S3',
-            #                                                       ('satellite_geometry'), fill_value=-999,
-            #                                                       zlib=True, complevel=6)
-            # satellite_geometry_bands[0] = 'Sun Zenith Angle (SZA)'
-            # satellite_geometry_bands[1] = 'Sun Azimuth Angle (SAA)'
-            # satellite_geometry_bands[2] = 'Observation Zenith Angle (OZA)'
-            # satellite_geometry_bands[3] = 'Observation Azimuth Angle (OAA)'
-
+            if args.verbose:
+                print('Creating geometry variables...')
             filepah = os.path.join(path_source, 'tie_geometries.nc')
             nc_sat = Dataset(filepah, 'r')
             xsubsampling = nc_sat.getncattr('ac_subsampling_factor')
@@ -468,18 +493,22 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                                               zlib=True, complevel=6)
             SZAO.units = 'degress'
             SZAO.long_name = 'Sun Zenith Angle'
+
             SAAO = new_EXTRACT.createVariable('SAA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                               zlib=True, complevel=6)
             SAAO.units = 'degress'
             SAAO.long_name = 'Sun Azimuth Angle'
+
             OZAO = new_EXTRACT.createVariable('OZA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                               zlib=True, complevel=6)
             OZAO.units = 'degress'
             OZAO.long_name = 'Observation Zenith Angle'
+
             OAAO = new_EXTRACT.createVariable('OAA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                               zlib=True, complevel=6)
             OAAO.units = 'degress'
             OAAO.long_name = 'Observation Azimuth Angle'
+
             for yy in range(size_box):
                 for xx in range(size_box):
                     yPos = start_idx_y + yy
@@ -490,6 +519,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                     OAAO[0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, OAA)
 
             # time
+            if args.verbose:
+                print('Adding time and PDU...')
             satellite_time = new_EXTRACT.createVariable('satellite_time', 'f4', ('satellite_id'), fill_value=-999,
                                                         zlib=True, complevel=6)
             satellite_time[0] = float(datetime.strptime(satellite_start_time, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
@@ -502,6 +533,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_PDU.long_name = "OLCI source PDU name"
 
             # latitude
+            if args.verbose:
+                print('Adding latitude and longitude...')
             satellite_latitude = new_EXTRACT.createVariable('satellite_latitude', 'f8',
                                                             ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                             zlib=True, complevel=6)
@@ -516,6 +549,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_longitude.short_name = 'longitude'
 
             # Variable satellite_bands (wavelenghts for Rrs)
+            if args.verbose:
+                print('Adding satellite bands and reflectances...')
             satellite_bands = new_EXTRACT.createVariable('satellite_bands', 'f4', ('satellite_bands'), fill_value=-999,
                                                          zlib=True, complevel=6)
             satellite_bands[:] = [0400.00, 0412.50, 0442.50, 0490.00, 0510.00, 0560.00, 0620.00, 0665.00, 0673.75,
@@ -617,8 +652,6 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_WQSF.flag_meanings = WQSF_flag_meanings
 
             new_EXTRACT.close()
-            # print('Extract created!')
-
         else:
             if args.verbose:
                 print('Warning: Index out of bound!')
@@ -629,31 +662,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
     return ofname
 
 
-def get_sites_from_file(file_sites, site_list, region_list, path_out):
-    if not os.path.exists(file_sites):
-        return None
-    sites_info = config_reader(file_sites)
-    in_situ_sites = {}
-    # print(site_list)
-    for site in sites_info.sections():
-        # print('-----------------------',site)
-        if sites_info[site]['make_MU'] != 'T':
-            continue
-        region = sites_info[site]['Region']
-        if not site_list is None and not site in site_list:
-            continue
-        if not region_list is None and not region in region_list:
-            continue
-
-        in_situ_sites[site] = {
-            'latitude': sites_info[site]['Latitude'],
-            'longitude': sites_info[site]['Longitude'],
-            'path_out': os.path.join(path_out, site)
-        }
-    return in_situ_sites
-
-
-# #############################
+#############################
 # %%
 def main():
     print('Creating satellite extracts.')
@@ -672,15 +681,24 @@ def main():
     if args.path_to_sat:
         satellite_path_source = args.path_to_sat
     elif args.config_file:
+        if not options.has_option('file_path', 'sat_source_dir'):
+            print(
+                f'Error: Section file_path, Option sat_source_dir is not available in the config file: {args.config_file}')
+            return
         if options['file_path']['sat_source_dir']:
             satellite_path_source = options['file_path']['sat_source_dir']
+
+    if not os.path.exists(satellite_path_source):
+        print(f'ERROR path: {satellite_path_source} does not exit')
+        return
+
     if args.verbose:
         print(f'Path to satellite sources: {satellite_path_source}')
 
     # temporay path
     tmp_path = None
     if args.config_file:
-        if options['file_path']['tmp_dir']:
+        if options.has_option('file_path', 'tmp_dir') and options['file_path']['tmp_dir']:
             tmp_path = options['file_path']['tmp_dir']
             tmp_path_del = os.path.join(tmp_path, '*')
             cmd = f'rm -r {tmp_path_del}'
@@ -690,7 +708,6 @@ def main():
             if err:
                 print(err)
 
-
     # create list of sat granules
     if not args.config_file:
         if args.resolution == 'WRR':
@@ -698,7 +715,9 @@ def main():
         else:
             res = 'WFR'
     else:
-        res = options['satellite_options']['resolution']
+        res = 'WFR'
+        if options.has_option('satellite_options', 'resolution'):
+            res = options['satellite_options']['resolution']
 
     # path to output
     if args.output:
@@ -716,27 +735,37 @@ def main():
     in_situ_sites = {}
     if args.sitename:
         station_name = args.sitename
+        in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
+        in_situ_sites[station_name] = {
+            'latitude': in_situ_lat,
+            'longitude': in_situ_lon,
+            'path_out': os.path.join(path_out, station_name)
+        }
     elif args.config_file:
-        if not options['Time_and_sites_selection']['sites_file']:
-            station_name = options['Time_and_sites_selection']['sites']
-            in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
-            in_situ_sites[station_name] = {
-                'latitude': in_situ_lat,
-                'longitude': in_situ_lon,
-                'path_out': os.path.join(path_out, station_name)
-            }
+        if not options.has_option('Time_and_sites_selection', 'sites'):
+            print(
+                f'Error: Section Time_and_sites_selection, Option sites is not available in the config file: {args.config_file}')
+            return
+
+        if not options.has_option('Time_and_sites_selection', 'sites_file') or \
+                (options.has_option('Time_and_sites_selection', 'sites_file') and not
+                options['Time_and_sites_selection']['sites_file']):
+            site_list = options['Time_and_sites_selection']['sites'].split(',')
+            site_list = [s.strip() for s in site_list]
+            in_situ_sites = cfs.get_sites_from_list(site_list, path_out)
         else:
             site_list = None
             region_list = None
             if options['Time_and_sites_selection']['sites']:
                 site_list = options['Time_and_sites_selection']['sites'].split(',')
                 site_list = [s.strip() for s in site_list]
-            if not options['Time_and_sites_selection']['sites'] and options['Time_and_sites_selection']['sites_region']:
+            if not options['Time_and_sites_selection']['sites'] and \
+                    (options.has_option('Time_and_sites_selection', 'sites_region') and
+                     options['Time_and_sites_selection']['sites_region']):
                 region_list = options['Time_and_sites_selection']['sites_region'].split(',')
                 region_list = [r.strip() for r in region_list]
-
-            in_situ_sites = get_sites_from_file(options['Time_and_sites_selection']['sites_file'], site_list,
-                                                region_list, path_out)
+            in_situ_sites = cfs.get_sites_from_file(options['Time_and_sites_selection']['sites_file'], site_list,
+                                                    region_list, path_out)
 
     if args.verbose:
         for site in in_situ_sites:
@@ -745,9 +774,20 @@ def main():
             print(f'station_name: {site} with lat: {lath}, lon: {lonh}')
 
     if args.config_file:
-        datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
-        datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(
-            seconds=59, minutes=59, hours=23)
+        datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+        datetime_end = datetime.today()
+        if options.has_option('Time_and_sites_selection', 'time_start'):
+            try:
+                datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+            except:
+                print(f'WARNING: time_start format is not valid. Usind dafult value: 2000-01-01')
+
+        if options.has_option('Time_and_sites_selection', 'time_end'):
+            try:
+                datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'],
+                                                 '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
+            except:
+                print(f'WARNING: time_end format is not valid. Usind dafult value: today')
     else:
         if args.startdate:
             datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
@@ -759,9 +799,12 @@ def main():
             datetime_end = datetime.today()
 
     wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
+
     org = None
-    if options['file_path']['sat_source_dir_organization']:
+    if options.has_option('file_path', 'sat_source_dir_organization') and \
+            options['file_path']['sat_source_dir_organization']:
         org = options['file_path']['sat_source_dir_organization']
+
     path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite',
                                                   datetime_start, datetime_end, org)
 
@@ -772,19 +815,19 @@ def main():
     #     os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
     # create extract and save it in internal folder
+    size_box = 25
     if args.config_file:
-        size_box = int(options['satellite_options']['extract_size'])
-    else:
-        size_box = 25
+        if options.has_option('satellite_options', 'extract_size'):
+            size_box = int(options['satellite_options']['extract_size'])
 
     if args.verbose:
         print(f'Start date: {datetime_start}')
         print(f'End date: {datetime_end}')
 
+    make_brdf = False
     if args.config_file:
-        make_brdf = True if options['satellite_options']['brdf'] == 'T' else False
-    else:
-        make_brdf = False
+        if options.has_option('satellite_options', 'brdf'):
+            make_brdf = True if options['satellite_options']['brdf'] == 'T' else False
 
     day_ref = -1
     with open(path_to_satellite_list, 'r') as file:
@@ -816,12 +859,8 @@ def main():
             day_of_year = int(satellite_datetime.strftime('%j'))
 
             if datetime_start <= satellite_datetime <= datetime_end:
-                # try:
-                # extract_path = \
-                #     create_extract(size_box, station_name, path_to_sat_source, path_out, in_situ_lat, in_situ_lon,
-                #                    res_str, make_brdf)
                 launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
-                if day_of_year != day_ref and os.path.exists(tmp_path):
+                if day_of_year != day_ref and not tmp_path is None:
                     if day_ref != -1:
                         print('Deleting temporary files...')
                         tmp_path_del = os.path.join(tmp_path, '*')
@@ -832,14 +871,7 @@ def main():
                             print(err)
                     day_ref = day_of_year
 
-                # except:
-                # except Exception as e:
-                #     if args.debug:
-                #         print(f'Exception: {e}')
-                #     pass
 
-                # if os.path.exists(path_to_list_daily):
-                #         os.remove(path_to_list_daily)
             else:
                 if args.verbose:
                     print('Warning: Out of time frame.')
