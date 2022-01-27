@@ -255,6 +255,7 @@ def get_reflectance_bands_info(options):
 
     reflectance_bands = {}
     rbandlist = options['band_options']['reflectance_bands'].split(',')
+
     for rband in rbandlist:
         rbandinfo = rband.split(':')
         if len(rbandinfo) == 2:
@@ -266,19 +267,6 @@ def get_reflectance_bands_info(options):
                 print(f'WARNING: Wavelenght for band: {nameband} is not valid. Band is not included')
 
     reflectance_bands_group = options['band_options']['reflectance_group']
-    # reflectance_bands = {
-    #     'Rrs_411': {'wavelenght': 411},
-    #     'Rrs_445': {'wavelenght': 445},
-    #     'Rrs_489': {'wavelenght': 489},
-    #     'Rrs_556': {'wavelenght': 556},
-    #     'Rrs_667': {'wavelenght': 667},
-    #     'Rrs_746': {'wavelenght': 746},
-    #     'Rrs_868': {'wavelenght': 868},
-    #     'Rrs_1238': {'wavelenght': 1238},
-    #     'Rrs_1604': {'wavelenght': 1604},
-    #     'Rrs_2258': {'wavelenght': 2258},
-    # }
-    # reflectance_bands_group = 'geophysical_data'
     nbands = len(reflectance_bands)
     return reflectance_bands, reflectance_bands_group, nbands
 
