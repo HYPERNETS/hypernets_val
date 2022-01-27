@@ -66,9 +66,9 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'Berre' or station_name == 'BEFR':  # Adriatic Sea
         Latitude = 43.4484
         Longitude = 5.1012
-    elif station_name == 'RdP-WT':
-        Latitude = -34.543611
-        Longitude = -58.418056
+    elif station_name == 'RdP-EsNM':
+        Latitude = -34.818
+        Longitude = -57.8959
     else:
         Latitude = None
         Longitude = None
