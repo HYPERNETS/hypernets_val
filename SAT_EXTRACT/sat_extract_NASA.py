@@ -6,11 +6,11 @@ from netCDF4 import Dataset
 from datetime import datetime as dt
 from datetime import timedelta
 import numpy.ma as ma
+import subprocess
 
 # import user defined functions from other .py
 code_home = os.path.abspath('../')
 sys.path.append(code_home)
-from SAT_EXTRACT.sites_mng import SitesMng
 from SAT_EXTRACT.sat_extract import SatExtract
 import COMMON.common_functions as cfs
 
@@ -24,52 +24,77 @@ args = parser.parse_args()
 
 
 def launch_create_extract(filepath, options):
+    ncreated = 0
+
     # Retrieving sites
-    smng = SitesMng()
     path_output = get_output_path(options)
+    if path_output is None:
+        print(f'ERROR: {path_output} is not valid')
+        return ncreated
+
     site_file, site_list, region_list = get_site_options(options)
-    if not site_file is None:
-        sites = smng.get_sites_from_file(site_file, site_list, region_list, path_output)
+    if site_file is not None:
+        sites = cfs.get_sites_from_file(site_file, site_list, region_list, path_output)
     else:
-        sites = smng.get_sites_from_list(site_list, path_output)
+        sites = cfs.get_sites_from_list(site_list, path_output)
 
     if len(sites) == 0:
-        print('WARNING: Site is not defined...')
+        print('ERROR: No sites are defined')
+        return ncreated
 
     # Start datase
+    if args.verbose:
+        print('Starting dataset...')
     nc_sat = Dataset(filepath, 'r')
 
     # Retriving lat and long arrays
+    if args.verbose:
+        print('Retrieving lat/long data...')
     lat, lon = get_lat_long_arrays(options, nc_sat)
 
     # Retrieving global atribbutes
+    if args.verbose:
+        print('Retrieving global attributes...')
     global_at = get_global_atrib(nc_sat)
 
     # Working for each site, checking if there is in the image
     for site in sites:
+        if args.verbose:
+            print(f'Working for site: {site}')
         insitu_lat = sites[site]['latitude']
         insitu_lon = sites[site]['longitude']
         contain_flag = 0
         if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
             r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-            if r >= 0 and r + 1 < lat.shape[0] and c >= 0 and c + 1 < lat.shape[1]:
+            size_box = get_box_size(options)
+            start_idx_x = (c - int(size_box / 2))
+            stop_idx_x = (c + int(size_box / 2) + 1)
+            start_idx_y = (r - int(size_box / 2))
+            stop_idx_y = (r + int(size_box / 2) + 1)
+            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                    lat.shape[1]:
                 contain_flag = 1
         if contain_flag == 1:
             filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
-            global_at['pdu'] = [filepath.split('/')[-1]]
-
+            pdu = filepath.split('/')[-1]
             if not os.path.exists(sites[site]['path_out']):
                 os.mkdir(sites[site]['path_out'])
             ofname = os.path.join(sites[site]['path_out'], filename)
             global_at['station_name'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
-            create_extract(ofname, options, nc_sat, global_at, lat, lon, r, c)
+            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c)
+            if res:
+                ncreated = ncreated + 1
+                print(f'Extract file created: {ofname}')
         else:
-            print('Station out of the image')
+            if args.verbose:
+                print(f'WARNING: Site {site} out of the image')
+
+    return ncreated
 
 
-def create_extract(ofname, options, nc_sat, global_at, lat, long, r, c):
+def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c):
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
     stop_idx_x = (c + int(size_box / 2) + 1)
@@ -77,19 +102,32 @@ def create_extract(ofname, options, nc_sat, global_at, lat, long, r, c):
     stop_idx_y = (r + int(size_box / 2) + 1)
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
+    reflectance_bands, reflectance_bands_group, n_bands = get_reflectance_bands_info(options)
+    if n_bands == 0:
+        print('ERROR: reflectance bands are not defined')
+        return False
+    flag_band_name, flag_band_group = get_flags_info(options)
+    if flag_band_name is None or flag_band_group is None:
+        print('ERROR: flag band is not defined')
+        return False
+
     newEXTRACT = SatExtract(ofname)
     if not newEXTRACT.FILE_CREATED:
-        print('File not created')
-        return
+        print(f'ERROR: File {ofname} could not be created')
+        return False
 
+    if args.verbose:
+        print(f'Creating file: {ofname}')
     newEXTRACT.set_global_attributes(global_at)
-    reflectance_bands, reflectance_bands_group, n_bands = get_reflectance_bands_info(options)
     newEXTRACT.create_dimensions(size_box, n_bands)
 
     newEXTRACT.create_lat_long_variables(lat, long, window)
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
     newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.time_coverage_start, '%Y-%m-%dT%H:%M:%S.%fZ'))
+
+    # pdu variable
+    newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
 
     # Rrs and wavelenghts
     satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
@@ -105,11 +143,12 @@ def create_extract(ofname, options, nc_sat, global_at, lat, long, r, c):
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
 
     # flags
-    flag_band_name, flag_band_group = get_flags_info(options)
     flag_group = nc_sat.groups[flag_band_group]
     flag_band = flag_group.variables[flag_band_name]
     newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, flag_band.long_name, flag_band.flag_masks,
                                     flag_band.flag_meanings, window)
+
+    return True
 
 
 def config_reader(FILEconfig):
@@ -127,15 +166,30 @@ def config_reader(FILEconfig):
 
 
 def get_output_path(options):
-    if 'file_path' in options and 'output_dir' in options['file_path']:
-        return options['file_path']['output_dir']
+    if options.has_option('file_path', 'output_dir'):
+        output_path = options['file_path']['output_dir']
+        if not os.path.exists(output_path):
+            if args.verbose:
+                print(f'WARNING: Creating new output path: {output_path}')
+                try:
+                    os.mkdir(output_path)
+                except OSError:
+                    print(f'ERROR: Folder: {output_path} could not be creaded')
+                    return None
+        if args.verbose:
+            print(f'Output path:{output_path}')
+        return output_path
     else:
+        prinf('ERROR: section:file_path, option: output_dir is not included in the configuration file')
         return None
 
 
 def get_box_size(options):
-    if 'satellite_options' in options and 'extract_size' in options['satellite_options']:
-        size_box = int(options['satellite_options']['extract_size'])
+    if options.has_option('satellite_options', 'extract_size'):
+        try:
+            size_box = int(options['satellite_options']['extract_size'])
+        except:
+            size_box = 25
     else:
         size_box = 25
     return size_box
@@ -145,12 +199,17 @@ def get_site_options(options):
     site_file = None
     site_list = None
     region_list = None
-    if options['Time_and_sites_selection']['sites_file']:
+    if not options.has_option('Time_and_sites_selection', 'sites'):
+        print(f'ERROR: section Time_and_sites_selection, option sites not found in configuration file')
+    if options.has_option('Time_and_sites_selection', 'sites_file') and \
+            options['Time_and_sites_selection']['sites_file']:
         site_file = options['Time_and_sites_selection']['sites_file']
     if options['Time_and_sites_selection']['sites']:
         site_list = options['Time_and_sites_selection']['sites'].split(',')
         site_list = [s.strip() for s in site_list]
-    if not options['Time_and_sites_selection']['sites'] and options['Time_and_sites_selection']['sites_region']:
+    if not options['Time_and_sites_selection']['sites'] and \
+            options.has_option('Time_and_sites_selection', 'sites_region') and \
+            options['Time_and_sites_selection']['sites_region']:
         region_list = options['Time_and_sites_selection']['sites_region'].split(',')
         region_list = [r.strip() for r in region_list]
     return site_file, site_list, region_list
@@ -181,32 +240,59 @@ def get_global_atrib(nc_sat):
     at['station_name'] = ''
     at['in_situ_lat'] = -999
     at['in_situ_lon'] = -999
-    at['pdu'] = ''
 
     return at
 
 
 def get_reflectance_bands_info(options):
-    reflectance_bands = {
-        'Rrs_411': {'wavelenght': 411},
-        'Rrs_445': {'wavelenght': 445},
-        'Rrs_489': {'wavelenght': 489},
-        'Rrs_556': {'wavelenght': 556},
-        'Rrs_667': {'wavelenght': 667},
-        'Rrs_746': {'wavelenght': 746},
-        'Rrs_868': {'wavelenght': 868},
-        'Rrs_1238': {'wavelenght': 1238},
-        'Rrs_1604': {'wavelenght': 1604},
-        'Rrs_2258': {'wavelenght': 2258},
-    }
-    reflectance_bands_group = 'geophysical_data'
+    reflectance_bands = None
+    reflectance_bands_group = None
+    nbands = 0
+    if not options.has_option('band_options', 'reflectance_group') \
+            or not options.has_option('band_options', 'reflectance_bands'):
+        print('ERROR: options reflectance_group and/or reflectance_bands are not defined in the configuration file')
+        return reflectance_bands, reflectance_bands_group, nbands
+
+    reflectance_bands = {}
+    rbandlist = options['band_options']['reflectance_bands'].split(',')
+    for rband in rbandlist:
+        rbandinfo = rband.split(':')
+        if len(rbandinfo) == 2:
+            try:
+                nameband = rbandinfo[0]
+                wl = float(rbandinfo[1])
+                reflectance_bands[nameband] = {'wavelenght': wl}
+            except ValueError:
+                print(f'WARNING: Wavelenght for band: {nameband} is not valid. Band is not included')
+
+    reflectance_bands_group = options['band_options']['reflectance_group']
+    # reflectance_bands = {
+    #     'Rrs_411': {'wavelenght': 411},
+    #     'Rrs_445': {'wavelenght': 445},
+    #     'Rrs_489': {'wavelenght': 489},
+    #     'Rrs_556': {'wavelenght': 556},
+    #     'Rrs_667': {'wavelenght': 667},
+    #     'Rrs_746': {'wavelenght': 746},
+    #     'Rrs_868': {'wavelenght': 868},
+    #     'Rrs_1238': {'wavelenght': 1238},
+    #     'Rrs_1604': {'wavelenght': 1604},
+    #     'Rrs_2258': {'wavelenght': 2258},
+    # }
+    # reflectance_bands_group = 'geophysical_data'
     nbands = len(reflectance_bands)
     return reflectance_bands, reflectance_bands_group, nbands
 
 
 def get_flags_info(options):
-    flag_band_name = 'l2_flags'
-    flag_band_group = 'geophysical_data'
+    flag_band_name = None
+    flag_band_group = None
+
+    if not options.has_option('band_options', 'flag_group') \
+            or not options.has_option('band_options', 'flag_band'):
+        print('ERROR: options flag_group and/or flag_bands are not defined in the configuration file')
+    else:
+        flag_band_name = options['band_options']['flag_band']
+        flag_band_group = options['band_options']['flag_group']
     return flag_band_name, flag_band_group
 
 
@@ -229,7 +315,13 @@ def get_find_product_info(options):
 
 
 def check_product(filepath, sensor, platform, time_start, time_stop):
-    nc_sat = Dataset(filepath, 'r')
+    try:
+        nc_sat = Dataset(filepath, 'r')
+    except OSError:
+        if args.verbose:
+            print(f'WARNING: {filepath} is not a valid dataset. Skipping...')
+        return False
+
     checkIns = False
     checkPlat = False
     checkTime = False
@@ -243,28 +335,75 @@ def check_product(filepath, sensor, platform, time_start, time_stop):
 
     check_res = True
     if not checkIns:
-        print(f'Attribute instrument is not available in the dataset, or not equal to: {sensor}')
+        if args.verbose:
+            print(
+                f'WARNING: Attribute instrument is not available in the dataset, or not equal to: {sensor}. Skipping...')
         check_res = False
-    if not checkPlat:
-        fprint('Attribute platform is not available in the dataset, or not equal to: {platform}')
+    if not checkPlat and check_res:
+        if args.verbose:
+            print(
+                f'WARNING: Attribute platform is not available in the dataset, or not equal to: {platform}. Skipping...')
         check_res = False
-    if not checkTime:
-        fprint('Attribute time_coverage_start is not available in the dataset, or not equal to: {platform}')
+    if not checkTime and check_res:
+        if args.verbose:
+            print(f'WARNING: Attribute time_coverage_start is not available in the dataset. Skipping...')
         check_res = False
-    else:
+    if check_res:
         if time_sat < time_start or time_sat > time_stop:
-            fprint('Product is out of the temporal coverage')
+            if args.verbose:
+                print('WARNING: Product is out of the temporal coverage. Skipping...')
             check_res = False
 
     return check_res
 
 
-def create_list_products(path_source, org, wce):
-    print('product list...')
+def get_path_list_products(options, platform):
+    path_out = get_output_path(options)
+    if path_out is None:
+        return None
+    path_to_list = f'{path_out}/file_{platform}_list.txt'
+    return path_to_list
+
+
+def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop, sensor, platform):
+    if args.verbose:
+        print('Creating list of products')
+
+    if os.path.exists(path_to_list):
+        print('Deleting previous file list...')
+        cmd = f'rm {path_to_list}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(err)
+
+    if org is None:
+        if wce == '*':
+            cmd = f'find {path_source} |sort|uniq> {path_to_list}'
+        else:
+            cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(err)
+
+    product_path_list = []
+    with open(path_to_list, 'r') as file:
+        for cnt, line in enumerate(file):
+            path_to_sat_source = line[:-1]
+            if os.path.isdir(path_to_sat_source):
+                continue
+            if args.verbose:
+                print('-----------------')
+                print(f'Checking: {path_to_sat_source}')
+            if check_product(path_to_sat_source, sensor, platform, time_start, time_stop):
+                product_path_list.append(path_to_sat_source)
+
+    return product_path_list
 
 
 def main():
-    print('Creating satellite extracts.')
+    print('Creating satellite extracts')
 
     if not args.config_file:
         return
@@ -273,11 +412,35 @@ def main():
 
     # work only with the specified product file
     if args.product_file:
+        print('------------------------------')
         filepath = args.product_file
-        launch_create_extract(filepath, options)
+        if args.verbose:
+            print(f'Extracting sat extract for product: {filepath}')
+        ncreated = launch_create_extract(filepath, options)
+        print('------------------------------')
+        print(f'COMPLETED. {ncreated} sat extract files were created')
     else:
+        print('------------------------------')
         path_source, org, wce, time_start, time_stop, sensor, platform = get_find_product_info(options)
-        print('aqui...')
+        path_to_list = get_path_list_products(options, platform)
+        if path_to_list is not None:
+            product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop, sensor,
+                                                  platform)
+            if len(product_path_list) == 0:
+                if args.verbose:
+                    print('-----------------')
+                print(f'WARNING: No valid datasets found on:  {path_source}')
+                print('------------------------------')
+                print('COMPLETED. 0 sat extract files were created')
+                return
+            ncreated = 0
+            for filepath in product_path_list:
+                if args.verbose:
+                    print(f'Extracting sat extract for product: {filepath}')
+                nhere = launch_create_extract(filepath, options)
+                ncreated = ncreated + nhere
+            print('------------------------------')
+            print(f'COMPLETED. {ncreated} sat extract files were created')
 
 
 if __name__ == '__main__':

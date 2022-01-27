@@ -2,6 +2,7 @@ from netCDF4 import Dataset
 from datetime import datetime
 import numpy.ma as ma
 
+
 class SatExtract:
     def __init__(self, ofname):
 
@@ -47,7 +48,6 @@ class SatExtract:
         self.EXTRACT.insitu_site_name = at['station_name']
         self.EXTRACT.insitu_lat = at['in_situ_lat']
         self.EXTRACT.insitu_lon = at['in_situ_lon']
-        self.EXTRACT.satellite_pdu = at['pdu']
 
     def create_dimensions(self, size_box, n_bands):
         # dimensions
@@ -71,7 +71,6 @@ class SatExtract:
         satellite_time[0] = float(satellite_start_time.timestamp())
         satellite_time.units = "Seconds since 1970-1-1"
 
-    #DEPRECATED, PDU SET A GLOBAL ATTRIBUTE
     def create_pdu_variable(self, pdu, sensor):
         satellite_PDU = self.EXTRACT.createVariable('satellite_PDU', 'S1', ('satellite_id'), zlib=True,
                                                     complevel=6)  # string
