@@ -66,6 +66,9 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'Berre' or station_name == 'BEFR':  # Adriatic Sea
         Latitude = 43.4484
         Longitude = 5.1012
+    elif station_name == 'RdP-EsNM':
+        Latitude = -34.818
+        Longitude = -57.8959
     else:
         Latitude = None
         Longitude = None
@@ -120,18 +123,18 @@ def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
 
 
 def get_sites_from_file(file_sites, site_list, region_list, path_out):
-    if not os.path.exists(file_sites):
-        return None
-    sites_info = config_reader(file_sites)
     in_situ_sites = {}
+    if not os.path.exists(file_sites):
+        return in_situ_sites
+    sites_info = config_reader(file_sites)
 
     for site in sites_info.sections():
         if sites_info[site]['make_MU'] != 'T':
             continue
         region = sites_info[site]['Region']
-        if not site_list is None and not site in site_list:
+        if site_list is not None and site not in site_list:
             continue
-        if not region_list is None and not region in region_list:
+        if region_list is not None and region not in region_list:
             continue
 
         in_situ_sites[site] = {
@@ -146,7 +149,7 @@ def get_sites_from_list(list_sites, path_out):
     in_situ_sites = {}
     for site in list_sites:
         lat, long = get_lat_lon_ins(site)
-        if not lat is None and not long is None:
+        if lat is not None and long is not None:
             in_situ_sites[site] = {
                 'latitude': lat,
                 'longitude': long,
