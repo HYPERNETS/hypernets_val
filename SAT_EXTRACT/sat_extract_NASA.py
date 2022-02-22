@@ -148,6 +148,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c):
     newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, flag_band.long_name, flag_band.flag_masks,
                                     flag_band.flag_meanings, window)
 
+    newEXTRACT.close_file()
+
     return True
 
 
