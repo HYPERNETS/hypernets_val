@@ -716,10 +716,13 @@ def main():
     if args.sitename:
         station_name = args.sitename
         in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
+        path_out_site = path_out
+        if path_out.find(station_name) == -1:
+            path_out_site = os.path.join(path_out, station_name)
         in_situ_sites[station_name] = {
             'latitude': in_situ_lat,
             'longitude': in_situ_lon,
-            'path_out': os.path.join(path_out, station_name)
+            'path_out': path_out_site
         }
     elif args.config_file:
         if not options.has_option('Time_and_sites_selection', 'sites'):
