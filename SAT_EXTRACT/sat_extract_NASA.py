@@ -18,7 +18,8 @@ parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MD
 parser.add_argument("-d", "--debug", help="Debugging mode.", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-c', "--config_file", help="Config File.")
-parser.add_argument('-p', "--product_file", help="Image file")
+parser.add_argument('-p', "--product_file", help="Image file.")
+
 
 args = parser.parse_args()
 

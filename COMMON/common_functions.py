@@ -36,6 +36,9 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'Helsinki_Lighthouse':  # Baltic Sea
         Latitude = 59.948970
         Longitude = 24.926360
+    elif station_name == 'Irbe_Lighthouse': # Baltic Sea
+        Latitude = 57.750920
+        Longitude = 21.72297
     elif station_name == 'Lake_Erie':
         Latitude = 41.825600
         Longitude = -83.193600
@@ -137,10 +140,13 @@ def get_sites_from_file(file_sites, site_list, region_list, path_out):
         if region_list is not None and region not in region_list:
             continue
 
+        path_out_site = path_out
+        if path_out.find(site) == -1:
+            path_out_site = os.path.join(path_out, site)
         in_situ_sites[site] = {
             'latitude': sites_info[site]['Latitude'],
             'longitude': sites_info[site]['Longitude'],
-            'path_out': os.path.join(path_out, site)
+            'path_out': path_out_site
         }
     return in_situ_sites
 
@@ -150,10 +156,13 @@ def get_sites_from_list(list_sites, path_out):
     for site in list_sites:
         lat, long = get_lat_lon_ins(site)
         if lat is not None and long is not None:
+            path_out_site = path_out
+            if path_out.find(site) == -1:
+                path_out_site = os.path.join(path_out, site)
             in_situ_sites[site] = {
                 'latitude': lat,
                 'longitude': long,
-                'path_out': os.path.join(path_out, site)
+                'path_out': path_out_site
             }
     return in_situ_sites
 
