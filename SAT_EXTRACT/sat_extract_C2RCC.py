@@ -292,7 +292,7 @@ def check_product(filepath, time_start, time_stop):
     checkTime = False
 
     if 'start_time' in nc_sat.ncattrs():
-        time_sat = dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S')
+        time_sat = dt.strptime(nc_sat.start_date, '%d-%b-%Y %H:%M:%S.%f')
         checkTime = True
 
     check_res = True
