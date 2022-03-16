@@ -6,6 +6,7 @@ from netCDF4 import Dataset
 from datetime import datetime as dt
 from datetime import timedelta
 import numpy.ma as ma
+import numpy as np
 import subprocess
 
 # import user defined functions from other .py
@@ -19,7 +20,6 @@ parser.add_argument("-d", "--debug", help="Debugging mode.", action="store_true"
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-p', "--product_file", help="Image file.")
-
 
 args = parser.parse_args()
 
@@ -40,28 +40,29 @@ def launch_create_extract(filepath, options):
         sites = cfs.get_sites_from_list(site_list, path_output)
 
     if len(sites) == 0:
-        print('ERROR: No sites are defined')
+        print('[ERROR] No sites are defined')
         return ncreated
 
-    # Start datase
+    # Start dataset
     if args.verbose:
-        print('Starting dataset...')
+        if args.verbose:
+            print('[INFO] Starting dataset...')
     nc_sat = Dataset(filepath, 'r')
 
     # Retriving lat and long arrays
     if args.verbose:
-        print('Retrieving lat/long data...')
-    lat, lon = get_lat_long_arrays(options, nc_sat)
+        print('[INFO] Retrieving lat/long data...')
+    lat, lon = get_lat_long_arrays(nc_sat)
 
     # Retrieving global atribbutes
     if args.verbose:
-        print('Retrieving global attributes...')
+        print('[INFO] Retrieving global attributes...')
     global_at = get_global_atrib(nc_sat)
 
     # Working for each site, checking if there is in the image
     for site in sites:
         if args.verbose:
-            print(f'Working for site: {site}')
+            print(f'[INFO]Working for site: {site}')
         insitu_lat = sites[site]['latitude']
         insitu_lon = sites[site]['longitude']
         contain_flag = 0
@@ -87,10 +88,10 @@ def launch_create_extract(filepath, options):
             res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c)
             if res:
                 ncreated = ncreated + 1
-                print(f'Extract file created: {ofname}')
+                print(f'[INFO] Extract file created: {ofname}')
         else:
             if args.verbose:
-                print(f'WARNING: Site {site} out of the image')
+                print(f'[WARNING] Site {site} out of the image')
 
     return ncreated
 
@@ -103,51 +104,62 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c):
     stop_idx_y = (r + int(size_box / 2) + 1)
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
-    reflectance_bands, reflectance_bands_group, n_bands = get_reflectance_bands_info(options)
+    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat)
     if n_bands == 0:
-        print('ERROR: reflectance bands are not defined')
+        print('[ERROR] reflectance bands are not defined')
         return False
-    flag_band_name, flag_band_group = get_flags_info(options)
-    if flag_band_name is None or flag_band_group is None:
-        print('ERROR: flag band is not defined')
-        return False
+    flag_band_name = 'bitmask'
 
     newEXTRACT = SatExtract(ofname)
     if not newEXTRACT.FILE_CREATED:
-        print(f'ERROR: File {ofname} could not be created')
+        print(f'[ERROR] File {ofname} could not be created')
         return False
 
     if args.verbose:
-        print(f'Creating file: {ofname}')
+        print(f'[INFO]Creating file: {ofname}')
     newEXTRACT.set_global_attributes(global_at)
     newEXTRACT.create_dimensions(size_box, n_bands)
 
     newEXTRACT.create_lat_long_variables(lat, long, window)
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
-    newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.time_coverage_start, '%Y-%m-%dT%H:%M:%S.%fZ'))
+    newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S'))
 
     # pdu variable
     newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
 
     # Rrs and wavelenghts
     satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
-    rrs_group = nc_sat.groups[reflectance_bands_group]
     rbands = list(reflectance_bands.keys())
     wavelenghts = []
     for index in range(len(rbands)):
         rband = rbands[index]
-        bandarray = ma.array(rrs_group.variables[rband][:, :])
-        satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        bandarray = ma.array(nc_sat.variables[rband][:, :])
+        satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
         wl = reflectance_bands[rband]['wavelenght']
         wavelenghts.append(wl)
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
 
     # flags
-    flag_group = nc_sat.groups[flag_band_group]
-    flag_band = flag_group.variables[flag_band_name]
-    newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, flag_band.long_name, flag_band.flag_masks,
-                                    flag_band.flag_meanings, window)
+    flag_band = nc_sat.variables[flag_band_name]
+    desc = flag_band.description.split(',')
+    flag_masks = ''
+    flag_list = []
+    flag_meanings = ''
+    flag_started = False
+    for d in desc:
+        dval = d.split(':')
+        flag_list.append(int(dval[1]))
+        if not flag_started:
+            flag_masks = dval[1]
+            flag_meanings = dval[0]
+            flag_started = True
+        else:
+            flag_masks = flag_masks + ' , ' + dval[1]
+            flag_meanings = flag_meanings + ' ' + dval[0]
+
+    newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, 'Polymer Bitmask', flag_list,
+                                    flag_meanings, window)
 
     newEXTRACT.close_file()
 
@@ -173,17 +185,17 @@ def get_output_path(options):
         output_path = options['file_path']['output_dir']
         if not os.path.exists(output_path):
             if args.verbose:
-                print(f'WARNING: Creating new output path: {output_path}')
+                print(f'[WARNING] Creating new output path: {output_path}')
                 try:
                     os.mkdir(output_path)
                 except OSError:
-                    print(f'ERROR: Folder: {output_path} could not be creaded')
+                    print(f'[ERROR] Folder: {output_path} could not be creaded')
                     return None
         if args.verbose:
-            print(f'Output path:{output_path}')
+            print(f'[INFO] Output path:{output_path}')
         return output_path
     else:
-        print('ERROR: section:file_path, option: output_dir is not included in the configuration file')
+        print('[ERROR] section:file_path, option: output_dir is not included in the configuration file')
         return None
 
 
@@ -203,7 +215,7 @@ def get_site_options(options):
     site_list = None
     region_list = None
     if not options.has_option('Time_and_sites_selection', 'sites'):
-        print(f'ERROR: section Time_and_sites_selection, option sites not found in configuration file')
+        print(f'[ERROR] section Time_and_sites_selection, option sites not found in configuration file')
     if options.has_option('Time_and_sites_selection', 'sites_file') and \
             options['Time_and_sites_selection']['sites_file']:
         site_file = options['Time_and_sites_selection']['sites_file']
@@ -218,27 +230,30 @@ def get_site_options(options):
     return site_file, site_list, region_list
 
 
-def get_lat_long_arrays(options, nc_sat):
-    geo_group = nc_sat.groups['navigation_data']
-    lat = geo_group.variables['latitude'][:, :]
-    lon = geo_group.variables['longitude'][:, :]
+def get_lat_long_arrays(nc_sat):
+    lat = nc_sat.variables['latitude'][:, :]
+    lon = nc_sat.variables['longitude'][:, :]
     return lat, lon
 
 
 def get_global_atrib(nc_sat):
-    at = {'sensor': nc_sat.instrument}
-    if nc_sat.platform == 'JPSS-1':
-        at['satellite'] = 'NOAA-20/JPSS-1'
-        at['platform'] = 'JPSS1'
-    elif nc_sat.platform == 'Suomi-NPP':
-        at['satellite'] = nc_sat.platform
-        at['platform'] = 'SNPP'
-    else:
-        at['platform'] = nc_sat.platform
+    at = {'sensor': nc_sat.sensor}
+    if nc_sat.sensor == 'OLCI':
+        at['satellite'] = 'S3'
+        at['platform'] = ''
+        path_origin = nc_sat.l2_filename
+        if path_origin.find('S3A') > 0:
+            at['platform'] = 'A'
+        elif path_origin.find('S3B') > 0:
+            at['platform'] = 'B'
+
     at['res'] = ''
-    proc_group = nc_sat.groups['processing_control']
-    at['aco_processor'] = f'{proc_group.software_name} {proc_group.software_version}'
-    at['proc_version'] = nc_sat.processing_version
+    at['aco_processor'] = 'Polymer'
+    at['proc_version'] = ''
+    polymer_path = nc_sat.dir_base
+    ipol = polymer_path.find('polymer-v')
+    if ipol > 0:
+        at['proc_version'] = polymer_path[ipol + 10:len(polymer_path)]
 
     at['station_name'] = ''
     at['in_situ_lat'] = -999
@@ -247,44 +262,25 @@ def get_global_atrib(nc_sat):
     return at
 
 
-def get_reflectance_bands_info(options):
+def get_reflectance_bands_info(nc_sat):
     reflectance_bands = None
-    reflectance_bands_group = None
     nbands = 0
-    if not options.has_option('band_options', 'reflectance_group') \
-            or not options.has_option('band_options', 'reflectance_bands'):
-        print('ERROR: options reflectance_group and/or reflectance_bands are not defined in the configuration file')
-        return reflectance_bands, reflectance_bands_group, nbands
 
-    reflectance_bands = {}
-    rbandlist = options['band_options']['reflectance_bands'].split(',')
+    if nc_sat.bands_rw:
+        reflectance_bands = {}
+        bands_here = nc_sat.bands_rw[1:len(nc_sat.bands_rw) - 1].split(',')
+        wl_list = nc_sat.central_wavelength[1:len(nc_sat.central_wavelength) - 1].split(',')
+        wl_dict = {}
+        for wl in wl_list:
+            wls = wl.split(':')
+            wl_dict[wls[0].strip()] = float(wls[1].strip())
+        for band in bands_here:
+            name_band = 'Rw' + band.strip()
+            wl_band = wl_dict[band.strip()]
+            reflectance_bands[name_band] = {'wavelenght': wl_band}
+            nbands = nbands + 1
 
-    for rband in rbandlist:
-        rbandinfo = rband.split(':')
-        if len(rbandinfo) == 2:
-            try:
-                nameband = rbandinfo[0]
-                wl = float(rbandinfo[1])
-                reflectance_bands[nameband] = {'wavelenght': wl}
-            except ValueError:
-                print(f'WARNING: Wavelenght for band: {nameband} is not valid. Band is not included')
-
-    reflectance_bands_group = options['band_options']['reflectance_group']
-    nbands = len(reflectance_bands)
-    return reflectance_bands, reflectance_bands_group, nbands
-
-
-def get_flags_info(options):
-    flag_band_name = None
-    flag_band_group = None
-
-    if not options.has_option('band_options', 'flag_group') \
-            or not options.has_option('band_options', 'flag_band'):
-        print('ERROR: options flag_group and/or flag_bands are not defined in the configuration file')
-    else:
-        flag_band_name = options['band_options']['flag_band']
-        flag_band_group = options['band_options']['flag_group']
-    return flag_band_name, flag_band_group
+    return reflectance_bands, nbands
 
 
 def get_find_product_info(options):
@@ -299,74 +295,58 @@ def get_find_product_info(options):
     time_start = dt.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
     time_stop = dt.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(hours=24)
 
-    sensor = options['satellite_options']['sensor']
-    platform = options['satellite_options']['platform']
-
-    return path_source, org, wce, time_start, time_stop, sensor, platform
+    return path_source, org, wce, time_start, time_stop
 
 
-def check_product(filepath, sensor, platform, time_start, time_stop):
+def check_product(filepath, time_start, time_stop):
     try:
         nc_sat = Dataset(filepath, 'r')
     except OSError:
         if args.verbose:
-            print(f'WARNING: {filepath} is not a valid dataset. Skipping...')
+            print(f'[WARNING] {filepath} is not a valid dataset. Skipping...')
         return False
 
-    checkIns = False
-    checkPlat = False
     checkTime = False
-    if 'instrument' in nc_sat.ncattrs() and nc_sat.instrument == sensor:
-        checkIns = True
-    if 'platform' in nc_sat.ncattrs() and nc_sat.platform == platform:
-        checkPlat = True
-    if 'time_coverage_start' in nc_sat.ncattrs():
-        time_sat = dt.strptime(nc_sat.time_coverage_start, '%Y-%m-%dT%H:%M:%S.%fZ')
+
+    if 'start_time' in nc_sat.ncattrs():
+        time_sat = dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S')
         checkTime = True
 
     check_res = True
-    if not checkIns:
-        if args.verbose:
-            print(
-                f'WARNING: Attribute instrument is not available in the dataset, or not equal to: {sensor}. Skipping...')
-        check_res = False
-    if not checkPlat and check_res:
-        if args.verbose:
-            print(
-                f'WARNING: Attribute platform is not available in the dataset, or not equal to: {platform}. Skipping...')
-        check_res = False
     if not checkTime and check_res:
         if args.verbose:
-            print(f'WARNING: Attribute time_coverage_start is not available in the dataset. Skipping...')
+            print(f'[WARNING] Attribute time_coverage_start is not available in the dataset. Skipping...')
         check_res = False
     if check_res:
         if time_sat < time_start or time_sat > time_stop:
             if args.verbose:
-                print('WARNING: Product is out of the temporal coverage. Skipping...')
+                print('[WARNING] Product is out of the temporal coverage. Skipping...')
             check_res = False
 
     return check_res
 
 
-def get_path_list_products(options, platform):
+def get_path_list_products(options):
     path_out = get_output_path(options)
     if path_out is None:
         return None
-    path_to_list = f'{path_out}/file_{platform}_list.txt'
+    #path_to_list = f'{path_out}/file_{platform}_list.txt'
+    path_to_list = f'{path_out}/file_list.txt'
     return path_to_list
 
 
-def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop, sensor, platform):
+def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop):
     if args.verbose:
-        print('Creating list of products')
+        print('[INFO]Creating list of products')
 
     if os.path.exists(path_to_list):
-        print('Deleting previous file list...')
+        if args.verbose:
+            print('[INFO]Deleting previous file list...')
         cmd = f'rm {path_to_list}'
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:
-            print(err)
+            print(f'[ERROR]{err}')
 
     if org is None:
         if wce == '*':
@@ -376,7 +356,7 @@ def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:
-            print(err)
+            print(f'[ERROR]{err}')
 
     product_path_list = []
     with open(path_to_list, 'r') as file:
@@ -387,14 +367,14 @@ def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop
             if args.verbose:
                 print('-----------------')
                 print(f'Checking: {path_to_sat_source}')
-            if check_product(path_to_sat_source, sensor, platform, time_start, time_stop):
+            if check_product(path_to_sat_source, time_start, time_stop):
                 product_path_list.append(path_to_sat_source)
 
     return product_path_list
 
 
 def main():
-    print('Creating satellite extracts')
+    print('[INFO]Creating satellite extracts')
 
     if not args.config_file:
         return
@@ -406,28 +386,28 @@ def main():
         print('------------------------------')
         filepath = args.product_file
         if args.verbose:
-            print(f'Extracting sat extract for product: {filepath}')
+            print(f'[INFO]Extracting sat extract for product: {filepath}')
         ncreated = launch_create_extract(filepath, options)
         print('------------------------------')
-        print(f'COMPLETED. {ncreated} sat extract files were created')
+        print(f'[INFO] COMPLETED. {ncreated} sat extract files were created')
     else:
         print('------------------------------')
-        path_source, org, wce, time_start, time_stop, sensor, platform = get_find_product_info(options)
-        path_to_list = get_path_list_products(options, platform)
+        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+        path_to_list = get_path_list_products(options)
         if path_to_list is not None:
-            product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop, sensor,
-                                                  platform)
+            product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
             if len(product_path_list) == 0:
                 if args.verbose:
                     print('-----------------')
-                print(f'WARNING: No valid datasets found on:  {path_source}')
+                print(f'[WARNING] No valid datasets found on:  {path_source}')
                 print('------------------------------')
-                print('COMPLETED. 0 sat extract files were created')
+                print('[INFO] COMPLETED. 0 sat extract files were created')
                 return
             ncreated = 0
             for filepath in product_path_list:
                 if args.verbose:
-                    print(f'Extracting sat extract for product: {filepath}')
+                    print('------------------------------')
+                    print(f'[INFO]Extracting sat extract for product: {filepath}')
                 nhere = launch_create_extract(filepath, options)
                 ncreated = ncreated + nhere
             print('------------------------------')

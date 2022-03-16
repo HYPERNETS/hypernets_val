@@ -1,3 +1,5 @@
+import netCDF4
+import numpy as np
 from netCDF4 import Dataset
 from datetime import datetime
 import numpy.ma as ma
@@ -66,14 +68,16 @@ class SatExtract:
         return gvar
 
     def create_satellite_time_variable(self, satellite_start_time):
-        satellite_time = self.EXTRACT.createVariable('satellite_time', 'f4', ('satellite_id'), fill_value=-999,
+        satellite_time = self.EXTRACT.createVariable('satellite_time', 'f8', ('satellite_id'), fill_value=-999,
                                                      zlib=True, complevel=6)
+
         satellite_time[0] = float(satellite_start_time.timestamp())
         satellite_time.units = "Seconds since 1970-1-1"
 
     def create_pdu_variable(self, pdu, sensor):
-        satellite_PDU = self.EXTRACT.createVariable('satellite_PDU', 'S1', ('satellite_id'), zlib=True,
+        satellite_PDU = self.EXTRACT.createVariable('satellite_PDU', 'S4', ('satellite_id'), zlib=True,
                                                     complevel=6)  # string
+
         satellite_PDU[0] = pdu
         satellite_PDU.long_name = f'{sensor} source PDU name'
 
