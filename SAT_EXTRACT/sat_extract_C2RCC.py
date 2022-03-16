@@ -291,14 +291,14 @@ def check_product(filepath, time_start, time_stop):
 
     checkTime = False
 
-    if 'start_time' in nc_sat.ncattrs():
+    if 'start_date' in nc_sat.ncattrs():
         time_sat = dt.strptime(nc_sat.start_date, '%d-%b-%Y %H:%M:%S.%f')
         checkTime = True
 
     check_res = True
     if not checkTime and check_res:
         if args.verbose:
-            print(f'[WARNING] Attribute time_coverage_start is not available in the dataset. Skipping...')
+            print(f'[WARNING] Attribute start_date is not available in the dataset. Skipping...')
         check_res = False
     if check_res:
         if time_sat < time_start or time_sat > time_stop:
