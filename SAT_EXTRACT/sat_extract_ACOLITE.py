@@ -393,7 +393,7 @@ def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop
     with open(path_to_list, 'r') as file:
         for cnt, line in enumerate(file):
             path_to_sat_source = line[:-1]
-            if os.path.isdir(path_to_sat_source):
+            if not os.path.isdir(path_to_sat_source):
                 continue
             if args.verbose:
                 print('-----------------')
