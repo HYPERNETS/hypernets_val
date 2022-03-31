@@ -316,6 +316,18 @@ def get_find_product_info(options):
 
 
 def check_product(filepath, time_start, time_stop):
+
+    if os.path.isdir((filepath)):
+        pathbase = filepath
+        for fname in os.listdir(pathbase):
+            if fname.find('L2R.nc') > 0:
+                filepath = os.path.join(pathbase, fname)
+    else:
+        return False
+
+    if not filepath.endswith('.nc'):
+        return False
+
     try:
         nc_sat = Dataset(filepath, 'r')
     except OSError:
