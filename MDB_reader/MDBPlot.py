@@ -1,0 +1,330 @@
+import pandas as pd
+
+from MDBFile import MDBFile
+import MDBPlotDefaults as defaults
+from matplotlib import pyplot as plt
+import numpy as np
+from scipy import stats
+import COMMON.common_functions as cfs
+import os
+
+
+class MDBPlot:
+    def __init__(self, mdb_file, df_param):
+        self.mfile = mdb_file
+        self.dfparam = df_param
+
+        # plot general options
+        self.title = ''
+        self.file_name_base = ''
+        self.format_image = 'jpg'
+
+        # validation scatterplot
+        self.xdata = []
+        self.ydata = []
+        self.wldata = []
+        self.xlabel = defaults.xlabel_default
+        self.ylabel = defaults.ylabel_default
+
+        # spectra plot
+        # self.ydata = []
+        # self.xdata = []
+
+        # validation stats
+        self.valid_stats = {
+            'N': 0,
+            'slope': 0.0,
+            'intercept': 0.0,
+            'r_value': 0.0,
+            'p_value': 0.0,
+            'std_err': 0.0,
+            'rmse_val': 0.0,
+            'mean_rel_diff': 0.0,
+            'mean_abs_rel_diff': 0.0
+        }
+        self.df_valid_stats = None
+
+    def get_df_val(self):
+        dfval = None
+        if self.mfile is not None and isinstance(self.mfile, MDBFile):
+            dfval = self.mfile.df_validation_valid
+            if len(dfval.index) == 0:
+                self.mfile.prepare_df_validation()
+                dfval = self.mfile.df_validation_valid
+        if self.mfile is None and self.dfparam is not None:
+            dfval = self.dfparam
+        return dfval
+
+    def plot_scatter_plot(self, title, legend, include_stats, file_out):
+        wl = self.wldata.unique()
+        nwl = len(wl)
+        str_legend = []
+        if nwl > 0 and legend:
+            for w in wl:
+                str_legend.append(f'{w:.2f}')
+
+        plt.close()
+        plt.figure()
+        for xpoint, ypoint, wlpoint in zip(self.xdata, self.ydata, self.wldata):
+            if nwl == 1:
+                color_point = defaults.get_color_ref(wlpoint)
+                plt.scatter(xpoint, ypoint, c=color_point, edgecolors='gray', linewidths=1.0)
+            else:
+                color_point = defaults.get_color_ref(wlpoint)
+                # c=defaults.color_dict[f'{wlpoint:.2f}]'
+                plt.scatter(xpoint, ypoint, c=color_point,
+                            edgecolors='gray', linewidths=1.5)
+
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.xlabel(self.xlabel, fontsize=12)
+        plt.ylabel(self.ylabel, fontsize=12)
+        if legend:
+            plt.legend(str_legend, loc='upper left', bbox_to_anchor=(1.0, 1.0))
+        xmin, xmax = plt.gca().get_xlim()
+        ymin, ymax = plt.gca().get_ylim()
+        xmin = np.min([xmin, ymin])
+        xmax = np.max([xmax, ymax])
+        plt.plot([xmin, xmax], [xmin, xmax], '--k')
+
+        if include_stats:
+            self.compute_statistics()
+            str0 = 'N={:d}\nRMSD={:,.4f}\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.4f}' \
+                .format(self.valid_stats['N'],
+                        self.valid_stats['rmse_val'],
+                        self.valid_stats['mean_abs_rel_diff'],
+                        self.valid_stats['mean_rel_diff'],
+                        self.valid_stats['r_value'] ** 2,
+                        self.valid_stats['bias'])
+            if nwl == 1:
+                w = wl[0]
+                strwl = f'λ = {w:0.2f} nm \n'
+                str0 = strwl + str0
+            plt.text(0.05, 0.70, str0, horizontalalignment='left', fontsize=12, transform=plt.gca().transAxes)
+
+        if title:
+            plt.title(self.title)
+
+        if not file_out is None:
+            plt.savefig(file_out, dpi=300)
+
+    def plot_spectra_plot(self, title, legend, file_out):
+        plt.close()
+        plt.figure()
+        if not legend is None:
+            df = pd.DataFrame(np.transpose(self.ydata), columns=legend, index=self.xdata)
+            df.plot(lw=2, marker='.', markersize=10, xticks=self.xdata)
+        else:
+            df = pd.DataFrame(np.transpose(self.ydata), index=self.xdata)
+            df.plot(lw=1, color='black', marker='.', markersize=10, legend=False, xticks=range(len(self.xdata)),
+                    mec='gray')
+        plt.xlabel(self.xlabel, fontsize=12)
+        plt.ylabel(self.ylabel, fontsize=12)
+        plt.xticks(rotation=90)
+        plt.grid(b=True, which='major', color='gray', linestyle='--')
+        if title:
+            plt.title(self.title)
+        plt.gcf().tight_layout()
+        if not file_out is None:
+            plt.savefig(file_out, dpi=300)
+
+    def compute_statistics(self):
+
+        self.valid_stats['N'] = len(self.xdata)
+
+        # Generated linear fit
+        xdatal = []
+        ydatal = []
+        for x, y in zip(self.xdata, self.ydata):
+            xdatal.append(x)
+            ydatal.append(y)
+        slope, intercept, r_value, p_value, std_err = stats.linregress(xdatal, ydatal)
+        self.valid_stats['slope'] = slope
+        self.valid_stats['intercept'] = intercept
+        self.valid_stats['r_value'] = r_value
+        self.valid_stats['p_value'] = p_value
+        self.valid_stats['std_err'] = std_err
+
+        ref_obs = np.asarray(self.xdata)
+        sat_obs = np.asarray(self.ydata)
+        self.valid_stats['rmse_val'] = cfs.rmse(sat_obs, ref_obs)
+
+        # the mean of relative (signed) percent differences
+        rel_diff = 100 * (ref_obs - sat_obs) / ref_obs
+        self.valid_stats['mean_rel_diff'] = np.mean(rel_diff)
+
+        #  the mean of absolute (unsigned) percent differences
+        self.valid_stats['mean_abs_rel_diff'] = np.mean(np.abs(rel_diff))
+
+        bias = np.mean(sat_obs-ref_obs)
+        self.valid_stats['bias'] = bias
+
+    def plot_all_scatter_plot(self, path_out):
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+        # ['Index','Index_MU','Index_Band','Sat_Time','Ins_Time','Time_Diff','Wavelenght','Ins_Rrs','Sat_Rrw','Valid']
+
+        self.xdata = dfval[dfval['Valid']]['Ins_Rrs']
+        self.ydata = dfval[dfval['Valid']]['Sat_Rrs']
+        self.wldata = dfval[dfval['Valid']]['Wavelenght']
+
+        show_title = False
+        file_out = None
+        if not path_out is None:
+            show_title = True
+            if self.mfile is not None:
+                self.title = self.mfile.get_title()
+            file_out = os.path.join(path_out, f'{self.get_file_name(None)}.{self.format_image}')
+
+        self.plot_scatter_plot(show_title, True, True, file_out)
+
+    def plot_wavelength_scatter_plot(self, index_sat, wl, path_out):
+        if wl is None and 0 <= index_sat < len(self.mfile.satellite_bands):
+            wl = self.mfile.satellite_bands[index_sat]
+        if wl is None:
+            return
+        wl = float(wl)
+        wls = f'{wl:0.2f}'
+        wls = wls.replace('.', '_')
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+
+        self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
+        self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
+        self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
+        print('NValues: ', len(self.xdata), 'Wavelength: ', wl)
+        show_title = False
+        file_out = None
+        if not path_out is None:
+            show_title = True
+            if self.mfile is not None:
+                self.title = self.mfile.get_title()
+            file_out = os.path.join(path_out, f'{self.get_file_name(wls)}.{self.format_image}')
+
+        self.plot_scatter_plot(show_title, False, True, file_out)
+
+    def plot_wavelenght_scatter_plots(self, path_out,wllist):
+        if wllist is None and self.mfile is not None:
+            wllist = self.mfile.wlref
+        for wl in wllist:
+            self.plot_wavelength_scatter_plot(-1, wl, path_out)
+
+    def compute_all_statistics(self,wllist):
+        if wllist is None and self.mfile is not None:
+            wllist = self.mfile.wlref
+        col_names = ['Param', 'All']
+        # for w in self.mfile.satellite_bands:
+        for w in wllist:
+            w_str = f'{w:0.2f}'
+            col_names.append(w_str)
+        self.df_valid_stats = pd.DataFrame(columns=col_names)
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+
+        self.xdata = dfval[dfval['Valid']]['Ins_Rrs']
+        self.ydata = dfval[dfval['Valid']]['Sat_Rrs']
+        self.wldata = dfval[dfval['Valid']]['Wavelenght']
+        self.compute_statistics()
+        for param in self.valid_stats:
+            row = {}
+            for col in col_names:
+                if col == 'Param':
+                    row[col] = [param]
+                elif col == 'All':
+                    row[col] = [self.valid_stats[param]]
+                else:
+                    row[col] = 0
+            # self.df_valid_stats = self.df_valid_stats.append(row, ignore_index=True)
+            self.df_valid_stats = pd.concat([self.df_valid_stats, pd.DataFrame.from_dict(row)], ignore_index=True)
+
+        nparam = len(self.df_valid_stats)
+
+        for wl in wllist:
+            print(f'Computing statistics for: {wl}')
+            w_str = f'{wl:0.2f}'
+            self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
+            self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
+            self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
+            self.compute_statistics()
+            for iparam in range(nparam):
+                param = self.df_valid_stats.at[iparam, 'Param']
+                self.df_valid_stats.at[iparam, w_str] = self.valid_stats[param]
+
+    def plot_spectra_param(self, param, path_out):
+        if self.df_valid_stats is None:
+            self.compute_all_statistics()
+
+        file_out = None
+
+        params = list(self.df_valid_stats.loc[:, 'Param'])
+
+        if param in params or (param == 'r2' and 'r_value' in params):
+            self.xdata = self.df_valid_stats.columns[2:len(self.df_valid_stats.columns)]
+            if param == 'r2':
+                self.ydata = self.df_valid_stats.loc[self.df_valid_stats['Param'] == 'r_value', self.xdata]
+                self.ydata = self.ydata ** 2
+                self.ylabel = f'r\N{SUPERSCRIPT TWO}'
+            else:
+                self.ydata = self.df_valid_stats.loc[self.df_valid_stats['Param'] == param, self.xdata]
+                self.ylabel = param
+            self.xlabel = defaults.xlabel_wl_default
+
+            if self.mfile is not None:
+                self.title = self.mfile.get_title()
+            if not path_out is None:
+                file_name = f'{self.get_file_name_param(param)}.{self.format_image}'
+                file_out = os.path.join(path_out, file_name)
+            self.plot_spectra_plot(True, None, file_out)
+
+    def plot_all_spectra_param(self, path_out):
+        if self.df_valid_stats is None:
+            self.compute_all_statistics()
+        params = list(self.df_valid_stats.loc[:, 'Param'])
+        for param in params:
+            if param == 'N' or param == 'p_value':
+                continue
+            if param == 'r_value':
+                param = 'r2'
+            self.plot_spectra_param(param, path_out)
+
+    def make_validation_mdbfile(self,path_out):
+        self.plot_all_scatter_plot(path_out)
+        self.plot_wavelenght_scatter_plots(path_out,None)
+        file_data_valid = os.path.join(path_out,'DataValid.csv')
+        self.mfile.df_validation_valid.to_csv(file_data_valid)
+        file_data = os.path.join(path_out,'Data.csv')
+        self.mfile.df_validation.to_csv(file_data)
+        self.compute_all_statistics(None)
+        file_results = os.path.join(path_out,'Params.csv')
+        self.df_valid_stats.to_csv(file_results)
+        self.plot_all_spectra_param(path_out)
+
+    def make_validation_dfval(self,path_out,title,file_name_base,wllist):
+        self.title = title
+        self.file_name_base = file_name_base
+        self.plot_all_scatter_plot(path_out)
+        self.plot_wavelenght_scatter_plots(path_out,wllist)
+
+        self.compute_all_statistics(wllist)
+        file_results = os.path.join(path_out, 'Params.csv')
+        self.df_valid_stats.to_csv(file_results)
+        self.plot_all_spectra_param(path_out)
+
+    def get_file_name(self, wl):
+        if self.mfile is not None:
+            return self.mfile.get_file_name(wl)
+        else:
+            if wl is None:
+                file_name = self.file_name_base
+            else:
+                file_name = self.file_name_base + f'_{wl}'
+            return file_name
+
+    def get_file_name_param(self, param):
+        if self.mfile is not None:
+            return self.mfile.get_file_name_param(param)
+        else:
+            file_name = self.file_name_base + f'_{param}'
+            return file_name

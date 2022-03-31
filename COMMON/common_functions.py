@@ -36,7 +36,7 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'Helsinki_Lighthouse':  # Baltic Sea
         Latitude = 59.948970
         Longitude = 24.926360
-    elif station_name == 'Irbe_Lighthouse': # Baltic Sea
+    elif station_name == 'Irbe_Lighthouse':  # Baltic Sea
         Latitude = 57.750920
         Longitude = 21.72297
     elif station_name == 'Lake_Erie':
@@ -82,6 +82,10 @@ def get_lat_lon_ins(station_name):
 # %    root mean squared error
 def rmse(predictions, targets):
     return np.sqrt(((np.asarray(predictions) - np.asarray(targets)) ** 2).mean())
+
+
+def bias(yarray, xarray):
+    return (np.asarray(yarray) - np.asarray(xarray)).mean()
 
 
 # %% Get FO from Thuiller

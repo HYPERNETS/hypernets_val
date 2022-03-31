@@ -20,6 +20,8 @@ parser.add_argument("-d", "--debug", help="Debugging mode.", action="store_true"
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-p', "--product_file", help="Image file.")
+parser.add_argument('-ac', "--atm_correction", help="Atmospheric correction algorithm (Default: C2RCC)",
+                    choices=["C2RCC", "FUB"])
 
 args = parser.parse_args()
 
@@ -58,6 +60,8 @@ def launch_create_extract(filepath, options):
     if args.verbose:
         print('[INFO] Retrieving global attributes...')
     global_at = get_global_atrib(filepath)
+    if args.atm_correction == 'FUB' and 'title' in nc_sat.ncattrs():
+        global_at['proc_version'] = nc_sat.title
 
     # Working for each site, checking if there is in the image
     for site in sites:
@@ -109,6 +113,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c):
         print('[ERROR] reflectance bands are not defined')
         return False
     flag_band_name = 'c2rcc_flags'
+    if args.atm_correction == 'FUB':
+        flag_band_name = 'quality_flags'
 
     newEXTRACT = SatExtract(ofname)
     if not newEXTRACT.FILE_CREATED:
@@ -123,7 +129,17 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c):
     newEXTRACT.create_lat_long_variables(lat, long, window)
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
-    newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.start_date, '%d-%b-%Y %H:%M:%S.%f'))
+    if 'start_date' in nc_sat.ncattrs():
+        newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.start_date, '%d-%b-%Y %H:%M:%S.%f'))
+    else:
+        sat_time = get_sat_time_from_fname(pdu)
+        if sat_time is not None:
+            newEXTRACT.create_satellite_time_variable(sat_time)
+        else:
+            print(f'[ERROR] Satellite time is not defined...')
+            newEXTRACT.close_file()
+            return False
+
 
     # pdu variable
     newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
@@ -221,6 +237,18 @@ def get_lat_long_arrays(nc_sat):
     return lat, lon
 
 
+def get_sat_time_from_fname(fname):
+    val_list = fname.split('_')
+    sat_time = None
+    for v in val_list:
+        try:
+            sat_time = dt.strptime(v, '%Y%m%dT%H%M%S')
+            break
+        except ValueError:
+            continue
+    return sat_time
+
+
 def get_global_atrib(file_path):
     if file_path.find('S3A') > 0:
         at = {'sensor': 'OLCI', 'satellite': 'S3', 'platform': 'A'}
@@ -232,6 +260,9 @@ def get_global_atrib(file_path):
     at['res'] = ''
     at['aco_processor'] = 'C2RCC'
     at['proc_version'] = '2.1'
+    if args.atm_correction == 'FUB':
+        at['aco_processor'] = 'FUB'
+        at['proc_version'] = ''
 
     at['station_name'] = ''
     at['in_situ_lat'] = -999
@@ -241,26 +272,30 @@ def get_global_atrib(file_path):
 
 
 def get_reflectance_bands_info(nc_sat):
+    search_pattern = 'rrs_'
+    if args.atm_correction == 'FUB':
+        search_pattern = 'reflec_'
+
     reflectance_bands = {}
     nbands = 0
     imin = 100000
     imax = 0
     for var in nc_sat.variables:
-        if var.startswith('rrs_'):
+        if var.startswith(search_pattern):
             ival = int(var.split('_')[1].strip())
-            if ival<imin:
+            if ival < imin:
                 imin = ival
-            if ival>imax:
+            if ival > imax:
                 imax = ival
 
-    for ival  in range(imin,imax+1):
-        var_name = 'rrs_'+str(ival)
+    for ival in range(imin, imax + 1):
+        var_name = search_pattern + str(ival)
         if var_name in nc_sat.variables:
             wl_band = nc_sat.variables[var_name].radiation_wavelength
             reflectance_bands[var_name] = {'wavelenght': wl_band}
             nbands = nbands + 1
 
-    if nbands==0:
+    if nbands == 0:
         reflectance_bands = None
 
     return reflectance_bands, nbands
@@ -290,10 +325,14 @@ def check_product(filepath, time_start, time_stop):
         return False
 
     checkTime = False
-
-    if 'start_date' in nc_sat.ncattrs():
-        time_sat = dt.strptime(nc_sat.start_date, '%d-%b-%Y %H:%M:%S.%f')
-        checkTime = True
+    if args.atm_correction == 'FUB':
+        time_sat = get_sat_time_from_fname(filepath)
+        if time_sat is not None:
+            checkTime = True
+    else:
+        if 'start_date' in nc_sat.ncattrs():
+            time_sat = dt.strptime(nc_sat.start_date, '%d-%b-%Y %H:%M:%S.%f')
+            checkTime = True
 
     check_res = True
     if not checkTime and check_res:

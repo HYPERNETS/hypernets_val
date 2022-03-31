@@ -34,6 +34,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 from MDBFile import MDBFile
+from MDBPlot import MDBPlot
+from MDBFileList import MDBFileList
 
 
 plt.rc('xtick', labelsize=14)
@@ -1048,7 +1050,7 @@ class PANTHYR_class(object):
 
 ##[LOIS] ATTENTION: THESE WAS THE GOOD CODE FOR THE ANALYSIS
 # path_main = '/home/lois/PycharmProjects/hypernets_val/'
-path_out = '/home/lois/DATA/ANALYSIS'
+# path_out = '/home/lois/DATA/ANALYSIS'
 # # Read config. file
 # # config_file = file_config_parse.config_file
 # sat_proc_version = '7.00'  # '6.13' 0r '7.00'
@@ -1072,10 +1074,132 @@ path_out = '/home/lois/DATA/ANALYSIS'
 
 
 #LOIS
-path_file = '/home/lois/DATA/MDBs/MDB_S3B_OLCI_WFR_L2_HYPERNETS_VEIT.nc'
-mdb_file = MDBFile(path_file)
-mdb_file.load_mu_data(10)
-mdb_file.plot_spectra(None)
+# path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+# path_files = []
+# for f in os.listdir(path_base):
+#     if f.startswith('MDB') and f.endswith('.nc'):
+#         file_path = os.path.join(path_base,f)
+#         path_files.append(file_path)
+# for i in range(len(path_files)):
+#     print(i,path_files[i])
+#
+# path_file = path_files[14]
+
+# # path_file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs/MDB_S3B_OLCI_EFR_POLYMER_L2_AERONET_Gustav_Dalen_Tower.nc'
+# # path_file = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_UPDATED/MDBs/MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT.nc'
+# #path_file = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_UPDATED/MDBs/MDB_S3B_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT.nc'
+# print(os.path.exists(path_file))
+# #path_file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/polymer/MDBs/MDB_S3A_OLCI_EFR_POLYMER_L2_AERONET_Gustav_Dalen_Tower.nc'
+# mdb_file = MDBFile(path_file)
+#
+# #wllist = [400,412.5,442.5,490,510,560,620,673.75,681.25,708.75,753.75,778.75]
+# wllist = [400, 412, 443, 490, 510, 560, 620, 665, 779]
+# mdb_file.set_wl_ref(wllist)
+# mdb_file.prepare_df_validation()
+#
+# mdb_plot = MDBPlot(mdb_file)
+#
+#
+#
+#
+# #path_out_img = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/polymer/MDBs/'
+# #path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+# #path_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_UPDATED/MDBs/'
+#
+# path_out = os.path.join(path_base,path_file.split('/')[-1][:-3])
+# if not os.path.exists(path_out):
+#     os.mkdir(path_out)
+# print(path_out)
+# #path_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/C2RCC/MDBs/MDB_S3A_OLCI_EFR_C2RCC_L2_AERONET_Gustav_Dalen_Tower'
+# mdb_plot.plot_all_scatter_plot(path_out)
+# mdb_plot.plot_wavelenght_scatter_plots(path_out)
+# file_data_valid = os.path.join(path_out,'DataValid.csv')
+# mdb_file.df_validation_valid.to_csv(file_data_valid)
+# file_data = os.path.join(path_out,'Data.csv')
+# mdb_file.df_validation.to_csv(file_data)
+# mdb_plot.compute_all_statistics()
+# file_results = os.path.join(path_out,'Params.csv')
+# mdb_plot.df_valid_stats.to_csv(file_results)
+# mdb_plot.plot_all_spectra_param(path_out)
+
+#LOIS LISTA
+#path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+# mdb_name = 'MDB_S3A_OLCI_WFR_STANDARD_L2_AERONET_Gustav_Dalen_Tower.nc'
+# mdb_file = MDBFile(os.path.join(path_base,mdb_name))
+#wllist = [400, 412, 443, 490, 510, 560, 620, 665, 779]
+# mdb_file.set_wl_ref(wllist)
+# mdb_file.prepare_df_validation()
+# for date in mdb_file.mu_dates:
+#     print(mdb_file.mu_dates[date])
+
+#MDB LIST
+path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+mdb_list = MDBFileList()
+wllist = [400, 412, 443, 490, 510, 560, 620, 665, 779]
+mdb_list.set_wl_ref(wllist)
+for f in os.listdir(path_base):
+    if f.startswith('MDB')and f.endswith('.nc'):
+        file_path = os.path.join(path_base,f)
+        mdb_list.add_mdb_file(file_path)
+
+for f in mdb_list.mdb_list:
+    print(f,mdb_list.mdb_list[f]['satellite_aco_processor'])
+
+mdb_list.make_validation_individual_mdb_files()
+
+# mdb_list.prepare_df_for_validation()
+#
+# params_include = {
+#     'platform': ['B']
+# }
+# dfvalid, groups, start_date, end_date = mdb_list.get_df_validation(params_include,'ac',True)
+# path_out_m = os.path.join(path_base,'MDB_S3B_OLCI_AERONET')
+# if not os.path.exists(path_out_m):
+#     os.mkdir(path_out_m)
+# for g in groups:
+#     dfval = dfvalid[dfvalid['ac']==g]
+#     path_out = os.path.join(path_out_m,g)
+#     if not os.path.exists(path_out):
+#         os.mkdir(path_out)
+#     mdbplot = MDBPlot(None,dfval)
+#     dates = start_date.strftime('%Y-%m-%d') + ' to ' + end_date.strftime('%Y-%m-%d')
+#     title = f'MDB_S3B_OLCI_AERONET_{g} {dates}'
+#     file_name_base = f'MDB_S3B_OLCI_AERONET_{g}_{dates}'
+#     mdbplot.make_validation_dfval(path_out,title,file_name_base,wllist)
+
+# for date in mdb_list.mu_dates:
+#     print(date,mdb_list.mu_dates[date])
+
+#temp, borrar NT files
+# path_remove = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Helsinki_Lighthouse/WFR/extracts'
+# for f in os.listdir(path_remove):
+#     if f.find('_NR_')>0:
+#         path_file = os.path.join(path_remove,f)
+#         print(path_file)
+#         os.remove(path_file)
+
+##TEMPORAL----------
+# file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/C2RCC/extracts/S3A_OL_1_EFR____20160429T095925_20160429T095930_20170928T234330__trim_EXT_003_293_MR1_R_NT_002_C2RCC_nc_extract_Gustav_Dalen_Tower.nc'
+# nc_sat = Dataset(file)
+# var  = nc_sat.variables['satellite_c2rcc_flags']
+# datos = var[:]
+#
+# flagging = flag.Class_Flags_OLCI(var.flag_masks,var.flag_meanings)
+#
+# res = flagging.Mask(datos,['Valid_PE'])
+# print(res)
+#
+# valuePE = np.uint64(2147483648)
+# res = np.ones(datos.shape,dtype=np.uint64)
+# res[datos==valuePE] = 0
+# print(res)
+
+#
+# index = var.flag_meanings.index('Valid_PE')
+# print(index, len(var.flag_meanings))
+
+#mdb_file.df_validation_valid.to_csv('/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/polymer/MDBs/data.csv')
+# #mdb_file.plot_spectra(None)
 
     # if dataTOplot.RRS.size == 0:
     #     print ('no PANTHYR MDBs found!')
