@@ -201,7 +201,7 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
     insitu_original_bands.description = 'In situ bands in nm.'
 
     insitu_Rrs = new_MDB.createVariable('insitu_Rrs', 'f4', ('satellite_id', 'insitu_original_bands', 'insitu_id'),
-                                         fill_value=-999, zlib=True, complevel=6)
+                                        fill_value=-999, zlib=True, complevel=6)
     insitu_Rrs.description = 'In situ Rrs'
 
     time_difference = new_MDB.createVariable('time_difference', 'f4', ('satellite_id', 'insitu_id'), fill_value=-999,
@@ -250,8 +250,8 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
                         wl0 = data['wavelength'].tolist()
                         insitu_original_bands[:] = wl0
                     insitu_rhow_vec = [x for x, in data['rhow'][:]]
-                    insitu_RrsArray = ma.array(insitu_rhow_vec).transpose()/np.pi
-                    #insitu_Rrs[0, :, insitu_idx] = [ma.array(insitu_rhow_vec).transpose()]
+                    insitu_RrsArray = ma.array(insitu_rhow_vec).transpose() / np.pi
+                    # insitu_Rrs[0, :, insitu_idx] = [ma.array(insitu_rhow_vec).transpose()]
                     insitu_Rrs[0, :, insitu_idx] = [insitu_RrsArray]
                     insitu_idx += 1
                     # print(rhow0)
@@ -376,6 +376,125 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
         return True
 
 
+def get_simple_fileextracts_list(path_extract, wce, datetime_start, datetime_stop):
+    list_files = []
+    for f in os.listdir(path_extract):
+        path_file = os.path.join(path_extract, f)
+        include = False
+        if wce is not None and f.find(wce) >= 0 and f.endswith('.nc'):
+            include = True
+        if wce is None and f.endswith('.nc'):
+            include = True
+        if datetime_start is not None and datetime_stop is not None and include:
+            include = False
+            nc_extract = Dataset(path_file)
+            datehere = datetime.fromtimestamp(float(nc_extract.variables['satellite_time'][0]))
+            if datetime_start <= datehere <= datetime_stop:
+                include = True
+            nc_extract.close()
+
+        # if include:
+        #     dataset_here = Dataset(path_file)
+        #     if 'satellite_longitude' not in dataset_here.variables:
+        #         print(f'[WARNING] file structure is not correct for: {f}')
+        #         include = False
+        #     dataset_here.close()
+        if include:
+            if args.verbose:
+                print(f'[INFO] Appending file: {f}')
+            list_files.append(path_file)
+    return list_files
+
+
+def get_start_end_date_from_options(options):
+    if options['Time_and_sites_selection']['time_start']:
+        datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+    else:
+        datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+    if options['Time_and_sites_selection']['time_stop']:
+        datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(
+            seconds=59, minutes=59, hours=23)
+    else:
+        datetime_end = datetime.today()
+
+    return datetime_start, datetime_end
+
+
+def make_simple_builder(options, path_extract, path_out):
+    wce = None
+    satellite = 'SATELLITE'
+    platform = 'PLATFORM'
+    if options.has_option('satellite_options', 'satellite') and options.has_option('satellite_options', 'platform'):
+        satellite = options['satellite_options']['satellite']
+        platform = options['satellite_options']['platform']
+        wce = f'{satellite}{platform}'
+
+    ac = 'AC'
+    if options.has_option('satellite_options', 'ac'):
+        ac = options['satellite_options']['ac']
+    sensor = 'SENSOR'
+    if options.has_option('satellite_options', 'sensor'):
+        sensor = options['satellite_options']['sensor']
+
+    site_type = options['Time_and_sites_selection']['insitu_type']
+
+    datetime_start, datetime_stop = get_start_end_date_from_options(options)
+    datetime_start_str = datetime_start.strftime('%Y%m%d')
+    datetime_stop_str = datetime_stop.strftime('%Y%m%d')
+    name_out = f'MDB_{satellite.upper()}{platform.upper()}_{sensor.upper()}_{ac.upper()}_{site_type.upper()}_{datetime_start_str}_{datetime_stop_str}.nc'
+    ncout_file = os.path.join(path_out, name_out)
+    if args.verbose:
+        print(f'[INFO] Out file: {ncout_file}')
+
+    list_files = get_simple_fileextracts_list(path_extract, wce, datetime_start, datetime_stop)
+
+    if len(list_files) > 100:
+        if args.verbose:
+            print(f'[INFO] Preparing contatenation of {len(list_files)} files...')
+        list_files_tmp = []
+        for icent in range(0, len(list_files), 100):
+            if args.verbose:
+                print(f'[INFO] Concatening: {icent} / {len(list_files)}')
+            indextmp = int(icent / 100)
+            list_files_here = list_files[icent:icent + 100]
+            ncout_file_tmp = os.path.join(path_out, f'Temp_{indextmp}.nc')
+            list_files_tmp.append(ncout_file_tmp)
+            list_files_here.append(ncout_file_tmp)
+            # concatenation
+            cmd = [f"ncrcat -O -h"] + list_files_here
+            cmd = " ".join(cmd)
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(f'[ERROR]{err}')
+        list_files_tmp.append(ncout_file)
+        cmd = [f"ncrcat -O -h"] + list_files_tmp
+        cmd = " ".join(cmd)
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(f'[ERROR]{err}')
+
+
+        [os.remove(f) for f in list_files_tmp[:-1]]
+
+
+    else:
+        list_files.append(ncout_file)
+        # concatenation
+        cmd = [f"ncrcat -O -h"] + list_files
+        cmd = " ".join(cmd)
+        if args.debug:
+            print(f'CMD="{cmd}"')
+        # os.system(cmd)
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(f'[ERROR]{err}')
+
+    print(f'Concatenated file created: {ncout_file}')
+
+
 # #############################
 # %%
 def main():
@@ -387,9 +506,15 @@ def main():
     if args.config_file:
         if os.path.isfile(args.config_file):
             options = config_reader(args.config_file)
-    # else:
-    #     print(args.config_file + ' does not exist. Please provide a valid config file path')
-    #     sys.exit()    
+
+    # path to output
+    if args.output:
+        path_out = args.output
+    elif args.config_file:
+        if options['file_path']['output_dir']:
+            path_out = options['file_path']['output_dir']
+    if args.verbose:
+        print(f'Path to output: {path_out}')
 
     # path to satellite extract
     if args.path_to_sat:
@@ -399,6 +524,12 @@ def main():
             satellite_path_source = options['file_path']['sat_extract_dir']
     if args.verbose:
         print(f'Path to satellite sources: {satellite_path_source}')
+
+    if options.has_option('Time_and_sites_selection', 'insitu_type'):
+        if options['Time_and_sites_selection']['insitu_type'] == 'SYKE':
+            print(f'[INFO] Entering simple concatenation mode...')
+            make_simple_builder(options, satellite_path_source, path_out)
+            return
 
     if args.satellite:
         sat_sensor = args.satellite
@@ -410,15 +541,6 @@ def main():
         print(f'Satellite: {sat_satellite.upper()}')
         print(f'Satellite sensor: {sat_sensor.upper()}')
         print(f'Satellite platform: {sat_platform.upper()}')
-
-    # path to output
-    if args.output:
-        path_out = args.output
-    elif args.config_file:
-        if options['file_path']['output_dir']:
-            path_out = options['file_path']['output_dir']
-    if args.verbose:
-        print(f'Path to output: {path_out}')
 
     if not os.path.isdir(path_out):
         os.mkdir(path_out)
@@ -532,8 +654,16 @@ def main():
             extract_path = line[:-1]
             # extract date time info
             sensor_str = extract_path.split('/')[-1].split('_')[0]
-            res_str = extract_path.split('/')[-1].split('_')[3]
-            datetime_str = extract_path.split('/')[-1].split('_')[7]
+            if atm_corr == 'ACOLITE':
+                res_str = 'EFR'
+                lpath = extract_path.split('/')[-1].split('_')
+                datetime_here = datetime(int(lpath[2]), int(lpath[3]), int(lpath[4]), int(lpath[5]), int(lpath[6]),
+                                         int(lpath[7]))
+                datetime_str = datetime_here.strftime('%Y%m%dT%H%M%S')
+            else:
+                res_str = extract_path.split('/')[-1].split('_')[3]
+                datetime_str = extract_path.split('/')[-1].split('_')[7]
+            print(extract_path, sensor_str, res_str, datetime_str)
             if args.verbose:
                 print('-----------------')
                 print(f'[INFO] Date: {datetime_str} Satellite/Platform: {sensor_str} Resolution: {res_str}')
@@ -577,8 +707,6 @@ def main():
             else:
                 if args.verbose:
                     print('Out of time frame.')
-
-
 
     level_prod = 'L2'
 

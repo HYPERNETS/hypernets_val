@@ -47,6 +47,7 @@ class SatExtract:
         self.EXTRACT.description = f'{satellite}{platform} {sensor.upper()} {res_str} L2 extract'
         self.EXTRACT.satellite_aco_processor = at['aco_processor']  # 'Atmospheric Correction processor: xxx'
         self.EXTRACT.satellite_proc_version = at['proc_version']  # proc_version_str
+
         self.EXTRACT.insitu_site_name = at['station_name']
         self.EXTRACT.insitu_lat = at['in_situ_lat']
         self.EXTRACT.insitu_lon = at['in_situ_lon']
@@ -57,6 +58,16 @@ class SatExtract:
         self.EXTRACT.createDimension('rows', size_box)
         self.EXTRACT.createDimension('columns', size_box)
         self.EXTRACT.createDimension('satellite_bands', n_bands)
+
+    def create_dimensions_incluidinginsitu(self, size_box, n_bands, n_insitubands, n_insituid):
+        # dimensions
+        self.EXTRACT.createDimension('satellite_id', None)
+        self.EXTRACT.createDimension('rows', size_box)
+        self.EXTRACT.createDimension('columns', size_box)
+        self.EXTRACT.createDimension('satellite_bands', n_bands)
+
+        self.EXTRACT.createDimension('insitu_original_bands', n_insitubands)
+        self.EXTRACT.createDimension('insitu_id', 30)
 
     def create_geometry_variable(self, name_geom):
         if not name_geom in self.geometry_variables.keys():
@@ -86,19 +97,29 @@ class SatExtract:
         stop_idx_y = window[1]
         start_idx_x = window[2]
         stop_idx_x = window[3]
+        nrows = (window[1] - window[0])
+        ncols = (window[3] - window[2])
 
         # latitude
         satellite_latitude = self.EXTRACT.createVariable('satellite_latitude', 'f8',
                                                          ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                          zlib=True, complevel=6)
-        satellite_latitude[0, :, :] = [lat[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
+        if lat.ndim == 1:
+            for r in range(nrows):
+                satellite_latitude[0, r, :] = [lat[start_idx_x:stop_idx_x]]
+        else:
+            satellite_latitude[0, :, :] = [lat[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
         satellite_latitude.short_name = 'latitude'
 
         # longitude
         satellite_longitude = self.EXTRACT.createVariable('satellite_longitude', 'f8',
                                                           ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                           zlib=True, complevel=6)
-        satellite_longitude[0, :, :] = [lon[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
+        if lon.ndim == 1:
+            for c in range(ncols):
+                satellite_longitude[0, :, c] = [lon[start_idx_y:stop_idx_y]]
+        else:
+            satellite_longitude[0, :, :] = [lon[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
         satellite_longitude.short_name = 'longitude'
 
     def create_satellite_bands_variable(self, wavelengths):
@@ -142,6 +163,61 @@ class SatExtract:
         satellite_flag.description = description
         satellite_flag.flag_masks = flag_masks
         satellite_flag.flag_meanings = flag_meanings
+
+    def create_insitu_time_variable(self):
+        insitu_time = self.EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id',), zlib=True,
+                                                  complevel=6)
+        insitu_time.units = "Seconds since 1970-1-1"
+        insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
+        return insitu_time
+
+    def create_insitu_original_bands_variable(self):
+        insitu_original_bands = self.EXTRACT.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'),
+                                                            fill_value=-999, zlib=True, complevel=6)
+        insitu_original_bands.description = 'In situ bands in nm'
+        return insitu_original_bands
+
+    def create_insitu_exact_wavelengths_variable(self):
+        insitu_exact_wavelenghts = self.EXTRACT.createVariable('insitu_exact_wavelenghts', 'f4',
+                                                               ('satellite_id', 'insitu_original_bands', 'insitu_id'),
+                                                               fill_value=-999, zlib=True, complevel=6)
+        insitu_exact_wavelenghts.description = 'In situ bands in nm'
+
+        return insitu_exact_wavelenghts
+
+    def create_insitu_rrs_variable(self):
+        insitu_Rrs = self.EXTRACT.createVariable('insitu_Rrs', 'f4',
+                                                 ('satellite_id', 'insitu_original_bands', 'insitu_id'),
+                                                 fill_value=-999, zlib=True, complevel=6)
+        insitu_Rrs.description = 'In situ Rrs'
+
+        return insitu_Rrs
+
+    def create_insitu_time_difference_variable(self):
+
+        time_difference = self.EXTRACT.createVariable('time_difference', 'f4', ('satellite_id', 'insitu_id'),
+                                                      fill_value=-999,
+                                                      zlib=True, complevel=6)
+        time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
+        time_difference.units = "seconds"
+
+        return time_difference
+
+    def create_insitu_lat_long_variables(self):
+
+        insitu_lat = self.EXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id', 'insitu_id'),
+                                                 fill_value=-999,
+                                                 zlib=True, complevel=6)
+        insitu_lat.short_name = "latitude"
+        insitu_lat.units = "degrees"
+
+        insitu_lon = self.EXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id', 'insitu_id'),
+                                                 fill_value=-999,
+                                                 zlib=True, complevel=6)
+        insitu_lon.short_name = "longitude"
+        insitu_lon.units = "degrees"
+
+        return insitu_lat, insitu_lon
 
     def close_file(self):
         self.EXTRACT.close()

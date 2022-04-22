@@ -11,13 +11,15 @@ import pandas as pd
 code_home = os.path.abspath('../')
 sys.path.append(code_home)
 import COMMON.Class_Flags_OLCI as flag
+from QC_INSITU import QC_INSITU
+from QC_SAT import QC_SAT
 
 DIMENSION_NAMES = ['satellite_id', 'rows', 'columns', 'satellite_bands', 'insitu_id', 'insitu_original_bands']
 VAR_NAMES = ['satellite_time', 'satellite_latitude', 'satellite_longitude', 'satellite_bands',
              'satellite_Rrs', 'insitu_time', 'insitu_original_bands', 'insitu_Rrs', 'time_difference']
 
 ATRIB_NAMES = ['creation_time', 'satellite', 'platform', 'sensor', 'description', 'satellite_aco_processor',
-               'satellite_proc_version', 'insitu_site_name', 'insitu_lat', 'insitu_lon', 'time_diff']
+               'satellite_proc_version', 'insitu_site_name', 'insitu_lat', 'insitu_lon']
 
 
 class MDBFile:
@@ -59,7 +61,14 @@ class MDBFile:
             self.info = {}
             atribs = self.nc.ncattrs()
             for at in atribs:
-                self.info[at] = self.nc.getncattr(at)
+                if at == 'satellite_aco_processor':
+                    self.info[at] = self.nc.getncattr(at).upper()
+                else:
+                    self.info[at] = self.nc.getncattr(at)
+
+            if self.info['satellite_aco_processor'] == 'ATMOSPHERIC CORRECTION PROCESSOR: XXX':
+                self.info['satellite_aco_processor'] = 'STANDARD'
+
             self.wlref = self.satellite_bands
             self.wlref_sat_indices = list(range(len(self.satellite_bands)))
             # print(self.info)
@@ -83,11 +92,23 @@ class MDBFile:
         self.mu_curr_ins_rrs = []
         self.mu_valid_bands = []
 
+        # QUALITY CONTROL
+        self.only_complete_spectra_valid = False
+        self.qc_insitu = QC_INSITU(self.variables['insitu_Rrs'], self.variables['insitu_original_bands'])
+
+        if self.nc.satellite_aco_processor == 'ACOLITE':
+            self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
+                                 self.info['satellite_aco_processor'])
+        else:
+            self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
+                                 self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
+
         # Variables to make validation...
-        col_names = ['Index', 'Index_MU', 'Index_Band', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Wavelenght', 'Ins_Rrs',
-                     'Sat_Rrs', 'Valid']
-        self.df_validation = pd.DataFrame(columns=col_names)
-        self.df_validation_valid = pd.DataFrame(columns=col_names)
+        self.col_names = ['Index', 'Index_MU', 'Index_Band', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Wavelenght',
+                          'Ins_Rrs',
+                          'Sat_Rrs', 'Valid']
+        self.df_validation = None
+        self.df_validation_valid = None
         self.mu_dates = {}
 
     # Checking atrib, var and dimensions names
@@ -97,7 +118,6 @@ class MDBFile:
         check_atrib = True
         for var in VAR_NAMES:
             if var not in self.variables:
-                print(var)
                 check_var = False
         for dim in DIMENSION_NAMES:
             if dim not in self.dimensions:
@@ -110,17 +130,27 @@ class MDBFile:
             return False
 
         if not self.flag_band_name in self.variables:
-            if self.nc.satellite_aco_processor == 'Polymer' and 'satellite_bitmask' in self.variables:
+            if self.nc.satellite_aco_processor.upper() == 'POLYMER' and 'satellite_bitmask' in self.variables:
                 self.flag_band_name = 'satellite_bitmask'
 
-            if self.nc.satellite_aco_processor == 'C2RCC' and 'satellite_c2rcc_flags' in self.variables:
+            if self.nc.satellite_aco_processor.upper() == 'C2RCC' and 'satellite_c2rcc_flags' in self.variables:
                 self.flag_band_name = 'satellite_c2rcc_flags'
+
+            if self.nc.satellite_aco_processor.upper() == 'FUB' and 'satellite_quality_flags':
+                self.flag_band_name = 'satellite_quality_flags'
+
+            if self.nc.satellite_aco_processor.upper() == 'ACOLITE':
+                self.flag_band_name = 'NONE'
 
         return True
 
     # Set default sat filtering options
     def set_default_sat_filtering_options(self):
         flag_list = 'CLOUD,CLOUD_AMBIGUOUS,CLOUD_MARGIN,INVALID,COSMETIC,SATURATED,SUSPECT,HISOLZEN,HIGHGLINT,SNOW_ICE,AC_FAIL,WHITECAPS,RWNEG_O2,RWNEG_O3,RWNEG_O4,RWNEG_O5,RWNEG_O6,RWNEG_O7,RWNEG_O8'
+        if self.nc.satellite_aco_processor == 'FUB':
+            flag_list = 'land'
+            # flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,duplicated,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16,saturated_Oa17,saturated_Oa18,saturated_Oa19,saturated_Oa20,saturated_Oa21'
+
         flag_list = flag_list.replace(" ", "")
         self.flag_list = str.split(flag_list, ',')
         self.window_size = 3
@@ -171,7 +201,15 @@ class MDBFile:
             mask[satellite_flag_band == valuePE] = 0
             NGP = np.power(self.window_size, 2) - np.sum(mask)  # Number Good Pixels excluding flagged pixels
             NTP = np.power(self.window_size, 2)
-        else:
+
+        elif self.flag_band_name == 'NONE':  # ACOLITE
+            index_1020 = np.argmin(np.abs(1020 - self.satellite_bands))
+            bandref = self.variables['satellite_Rrs'][index_mu, index_1020, r_s:r_e, c_s:c_e]
+            mask = np.zeros(bandref.shape, dtype=np.uint64)
+            mask[bandref > 0.05] = 1
+            NTP = np.power(self.window_size, 2) - np.sum(mask)
+            NGP = np.power(self.window_size, 2)
+        else:  # STANDARD/FUB
             flagging = flag.Class_Flags_OLCI(self.variables[self.flag_band_name].flag_masks,
                                              self.variables[self.flag_band_name].flag_meanings)
             satellite_flag_band = self.variables[self.flag_band_name][index_mu, r_s:r_e, c_s:c_e]
@@ -180,9 +218,20 @@ class MDBFile:
                 mask[np.where(mask != 0)] = 1
             else:
                 mask = np.full(satellite_flag_band.shape, 0, dtype=int)
+
+            if self.nc.satellite_aco_processor == 'ACOLITE':
+                index_1020 = np.argmin(np.abs(412 - self.satellite_bands))
+                bandref = self.variables['satellite_Rrs'][index_mu, index_1020, r_s:r_e, c_s:c_e]
+                mask[bandref > 0.015] = 1
+
             NGP = np.power(self.window_size, 2) - np.sum(mask)  # Number Good Pixels excluding flagged pixels
-            land = flagging.Mask(satellite_flag_band, (['LAND']))
-            inland_w = flagging.Mask(satellite_flag_band, (['INLAND_WATER']))
+
+            if self.nc.satellite_aco_processor == 'FUB':
+                land = flagging.Mask(satellite_flag_band, (['land']))
+                inland_w = flagging.Mask(satellite_flag_band, (['fresh_inland_water']))
+            else:
+                land = flagging.Mask(satellite_flag_band, (['LAND']))
+                inland_w = flagging.Mask(satellite_flag_band, (['INLAND_WATER']))
             land[np.where(inland_w > 0)] = 0
             NTP = np.power(self.window_size, 2) - np.sum(land, axis=(0, 1))
 
@@ -208,7 +257,8 @@ class MDBFile:
 
         # Sat and instrument rrs
         self.insitu_rrs = self.variables['insitu_Rrs'][index_mu]
-        # self.insitu_rrs = self.insitu_rrs / np.pi  # transform from rhow to Rr
+        # self.insitu_rrs = self.insitu_rrs * np.pi  # transform from rhow to Rr
+
         self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
 
         # Sat and instrument time
@@ -222,32 +272,39 @@ class MDBFile:
         mask, cond_min_valid_pxs, NGP, NTP = self.get_flag_mask(index_mu)
 
         # TEMPORAL
-        filtro_temporal = True
-        if time_condition and cond_min_valid_pxs:
-            for iref in range(len(self.wlref_sat_indices)):  # range(0, self.n_satellite_bands):
-                sat_band_index = self.wlref_sat_indices[iref]
-
-                wl = self.satellite_bands[sat_band_index]
-                # print('------------------------------', sat_band_index, wl)
-                # print(sat_band_index, wl)
-                ins_band_index = np.argmin(np.abs(wl - self.insitu_bands))
-                if self.insitu_rrs.mask[ins_band_index, self.ins_time_index]:
-                    filtro_temporal = False
-                if np.isnan(self.insitu_rrs[ins_band_index, self.ins_time_index]):
-                    filtro_temporal = False
-                    continue
-                val = self.insitu_rrs[ins_band_index, self.ins_time_index]
-                if val > 0.008 and sat_band_index == 6:
-                    filtro_temporal = False
-                if val > 0.004 and sat_band_index == 7:
-                    filtro_temporal = False
-                if val < 0:
-                    filtro_temporal = False
+        # filtro_temporal = True
+        # if time_condition and cond_min_valid_pxs:
+        #     for iref in range(len(self.wlref_sat_indices)):  # range(0, self.n_satellite_bands):
+        #         sat_band_index = self.wlref_sat_indices[iref]
+        #         wl = self.satellite_bands[sat_band_index]
+        #         # print(sat_band_index, wl)
+        #         ins_band_index = np.argmin(np.abs(wl - self.insitu_bands))
+        #         # print('------------------------------', sat_band_index, wl, ins_band_index,
+        #         #       self.insitu_rrs[ins_band_index, self.ins_time_index])
+        #
+        #         if self.insitu_rrs.mask[ins_band_index, self.ins_time_index]:
+        #             #print('me lo evalua aqui...')
+        #             filtro_temporal = False
+        #         if np.isnan(self.insitu_rrs[ins_band_index, self.ins_time_index]):
+        #             #print('o mas bien es aqui...')
+        #             filtro_temporal = False
+        #             continue
+        #         val = self.insitu_rrs[ins_band_index, self.ins_time_index]
+        #         if val > 0.004 and sat_band_index == 2:
+        #             filtro_temporal = False
+        #         if val > 0.01 and sat_band_index == 4:
+        #             filtro_temporal = False
+        #         # if val > 0.008 and sat_band_index == 6:
+        #         #     filtro_temporal = False
+        #         # if val > 0.004 and sat_band_index == 7:
+        #         #     filtro_temporal = False
+        #         if val < 0:
+        #             filtro_temporal = False
 
         # Getting spectra for comparison
         self.mu_valid_bands = [False] * len(self.wlref_sat_indices)
 
-        if time_condition and cond_min_valid_pxs and filtro_temporal:
+        if time_condition and cond_min_valid_pxs:  # and filtro_temporal:
             self.mu_curr_ins_rrs = []
             self.mu_curr_sat_rrs_mean = []
             for iref in range(len(self.wlref_sat_indices)):
@@ -278,12 +335,17 @@ class MDBFile:
                 else:
                     cond_min_valid_pxs = numberValid > (float(self.valid_min_pixels) * NTP + 1)
 
+                # if not check_ins_value:
+                #     print(f'[WARNING] Wavelenght:  {wl} is not valid. Max diff: {difwl}')
+
                 if cond_min_valid_pxs and check_dif_wl and check_ins_value:
                     curr_sat_box_mean = curr_sat_box.mean()
                     self.mu_curr_sat_rrs_mean.append(curr_sat_box_mean)
                     ins_value = self.insitu_rrs[ins_band_index, self.ins_time_index]
                     self.mu_curr_ins_rrs.append(ins_value)
                     self.mu_valid_bands[iref] = True
+                    if iref == 1 and curr_sat_box_mean >= 0.0075:
+                        self.mu_valid_bands[iref] = False
 
             # print(self.mu_curr_sat_rrs_mean)
             # print(self.mu_curr_ins_rrs)
@@ -292,18 +354,35 @@ class MDBFile:
         else:
             return False
 
+    def get_mu_key(self):
+        sdate = self.mu_sat_time.strftime('%Y-%m-%d')
+        idate = self.mu_insitu_time.strftime('%H:%M:%S')
+        mukey = f'{sdate}_{idate}'
+        return mukey
+
     def prepare_df_validation(self):
+        print('[INFO] Preparing DF for validation...')
+        nbands = len(self.wlref)
+        ntot = nbands * self.n_mu_total
+        self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
         # ['Index','Index_MU','Index_Band','Sat_Time','Ins_Time','Time_Diff','Wavelenght','Ins_Rrs','Sat_Rrs','Valid']
         index_tot = 0
-        index_valid_tot = 0
+        # index_valid_tot = 0
         nmu_valid = 0
         for index_mu in range(self.n_mu_total):
+            # if index_mu % 100 == 0:
+            #     print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             mu_valid = self.load_mu_data(index_mu)
             if mu_valid:
                 nmu_valid = nmu_valid + 1
-            sdate = self.mu_sat_time.strftime('%Y-%m-%d')
-            if not sdate in self.mu_dates.keys():
-                self.mu_dates[sdate] = {
+
+            mukey = self.get_mu_key()
+            time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
+            if not mukey in self.mu_dates.keys():
+                self.mu_dates[mukey] = {
+                    'Sat_Time': self.mu_sat_time.strftime('%Y-%m-%d %H:%M'),
+                    'Ins_Time': self.mu_insitu_time.strftime('%Y-%m-%d %H:%M'),
+                    'Time_Diff': time_diff,
                     'satellite': self.info['satellite'].upper(),
                     'platform': self.info['platform'].upper(),
                     'sensor': self.info['sensor'].upper(),
@@ -311,10 +390,10 @@ class MDBFile:
                     'ac': self.info['satellite_aco_processor'].upper(),
                     'mu_valid': mu_valid,
                 }
-                if self.mu_dates[sdate]['ac'] == 'ATMOSPHERIC CORRECTION PROCESSOR: XXX':
-                    self.mu_dates[sdate]['ac'] = 'STANDARD'
+                if self.mu_dates[mukey]['ac'] == 'ATMOSPHERIC CORRECTION PROCESSOR: XXX':
+                    self.mu_dates[mukey]['ac'] = 'STANDARD'
             else:
-                print('[WARNING] A single MDB file should not contain more than one match-up in a specific date')
+                print('[WARNING] A single MDB file should not contain more than one match-up in a specific time/date')
 
             # print(f'Match-up # {index_mu} Valid: {mu_valid}')
             index_valid = 0
@@ -322,7 +401,7 @@ class MDBFile:
             for iref in range(len(self.wlref_sat_indices)):  # range(0, self.n_satellite_bands):
                 sat_band_index = self.wlref_sat_indices[iref]
 
-                time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
+                # time_diff = round(abs((self.mu_sat_rtime - self.mu_insitu_time).total_seconds() / 3600), 2)
                 row = {
                     'Index': [index_tot],
                     'Index_MU': [index_mu],
@@ -340,16 +419,24 @@ class MDBFile:
                     row['Sat_Rrs'] = [self.mu_curr_sat_rrs_mean[index_valid]]
                     index_valid = index_valid + 1
 
-                self.df_validation = pd.concat([self.df_validation, pd.DataFrame.from_dict(row)], ignore_index=True)
-                index_tot = index_tot + 1
+                # self.df_validation = pd.concat([self.df_validation, pd.DataFrame.from_dict(row)], ignore_index=True)
+                self.df_validation.iloc[index_tot] = pd.DataFrame.from_dict(row)
+                # for r in row:
 
-                if mu_valid:
-                    row['Index'] = index_valid_tot
-                    self.df_validation_valid = pd.concat([self.df_validation_valid, pd.DataFrame.from_dict(row)],
-                                                         ignore_index=True)
-                    index_valid_tot = index_valid_tot + 1
+                index_tot = index_tot + 1
+                # if mu_valid:
+                #     index_valid_tot = index_valid_tot+1
+
+                # if mu_valid:
+                #     row['Index'] = index_valid_tot
+                #     self.df_validation_valid = pd.concat([self.df_validation_valid, pd.DataFrame.from_dict(row)],
+                #                                          ignore_index=True)
+                #     index_valid_tot = index_valid_tot + 1
+
+        self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
 
         print(f'# total match-ups: {self.n_mu_total} Valid: {nmu_valid}')
+        return nmu_valid
 
     ##PLOT FUNCTIONS
     def plot_spectra(self, hfig):
@@ -422,3 +509,12 @@ class MDBFile:
         for wl in wllist:
             index = np.argmin(np.abs(wl - self.satellite_bands))
             self.wlref_sat_indices.append(index)
+
+    def set_wlsatrange_aswlref(self, wlmin, wlmax):
+        self.wlref = []
+        self.wlref_sat_indices = []
+        for index in range(len(self.satellite_bands)):
+            wl = self.satellite_bands[index]
+            if wlmin <= wl <= wlmax:
+                self.wlref.append(wl)
+                self.wlref_sat_indices.append(index)

@@ -153,7 +153,12 @@ class MDBFileList():
             mfile = MDBFile(self.mdb_list[fmdb]['path'])
             if not self.wlref is None:
                 mfile.set_wl_ref(self.wlref)
-            mfile.prepare_df_validation()
+            nvalid = mfile.prepare_df_validation()
+
+            if nvalid == 0:
+                print(f'[WARNING] Valid match-ups were not found. Skipping file: {fmdb}')
+                return
+
             # path
             dir_name = os.path.dirname(self.mdb_list[fmdb]['path'])
             path_out = os.path.join(dir_name, fmdb[:-3])

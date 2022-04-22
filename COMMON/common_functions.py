@@ -106,7 +106,7 @@ def convert_DMS_to_decimal(DD, MM, SS, cardinal):
 
 
 def contain_location(lat, lon, in_situ_lat, in_situ_lon):
-    if in_situ_lat >= lat.min() and in_situ_lat <= lat.max() and in_situ_lon >= lon.min() and in_situ_lon <= lon.max():
+    if lat.min() <= in_situ_lat <= lat.max() and lon.min() <= in_situ_lon <= lon.max():
         contain_flag = 1
     else:
         contain_flag = 0
@@ -127,6 +127,8 @@ def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
         r = np.nan
         c = np.nan
     return r, c
+
+
 
 
 def get_sites_from_file(file_sites, site_list, region_list, path_out):

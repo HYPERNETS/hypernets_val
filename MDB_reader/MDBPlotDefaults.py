@@ -18,6 +18,7 @@ color_dict = dict({ \
 
 xlabel_default = 'In situ Rrs'
 ylabel_default = 'OLCI Rrs'
+label_insitu_default = 'In situ Rrs'
 xlabel_wl_default = 'Wavelength (nm)'
 
 def get_color_ref(wlvalue):

@@ -8,7 +8,6 @@ from datetime import timedelta
 import numpy.ma as ma
 import numpy as np
 import subprocess
-import shutil
 
 # import user defined functions from other .py
 code_home = os.path.abspath('../')
@@ -21,11 +20,14 @@ parser.add_argument("-d", "--debug", help="Debugging mode.", action="store_true"
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-p', "--product_file", help="Image file.")
+parser.add_argument('-ac', "--atm_correction", help="Atmospheric correction algorithm (Default: C2RCC)",
+                    choices=["C2RCC", "FUB"])
 
 args = parser.parse_args()
 
 
-def launch_create_extract_syke(filepath, skie_file, options):
+# no implemented yet
+def launch_create_extract_skie(filepath, skie_file, options):
     ncreated = 0
 
     path_output = get_output_path(options)
@@ -42,9 +44,12 @@ def launch_create_extract_syke(filepath, skie_file, options):
     # Retriving lat and long arrays
     if args.verbose:
         print('[INFO] Retrieving lat/long data...')
-    lat, lon = get_lat_long_arrays(nc_sat)
-
-    sat_time = dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S')
+    var_lat, var_lon = get_lat_long_var_names(options)
+    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
+    if args.atm_correction == 'FUB':
+        sat_time = get_sat_time_from_fname(filepath)
+    else:
+        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
     nminutes = 120
     if options.has_option('satellite_options', 'max_time_diff'):
         nminutes = int(options['satellite_options']['max_time_diff'])
@@ -52,7 +57,7 @@ def launch_create_extract_syke(filepath, skie_file, options):
     # Retrieving global atribbutes
     if args.verbose:
         print('[INFO] Retrieving global attributes...')
-    global_at = get_global_atrib(nc_sat)
+    global_at = get_global_atrib(nc_sat, options)
 
     max_time_diff = nminutes * 60
     check_date = skie_file.get_subdf(sat_time, sat_time, max_time_diff)
@@ -84,30 +89,12 @@ def launch_create_extract_syke(filepath, skie_file, options):
         else:
             extracts[keyrc]['irows'].append(irow)
 
-    output_dir_prev = None
-    if options.has_option('file_path', 'output_dir_prev'):
-        output_dir_prev = options['file_path']['output_dir_prev']
-
     for extract in extracts:
         r = int(extracts[extract]['r'])
         c = int(extracts[extract]['c'])
         filename = filepath.split('/')[-1].replace('.', '_') + '_extract_skie_' + extract + '.nc'
         pdu = filepath.split('/')[-1]
         ofname = os.path.join(path_output, filename)
-
-        if os.path.exists(ofname):
-            if args.verbose:
-                print(f'[INFO] {ofname} already exists. Skipping..')
-            continue
-
-        if output_dir_prev is not None:
-            ofname_prev = os.path.join(output_dir_prev,filename)
-            if os.path.exists(ofname_prev):
-                if args.verbose:
-                    print(f'[INFO] Copying {ofname} from previous directory')
-                shutil.copy(ofname_prev,ofname)
-                continue
-
         global_at['station_name'] = 'skie'
         global_at['in_situ_lat'] = f'in situ points at pixel row={r},col={c}'
         global_at['in_situ_lon'] = f'in situ points at pixel row={r},col={c}'
@@ -150,12 +137,13 @@ def launch_create_extract(filepath, options):
     # Retriving lat and long arrays
     if args.verbose:
         print('[INFO] Retrieving lat/long data...')
-    lat, lon = get_lat_long_arrays(nc_sat)
+    var_lat, var_lon = get_lat_long_var_names(options)
+    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
 
     # Retrieving global atribbutes
     if args.verbose:
         print('[INFO] Retrieving global attributes...')
-    global_at = get_global_atrib(nc_sat)
+    global_at = get_global_atrib(nc_sat, options)
 
     # Working for each site, checking if there is in the image
     for site in sites:
@@ -165,15 +153,25 @@ def launch_create_extract(filepath, options):
         insitu_lon = sites[site]['longitude']
         contain_flag = 0
         if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-            r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+            if lat.ndim == 1 and lon.ndim == 1:
+                r = np.argmin(np.abs(lat - insitu_lat))
+                c = np.argmin(np.abs(lon - insitu_lon))
+            else:
+                r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
             size_box = get_box_size(options)
-            start_idx_x = (c - int(size_box / 2))
-            stop_idx_x = (c + int(size_box / 2) + 1)
-            start_idx_y = (r - int(size_box / 2))
-            stop_idx_y = (r + int(size_box / 2) + 1)
-            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                    lat.shape[1]:
-                contain_flag = 1
+            start_idx_x = (c - int(size_box / 2)) #lon
+            stop_idx_x = (c + int(size_box / 2) + 1) #lon
+            start_idx_y = (r - int(size_box / 2)) #lat
+            stop_idx_y = (r + int(size_box / 2) + 1) #lat
+
+            if lat.ndim == 1 and lon.ndim == 1:
+                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                        lon.shape[0]:
+                    contain_flag = 1
+            else:
+                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                        lat.shape[1]:
+                    contain_flag = 1
         if contain_flag == 1:
             filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
             pdu = filepath.split('/')[-1]
@@ -200,13 +198,26 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     stop_idx_x = (c + int(size_box / 2) + 1)
     start_idx_y = (r - int(size_box / 2))
     stop_idx_y = (r + int(size_box / 2) + 1)
+    print(start_idx_y,stop_idx_y,start_idx_x,stop_idx_x,
+          '--------------------------------------------------------------------------------------------------------')
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
-    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat)
+    search_pattern = 'rrs_'
+    wl_atrib = None
+    if options.has_option('satellite_options', 'rrs_prefix'):
+        search_pattern = options['satellite_options']['rrs_prefix']
+        if not search_pattern.endswith('_'):
+            search_pattern = f'{search_pattern}_'
+    if options.has_option('satellite_options', 'wl_atrib'):
+        wl_atrib = options['satellite_options']['wl_atrib']
+    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib)
+
     if n_bands == 0:
         print('[ERROR] reflectance bands are not defined')
         return False
-    flag_band_name = 'bitmask'
+    # flag_band_name = 'c2rcc_flags'
+    # if args.atm_correction == 'FUB':
+    #     flag_band_name = 'quality_flags'
 
     newEXTRACT = SatExtract(ofname)
     if not newEXTRACT.FILE_CREATED:
@@ -224,7 +235,16 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     newEXTRACT.create_lat_long_variables(lat, long, window)
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
-    newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S'))
+    if 'start_date' in nc_sat.ncattrs():
+        newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.start_date, '%Y-%m-%d'))
+    else:
+        sat_time = get_sat_time_from_fname(pdu)
+        if sat_time is not None:
+            newEXTRACT.create_satellite_time_variable(sat_time)
+        else:
+            print(f'[ERROR] Satellite time is not defined...')
+            newEXTRACT.close_file()
+            return False
 
     # pdu variable
     newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
@@ -235,32 +255,22 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     wavelenghts = []
     for index in range(len(rbands)):
         rband = rbands[index]
-        bandarray = ma.array(nc_sat.variables[rband][:, :])
-        satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
+        rbandvar = nc_sat.variables[rband]
+        if rbandvar.ndim == 3:
+            bandarray = ma.array(rbandvar[:, :, :])
+            satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        elif rbandvar.ndim == 2:
+            bandarray = ma.array(rbandvar[:, :])
+            satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
         wl = reflectance_bands[rband]['wavelenght']
         wavelenghts.append(wl)
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
 
     # flags
-    flag_band = nc_sat.variables[flag_band_name]
-    desc = flag_band.description.split(',')
-    flag_masks = ''
-    flag_list = []
-    flag_meanings = ''
-    flag_started = False
-    for d in desc:
-        dval = d.split(':')
-        flag_list.append(int(dval[1]))
-        if not flag_started:
-            flag_masks = dval[1]
-            flag_meanings = dval[0]
-            flag_started = True
-        else:
-            flag_masks = flag_masks + ' , ' + dval[1]
-            flag_meanings = flag_meanings + ' ' + dval[0]
-
-    newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, 'Polymer Bitmask', flag_list,
-                                    flag_meanings, window)
+    # flag_band = nc_sat.variables[flag_band_name]
+    #
+    # newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, flag_band.long_name, flag_band.flag_masks,
+    #                                 flag_band.flag_meanings, window)
 
     if skie_file is not None:
         insitu_origbands_var = newEXTRACT.create_insitu_original_bands_variable()
@@ -276,7 +286,10 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
             insitutime_var[0, index_var] = insitu_time_here.timestamp()
             insitu_exactwl_var[0, :, index_var] = skie_file.wavelengths
             insitu_rrs_var[0, :, index_var] = np.array(skie_file.get_spectra_at_subdb(irow))
-            sat_time_here = dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S')
+            if args.atm_correction == 'FUB':
+                sat_time_here = get_sat_time_from_fname(pdu)
+            else:
+                sat_time_here = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
             time_diff = float(abs((insitu_time_here - sat_time_here).total_seconds()))
             insitu_timedif_var[0, index_var] = time_diff
             latp, lonp = skie_file.get_lat_lon_at_subdb(irow)
@@ -287,20 +300,6 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     newEXTRACT.close_file()
 
     return True
-
-
-def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
-    contain_flag = False
-    if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-        r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-        start_idx_x = (c - int(size_box / 2))
-        stop_idx_x = (c + int(size_box / 2) + 1)
-        start_idx_y = (r - int(size_box / 2))
-        stop_idx_y = (r + int(size_box / 2) + 1)
-        if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                lat.shape[1]:
-            contain_flag = True
-    return contain_flag
 
 
 def config_reader(FILEconfig):
@@ -315,6 +314,20 @@ def config_reader(FILEconfig):
     options = configparser.ConfigParser()
     options.read(FILEconfig)
     return options
+
+
+def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
+    contain_flag = False
+    if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
+        r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+        start_idx_x = (c - int(size_box / 2))
+        stop_idx_x = (c + int(size_box / 2) + 1)
+        start_idx_y = (r - int(size_box / 2))
+        stop_idx_y = (r + int(size_box / 2) + 1)
+        if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                lat.shape[1]:
+            contain_flag = True
+    return contain_flag
 
 
 def get_output_path(options):
@@ -367,30 +380,60 @@ def get_site_options(options):
     return site_file, site_list, region_list
 
 
-def get_lat_long_arrays(nc_sat):
-    lat = nc_sat.variables['latitude'][:, :]
-    lon = nc_sat.variables['longitude'][:, :]
+def get_lat_long_arrays(nc_sat, var_lat, var_lon):
+    vlat = nc_sat.variables[var_lat]
+    vlon = nc_sat.variables[var_lon]
+    if vlat.ndim == 2 and vlon.ndim == 2:
+        lat = nc_sat.variables[var_lat][:, :]
+        lon = nc_sat.variables[var_lon][:, :]
+    if vlat.ndim == 1 and vlon.ndim == 1:
+        lat = nc_sat.variables[var_lat][:]
+        lon = nc_sat.variables[var_lon][:]
     return lat, lon
 
 
-def get_global_atrib(nc_sat):
-    at = {'sensor': nc_sat.sensor}
-    if nc_sat.sensor == 'OLCI':
-        at['satellite'] = 'S3'
-        at['platform'] = ''
-        path_origin = nc_sat.l2_filename
-        if path_origin.find('S3A') > 0:
-            at['platform'] = 'A'
-        elif path_origin.find('S3B') > 0:
-            at['platform'] = 'B'
+def get_lat_long_var_names(options):
+    var_lat = 'lat'
+    var_lon = 'lon'
+    if options.has_option('satellite_options', 'lat_variable'):
+        var_lat = options['satellite_options']['lat_variable']
+    if options.has_option('satellite_options', 'lon_variable'):
+        var_lon = options['satellite_options']['lon_variable']
+    return var_lat, var_lon
 
-    at['res'] = ''
-    at['aco_processor'] = 'Polymer'
-    at['proc_version'] = ''
-    polymer_path = nc_sat.dir_base
-    ipol = polymer_path.find('polymer-v')
-    if ipol > 0:
-        at['proc_version'] = polymer_path[ipol + 10:len(polymer_path)]
+
+def get_sat_time_from_fname(fname):
+    val_list = fname.split('_')
+    sat_time = None
+    for v in val_list:
+        try:
+            sat_time = dt.strptime(v, '%Y%m%dT%H%M%S')
+            break
+        except ValueError:
+            continue
+    return sat_time
+
+
+def get_global_atrib(nc_sat, options):
+    at = {}
+    equiv = {
+        'project': 'aco_processor',
+        'product_version': 'proc_version',
+        'grid_resolution': 'res'
+    }
+    if options.has_option('satellite_options', 'global_atrib'):
+        list_str = options['satellite_options']['global_atrib']
+        list_attributes = list_str.split(',')
+        for atrib in list_attributes:
+            atrib_name = atrib.strip()
+            if atrib_name in equiv.keys():
+                atrib_name = equiv[atrib_name]
+            at[atrib_name] = nc_sat.getncattr(atrib.strip())
+
+    compulsory_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
+    for key in compulsory_keys:
+        if key not in at.keys():
+            at[key] = ''
 
     at['station_name'] = ''
     at['in_situ_lat'] = -999
@@ -399,23 +442,35 @@ def get_global_atrib(nc_sat):
     return at
 
 
-def get_reflectance_bands_info(nc_sat):
-    reflectance_bands = None
-    nbands = 0
+def get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib):
+    # search_pattern = 'rrs_'
+    # if args.atm_correction == 'FUB':
+    #     search_pattern = 'reflec_'
 
-    if nc_sat.bands_rw:
-        reflectance_bands = {}
-        bands_here = nc_sat.bands_rw[1:len(nc_sat.bands_rw) - 1].split(',')
-        wl_list = nc_sat.central_wavelength[1:len(nc_sat.central_wavelength) - 1].split(',')
-        wl_dict = {}
-        for wl in wl_list:
-            wls = wl.split(':')
-            wl_dict[wls[0].strip()] = float(wls[1].strip())
-        for band in bands_here:
-            name_band = 'Rw' + band.strip()
-            wl_band = wl_dict[band.strip()]
-            reflectance_bands[name_band] = {'wavelenght': wl_band}
+    reflectance_bands = {}
+    nbands = 0
+    imin = 100000
+    imax = 0
+    for var in nc_sat.variables:
+        if var.startswith(search_pattern):
+            ival = int(var.split('_')[1].strip())
+            if ival < imin:
+                imin = ival
+            if ival > imax:
+                imax = ival
+
+    for ival in range(imin, imax + 1):
+        var_name = search_pattern + str(ival)
+        if var_name in nc_sat.variables:
+            if wl_atrib is not None:
+                wl_band = nc_sat.variables[var_name].getncattr(wl_atrib)
+            else:
+                wl_band = ival
+            reflectance_bands[var_name] = {'wavelenght': wl_band}
             nbands = nbands + 1
+
+    if nbands == 0:
+        reflectance_bands = None
 
     return reflectance_bands, nbands
 
@@ -444,15 +499,18 @@ def check_product(filepath, time_start, time_stop):
         return False
 
     checkTime = False
-
-    if 'start_time' in nc_sat.ncattrs():
-        time_sat = dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S')
-        checkTime = True
-
+    if args.atm_correction == 'FUB':
+        time_sat = get_sat_time_from_fname(filepath)
+        if time_sat is not None:
+            checkTime = True
+    else:
+        if 'start_date' in nc_sat.ncattrs():
+            time_sat = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
+            checkTime = True
     check_res = True
     if not checkTime and check_res:
         if args.verbose:
-            print(f'[WARNING] Attribute time_coverage_start is not available in the dataset. Skipping...')
+            print(f'[WARNING] Attribute start_date is not available in the dataset. Skipping...')
         check_res = False
     if check_res:
         if time_sat < time_start or time_sat > time_stop:
@@ -501,16 +559,11 @@ def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop
             path_to_sat_source = line[:-1]
             if os.path.isdir(path_to_sat_source):
                 continue
-
-            STATUS_STR = 'NO PASSED'
-            if check_product(path_to_sat_source, time_start, time_stop):
-                product_path_list.append(path_to_sat_source)
-                STATUS_STR = 'OK'
-
             if args.verbose:
                 print('-----------------')
-                pname = path_to_sat_source.split('/')[-1]
-                print(f'[INFO ]Check: {pname}. STATUS: {STATUS_STR}')
+                print(f'Checking: {path_to_sat_source}')
+            if check_product(path_to_sat_source, time_start, time_stop):
+                product_path_list.append(path_to_sat_source)
 
     return product_path_list
 
@@ -523,51 +576,51 @@ def main():
 
     options = config_reader(args.config_file)
 
-    if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
-        path_skie = options['file_path']['path_skie']
-        path_skie_code = options['file_path']['path_skie_code']
-        if not os.path.exists(path_skie):
-            print(f'[ERROR] Skie file: {path_skie} is not avialable')
-            return
-        if not os.path.exists(path_skie_code) or not os.path.isdir(path_skie_code):
-            print(f'[ERROR] Skie code folder: {path_skie_code} is not avialable')
-            return
-        if args.verbose:
-            print(f'[INFO] Path skie: {path_skie}')
-            print(f'[INFO] Path skie: {path_skie_code}')
-        sys.path.append(path_skie_code)
-        try:
-            from skie_csv import SKIE_CSV
-        except ModuleNotFoundError:
-            print(f'[ERROR] Skie module is not found')
-            return
-        skie_file = SKIE_CSV(path_skie)
-        skie_file.start_list_dates()
-        skie_file.extract_wl_colnames()
-
-        print('------------------------------')
-        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
-        path_to_list = get_path_list_products(options)
-        if path_to_list is not None:
-            product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
-            if len(product_path_list) == 0:
-                if args.verbose:
-                    print('-----------------')
-                print(f'[WARNING] No valid datasets found on:  {path_source}')
-                print('------------------------------')
-                print('[INFO] COMPLETED. 0 sat extract files were created')
-                return
-            ncreated = 0
-            for filepath in product_path_list:
-                if args.verbose:
-                    print('------------------------------')
-                    pname = filepath.split('/')[-1]
-                    print(f'[INFO]Extracting sat extract for product: {pname}')
-                nhere = launch_create_extract_syke(filepath, skie_file, options)
-                ncreated = ncreated + nhere
-            print('------------------------------')
-            print(f'COMPLETED. {ncreated} sat extract files were created')
-        return
+    # if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
+    #     path_skie = options['file_path']['path_skie']
+    #     path_skie_code = options['file_path']['path_skie_code']
+    #     if not os.path.exists(path_skie):
+    #         print(f'[ERROR] Skie file: {path_skie} is not avialable')
+    #         return
+    #     if not os.path.exists(path_skie_code) or not os.path.isdir(path_skie_code):
+    #         print(f'[ERROR] Skie code folder: {path_skie_code} is not avialable')
+    #         return
+    #     if args.verbose:
+    #         print(f'[INFO] Path skie: {path_skie}')
+    #         print(f'[INFO] Path skie: {path_skie_code}')
+    #     sys.path.append(path_skie_code)
+    #     try:
+    #         from skie_csv import SKIE_CSV
+    #     except ModuleNotFoundError:
+    #         print(f'[ERROR] Skie module is not found')
+    #         return
+    #     skie_file = SKIE_CSV(path_skie)
+    #     skie_file.start_list_dates()
+    #     skie_file.extract_wl_colnames()
+    #
+    #     print('------------------------------')
+    #     path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+    #     path_to_list = get_path_list_products(options)
+    #     if path_to_list is not None:
+    #         product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
+    #         if len(product_path_list) == 0:
+    #             if args.verbose:
+    #                 print('-----------------')
+    #             print(f'[WARNING] No valid datasets found on:  {path_source}')
+    #             print('------------------------------')
+    #             print('[INFO] COMPLETED. 0 sat extract files were created')
+    #             return
+    #         ncreated = 0
+    #         for filepath in product_path_list:
+    #             if args.verbose:
+    #                 print('------------------------------')
+    #                 pname = filepath.split('/')[-1]
+    #                 print(f'[INFO]Extracting sat extract for product: {pname}')
+    #             nhere = launch_create_extract_skie(filepath, skie_file, options)
+    #             ncreated = ncreated + nhere
+    #         print('------------------------------')
+    #         print(f'COMPLETED. {ncreated} sat extract files were created')
+    #     return
 
     # work only with the specified product file
     if args.product_file:
@@ -575,7 +628,7 @@ def main():
         filepath = args.product_file
         if args.verbose:
             print(f'[INFO]Extracting sat extract for product: {filepath}')
-        ncreated = launch_create_extract(filepath, options, None, None)
+        ncreated = launch_create_extract(filepath, options)
         print('------------------------------')
         print(f'[INFO] COMPLETED. {ncreated} sat extract files were created')
     else:

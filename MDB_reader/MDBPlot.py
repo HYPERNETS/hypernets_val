@@ -7,6 +7,8 @@ import numpy as np
 from scipy import stats
 import COMMON.common_functions as cfs
 import os
+from PlotSpectra import PlotSpectra
+from PlotScatter import PlotScatter
 
 
 class MDBPlot:
@@ -56,6 +58,52 @@ class MDBPlot:
         return dfval
 
     def plot_scatter_plot(self, title, legend, include_stats, file_out):
+        wl = self.wldata.unique()
+        nwl = len(wl)
+        str_legend = []
+        if nwl > 0 and legend:
+            for w in wl:
+                str_legend.append(f'{w:.2f}')
+
+        plot = PlotScatter()
+        plot.close_plot()
+        plot.start_plot()
+
+        for w in wl:
+            color = defaults.get_color_ref(w)
+            xhere = self.xdata[self.wldata == w]
+            yhere = self.ydata[self.wldata == w]
+            plot.plot_data(xhere, yhere, None, None, color, 'gray', 1.5)
+
+        plot.set_equal_apect()
+        plot.set_xaxis_title(self.xlabel)
+        plot.set_yaxis_title(self.ylabel)
+        if legend:
+            plot.set_legend(str_legend)
+        plot.plot_identity_line()
+        if include_stats:
+            self.compute_statistics()
+            str0 = 'N={:d}\nRMSD={:,.4f}\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.4f}' \
+                .format(self.valid_stats['N'],
+                        self.valid_stats['rmse_val'],
+                        self.valid_stats['mean_abs_rel_diff'],
+                        self.valid_stats['mean_rel_diff'],
+                        self.valid_stats['r_value'] ** 2,
+                        self.valid_stats['bias'])
+            if nwl == 1:
+                w = wl[0]
+                strwl = f'λ = {w:0.2f} nm \n'
+                str0 = strwl + str0
+            plot.plot_text(0.05, 0.70, str0)
+
+        if title:
+            plot.set_title(self.title)
+
+        if not file_out is None:
+            plot.save_fig(file_out)
+            plot.close_plot()
+
+    def plot_scatter_plot_prev(self, title, legend, include_stats, file_out):
         wl = self.wldata.unique()
         nwl = len(wl)
         str_legend = []
@@ -115,8 +163,10 @@ class MDBPlot:
             df.plot(lw=2, marker='.', markersize=10, xticks=self.xdata)
         else:
             df = pd.DataFrame(np.transpose(self.ydata), index=self.xdata)
+
             df.plot(lw=1, color='black', marker='.', markersize=10, legend=False, xticks=range(len(self.xdata)),
                     mec='gray')
+
         plt.xlabel(self.xlabel, fontsize=12)
         plt.ylabel(self.ylabel, fontsize=12)
         plt.xticks(rotation=90)
@@ -155,7 +205,7 @@ class MDBPlot:
         #  the mean of absolute (unsigned) percent differences
         self.valid_stats['mean_abs_rel_diff'] = np.mean(np.abs(rel_diff))
 
-        bias = np.mean(sat_obs-ref_obs)
+        bias = np.mean(sat_obs - ref_obs)
         self.valid_stats['bias'] = bias
 
     def plot_all_scatter_plot(self, path_out):
@@ -204,13 +254,13 @@ class MDBPlot:
 
         self.plot_scatter_plot(show_title, False, True, file_out)
 
-    def plot_wavelenght_scatter_plots(self, path_out,wllist):
+    def plot_wavelenght_scatter_plots(self, path_out, wllist):
         if wllist is None and self.mfile is not None:
             wllist = self.mfile.wlref
         for wl in wllist:
             self.plot_wavelength_scatter_plot(-1, wl, path_out)
 
-    def compute_all_statistics(self,wllist):
+    def compute_all_statistics(self, wllist):
         if wllist is None and self.mfile is not None:
             wllist = self.mfile.wlref
         col_names = ['Param', 'All']
@@ -289,23 +339,48 @@ class MDBPlot:
                 param = 'r2'
             self.plot_spectra_param(param, path_out)
 
-    def make_validation_mdbfile(self,path_out):
-        self.plot_all_scatter_plot(path_out)
-        self.plot_wavelenght_scatter_plots(path_out,None)
-        file_data_valid = os.path.join(path_out,'DataValid.csv')
+    def plot_all_insitu_spectra(self, path_out, wlmin, wlmax):
+
+        self.mfile.qc_insitu.compute_band_statistics(wlmin, wlmax)
+        spectra, wldata = self.mfile.qc_insitu.get_all_valid_spectra(wlmin, wlmax)
+        median_array = self.mfile.qc_insitu.get_stat_spectra(wlmin, wlmax, 'median')
+        p25_array = self.mfile.qc_insitu.get_stat_spectra(wlmin, wlmax, 'p25')
+        p75_array = self.mfile.qc_insitu.get_stat_spectra(wlmin, wlmax, 'p75')
+
+        ps = PlotSpectra()
+        ps.xdata = wldata
+        ps.set_xaxis_title(defaults.xlabel_wl_default)
+        ps.set_yaxis_title(defaults.label_insitu_default)
+        nspectra = spectra.shape[0]
+        for ispectra in range(nspectra):
+            ps.plot_single_line(spectra[ispectra], 'gray', None, 1)
+        ps.plot_single_line(median_array, 'black', None, 2)
+        ps.plot_single_line(p25_array, 'black', '--', 1)
+        ps.plot_single_line(p75_array, 'black', '--', 1)
+
+        file_out = None
+        if not path_out is None:
+            file_out = os.path.join(path_out, f'{self.file_name_base}.{self.format_image}')
+        if not file_out is None:
+            ps.save_plot(file_out)
+
+    def make_validation_mdbfile(self, path_out):
+        file_data_valid = os.path.join(path_out, 'DataValid.csv')
         self.mfile.df_validation_valid.to_csv(file_data_valid)
-        file_data = os.path.join(path_out,'Data.csv')
+        file_data = os.path.join(path_out, 'Data.csv')
         self.mfile.df_validation.to_csv(file_data)
+        self.plot_all_scatter_plot(path_out)
+        self.plot_wavelenght_scatter_plots(path_out, None)
         self.compute_all_statistics(None)
-        file_results = os.path.join(path_out,'Params.csv')
+        file_results = os.path.join(path_out, 'Params.csv')
         self.df_valid_stats.to_csv(file_results)
         self.plot_all_spectra_param(path_out)
 
-    def make_validation_dfval(self,path_out,title,file_name_base,wllist):
+    def make_validation_dfval(self, path_out, title, file_name_base, wllist):
         self.title = title
         self.file_name_base = file_name_base
         self.plot_all_scatter_plot(path_out)
-        self.plot_wavelenght_scatter_plots(path_out,wllist)
+        self.plot_wavelenght_scatter_plots(path_out, wllist)
 
         self.compute_all_statistics(wllist)
         file_results = os.path.join(path_out, 'Params.csv')

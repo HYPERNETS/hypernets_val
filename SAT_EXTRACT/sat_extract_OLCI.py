@@ -45,6 +45,7 @@ sys.path.append(code_home)
 
 import BRDF.brdf_olci as brdf
 import COMMON.common_functions as cfs
+from SAT_EXTRACT.sat_extract import SatExtract
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'  # to avoid error "QXcbConnection: Could not connect to display"
 path2ncrcat = '/opt/local/bin/ncrcat'
@@ -182,6 +183,241 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
     return ws0, ws1, sza, saa, vza, vaa
 
 
+def launch_create_extract_skie(filepath, skie_file, options):
+    ncreated = 0
+
+    path_output = get_output_path(options)
+    if path_output is None:
+        print(f'ERROR: {path_output} is not valid')
+        return ncreated
+
+    # Start dataset
+    # if args.verbose:
+    #     if args.verbose:
+    #         print('[INFO] Starting dataset...')
+    # nc_sat = Dataset(filepath, 'r')
+
+    # Retriving lat and long arrays
+    if args.verbose:
+        print('[INFO] Retrieving lat/long data...')
+    lat, lon = get_lat_long_arrays(filepath)
+
+    sat_time = get_sat_time(filepath)
+    nminutes = 120
+    if options.has_option('satellite_options', 'max_time_diff'):
+        nminutes = int(options['satellite_options']['max_time_diff'])
+
+    # Retrieving global atribbutes
+    if args.verbose:
+        print('[INFO] Retrieving global attributes...')
+    global_at = get_global_atrib(filepath)
+
+    max_time_diff = nminutes * 60
+    check_date = skie_file.get_subdf(sat_time, sat_time, max_time_diff)
+    if not check_date:
+        print(f'[WARNING] Spectral data for date: {sat_time} are not avaiable')
+        return ncreated
+    if args.verbose:
+        print(f'[INFO] Extracting data for sat time: {sat_time}')
+
+    extracts = {}
+    for irow in range(skie_file.get_n_df_sub()):
+        insitu_lat, insitu_lon = skie_file.get_lat_lon_at_subdb(irow)
+        size_box = get_box_size(options)
+        contain_flag = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
+        if not contain_flag:
+            continue
+        r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+        # insitu_time = skie_file.get_time_at_subdb(irow, None)
+        # distd, timed, speed = skie_file.get_dist_timedif_speed_at_subdb(irow)
+        # index = skie_file.get_index_at_subdb(irow)
+        # print(irow, index, insitu_time, insitu_lat, insitu_lon, r, c, distd, timed, speed)
+        keyrc = f'{r}_{c}'
+        if keyrc not in extracts.keys():
+            extracts[keyrc] = {
+                'r': r,
+                'c': c,
+                'irows': [irow]
+            }
+        else:
+            extracts[keyrc]['irows'].append(irow)
+
+    for extract in extracts:
+        r = int(extracts[extract]['r'])
+        c = int(extracts[extract]['c'])
+        filename = filepath.split('/')[-1].replace('.', '_') + '_extract_skie_' + extract + '.nc'
+        pdu = filepath.split('/')[-1]
+        ofname = os.path.join(path_output, filename)
+        global_at['station_name'] = 'skie'
+        global_at['in_situ_lat'] = f'in situ points at pixel row={r},col={c}'
+        global_at['in_situ_lon'] = f'in situ points at pixel row={r},col={c}'
+
+        create_extract_syke(ofname, pdu, options, filepath, global_at, lat, lon, r, c, skie_file,
+                            extracts[extract]['irows'])
+
+    return ncreated
+
+
+def create_extract_syke(ofname, pdu, options, filepath, global_at, lat, long, r, c, skie_file, irows):
+    size_box = get_box_size(options)
+    start_idx_x = (c - int(size_box / 2))
+    stop_idx_x = (c + int(size_box / 2) + 1)
+    start_idx_y = (r - int(size_box / 2))
+    stop_idx_y = (r + int(size_box / 2) + 1)
+    window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
+
+    reflectance_bands, n_bands = get_reflectance_bands_info(filepath)
+    if n_bands == 0:
+        print('[ERROR] reflectance bands are not defined')
+        return False
+    flag_band_name = 'wqsf.nc'
+
+    newEXTRACT = SatExtract(ofname)
+    if not newEXTRACT.FILE_CREATED:
+        print(f'[ERROR] File {ofname} could not be created')
+        return False
+
+    if args.verbose:
+        print(f'[INFO]Creating file: {ofname}')
+    newEXTRACT.set_global_attributes(global_at)
+    if skie_file is not None:
+        newEXTRACT.create_dimensions_incluidinginsitu(size_box, n_bands, skie_file.get_n_bands(), 30)
+    else:
+        newEXTRACT.create_dimensions(size_box, n_bands)
+
+    newEXTRACT.create_lat_long_variables(lat, long, window)
+
+    # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
+    sat_start_time = get_sat_time(filepath)
+    newEXTRACT.create_satellite_time_variable(sat_start_time)
+
+    # pdu variable
+    newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
+
+    # Rrs and wavelenghts
+    satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
+    wavelenghts = []
+    index = 0
+    for rband in reflectance_bands:
+        path_band = reflectance_bands[rband]['file_path']
+        nc_sat = Dataset(path_band)
+        # nc_sat.variables['Oa01_reflectance'][:]
+        bandarray = ma.array(nc_sat.variables[rband][:, :])
+        satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
+        nc_sat.close()
+        wl = reflectance_bands[rband]['wavelenght']
+        wavelenghts.append(wl)
+        index = index + 1
+    newEXTRACT.create_satellite_bands_variable(wavelenghts)
+
+    # flags
+    flag_file = os.path.join(filepath, flag_band_name)
+    nc_sat = Dataset(flag_file)
+    flag_band = nc_sat.variables['WQSF']
+    newEXTRACT.create_flag_variable('satellite_WQSF', flag_band, flag_band.long_name, flag_band.flag_masks,
+                                    flag_band.flag_meanings, window)
+    nc_sat.close()
+
+    if skie_file is not None:
+        insitu_origbands_var = newEXTRACT.create_insitu_original_bands_variable()
+        insitu_origbands_var[:] = skie_file.wavelengths
+        insitutime_var = newEXTRACT.create_insitu_time_variable()
+        insitu_exactwl_var = newEXTRACT.create_insitu_exact_wavelengths_variable()
+        insitu_timedif_var = newEXTRACT.create_insitu_time_difference_variable()
+        insitu_rrs_var = newEXTRACT.create_insitu_rrs_variable()
+        insitu_lat, insitu_lon = newEXTRACT.create_insitu_lat_long_variables()
+        index_var = 0
+        for irow in irows:
+            insitu_time_here = skie_file.get_time_at_subdb(irow, 'DT')
+            insitutime_var[0, index_var] = insitu_time_here.timestamp()
+            insitu_exactwl_var[0, :, index_var] = skie_file.wavelengths
+            insitu_rrs_var[0, :, index_var] = np.array(skie_file.get_spectra_at_subdb(irow))
+            sat_time_here = sat_start_time
+            time_diff = float(abs((insitu_time_here - sat_time_here).total_seconds()))
+            insitu_timedif_var[0, index_var] = time_diff
+            latp, lonp = skie_file.get_lat_lon_at_subdb(irow)
+            insitu_lat[0, index_var] = latp
+            insitu_lon[0, index_var] = lonp
+            index_var = index_var + 1
+
+    newEXTRACT.close_file()
+
+    return True
+
+
+def get_reflectance_bands_info(path_source):
+    reflectance_bands = {}
+    bands_ints = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 21]
+    wl_list = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.75, 681.25, 708.75, 753.75, 778.75, 865, 885, 1020.5]
+    nbands = len(bands_ints)
+    for index in range(nbands):
+        v = bands_ints[index]
+        wl = wl_list[index]
+        band_name = f'Oa{v:02d}_reflectance'
+        band_path = f'{band_name}.nc'
+        file_path = os.path.join(path_source, band_path)
+        reflectance_bands[band_name] = {
+            'wavelenght': wl,
+            'file_path': file_path
+        }
+
+    return reflectance_bands, nbands
+
+
+def get_lat_long_arrays(path_source):
+    coordinates_filename = 'geo_coordinates.nc'
+    filepah = os.path.join(path_source, coordinates_filename)
+    nc_sat = Dataset(filepah, 'r')
+    lat = nc_sat.variables['latitude'][:, :]
+    lon = nc_sat.variables['longitude'][:, :]
+
+    return lat, lon
+
+
+def get_sat_time(path_source):
+    filepah = os.path.join(path_source, 'Oa01_reflectance.nc')
+    nc_sat = Dataset(filepah, 'r')
+    satellite_start_time = datetime.strptime(nc_sat.start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
+    nc_sat.close()
+    return satellite_start_time
+
+
+def get_global_atrib(path_source):
+    filename = path_source.split('/')[-1].replace('.', '_')
+    satellite = filename[0:2]
+    platform = filename[2]
+    sensor = 'olci'
+    at = {'sensor': sensor, 'satellite': satellite, 'platform': platform, 'res': '',
+          'aco_processor': 'STANDARD', 'proc_version': '', 'station_name': '', 'in_situ_lat': -999, 'in_situ_lon': -999}
+
+    return at
+
+
+def get_box_size(options):
+    if options.has_option('satellite_options', 'extract_size'):
+        try:
+            size_box = int(options['satellite_options']['extract_size'])
+        except:
+            size_box = 25
+    else:
+        size_box = 25
+    return size_box
+
+
+def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
+    contain_flag = False
+    if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
+        r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+        start_idx_x = (c - int(size_box / 2))
+        stop_idx_x = (c + int(size_box / 2) + 1)
+        start_idx_y = (r - int(size_box / 2))
+        stop_idx_y = (r + int(size_box / 2) + 1)
+        if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                lat.shape[1]:
+            contain_flag = True
+    return contain_flag
+
+
 def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_brdf):
     for site in in_situ_sites:
         try:
@@ -192,7 +428,7 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
                 os.mkdir(path_output)
             print(f'Creating extract for site: {site}')
             extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
-                                          make_brdf)
+                                          make_brdf, None, None)
             if not extract_path is None:
                 print(f'file created: {extract_path}')
         except Exception as e:
@@ -642,6 +878,130 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
     return ofname
 
 
+def get_find_product_info(options):
+    path_source = options['file_path']['sat_source_dir']
+    org = None
+    if options.has_option('file_path', 'sat_source_dir_organization') and options['file_path'][
+        'sat_source_dir_organization']:
+        org = options['file_path']['sat_source_dir_organization']
+    wce = '*'
+    if options.has_option('file_path', 'wce') and options['file_path']['wce']:
+        wce = options['file_path']['wce']
+    time_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+    time_stop = datetime.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(hours=24)
+
+    return path_source, org, wce, time_start, time_stop
+
+
+def get_path_list_products(options):
+    path_out = get_output_path(options)
+    if path_out is None:
+        return None
+    # path_to_list = f'{path_out}/file_{platform}_list.txt'
+    path_to_list = f'{path_out}/file_list.txt'
+    return path_to_list
+
+
+def get_output_path(options):
+    if options.has_option('file_path', 'output_dir'):
+        output_path = options['file_path']['output_dir']
+        if not os.path.exists(output_path):
+            if args.verbose:
+                print(f'[WARNING] Creating new output path: {output_path}')
+                try:
+                    os.mkdir(output_path)
+                except OSError:
+                    print(f'[ERROR] Folder: {output_path} could not be creaded')
+                    return None
+        if args.verbose:
+            print(f'[INFO] Output path:{output_path}')
+        return output_path
+    else:
+        print('[ERROR] section:file_path, option: output_dir is not included in the configuration file')
+        return None
+
+
+def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop):
+    if args.verbose:
+        print('[INFO]Creating list of products')
+
+    if os.path.exists(path_to_list):
+        if args.verbose:
+            print('[INFO]Deleting previous file list...')
+        cmd = f'rm {path_to_list}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(f'[ERROR]{err}')
+
+    if org is None:
+        if wce == '*':
+            cmd = f'find {path_source} |sort|uniq> {path_to_list}'
+        else:
+            cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(f'[ERROR]{err}')
+
+    product_path_list = []
+    with open(path_to_list, 'r') as file:
+        for cnt, line in enumerate(file):
+            path_to_sat_source = line[:-1]
+            if not os.path.isdir(path_to_sat_source):
+                continue
+
+            STATUS_STR = 'NO PASSED'
+            if check_product(path_to_sat_source, time_start, time_stop):
+                product_path_list.append(path_to_sat_source)
+                STATUS_STR = 'OK'
+
+            if args.verbose:
+                print('-----------------')
+                pname = path_to_sat_source.split('/')[-1]
+                print(f'[INFO ]Check: {pname}. STATUS: {STATUS_STR}')
+
+    return product_path_list
+
+
+def check_product(filepath, time_start, time_stop):
+
+    if not os.path.isdir(filepath):
+        print(f'[WARNING] {filepath} is not a valid dataset. Skipping...')
+        return False
+    filename = filepath.split('/')[-1]
+    if not filename.startswith('S3') or not filename.endswith('SEN3'):
+        print(f'[WARNING] {filepath} is not a valid dataset. Skipping...')
+        return False
+    # try:
+    #     nc_sat = Dataset(filepath, 'r')
+    # except OSError:
+    #     if args.verbose:
+    #         print(f'[WARNING] {filepath} is not a valid dataset. Skipping...')
+    #     return False
+
+    # checkTime = False
+    # time_sat = get_sat_time(filepath)
+
+
+    # if 'start_time' in nc_sat.ncattrs():
+    #     time_sat = dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S')
+    #     checkTime = True
+    # checkTime = True
+    check_res = True
+    # if not checkTime and check_res:
+    #     if args.verbose:
+    #         print(f'[WARNING] Attribute time_coverage_start is not available in the dataset. Skipping...')
+    #     check_res = False
+    # if check_res:
+    #     if time_sat < time_start or time_sat > time_stop:
+    #         if args.verbose:
+    #             print('[WARNING] Product is out of the temporal coverage. Skipping...')
+    #         check_res = False
+
+    return check_res
+
+
 #############################
 # %%
 def main():
@@ -651,11 +1011,57 @@ def main():
         print('Entering Debugging Mode:')
     # load config file
     if args.config_file:
-        if os.path.isfile(args.config_file) == True:
+        if os.path.isfile(args.config_file):
             options = config_reader(args.config_file)
     # else:
     #     print(args.config_file + ' does not exist. Please provide a valid config file path')
-    #     sys.exit()    
+    #     sys.exit()
+
+    if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
+        path_skie = options['file_path']['path_skie']
+        path_skie_code = options['file_path']['path_skie_code']
+        if not os.path.exists(path_skie):
+            print(f'[ERROR] Skie file: {path_skie} is not avialable')
+            return
+        if not os.path.exists(path_skie_code) or not os.path.isdir(path_skie_code):
+            print(f'[ERROR] Skie code folder: {path_skie_code} is not avialable')
+            return
+        if args.verbose:
+            print(f'[INFO] Path skie: {path_skie}')
+            print(f'[INFO] Path skie: {path_skie_code}')
+        sys.path.append(path_skie_code)
+        try:
+            from skie_csv import SKIE_CSV
+        except ModuleNotFoundError:
+            print(f'[ERROR] Skie module is not found')
+            return
+        skie_file = SKIE_CSV(path_skie)
+        skie_file.start_list_dates()
+        skie_file.extract_wl_colnames()
+
+        print('------------------------------')
+        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+        path_to_list = get_path_list_products(options)
+        if path_to_list is not None:
+            product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
+            if len(product_path_list) == 0:
+                if args.verbose:
+                    print('-----------------')
+                print(f'[WARNING] No valid datasets found on:  {path_source}')
+                print('------------------------------')
+                print('[INFO] COMPLETED. 0 sat extract files were created')
+                return
+            ncreated = 0
+            for filepath in product_path_list:
+                if args.verbose:
+                    print('------------------------------')
+                    pname = filepath.split('/')[-1]
+                    print(f'[INFO]Extracting sat extract for product: {pname}')
+                nhere = launch_create_extract_skie(filepath, skie_file, options)
+            ncreated = ncreated + nhere
+            print('------------------------------')
+            print(f'COMPLETED. {ncreated} sat extract files were created')
+        return
 
     # path to satellite source
     if args.path_to_sat:
