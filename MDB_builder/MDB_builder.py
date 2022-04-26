@@ -571,7 +571,7 @@ def main():
     if sat_sensor.upper() == 'OLCI' and atm_corr == 'STANDARD':
         wce = f'"{sat_satellite}{sat_platform}*OL_2_{res}*{station_name}*"'  # wild card expression
     else:
-        wce = f'"{sat_satellite}{sat_platform}*"'
+        wce = f'"{sat_satellite}{sat_platform}*nc"'
 
     if args.debug:
         print(f'Satellite extract Wild Card Expression: {wce}')
@@ -660,10 +660,18 @@ def main():
                 datetime_here = datetime(int(lpath[2]), int(lpath[3]), int(lpath[4]), int(lpath[5]), int(lpath[6]),
                                          int(lpath[7]))
                 datetime_str = datetime_here.strftime('%Y%m%dT%H%M%S')
+            elif atm_corr == 'CCI':
+                res_str = res
+                nc_sat = Dataset(extract_path)
+                datetime_here = datetime.fromtimestamp(float(nc_sat.variables['satellite_time'][0]))
+                datetime_here = datetime_here.replace(hour=11)
+                datetime_str = datetime_here.strftime('%Y%m%dT%H%M%S')
+                nc_sat.close()
+                sensor_str = 'CCI'
             else:
                 res_str = extract_path.split('/')[-1].split('_')[3]
                 datetime_str = extract_path.split('/')[-1].split('_')[7]
-            print(extract_path, sensor_str, res_str, datetime_str)
+
             if args.verbose:
                 print('-----------------')
                 print(f'[INFO] Date: {datetime_str} Satellite/Platform: {sensor_str} Resolution: {res_str}')
@@ -710,7 +718,8 @@ def main():
 
     level_prod = 'L2'
 
-    # calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nc
+    # calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nN
+    print(res_str)
     ncout_file = os.path.join(path_out,
                               f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{atm_corr}_{level_prod}_{ins_sensor}_{station_name}.nc')
     file_list.append(ncout_file)

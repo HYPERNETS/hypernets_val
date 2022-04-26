@@ -96,7 +96,7 @@ class MDBFile:
         self.only_complete_spectra_valid = False
         self.qc_insitu = QC_INSITU(self.variables['insitu_Rrs'], self.variables['insitu_original_bands'])
 
-        if self.nc.satellite_aco_processor == 'ACOLITE':
+        if self.nc.satellite_aco_processor == 'ACOLITE' or self.nc.satellite_aco_processor == 'Climate Change Initiative - European Space Agency':
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                  self.info['satellite_aco_processor'])
         else:
@@ -243,6 +243,64 @@ class MDBFile:
 
         return mask, cond_min_valid_pxs, NGP, NTP
 
+    def load_mu_datav2(self, index_mu):
+        if not self.VALID:
+            return False
+
+        if index_mu < 0 or index_mu >= self.n_mu_total:
+            print('Not valid index_mu')
+            return False
+
+        # Index match-up
+        self.index_mu = index_mu
+
+        # Sat and instrument rrs
+        self.insitu_rrs = self.variables['insitu_Rrs'][index_mu]
+        self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
+
+        # Sat and instrument time
+        self.mu_sat_time = self.sat_times[index_mu]
+        self.ins_time_index, self.mu_insitu_time, time_condition = self.retrieve_ins_info_mu(index_mu)
+
+        if not time_condition:
+            return False
+
+        cond_min_pixels, cond_stats, valid_mu, sat_values = self.qc_sat.get_match_up_values(index_mu)
+        if not valid_mu:
+            return False
+
+        # Getting spectra for comparison
+        self.mu_valid_bands = [False] * len(self.wlref_sat_indices)
+        self.mu_curr_ins_rrs = []
+        self.mu_curr_sat_rrs_mean = []
+        for iref in range(len(self.wlref_sat_indices)):
+            sat_band_index = self.wlref_sat_indices[iref]
+            wl = self.satellite_bands[sat_band_index]
+            ins_band_index = np.argmin(np.abs(wl - self.insitu_bands))
+            difwl = abs(wl - self.insitu_bands[ins_band_index])
+            check_dif_wl = True
+            check_ins_value = True
+            if difwl > 10:
+                check_dif_wl = False
+            if self.insitu_rrs.mask[ins_band_index, self.ins_time_index]:
+                check_ins_value = False
+            if np.isnan(self.insitu_rrs[ins_band_index, self.ins_time_index]):
+                check_ins_value = False
+            if not np.isnan(self.insitu_rrs[ins_band_index, self.ins_time_index]) and self.insitu_rrs[
+                ins_band_index, self.ins_time_index] < 0:
+                check_ins_value = False
+
+            if check_dif_wl and check_ins_value:
+                self.mu_curr_sat_rrs_mean.append(sat_values[sat_band_index])
+                ins_value = self.insitu_rrs[ins_band_index, self.ins_time_index]
+                self.mu_curr_ins_rrs.append(ins_value)
+                self.mu_valid_bands[iref] = True
+
+        if sum(self.mu_valid_bands) == len(self.wlref_sat_indices):
+            return True
+        else:
+            return False
+
     # Funcion to load data from a specific MU
     def load_mu_data(self, index_mu):
         if not self.VALID:
@@ -372,7 +430,7 @@ class MDBFile:
         for index_mu in range(self.n_mu_total):
             # if index_mu % 100 == 0:
             #     print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
-            mu_valid = self.load_mu_data(index_mu)
+            mu_valid = self.load_mu_datav2(index_mu)
             if mu_valid:
                 nmu_valid = nmu_valid + 1
 
@@ -435,7 +493,7 @@ class MDBFile:
 
         self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
 
-        print(f'# total match-ups: {self.n_mu_total} Valid: {nmu_valid}')
+        print(f'[INFO]# total match-ups: {self.n_mu_total} Valid: {nmu_valid}')
         return nmu_valid
 
     ##PLOT FUNCTIONS

@@ -11,6 +11,8 @@ class QC_SAT:
         self.nmu = self.satellite_rrs.shape[0]
         self.nbands = self.satellite_rrs.shape[1]
 
+        self.stat_value = 'avg'
+
         self.window_size = 3
         self.min_valid_pixels = 9
         self.min_porc_valid_pixels = 50
@@ -22,8 +24,8 @@ class QC_SAT:
         self.NTP = self.window_size * self.window_size  # total number of pixels
         self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
         self.NVP = 0  # number of valid pixels (excluding flag pixels), varies with MU
-
         self.flag_mask = None  # mask based on flagging
+
         self.info_flag = {}
         if satellite_flag is not None and ac_processor is not None:
             flag_list, flag_land, flag_inlandwater = self.get_flag_defaults(ac_processor)
@@ -67,6 +69,26 @@ class QC_SAT:
             }
 
         self.max_diff_wl = 5
+
+    def prepare_new_match_up(self):
+        self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
+        self.NVP = 0  # number of valid pixels (excluding flag pixels), varies with MU
+        self.flag_mask = None  # mask based on flagging
+        self.statistics = {}
+        for sat_index in range(self.nbands):
+            sat_index_str = str(sat_index)
+            self.statistics[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'n_good': 0,  # number of good pixels, excluding outliers or masked
+                'avg_nooutliers': 0,
+                'std_nooutliers': 0,
+                'avg': 0,
+                'std': 0,
+                'median': 0,
+                'min': 0,
+                'max': 0,
+                'CV': 0
+            }
 
     def compute_statistics(self, index_mu):
         cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
@@ -124,14 +146,40 @@ class QC_SAT:
 
         return CHECK
 
+    def get_match_up_values(self, index_mu):
+        self.prepare_new_match_up()
+        cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
+        cond_stats = False
+        valid_mu = False
+        values = [0]*self.nbands
+
+        if cond_min_pixels:
+            self.compute_statistics(index_mu)
+            cond_stats = self.do_check_statistics()
+            if cond_stats:
+                valid_mu = True
+            for sat_index in range(self.nbands):
+                sat_index_str = str(sat_index)
+                values[sat_index] = self.statistics[sat_index_str][self.stat_value]
+
+        return cond_min_pixels, cond_stats, valid_mu, values
+
+
+
+
+
+
+
     def compute_masks_and_check_roi(self, index_mu):
         land = self.compute_flag_masks(index_mu)
+        self.compute_invalid_masks(index_mu)
         self.compute_th_masks(index_mu)
         self.NVP = self.NTP - np.sum(self.flag_mask)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
-        print(f'[INFO] Number total of pixels: {self.NTP}')
-        print(f'[INFO] Water pixels: {self.NTPW}')
-        print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
+        # print(f'[INFO] Index mu: {index_mu}')
+        # print(f'[INFO] Number total of pixels: {self.NTP}')
+        # print(f'[INFO] Water pixels: {self.NTPW}')
+        # print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
 
         min_valid_pixels = self.min_valid_pixels
         if self.use_Bailey_Werdell:
@@ -171,7 +219,7 @@ class QC_SAT:
         mask_thershold = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
         for th_mask in self.th_masks:
             rrs_here = self.satellite_rrs[index_mu, th_mask['index_sat'], r_s:r_e, c_s:c_e]
-            mask_thershold_here = np.zeros(rrs_here.shape,dtype=np.uint64)
+            mask_thershold_here = np.zeros(rrs_here.shape, dtype=np.uint64)
             if th_mask['type_th'] == 'greater':
                 mask_thershold_here[rrs_here > th_mask['value_th']] = 1
             elif th_mask['type_th'] == 'lower':
@@ -204,8 +252,8 @@ class QC_SAT:
 
         self.flag_mask[mask_invalid > 0] = 1
 
-        for key in self.invalid_mask:
-            print(self.invalid_mask[key]['ref'],self.invalid_mask[key]['n_masked'])
+        # for key in self.invalid_mask:
+        #     print(self.invalid_mask[key]['ref'],self.invalid_mask[key]['n_masked'])
 
     ##ADDING QUALITY CONTROL PROTOCOLS------------------------------
     # Add a thershold mask.
@@ -225,7 +273,7 @@ class QC_SAT:
             'index_sat': index_sat,
             'value_th': value_th,
             'type_th': type_th,
-            'n_masked':0
+            'n_masked': 0
         }
         self.th_masks.append(th_mask)
 
@@ -318,10 +366,6 @@ class QC_SAT:
                 land[np.where(inland_w != 0)] = 0
 
         return flag_mask, land
-
-
-
-
 
     # self.invalid_mask[sat_index_str] = {
     #     'wavelength': self.invalid_mask[sat_index],

@@ -1,4 +1,5 @@
 from MDBFile import MDBFile
+from MDBPlot import MDBPlot
 from MDBFileList import MDBFileList
 import os
 
@@ -10,12 +11,20 @@ class MDB_READER():
 
 
 def main():
-    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/CCI/MDBs'
     #name_mdb = 'MDB_S3A_OLCI_WFR_STANDARD_L2_AERONET_Gustav_Dalen_Tower.nc'
-    name_mdb = 'MDB_S3A_OLCI_EFR_POLYMER_L2_AERONET_Gustav_Dalen_Tower.nc'
+    name_mdb = 'MDB___1KM_CCI_L2_AERONET_Helsinki_Lighthouse.nc'
     path_mdb = os.path.join(path_base, name_mdb)
     reader = MDB_READER(path_mdb)
-    reader.mfile.qc_sat.compute_invalid_masks(0)
+    reader.mfile.prepare_df_validation()
+    mplot = MDBPlot(reader.mfile, None)
+    path_out = os.path.join(path_base, name_mdb[:-3])
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+    mplot.make_validation_mdbfile(path_out)
+
+
+    #reader.mfile.qc_sat.compute_invalid_masks(0)
     #reader.mfile.qc_sat.compute_flag_stats(5)
     #reader.mfile.qc_sat.compute_flag_masks(5)
     #reader.mfile.qc_sat.add_theshold_mask(0, -1, 0.001, 'greater')
