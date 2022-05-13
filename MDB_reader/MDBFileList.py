@@ -3,9 +3,9 @@ import os.path
 
 from MDBFile import MDBFile
 from MDBPlot import MDBPlot
+from QCBase import QCBase
 import pandas as pd
 from datetime import datetime as dt
-
 
 
 class MDBFileList():
@@ -17,13 +17,33 @@ class MDBFileList():
 
         self.wlref = None
 
+        self.qc_base = QCBase()
+
+    def set_wlsatlist_as_ref(self):
+         for fmdb in self.mdb_list:
+             if self.mdb_list[fmdb]['include']:
+                mfile = MDBFile(self.mdb_list[fmdb]['path'])
+                self.wlref = mfile.wlref
+                
+    def set_wlsatlist_from_wlreflist_asref(self,wlsatlist):
+        for fmdb in self.mdb_list:
+            if self.mdb_list[fmdb]['include']:
+                mfile = MDBFile(self.mdb_list[fmdb]['path'])
+                mfile.set_wlsatlist_aswlref(wlsatlist)
+                self.wlref = mfile.wlref
+
     def set_wl_ref(self, wllist):
         self.wlref = wllist
+
+
 
     def add_mdb_file(self, path_mdb):
         mfile = MDBFile(path_mdb)
         if not mfile.VALID:
             return False
+        if self.wlref is None:
+            self.wlref = mfile.wlref
+
         name = path_mdb.split('/')[-1]
         self.mdb_list[name] = {
             'path': path_mdb,
@@ -31,8 +51,11 @@ class MDBFileList():
         }
         for key in mfile.info:
             self.mdb_list[name][key] = mfile.info[key]
+
         if self.mdb_list[name]['satellite_aco_processor'] == 'Atmospheric Correction processor: xxx':
             self.mdb_list[name]['satellite_aco_processor'] = 'STANDARD'
+        if self.mdb_list[name]['satellite_aco_processor'] == 'CLIMATE CHANGE INITIATIVE - EUROPEAN SPACE AGENCY':
+            self.mdb_list[name]['satellite_aco_processor'] = 'CCI'
 
     def prepare_df_for_validation(self):
         for fmdb in self.mdb_list:
@@ -40,6 +63,15 @@ class MDBFileList():
                 mfile = MDBFile(self.mdb_list[fmdb]['path'])
                 if not self.wlref is None:
                     mfile.set_wl_ref(self.wlref)
+                #mfile.qc_sat.set_qc_from_qcbase(self.qc_base)
+                mfile.qc_sat.set_eumetsat_defaults(3)
+                mfile.qc_insitu.set_wllist_using_wlref(mfile.wlref)
+                mfile.qc_insitu.set_thershold(None,0.01,400,700)
+                mfile.qc_insitu.set_thershold(None, 0.001, 700, 800)
+                mfile.qc_sat.wl_ref = mfile.wlref
+                #mfile.qc_sat.add_theshold_mask(-1,510,0.008,'greater')#STANDARD
+                # mfile.qc_sat.add_theshold_mask(-1,412,0.006,'greater')#C2RCC
+                # mfile.qc_sat.add_theshold_mask(-1, 620, 0.0055, 'greater')  # C2RCC
                 mfile.prepare_df_validation()
                 dfadd = mfile.df_validation
                 dfadd['satellite'] = self.mdb_list[fmdb]['satellite'].upper()
@@ -49,6 +81,8 @@ class MDBFileList():
                 ac_here = self.mdb_list[fmdb]['satellite_aco_processor'].upper()
                 if ac_here == 'ATMOSPHERIC CORRECTION PROCESSOR: XXX':
                     ac_here = 'STANDARD'
+                if ac_here == 'CLIMATE CHANGE INITIATIVE - EUROPEAN SPACE AGENCY':
+                    ac_here = 'CCI'
                 dfadd['ac'] = ac_here
 
                 if self.df_validation is None:
@@ -73,18 +107,28 @@ class MDBFileList():
                             list_products_day = list([mu_dates_here[mu_date]])
                             self.mu_dates[mu_date] = list_products_day
 
+    def save_df_validation_to_file(self,path_out):
+        if self.df_validation is not None:
+            file_data = os.path.join(path_out, 'Data.csv')
+            self.df_validation.to_csv(file_data,sep=';')
+
     def get_df_validation(self, params_include, param_agrup, strict_agrup):
         if self.df_validation is None:
             self.prepare_df_for_validation()
 
         dfvalid = pd.DataFrame(columns=list(self.df_validation.columns))
 
+        if params_include is None:
+            params_include = []
+
         if param_agrup is not None:
             groups = pd.Series(self.df_validation[param_agrup]).unique()
+        else:
+            groups = None
 
         index_valid = 0
         start_date = dt.now()
-        end_date = dt(1970,1,1)
+        end_date = dt(1970, 1, 1)
         for index, row in self.df_validation.iterrows():
             include = True
             for param in params_include:
@@ -98,9 +142,9 @@ class MDBFileList():
                 continue
             if param_agrup is not None and strict_agrup:
                 date_here = dt.strptime(row['Sat_Time'], '%Y-%m-%d %H:%M')
-                if date_here<start_date:
+                if date_here < start_date:
                     start_date = date_here
-                if date_here>end_date:
+                if date_here > end_date:
                     end_date = date_here
                 sdate = date_here.strftime('%Y-%m-%d')
                 list_products = self.mu_dates[sdate]
@@ -108,19 +152,19 @@ class MDBFileList():
                 for g in groups:
                     if not self.check_validity(list_products, row, param_agrup, g):
                         valid_mu = False
-                row['valid'] = valid_mu
+                row['Valid'] = valid_mu
 
-            if row['valid']:
-                print(type(row), row)
+            if row['Valid']:
+                #print(type(row), row)
                 rowdf = pd.DataFrame.transpose(pd.DataFrame(row))
                 if index_valid == 0:
                     dfvalid = rowdf
                 else:
                     dfvalid = pd.concat([dfvalid, rowdf], ignore_index=True)
                 index_valid = index_valid + 1
-                print(f'Index valid: {index_valid} But {len(dfvalid.index)}')
+                #print(f'Index valid: {index_valid} of {len(dfvalid.index)}')
 
-        print('Nvalid: ', index_valid)
+        print(f'[INFO] # Valid pooints: {index_valid}')
         if param_agrup is not None:
             print(len(dfvalid.index))
             for g in groups:
@@ -166,3 +210,17 @@ class MDBFileList():
                 os.mkdir(path_out)
             mplot = MDBPlot(mfile, None)
             mplot.make_validation_mdbfile(path_out)
+
+
+
+
+
+
+
+
+
+
+
+
+
+

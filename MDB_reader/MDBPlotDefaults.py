@@ -16,8 +16,12 @@ color_dict = dict({ \
     '885.00': 'DarkSlateGray', \
     '1020.50': 'Pink'})
 
-xlabel_default = 'In situ Rrs'
-ylabel_default = 'OLCI Rrs'
+xlabel_default = r'In situ R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
+ylabel_default = r'Satellite R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
+
+xlabel_default = r'Panthyr R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
+ylabel_default = r'Hypstar R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
+
 label_insitu_default = 'In situ Rrs'
 xlabel_wl_default = 'Wavelength (nm)'
 

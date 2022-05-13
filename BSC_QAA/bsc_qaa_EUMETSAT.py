@@ -15,7 +15,7 @@ QAA input:list
 import numpy as np
 import numpy.ma as ma
 import sys, os
-from bsc_CNR import nearest
+from BSC_QAA import nearest
 
 
 def read_aw_coeff(outband):  # the function to read the water abs coefficient

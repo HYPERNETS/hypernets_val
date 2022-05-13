@@ -1,11 +1,14 @@
 import numpy as np
 import COMMON.Class_Flags_OLCI as flag
 import math
+import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
+from QCBase import QCBase
 
 
 class QC_SAT:
 
     def __init__(self, satellite_rrs, sat_bands, satellite_flag, ac_processor):
+        self.name = ''
         self.satellite_rrs = satellite_rrs
         self.sat_bands = sat_bands
         self.nmu = self.satellite_rrs.shape[0]
@@ -15,11 +18,16 @@ class QC_SAT:
 
         self.window_size = 3
         self.min_valid_pixels = 9
-        self.min_porc_valid_pixels = 50
         self.use_Bailey_Werdell = False  # if true, minimun number of valid pixels is established
         # as min_porc_valid_pixels (default 50%) +1 of NTPW
         # if false, minimun number of valid pixels==min_valid_pixels
-        self.factor_outliers = 1.5  # <0 for not applying outliers analysis
+
+        self.apply_outliers = True
+        self.outliers_info = {
+            'central_stat': 'avg',
+            'dispersion_stat': 'std',
+            'factor': 1.5
+        }
 
         self.NTP = self.window_size * self.window_size  # total number of pixels
         self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
@@ -55,11 +63,8 @@ class QC_SAT:
         self.statistics = {}
         for sat_index in range(self.nbands):
             sat_index_str = str(sat_index)
-            self.statistics[sat_index_str] = {
-                'wavelength': self.sat_bands[sat_index],
-                'n_good': 0,  # number of good pixels, excluding outliers or masked
-                'avg_nooutliers': 0,
-                'std_nooutliers': 0,
+            stat_list = {
+                'n_values': 0,
                 'avg': 0,
                 'std': 0,
                 'median': 0,
@@ -67,8 +72,27 @@ class QC_SAT:
                 'max': 0,
                 'CV': 0
             }
+            self.statistics[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'without_outliers': stat_list,
+                'with_outliers': stat_list
+            }
+        # print(self.statistics[sat_index_str]['without_outliers'])
 
         self.max_diff_wl = 5
+
+        self.apply_band_shifting = False
+        self.wl_ref = None
+
+    def get_wl_sat_list_from_wlreflist(self,wlref):
+        wllist = []
+        for wl in wlref:
+            index = self.get_index_sat_from_wlvalue(wl)
+            if index>=0:
+                wllist.append(self.sat_bands[index])
+        return wllist
+
+
 
     def prepare_new_match_up(self):
         self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
@@ -77,17 +101,19 @@ class QC_SAT:
         self.statistics = {}
         for sat_index in range(self.nbands):
             sat_index_str = str(sat_index)
-            self.statistics[sat_index_str] = {
-                'wavelength': self.sat_bands[sat_index],
-                'n_good': 0,  # number of good pixels, excluding outliers or masked
-                'avg_nooutliers': 0,
-                'std_nooutliers': 0,
+            stat_list = {
+                'n_values': 0,
                 'avg': 0,
                 'std': 0,
                 'median': 0,
                 'min': 0,
                 'max': 0,
                 'CV': 0
+            }
+            self.statistics[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'without_outliers': stat_list,
+                'with_outliers': stat_list
             }
 
     def compute_statistics(self, index_mu):
@@ -101,34 +127,48 @@ class QC_SAT:
             rrs_here = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
             rrs_valid = rrs_here[self.flag_mask == 0]
 
-            self.statistics[sat_index_str]['avg_nooutliers'] = np.mean(rrs_valid)
-            self.statistics[sat_index_str]['std_nooutliers'] = np.std(rrs_valid)
+            stats = self.compute_statistics_impl(self.statistics[sat_index_str]['without_outliers'], rrs_valid)
+            self.statistics[sat_index_str]['without_outliers'] = stats
+            # self.statistics[sat_index_str]['without_outliers']['avg'] = np.mean(rrs_valid)
+            # self.statistics[sat_index_str]['without_outliers']['std'] = np.std(rrs_valid)
 
-            if self.factor_outliers > 0:
-                min_th = self.statistics[sat_index_str]['avg_nooutliers'] - \
-                         (self.factor_outliers * self.statistics[sat_index_str]['std_nooutliers'])
-                max_th = self.statistics[sat_index_str]['avg_nooutliers'] + \
-                         (self.factor_outliers * self.statistics[sat_index_str]['std_nooutliers'])
-
+            if self.apply_outliers:
+                cvalue = self.statistics[sat_index_str]['without_outliers'][self.outliers_info['central_stat']]
+                dvalue = self.statistics[sat_index_str]['without_outliers'][self.outliers_info['dispersion_stat']]
+                min_th = cvalue - (dvalue * self.outliers_info['factor'])
+                max_th = cvalue + (dvalue * self.outliers_info['factor'])
                 mask_outliers = np.zeros(rrs_valid.shape)
                 mask_outliers[rrs_valid > max_th] = 1
                 mask_outliers[rrs_valid < min_th] = 1
                 n_outliers = np.sum(mask_outliers)
-                self.statistics[sat_index_str]['n_good'] = self.NVP - n_outliers
+                # self.statistics[sat_index_str]['n_good'] = self.NVP - n_outliers
                 if n_outliers > 0:
                     rrs_valid = rrs_valid[mask_outliers == 0]
+                stats = self.compute_statistics_impl(self.statistics[sat_index_str]['with_outliers'], rrs_valid)
+                self.statistics[sat_index_str]['with_outliers'] = stats
 
-            self.statistics[sat_index_str]['avg'] = np.mean(rrs_valid)
-            self.statistics[sat_index_str]['std'] = np.std(rrs_valid)
-            self.statistics[sat_index_str]['median'] = np.median(rrs_valid)
-            self.statistics[sat_index_str]['min'] = np.min(rrs_valid)
-            self.statistics[sat_index_str]['max'] = np.max(rrs_valid)
-            CV = (self.statistics[sat_index_str]['std'] / abs(self.statistics[sat_index_str]['avg'])) * 100
-            self.statistics[sat_index_str]['CV'] = CV
+            # self.statistics[sat_index_str]['avg'] = np.mean(rrs_valid)
+            # self.statistics[sat_index_str]['std'] = np.std(rrs_valid)
+            # self.statistics[sat_index_str]['median'] = np.median(rrs_valid)
+            # self.statistics[sat_index_str]['min'] = np.min(rrs_valid)
+            # self.statistics[sat_index_str]['max'] = np.max(rrs_valid)
+            # CV = (self.statistics[sat_index_str]['std'] / abs(self.statistics[sat_index_str]['avg'])) * 100
+            # self.statistics[sat_index_str]['CV'] = CV
             # wl = self.statistics[sat_index_str]['wavelength']
             # print(f'[INFO] Wavelength: {wl} Outliers: {n_outliers} CV: {CV}')
 
         return True
+
+    def compute_statistics_impl(self, stats, array):
+        stats['n_values'] = len(array)
+        stats['avg'] = np.mean(array)
+        stats['std'] = np.std(array)
+        stats['median'] = np.median(array)
+        stats['min'] = np.min(array)
+        stats['max'] = np.max(array)
+        CV = (stats['std'] / abs(stats['avg'])) * 100
+        stats['CV'] = CV
+        return stats
 
     def do_check_statistics(self):
         CHECK = True
@@ -137,8 +177,11 @@ class QC_SAT:
             # type_stat = check_stat['type_stat']
 
             if index_sat in self.statistics:
-                val_here = self.statistics[index_sat][check_stat['type_stat']]
-                print(val_here, check_stat['value_th'])
+                outliers_str = 'with_outliers'
+                if not check_stat['with_outliers']:
+                    outliers_str = 'without_outliers'
+                val_here = self.statistics[index_sat][outliers_str][check_stat['type_stat']]
+                # print(val_here, check_stat['value_th'])
                 if check_stat['type_th'] == 'greater' and val_here > check_stat['value_th']:
                     CHECK = False
                 if check_stat['type_th'] == 'lower' and val_here < check_stat['value_th']:
@@ -149,32 +192,48 @@ class QC_SAT:
     def get_match_up_values(self, index_mu):
         self.prepare_new_match_up()
         cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
+        #print(cond_min_pixels)
+
         cond_stats = False
         valid_mu = False
-        values = [0]*self.nbands
+
+        wl_orig = []
+        if self.wl_ref is None:
+            indexes_bands = range(self.nbands)
+            wl_orig = self.sat_bands
+        else:
+            indexes_bands = []
+            for wl in self.wl_ref:
+                index = self.get_index_sat_from_wlvalue(wl)
+                wl_orig.append(self.sat_bands[index])
+                indexes_bands.append(index)
+
+        values = [0] * len(indexes_bands)
 
         if cond_min_pixels:
+            outliers_str = 'without_outliers'
+            if self.apply_outliers:
+                outliers_str = 'with_outliers'
             self.compute_statistics(index_mu)
+
             cond_stats = self.do_check_statistics()
             if cond_stats:
                 valid_mu = True
-            for sat_index in range(self.nbands):
+            for idx in range(len(indexes_bands)):
+                sat_index = indexes_bands[idx]
                 sat_index_str = str(sat_index)
-                values[sat_index] = self.statistics[sat_index_str][self.stat_value]
+                values[idx] = self.statistics[sat_index_str][outliers_str][self.stat_value]
+            if self.apply_band_shifting:
+                values = bsc_qaa.bsc_qaa(values, wl_orig, self.wl_ref)
 
         return cond_min_pixels, cond_stats, valid_mu, values
-
-
-
-
-
-
 
     def compute_masks_and_check_roi(self, index_mu):
         land = self.compute_flag_masks(index_mu)
         self.compute_invalid_masks(index_mu)
         self.compute_th_masks(index_mu)
         self.NVP = self.NTP - np.sum(self.flag_mask)
+        #print(self.NVP)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
         # print(f'[INFO] Index mu: {index_mu}')
         # print(f'[INFO] Number total of pixels: {self.NTP}')
@@ -183,7 +242,7 @@ class QC_SAT:
 
         min_valid_pixels = self.min_valid_pixels
         if self.use_Bailey_Werdell:
-            min_valid_pixels = math.floor(self.min_porc_valid_pixels * self.NTPW) + 1
+            min_valid_pixels = math.floor(0.50 * self.NTPW) + 1
 
         cond_min_pixels = False
         if self.NVP >= min_valid_pixels:
@@ -217,7 +276,8 @@ class QC_SAT:
     def compute_th_masks(self, index_mu):
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
         mask_thershold = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
-        for th_mask in self.th_masks:
+        for idx in range(len(self.th_masks)):
+            th_mask = self.th_masks[idx]
             rrs_here = self.satellite_rrs[index_mu, th_mask['index_sat'], r_s:r_e, c_s:c_e]
             mask_thershold_here = np.zeros(rrs_here.shape, dtype=np.uint64)
             if th_mask['type_th'] == 'greater':
@@ -225,8 +285,8 @@ class QC_SAT:
             elif th_mask['type_th'] == 'lower':
                 mask_thershold_here[rrs_here < th_mask['value_th']] = 1
             n_masked = np.sum(mask_thershold_here)
-            self.th_masks[th_mask]['n_masked'] = n_masked
-
+            th_mask['n_masked'] = n_masked
+            self.th_masks[idx] = th_mask
             mask_thershold = mask_thershold + mask_thershold_here
 
         if self.flag_mask is None:
@@ -277,7 +337,7 @@ class QC_SAT:
         }
         self.th_masks.append(th_mask)
 
-    def add_band_statistics(self, index_sat, wl_sat, type_stat, value_th, type_th):
+    def add_band_statistics(self, index_sat, wl_sat, type_stat, with_outliers, value_th, type_th):
         if index_sat == -1:
             index_sat = self.get_index_sat_from_wlvalue(wl_sat)
         if index_sat < 0:
@@ -288,6 +348,7 @@ class QC_SAT:
         check_val = {
             'index_sat': index_sat,
             'type_stat': type_stat,
+            'with_outliers': with_outliers,
             'value_th': value_th,
             'type_th': type_th
         }
@@ -344,16 +405,21 @@ class QC_SAT:
         if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
             flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, satellite_flag.flag_meanings)
             flag_mask = flagging.MaskGeneral(satellite_flag_band)
-            flag_mask[np.where(self.flag_mask != 0)] = 1
+            flag_mask[np.where(flag_mask != 0)] = 1
         else:
             flagging = flag.Class_Flags_OLCI(satellite_flag.flag_masks, satellite_flag.flag_meanings)
             if self.info_flag[flag_band]['ac_processor'] == 'C2RCC':  # C2RCC FLAGS
+                if index_mu==0:
+                    print(satellite_flag.flag_meanings)
+                    print(satellite_flag.flag_masks)
                 valuePE = np.uint64(2147483648)
                 flag_mask = np.ones(satellite_flag_band.shape, dtype=np.uint64)
                 flag_mask[satellite_flag_band == valuePE] = 0
             else:
                 flag_mask = flagging.Mask(satellite_flag_band, self.info_flag[flag_band]['flag_list'])
                 flag_mask[np.where(flag_mask != 0)] = 1
+
+
 
         flag_land = self.info_flag[flag_band]['flag_land']
         flag_inlandwater = self.info_flag[flag_band]['flag_inlandwater']
@@ -401,10 +467,17 @@ class QC_SAT:
             flag_land = 'LAND'
             flag_inlandwaters = 'INLAND_WATER'
         if ac_processor == 'POLYMER':
+            #flag_list = 'LAND,CLOUD_BASE,L1_INVALID,NEGATIVE_BB,OUT_OF_BOUNDS,EXCEPTION,THICK_AEROSOL,HIGH_AIR_MASS,EXTERNAL_MASK'
+            flag_list = 'LAND,CLOUD_BASE'
             flag_land = 'LAND'
+
+        if ac_processor== 'C2RCC':
+            flag_list = 'Rtosa_OOS, Rtosa_OOR, Rhow_OOR, Cloud_risk, Iop_OOR, Apig_at_max, Adet_at_max, Agelb_at_max, Bpart_at_max, Bwit_at_max, Apig_at_min, Adet_at_min, Agelb_at_min, Bpart_at_min, Bwit_at_min, Rhow_OOS, Kd489_OOR,Kdmin_OOR, Kd489_at_max, Kdmin_at_max'
+            #flag_list =  ''
         if ac_processor == 'FUB':
-            flag_list = 'land'
-            flag_land = 'LAND'
+            #flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,duplicated,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16'
+            flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16'
+            flag_land = 'land'
             flag_inlandwaters = 'fresh_inland_water'
             # flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,duplicated,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16,saturated_Oa17,saturated_Oa18,saturated_Oa19,saturated_Oa20,saturated_Oa21'
 
@@ -413,3 +486,58 @@ class QC_SAT:
             flag_list = str.split(flag_list, ',')
 
         return flag_list, flag_land, flag_inlandwaters
+
+    # eumetsat_defults: windows_size should be 3 (min_valid_pixels==9) o 5 (use_Bailey_Werdell=True)
+    def set_eumetsat_defaults(self, window_size):
+        self.stat_value = 'avg'
+
+        self.window_size = window_size
+        if window_size == 3:
+            self.min_valid_pixels = 9
+            self.use_Bailey_Werdell = False
+        if window_size == 9:
+            self.use_Bailey_Werdell = True
+
+        self.apply_outliers = True
+        self.outliers_info = {
+            'central_stat': 'avg',
+            'dispersion_stat': 'std',
+            'factor': 1.5
+        }
+
+        self.add_band_statistics(-1, 560, 'CV', True, 20, 'greater')
+
+    def set_qc_from_qcbase(self, qcbase):
+
+        self.name = qcbase.sat_name
+        self.stat_value = qcbase.sat_stat_value
+        self.window_size = qcbase.sat_window_size
+        self.min_valid_pixels = qcbase.sat_min_valid_pixels
+        self.use_Bailey_Werdell = qcbase.sat_use_Bailey_Werdell
+        self.max_diff_wl = qcbase.sat_max_diff_wl
+        self.apply_band_shifting = qcbase.sat_apply_band_shifting
+
+        self.apply_outliers = qcbase.sat_apply_outliers
+        self.outliers_info = qcbase.sat_outliers_info
+
+        if len(qcbase.sat_th_mask) > 0:
+            for thm in qcbase.sat_th_mask:
+                self.add_theshold_mask(thm['index_sat'], thm['wl_sat'], thm['value_th'], thm['type_th'])
+
+        if len(qcbase.sat_check_statistics) > 0:
+            for cst in qcbase.sat_check_statistics:
+                self.add_band_statistics(cst['index_sat'], cst['wl_sat'], cst['type_stat'], cst['with_outliers'],
+                                         cst['value_th'], cst['type_th'])
+
+        if len(qcbase.sat_info_flag) > 0:
+            for info_f in qcbase.sat_info_flag:
+                name_flag = info_f['sat_flag_name']
+                if name_flag is None:
+                    name_flag = self.info_flag.keys()[0]
+                if name_flag is self.info_flag.keys():
+                    if info_f['flag_list'] is not None:
+                        self.info_flag[name_flag]['flag_list'] = info_f['flag_list']
+                    if info_f['flag_land'] is not None:
+                        self.info_flag[name_flag]['flag_land'] = info_f['flag_land']
+                    if info_f['flag_inlandwater'] is not None:
+                        self.info_flag[name_flag]['flag_inlandwater'] = info_f['flag_land']

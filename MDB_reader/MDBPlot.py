@@ -3,12 +3,15 @@ import pandas as pd
 from MDBFile import MDBFile
 import MDBPlotDefaults as defaults
 from matplotlib import pyplot as plt
+from matplotlib import cm
 import numpy as np
 from scipy import stats
 import COMMON.common_functions as cfs
 import os
 from PlotSpectra import PlotSpectra
 from PlotScatter import PlotScatter
+from datetime import datetime as dt
+import seaborn as sns
 
 
 class MDBPlot:
@@ -25,6 +28,8 @@ class MDBPlot:
         self.xdata = []
         self.ydata = []
         self.wldata = []
+        self.xregress = []
+        self.yregress = []
         self.xlabel = defaults.xlabel_default
         self.ylabel = defaults.ylabel_default
 
@@ -42,7 +47,9 @@ class MDBPlot:
             'std_err': 0.0,
             'rmse_val': 0.0,
             'mean_rel_diff': 0.0,
-            'mean_abs_rel_diff': 0.0
+            'mean_abs_rel_diff': 0.0,
+            'bias': 0.0,
+            'r2:': 0.0
         }
         self.df_valid_stats = None
 
@@ -58,6 +65,8 @@ class MDBPlot:
         return dfval
 
     def plot_scatter_plot(self, title, legend, include_stats, file_out):
+        if include_stats:
+            self.compute_statistics()
         wl = self.wldata.unique()
         nwl = len(wl)
         str_legend = []
@@ -69,6 +78,10 @@ class MDBPlot:
         plot.close_plot()
         plot.start_plot()
 
+        self.xdata = self.xdata * 1000
+        self.ydata = self.ydata * 1000
+        self.yregress = np.array(self.yregress) * 1000
+        self.xregress = np.array(self.xregress) * 1000
         for w in wl:
             color = defaults.get_color_ref(w)
             xhere = self.xdata[self.wldata == w]
@@ -76,13 +89,21 @@ class MDBPlot:
             plot.plot_data(xhere, yhere, None, None, color, 'gray', 1.5)
 
         plot.set_equal_apect()
+        max_x_data = np.min(self.xdata)
+        max_y_data = np.max(self.ydata)
+        max_xy = np.ceil(np.max([max_x_data, max_y_data]))
+        # if max_xy > 10:
+        #     max_xy = 10
+        # if max_xy <= 4:
+        #     max_xy = 5
+        plot.set_limits(0, max_xy)
         plot.set_xaxis_title(self.xlabel)
         plot.set_yaxis_title(self.ylabel)
         if legend:
             plot.set_legend(str_legend)
         plot.plot_identity_line()
+
         if include_stats:
-            self.compute_statistics()
             str0 = 'N={:d}\nRMSD={:,.4f}\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.4f}' \
                 .format(self.valid_stats['N'],
                         self.valid_stats['rmse_val'],
@@ -90,14 +111,27 @@ class MDBPlot:
                         self.valid_stats['mean_rel_diff'],
                         self.valid_stats['r_value'] ** 2,
                         self.valid_stats['bias'])
-            if nwl == 1:
-                w = wl[0]
-                strwl = f'λ = {w:0.2f} nm \n'
-                str0 = strwl + str0
+            # if nwl == 1:
+            #     w = wl[0]
+            #     strwl = f'λ = {w:0.2f} nm \n'
+            #     str0 = strwl + str0
             plot.plot_text(0.05, 0.70, str0)
 
+
+
+            plot.plot_regress_line(self.xregress, self.yregress, 'black')
+
+        # data_plot = pd.concat([self.xdata, self.ydata], axis=1).astype(dtype=np.float)
+
+        # sns.lmplot(data = data_plot,x='Ins_Rrs',y='Sat_Rrs',line_kws={'color': [0.3,0.3,0.3,1]})
+
         if title:
-            plot.set_title(self.title)
+            title_here = self.title
+            if nwl==1:
+                w = wl[0]
+                strwl = f' λ = {w:0.2f} nm \n'
+                title_here = self.title + strwl
+            plot.set_title(title_here)
 
         if not file_out is None:
             plot.save_fig(file_out)
@@ -184,10 +218,29 @@ class MDBPlot:
         # Generated linear fit
         xdatal = []
         ydatal = []
+        maxxy = 0
         for x, y in zip(self.xdata, self.ydata):
             xdatal.append(x)
             ydatal.append(y)
+            if x > maxxy:
+                maxxy = x
+            if y > maxxy:
+                maxxy = y
+
         slope, intercept, r_value, p_value, std_err = stats.linregress(xdatal, ydatal)
+
+        self.xregress = []
+        self.yregress = []
+        self.xregress.append(0)
+        self.yregress.append(intercept)
+        for x in xdatal:
+            yr = (x * slope) + intercept
+            self.yregress.append(yr)
+            self.xregress.append(x)
+        yrmax = ((maxxy + 1) * slope) + intercept
+        self.xregress.append(maxxy + 1)
+        self.yregress.append(yrmax)
+
         self.valid_stats['slope'] = slope
         self.valid_stats['intercept'] = intercept
         self.valid_stats['r_value'] = r_value
@@ -207,6 +260,8 @@ class MDBPlot:
 
         bias = np.mean(sat_obs - ref_obs)
         self.valid_stats['bias'] = bias
+
+        self.valid_stats['r2'] = r_value * r_value
 
     def plot_all_scatter_plot(self, path_out):
         dfval = self.get_df_val()
@@ -228,6 +283,26 @@ class MDBPlot:
 
         self.plot_scatter_plot(show_title, True, True, file_out)
 
+    def plot_all_scatter_plot_insitu(self, path_out):
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+        # ['Index','Index_MU','Index_Band','Sat_Time','Ins_Time','Time_Diff','Wavelenght','Ins_Rrs','Sat_Rrw','Valid']
+
+        self.xdata = dfval[:]['PanthyrRRS']
+        self.ydata = dfval[:]['HypstarRRS']
+        self.wldata = dfval[:]['Wavelength']
+
+        show_title = False
+        file_out = None
+        if not path_out is None:
+            show_title = True
+            if self.mfile is not None:
+                self.title = self.mfile.get_title()
+            file_out = os.path.join(path_out, f'{self.get_file_name(None)}.{self.format_image}')
+
+        self.plot_scatter_plot(show_title, False, True, file_out)
+
     def plot_wavelength_scatter_plot(self, index_sat, wl, path_out):
         if wl is None and 0 <= index_sat < len(self.mfile.satellite_bands):
             wl = self.mfile.satellite_bands[index_sat]
@@ -240,9 +315,14 @@ class MDBPlot:
         if dfval is None:
             return
 
-        self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
-        self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
-        self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
+        # self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
+        # self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
+        # self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
+        self.xdata = dfval[(dfval['Wavelength'] == wl)]['PanthyrRRS']
+        self.ydata = dfval[(dfval['Wavelength'] == wl)]['HypstarRRS']
+        self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
+
+
         print('NValues: ', len(self.xdata), 'Wavelength: ', wl)
         show_title = False
         file_out = None
@@ -273,9 +353,15 @@ class MDBPlot:
         if dfval is None:
             return
 
-        self.xdata = dfval[dfval['Valid']]['Ins_Rrs']
-        self.ydata = dfval[dfval['Valid']]['Sat_Rrs']
-        self.wldata = dfval[dfval['Valid']]['Wavelenght']
+        # self.xdata = dfval[dfval['Valid']]['Ins_Rrs']
+        # self.ydata = dfval[dfval['Valid']]['Sat_Rrs']
+        # self.wldata = dfval[dfval['Valid']]['Wavelenght']
+
+        self.xdata = dfval[:]['PanthyrRRS']
+        self.ydata = dfval[:]['HypstarRRS']
+        self.wldata = dfval[:]['Wavelength']
+
+
         self.compute_statistics()
         for param in self.valid_stats:
             row = {}
@@ -294,9 +380,15 @@ class MDBPlot:
         for wl in wllist:
             print(f'Computing statistics for: {wl}')
             w_str = f'{wl:0.2f}'
-            self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
-            self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
-            self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
+            # self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
+            # self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
+            # self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
+
+            self.xdata = dfval[(dfval['Wavelength'] == wl)]['PanthyrRRS']
+            self.ydata = dfval[(dfval['Wavelength'] == wl)]['HypstarRRS']
+            self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
+
+
             self.compute_statistics()
             for iparam in range(nparam):
                 param = self.df_valid_stats.at[iparam, 'Param']
@@ -364,6 +456,66 @@ class MDBPlot:
         if not file_out is None:
             ps.save_plot(file_out)
 
+    def obtain_mu_info(self, dfall, dfvalid, path_out_base):
+        if dfvalid is None:
+            dfvalid = self.dfparam
+
+        path_out = os.path.join(path_out_base, 'MUINFO')
+        if not os.path.exists(path_out):
+            os.mkdir(path_out)
+
+        file_jpg = os.path.join(path_out, 'AllMUByMonth.jpg')
+        fcsv = os.path.join(path_out, 'NMuAllMonth.csv')
+        self.obtain_mu_info_impl(dfall, fcsv, file_jpg)
+
+        file_jpg = os.path.join(path_out, 'ValidMUByMonth.jpg')
+        fcsv = os.path.join(path_out, 'NMuValidMonth.csv')
+        self.obtain_mu_info_impl(dfvalid, fcsv, file_jpg)
+
+    def obtain_mu_info_impl(self, dfall, fcsv, fjpg):
+        nall = len(dfall.index)
+        first_date = dt.strptime(dfall.iloc[0].at['Sat_Time'], '%Y-%m-%d %H:%M')
+        last_date = dt.strptime(dfall.iloc[nall - 1].at['Sat_Time'], '%Y-%m-%d %H:%M')
+        year_min = first_date.year
+        year_max = last_date.year + 1
+        year = list(range(year_min, year_max))
+        year.reverse()
+        month = list(range(1, 13))
+        dfall_month = pd.DataFrame(index=year, columns=month, dtype=np.float)
+        dfall_month[:] = 0
+        for index, row in dfall.iterrows():
+            dif_wl = np.abs(np.float(row['Wavelenght'])-412)
+            if dif_wl<5:
+                date_here = dt.strptime(row['Sat_Time'], '%Y-%m-%d %H:%M')
+                year_here = date_here.year
+                month_here = date_here.month
+                dfall_month.at[year_here, month_here] = dfall_month.at[year_here, month_here] + 1
+
+        h = plt.Figure()
+        cmap = cm.get_cmap('RdYlBu_r')
+        dfall_month_withnan = dfall_month
+        dfall_month_withnan[dfall_month == 0] = np.nan
+        sns.heatmap(dfall_month_withnan, annot=False, cmap=cmap, linewidths=1, linecolor='black')
+        plt.xlabel('Month')
+        plt.ylabel('Year')
+
+        plt.savefig(fjpg, dpi=300)
+        plt.close(h)
+
+        sum_by_month = np.zeros(12)
+        for imonth in range(12):
+            sum_by_month[imonth] = np.sum(dfall_month.loc[:, imonth + 1])
+        sum_by_month = pd.DataFrame([sum_by_month], columns=month)
+        dfall_month = pd.concat([dfall_month, sum_by_month])
+        sum_by_year = np.zeros(len(dfall_month.index))
+        ihere = 0
+        for index, row in dfall_month.iterrows():
+            sum_by_year[ihere] = np.sum(row)
+            ihere = ihere + 1
+        sum_by_year = pd.DataFrame(data=sum_by_year, columns=['All'], index=dfall_month.index)
+        dfall_month = pd.concat([dfall_month, sum_by_year], axis=1)
+        dfall_month.to_csv(fcsv, sep=';')
+
     def make_validation_mdbfile(self, path_out):
         file_data_valid = os.path.join(path_out, 'DataValid.csv')
         self.mfile.df_validation_valid.to_csv(file_data_valid)
@@ -376,7 +528,18 @@ class MDBPlot:
         self.df_valid_stats.to_csv(file_results)
         self.plot_all_spectra_param(path_out)
 
+    def save_validation_dfval_data(self, path_out):
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+        file_data_valid = os.path.join(path_out, 'DataValid.csv')
+        dfval.to_csv(file_data_valid, sep=';')
+
     def make_validation_dfval(self, path_out, title, file_name_base, wllist):
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+        self.compute_all_statistics(wllist)
         self.title = title
         self.file_name_base = file_name_base
         self.plot_all_scatter_plot(path_out)
@@ -384,7 +547,23 @@ class MDBPlot:
 
         self.compute_all_statistics(wllist)
         file_results = os.path.join(path_out, 'Params.csv')
-        self.df_valid_stats.to_csv(file_results)
+        self.df_valid_stats.to_csv(file_results,sep=';')
+        self.plot_all_spectra_param(path_out)
+
+    def make_validation_dfval_insitu(self, path_out, title, file_name_base, wllist):
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+        self.title = title
+        self.file_name_base = file_name_base
+        #self.plot_all_scatter_plot_insitu(path_out)
+        self.compute_all_statistics(wllist)
+        file_results = os.path.join(path_out, 'Params.csv')
+        self.df_valid_stats.to_csv(file_results, sep=';')
+        #
+        # wllist = [412.5, 442.5, 490, 510, 560, 665, 710, 780]
+        # self.plot_wavelenght_scatter_plots(path_out,wllist)
+
         self.plot_all_spectra_param(path_out)
 
     def get_file_name(self, wl):

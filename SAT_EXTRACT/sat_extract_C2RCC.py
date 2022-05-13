@@ -195,9 +195,9 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     if n_bands == 0:
         print('[ERROR] reflectance bands are not defined')
         return False
-    flag_band_name = 'c2rcc_flags'
+    flag_band_names = ['quality_flags','c2rcc_flags']
     if args.atm_correction == 'FUB':
-        flag_band_name = 'quality_flags'
+        flag_band_names = ['quality_flags']
 
     newEXTRACT = SatExtract(ofname)
     if not newEXTRACT.FILE_CREATED:
@@ -242,9 +242,10 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
 
     # flags
-    flag_band = nc_sat.variables[flag_band_name]
-    newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, flag_band.long_name, flag_band.flag_masks,
-                                    flag_band.flag_meanings, window)
+    for flag_band_name in flag_band_names:
+        flag_band = nc_sat.variables[flag_band_name]
+        newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, flag_band.long_name, flag_band.flag_masks,
+                                        flag_band.flag_meanings, window)
 
     if skie_file is not None:
         insitu_origbands_var = newEXTRACT.create_insitu_original_bands_variable()

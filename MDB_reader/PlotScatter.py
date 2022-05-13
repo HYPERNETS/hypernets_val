@@ -1,5 +1,7 @@
 from matplotlib import pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 
 class PlotScatter():
 
@@ -58,6 +60,12 @@ class PlotScatter():
                     edgecolors=style['edgecolors'],
                     linewidths=style['linewidths'])
 
+    def plot_reg_line(self,xdata,ydata,color):
+        data_plot = pd.concat([xdata, ydata], axis=1).astype(dtype=np.float)
+        sns.lmplot(data = data_plot,x='Ins_Rrs',y='Sat_Rrs',line_kws={'color': color})
+
+
+
     def set_equal_apect(self):
         plt.gca().set_aspect('equal', adjustable='box')
 
@@ -66,6 +74,10 @@ class PlotScatter():
 
     def set_yaxis_title(self,yaxis_title):
         plt.ylabel(yaxis_title,fontsize=self.ytitle_options['fontsize'])
+
+    def set_limits(self,minV,maxV):
+        plt.xlim([minV,maxV])
+        plt.ylim([minV,maxV])
 
     def set_legend(self,str_legend):
         plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'])
@@ -79,6 +91,9 @@ class PlotScatter():
         xmin = np.min([xmin, ymin])
         xmax = np.max([xmax, ymax])
         plt.plot([xmin, xmax], [xmin, xmax], '--k')
+
+    def plot_regress_line(self,xdata,ydata,color):
+        plt.plot(xdata, ydata,color= color,linestyle='-',linewidth=1,marker=None)
 
     def plot_text(self,xpos, ypos, str):
         plt.text(xpos, ypos, str,
