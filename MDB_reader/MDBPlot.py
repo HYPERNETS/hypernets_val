@@ -315,12 +315,12 @@ class MDBPlot:
         if dfval is None:
             return
 
-        # self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
-        # self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
-        # self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
-        self.xdata = dfval[(dfval['Wavelength'] == wl)]['PanthyrRRS']
-        self.ydata = dfval[(dfval['Wavelength'] == wl)]['HypstarRRS']
-        self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
+        self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
+        self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
+        self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
+        # self.xdata = dfval[(dfval['Wavelength'] == wl)]['PanthyrRRS']
+        # self.ydata = dfval[(dfval['Wavelength'] == wl)]['HypstarRRS']
+        # self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
 
 
         print('NValues: ', len(self.xdata), 'Wavelength: ', wl)
@@ -353,13 +353,13 @@ class MDBPlot:
         if dfval is None:
             return
 
-        # self.xdata = dfval[dfval['Valid']]['Ins_Rrs']
-        # self.ydata = dfval[dfval['Valid']]['Sat_Rrs']
-        # self.wldata = dfval[dfval['Valid']]['Wavelenght']
+        self.xdata = dfval[dfval['Valid']]['Ins_Rrs']
+        self.ydata = dfval[dfval['Valid']]['Sat_Rrs']
+        self.wldata = dfval[dfval['Valid']]['Wavelenght']
 
-        self.xdata = dfval[:]['PanthyrRRS']
-        self.ydata = dfval[:]['HypstarRRS']
-        self.wldata = dfval[:]['Wavelength']
+        # self.xdata = dfval[:]['PanthyrRRS']
+        # self.ydata = dfval[:]['HypstarRRS']
+        # self.wldata = dfval[:]['Wavelength']
 
 
         self.compute_statistics()
@@ -380,13 +380,13 @@ class MDBPlot:
         for wl in wllist:
             print(f'Computing statistics for: {wl}')
             w_str = f'{wl:0.2f}'
-            # self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
-            # self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
-            # self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
+            self.xdata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Ins_Rrs']
+            self.ydata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Sat_Rrs']
+            self.wldata = dfval[(dfval['Valid']) & (dfval['Wavelenght'] == wl)]['Wavelenght']
 
-            self.xdata = dfval[(dfval['Wavelength'] == wl)]['PanthyrRRS']
-            self.ydata = dfval[(dfval['Wavelength'] == wl)]['HypstarRRS']
-            self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
+            # self.xdata = dfval[(dfval['Wavelength'] == wl)]['PanthyrRRS']
+            # self.ydata = dfval[(dfval['Wavelength'] == wl)]['HypstarRRS']
+            # self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
 
 
             self.compute_statistics()

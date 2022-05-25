@@ -84,15 +84,20 @@ class QC_SAT:
         self.apply_band_shifting = False
         self.wl_ref = None
 
-    def get_wl_sat_list_from_wlreflist(self,wlref):
+    def set_window_size(self, wsize):
+        self.window_size = wsize
+        self.NTP = self.window_size * self.window_size
+        self.NTPW = self.NTP
+        if self.min_valid_pixels > self.NTP:
+            self.min_valid_pixels = self.NTP
+
+    def get_wl_sat_list_from_wlreflist(self, wlref):
         wllist = []
         for wl in wlref:
             index = self.get_index_sat_from_wlvalue(wl)
-            if index>=0:
+            if index >= 0:
                 wllist.append(self.sat_bands[index])
         return wllist
-
-
 
     def prepare_new_match_up(self):
         self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
@@ -126,7 +131,6 @@ class QC_SAT:
             sat_index_str = str(sat_index)
             rrs_here = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
             rrs_valid = rrs_here[self.flag_mask == 0]
-
             stats = self.compute_statistics_impl(self.statistics[sat_index_str]['without_outliers'], rrs_valid)
             self.statistics[sat_index_str]['without_outliers'] = stats
             # self.statistics[sat_index_str]['without_outliers']['avg'] = np.mean(rrs_valid)
@@ -146,16 +150,6 @@ class QC_SAT:
                     rrs_valid = rrs_valid[mask_outliers == 0]
                 stats = self.compute_statistics_impl(self.statistics[sat_index_str]['with_outliers'], rrs_valid)
                 self.statistics[sat_index_str]['with_outliers'] = stats
-
-            # self.statistics[sat_index_str]['avg'] = np.mean(rrs_valid)
-            # self.statistics[sat_index_str]['std'] = np.std(rrs_valid)
-            # self.statistics[sat_index_str]['median'] = np.median(rrs_valid)
-            # self.statistics[sat_index_str]['min'] = np.min(rrs_valid)
-            # self.statistics[sat_index_str]['max'] = np.max(rrs_valid)
-            # CV = (self.statistics[sat_index_str]['std'] / abs(self.statistics[sat_index_str]['avg'])) * 100
-            # self.statistics[sat_index_str]['CV'] = CV
-            # wl = self.statistics[sat_index_str]['wavelength']
-            # print(f'[INFO] Wavelength: {wl} Outliers: {n_outliers} CV: {CV}')
 
         return True
 
@@ -192,7 +186,6 @@ class QC_SAT:
     def get_match_up_values(self, index_mu):
         self.prepare_new_match_up()
         cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
-        #print(cond_min_pixels)
 
         cond_stats = False
         valid_mu = False
@@ -233,7 +226,6 @@ class QC_SAT:
         self.compute_invalid_masks(index_mu)
         self.compute_th_masks(index_mu)
         self.NVP = self.NTP - np.sum(self.flag_mask)
-        #print(self.NVP)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
         # print(f'[INFO] Index mu: {index_mu}')
         # print(f'[INFO] Number total of pixels: {self.NTP}')
@@ -301,6 +293,7 @@ class QC_SAT:
             sat_index_str = str(sat_index)
             if self.invalid_mask[sat_index_str]['apply_mask']:
                 rrshere = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
+
                 mask_invalid_here = np.zeros(rrshere.shape, dtype=np.uint64)
                 mask_invalid_here[rrshere.mask] = 1
                 n_masked = np.sum(mask_invalid_here)
@@ -409,7 +402,7 @@ class QC_SAT:
         else:
             flagging = flag.Class_Flags_OLCI(satellite_flag.flag_masks, satellite_flag.flag_meanings)
             if self.info_flag[flag_band]['ac_processor'] == 'C2RCC':  # C2RCC FLAGS
-                if index_mu==0:
+                if index_mu == 0:
                     print(satellite_flag.flag_meanings)
                     print(satellite_flag.flag_masks)
                 valuePE = np.uint64(2147483648)
@@ -418,8 +411,6 @@ class QC_SAT:
             else:
                 flag_mask = flagging.Mask(satellite_flag_band, self.info_flag[flag_band]['flag_list'])
                 flag_mask[np.where(flag_mask != 0)] = 1
-
-
 
         flag_land = self.info_flag[flag_band]['flag_land']
         flag_inlandwater = self.info_flag[flag_band]['flag_inlandwater']
@@ -467,15 +458,15 @@ class QC_SAT:
             flag_land = 'LAND'
             flag_inlandwaters = 'INLAND_WATER'
         if ac_processor == 'POLYMER':
-            #flag_list = 'LAND,CLOUD_BASE,L1_INVALID,NEGATIVE_BB,OUT_OF_BOUNDS,EXCEPTION,THICK_AEROSOL,HIGH_AIR_MASS,EXTERNAL_MASK'
+            # flag_list = 'LAND,CLOUD_BASE,L1_INVALID,NEGATIVE_BB,OUT_OF_BOUNDS,EXCEPTION,THICK_AEROSOL,HIGH_AIR_MASS,EXTERNAL_MASK'
             flag_list = 'LAND,CLOUD_BASE'
             flag_land = 'LAND'
 
-        if ac_processor== 'C2RCC':
+        if ac_processor == 'C2RCC':
             flag_list = 'Rtosa_OOS, Rtosa_OOR, Rhow_OOR, Cloud_risk, Iop_OOR, Apig_at_max, Adet_at_max, Agelb_at_max, Bpart_at_max, Bwit_at_max, Apig_at_min, Adet_at_min, Agelb_at_min, Bpart_at_min, Bwit_at_min, Rhow_OOS, Kd489_OOR,Kdmin_OOR, Kd489_at_max, Kdmin_at_max'
-            #flag_list =  ''
+            # flag_list =  ''
         if ac_processor == 'FUB':
-            #flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,duplicated,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16'
+            # flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,duplicated,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16'
             flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16'
             flag_land = 'land'
             flag_inlandwaters = 'fresh_inland_water'

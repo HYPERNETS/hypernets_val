@@ -25,7 +25,7 @@ parser.add_argument('-p', "--product_file", help="Image file.")
 args = parser.parse_args()
 
 
-def launch_create_extract_syke(filepath, skie_file, options):
+def launch_create_extract_syke(filepath, syke_file, options):
     ncreated = 0
 
     path_output = get_output_path(options)
@@ -55,7 +55,7 @@ def launch_create_extract_syke(filepath, skie_file, options):
     global_at = get_global_atrib(nc_sat)
 
     max_time_diff = nminutes * 60
-    check_date = skie_file.get_subdf(sat_time, sat_time, max_time_diff)
+    check_date = syke_file.get_subdf(sat_time, sat_time, max_time_diff)
     if not check_date:
         print(f'[WARNING] Spectral data for date: {sat_time} are not avaiable')
         return ncreated
@@ -63,8 +63,8 @@ def launch_create_extract_syke(filepath, skie_file, options):
         print(f'[INFO] Extracting data for sat time: {sat_time}')
 
     extracts = {}
-    for irow in range(skie_file.get_n_df_sub()):
-        insitu_lat, insitu_lon = skie_file.get_lat_lon_at_subdb(irow)
+    for irow in range(syke_file.get_n_df_sub()):
+        insitu_lat, insitu_lon = syke_file.get_lat_lon_at_subdb(irow)
         size_box = get_box_size(options)
         contain_flag = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
         if not contain_flag:
@@ -101,18 +101,18 @@ def launch_create_extract_syke(filepath, skie_file, options):
             continue
 
         if output_dir_prev is not None:
-            ofname_prev = os.path.join(output_dir_prev,filename)
+            ofname_prev = os.path.join(output_dir_prev, filename)
             if os.path.exists(ofname_prev):
                 if args.verbose:
                     print(f'[INFO] Copying {ofname} from previous directory')
-                shutil.copy(ofname_prev,ofname)
+                shutil.copy(ofname_prev, ofname)
                 continue
 
-        global_at['station_name'] = 'skie'
+        global_at['station_name'] = 'syke'
         global_at['in_situ_lat'] = f'in situ points at pixel row={r},col={c}'
         global_at['in_situ_lon'] = f'in situ points at pixel row={r},col={c}'
 
-        b = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, skie_file,
+        b = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, syke_file,
                            extracts[extract]['irows'])
         if b:
             ncreated = ncreated + 1
@@ -194,7 +194,7 @@ def launch_create_extract(filepath, options):
     return ncreated
 
 
-def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, skie_file, irows):
+def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time, insitu_info, name_variables):
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
     stop_idx_x = (c + int(size_box / 2) + 1)
@@ -216,8 +216,90 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     if args.verbose:
         print(f'[INFO]Creating file: {ofname}')
     newEXTRACT.set_global_attributes(global_at)
-    if skie_file is not None:
-        newEXTRACT.create_dimensions_incluidinginsitu(size_box, n_bands, skie_file.get_n_bands(), 30)
+
+    newEXTRACT.create_dimensions(size_box, n_bands)
+
+    lat, long = get_lat_long_arrays(nc_sat)
+    newEXTRACT.create_lat_long_variables(lat, long, window)
+
+    # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
+    newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S'))
+
+    # pdu variable
+    newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
+
+    satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
+    rbands = list(reflectance_bands.keys())
+    wavelenghts = []
+    for index in range(len(rbands)):
+        rband = rbands[index]
+        bandarray = ma.array(nc_sat.variables[rband][:, :])
+        satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
+        wl = reflectance_bands[rband]['wavelenght']
+        wavelenghts.append(wl)
+    newEXTRACT.create_satellite_bands_variable(wavelenghts)
+
+    # flags
+    flag_band = nc_sat.variables[flag_band_name]
+    desc = flag_band.description.split(',')
+    flag_masks = ''
+    flag_list = []
+    flag_meanings = ''
+    flag_started = False
+    for d in desc:
+        dval = d.split(':')
+        flag_list.append(int(dval[1]))
+        if not flag_started:
+            flag_masks = dval[1]
+            flag_meanings = dval[0]
+            flag_started = True
+        else:
+            flag_masks = flag_masks + ' , ' + dval[1]
+            flag_meanings = flag_meanings + ' ' + dval[0]
+    newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, 'Polymer Bitmask', flag_list,
+                                    flag_meanings, window)
+
+    ##add in situ variables
+    formatdt = '%Y-%m-%d %H:%M:%S'
+    sat_time = dt.strptime(nc_sat.start_time, formatdt)
+    timediff = abs((insitu_time - sat_time).total_seconds())
+    insitulat_var, insitulon_var, insitutime_var, time_difference_var = newEXTRACT.create_insitu_variables_for_single_insitu_data()
+    insitulat_var[0] = global_at['in_situ_lat']
+    insitulon_var[0] = global_at['in_situ_lon']
+    insitutime_var[0] = insitu_time.timestamp()
+    time_difference_var[0] = timediff
+    for name_var in name_variables:
+        insitu_var = newEXTRACT.create_insitu_variable_for_single_insitu_data(name_var, 'unknown', 'unknown')
+        insitu_var[0] = insitu_info[name_var]
+
+    newEXTRACT.close_file()
+
+    return True
+
+def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, syke_file, irows):
+    size_box = get_box_size(options)
+    start_idx_x = (c - int(size_box / 2))
+    stop_idx_x = (c + int(size_box / 2) + 1)
+    start_idx_y = (r - int(size_box / 2))
+    stop_idx_y = (r + int(size_box / 2) + 1)
+    window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
+
+    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat)
+    if n_bands == 0:
+        print('[ERROR] reflectance bands are not defined')
+        return False
+    flag_band_name = 'bitmask'
+
+    newEXTRACT = SatExtract(ofname)
+    if not newEXTRACT.FILE_CREATED:
+        print(f'[ERROR] File {ofname} could not be created')
+        return False
+
+    if args.verbose:
+        print(f'[INFO]Creating file: {ofname}')
+    newEXTRACT.set_global_attributes(global_at)
+    if syke_file is not None:
+        newEXTRACT.create_dimensions_incluidinginsitu(size_box, n_bands, syke_file.get_n_bands(), 30)
     else:
         newEXTRACT.create_dimensions(size_box, n_bands)
 
@@ -262,9 +344,9 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, 'Polymer Bitmask', flag_list,
                                     flag_meanings, window)
 
-    if skie_file is not None:
+    if syke_file is not None:
         insitu_origbands_var = newEXTRACT.create_insitu_original_bands_variable()
-        insitu_origbands_var[:] = skie_file.wavelengths
+        insitu_origbands_var[:] = syke_file.wavelengths
         insitutime_var = newEXTRACT.create_insitu_time_variable()
         insitu_exactwl_var = newEXTRACT.create_insitu_exact_wavelengths_variable()
         insitu_timedif_var = newEXTRACT.create_insitu_time_difference_variable()
@@ -272,14 +354,14 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
         insitu_lat, insitu_lon = newEXTRACT.create_insitu_lat_long_variables()
         index_var = 0
         for irow in irows:
-            insitu_time_here = skie_file.get_time_at_subdb(irow, 'DT')
+            insitu_time_here = syke_file.get_time_at_subdb(irow, 'DT')
             insitutime_var[0, index_var] = insitu_time_here.timestamp()
-            insitu_exactwl_var[0, :, index_var] = skie_file.wavelengths
-            insitu_rrs_var[0, :, index_var] = np.array(skie_file.get_spectra_at_subdb(irow))
+            insitu_exactwl_var[0, :, index_var] = syke_file.wavelengths
+            insitu_rrs_var[0, :, index_var] = np.array(syke_file.get_spectra_at_subdb(irow))
             sat_time_here = dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S')
             time_diff = float(abs((insitu_time_here - sat_time_here).total_seconds()))
             insitu_timedif_var[0, index_var] = time_diff
-            latp, lonp = skie_file.get_lat_lon_at_subdb(irow)
+            latp, lonp = syke_file.get_lat_lon_at_subdb(irow)
             insitu_lat[0, index_var] = latp
             insitu_lon[0, index_var] = lonp
             index_var = index_var + 1
@@ -508,11 +590,153 @@ def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop
                 STATUS_STR = 'OK'
 
             if args.verbose:
-                print('-----------------')
+                # print('-----------------')
                 pname = path_to_sat_source.split('/')[-1]
                 print(f'[INFO ]Check: {pname}. STATUS: {STATUS_STR}')
 
     return product_path_list
+
+
+def run_syke_option(options):
+    path_syke = options['file_path']['path_syke']
+    path_syke_code = options['file_path']['path_syke_code']
+    if not os.path.exists(path_syke):
+        print(f'[ERROR] Syke file: {path_syke} is not avialable')
+        return
+    if not os.path.exists(path_syke_code) or not os.path.isdir(path_syke_code):
+        print(f'[ERROR] Syke code folder: {path_syke_code} is not avialable')
+        return
+    if args.verbose:
+        print(f'[INFO] Path syke: {path_syke}')
+        print(f'[INFO] Path syke: {path_syke_code}')
+    sys.path.append(path_syke_code)
+    try:
+        from skie_csv import SKIE_CSV
+    except ModuleNotFoundError:
+        print(f'[ERROR] Syke module is not found')
+        return
+    syke_file = SKIE_CSV(path_syke)
+    syke_file.start_list_dates()
+    syke_file.extract_wl_colnames()
+
+    print('------------------------------')
+    path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+    path_to_list = get_path_list_products(options)
+    if path_to_list is not None:
+        product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
+        if len(product_path_list) == 0:
+            if args.verbose:
+                print('-----------------')
+            print(f'[WARNING] No valid datasets found on:  {path_source}')
+            print('------------------------------')
+            print('[INFO] COMPLETED. 0 sat extract files were created')
+            return
+        ncreated = 0
+        for filepath in product_path_list:
+            if args.verbose:
+                print('------------------------------')
+                pname = filepath.split('/')[-1]
+                print(f'[INFO]Extracting sat extract for product: {pname}')
+            nhere = launch_create_extract_syke(filepath, syke_file, options)
+            ncreated = ncreated + nhere
+        print('------------------------------')
+        print(f'COMPLETED. {ncreated} sat extract files were created')
+
+
+def run_insitu_option(options):
+    path_insitu = options['file_path']['path_insitu']
+    path_insitu_code = options['file_path']['path_insitu_code']
+    if not os.path.exists(path_insitu):
+        print(f'[ERROR] In situ file: {path_insitu} is not avialable')
+        return
+    if not os.path.exists(path_insitu_code) or not os.path.isdir(path_insitu_code):
+        print(f'[ERROR] In situ code folder: {path_insitu_code} is not avialable')
+        return
+    if args.verbose:
+        print(f'[INFO] Path in situ: {path_insitu}')
+        print(f'[INFO] Path code: {path_insitu_code}')
+    sys.path.append(path_insitu_code)
+    try:
+        from insitu.nc_insitu_file import NCInsituFile
+        from insitu.csv_insitu_file import CSVInsituFile
+    except ModuleNotFoundError:
+        print(f'[ERROR] trims3images_frominsitunc module is not found')
+        return
+
+    if path_insitu.endswith('nc'):
+        ifobj = NCInsituFile(path_insitu)
+    if path_insitu.endswith('csv'):
+        ifobj = CSVInsituFile(path_insitu)
+    path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+    ifobj.get_valid_dates(None, time_start, time_stop)
+    valid_dates = ifobj.valid_dates
+    name_variables = ifobj.variables
+
+    path_to_list = get_path_list_products(options)
+    if path_to_list is None:
+        return
+
+    product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
+    if len(product_path_list) == 0:
+        print(f'[WARNING] No valid datasets found on:  {path_source}')
+        print('[INFO] COMPLETED. 0 sat extract files were created')
+        return
+    path_output = get_output_path(options)
+    if path_output is None:
+        print(f'ERROR: {path_output} is not valid')
+        return
+
+    nminutes = 120
+    if options.has_option('satellite_options', 'max_time_diff'):
+        nminutes = int(options['satellite_options']['max_time_diff'])
+    if args.verbose:
+        print(f'[INFO] Maximum time difference betwee sat and in situ times: {nminutes} minutes')
+
+    formatdt = '%Y-%m-%d %H:%M:%S'
+    maxtimediff = nminutes * 60
+    size_box = get_box_size(options)
+    ncreated = 0
+    for filepath in product_path_list:
+        if args.verbose:
+            print('------------------------------')
+            pname = filepath.split('/')[-1]
+            print(f'[INFO]Checking sat extracts for product: {pname}')
+        nc_sat = Dataset(filepath, 'r')
+        lat, lon = get_lat_long_arrays(nc_sat)
+        sat_time = dt.strptime(nc_sat.start_time, formatdt)
+        print(sat_time)
+        sat_date_str = sat_time.strftime('%Y-%m-%d')
+
+        if sat_date_str in valid_dates.keys():
+            for h in valid_dates[sat_date_str]:
+                insitu_time_str = f'{sat_date_str} {h}'
+                insitu_time = dt.strptime(insitu_time_str, formatdt)
+                insitu_lat = valid_dates[sat_date_str][h]['lat']
+                insitu_lon = valid_dates[sat_date_str][h]['lon']
+                timediff = abs((insitu_time - sat_time).total_seconds())
+                contain_flag = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
+                if timediff < maxtimediff and contain_flag:
+                    if args.verbose:
+                        print(
+                            f'[INFO] Preparing extract. In situ latitude: {insitu_lat} Longitude: {insitu_lon} Time: {insitu_time_str}')
+                    r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+                    extract = f'{r}_{c}'
+                    filename = filepath.split('/')[-1].replace('.', '_') + '_extract_insitu_' + extract + '.nc'
+                    pdu = filepath.split('/')[-1]
+                    ofname = os.path.join(path_output, filename)
+                    global_at = get_global_atrib(nc_sat)
+                    global_at['station_name'] = 'in situ dataset'
+                    global_at['in_situ_lat'] = insitu_lat
+                    global_at['in_situ_lon'] = insitu_lon
+                    insitu_info = valid_dates[sat_date_str][h]
+                    created = create_extract_insitu(ofname,pdu,options,nc_sat,global_at,r,c,insitu_time,insitu_info,name_variables)
+                    if created:
+                        ncreated = ncreated +1
+        nc_sat.close()
+        # nhere = 1  # nhere = launch_create_extract_syke(filepath, syke_file, options)
+        # ncreated = ncreated + nhere
+    print('------------------------------')
+    print(f'COMPLETED. {ncreated} sat extract files were created')
 
 
 def main():
@@ -523,50 +747,12 @@ def main():
 
     options = config_reader(args.config_file)
 
-    if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
-        path_skie = options['file_path']['path_skie']
-        path_skie_code = options['file_path']['path_skie_code']
-        if not os.path.exists(path_skie):
-            print(f'[ERROR] Skie file: {path_skie} is not avialable')
-            return
-        if not os.path.exists(path_skie_code) or not os.path.isdir(path_skie_code):
-            print(f'[ERROR] Skie code folder: {path_skie_code} is not avialable')
-            return
-        if args.verbose:
-            print(f'[INFO] Path skie: {path_skie}')
-            print(f'[INFO] Path skie: {path_skie_code}')
-        sys.path.append(path_skie_code)
-        try:
-            from skie_csv import SKIE_CSV
-        except ModuleNotFoundError:
-            print(f'[ERROR] Skie module is not found')
-            return
-        skie_file = SKIE_CSV(path_skie)
-        skie_file.start_list_dates()
-        skie_file.extract_wl_colnames()
+    if options.has_option('file_path', 'path_syke') and options.has_option('file_path', 'path_syke_code'):
+        run_syke_option(options)
+        return
 
-        print('------------------------------')
-        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
-        path_to_list = get_path_list_products(options)
-        if path_to_list is not None:
-            product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
-            if len(product_path_list) == 0:
-                if args.verbose:
-                    print('-----------------')
-                print(f'[WARNING] No valid datasets found on:  {path_source}')
-                print('------------------------------')
-                print('[INFO] COMPLETED. 0 sat extract files were created')
-                return
-            ncreated = 0
-            for filepath in product_path_list:
-                if args.verbose:
-                    print('------------------------------')
-                    pname = filepath.split('/')[-1]
-                    print(f'[INFO]Extracting sat extract for product: {pname}')
-                nhere = launch_create_extract_syke(filepath, skie_file, options)
-                ncreated = ncreated + nhere
-            print('------------------------------')
-            print(f'COMPLETED. {ncreated} sat extract files were created')
+    if options.has_option('file_path', 'path_insitu') and options.has_option('file_path', 'path_insitu_code'):
+        run_insitu_option(options)
         return
 
     # work only with the specified product file

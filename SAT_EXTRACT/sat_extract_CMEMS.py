@@ -159,10 +159,10 @@ def launch_create_extract(filepath, options):
             else:
                 r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
             size_box = get_box_size(options)
-            start_idx_x = (c - int(size_box / 2)) #lon
-            stop_idx_x = (c + int(size_box / 2) + 1) #lon
-            start_idx_y = (r - int(size_box / 2)) #lat
-            stop_idx_y = (r + int(size_box / 2) + 1) #lat
+            start_idx_x = (c - int(size_box / 2))  # lon
+            stop_idx_x = (c + int(size_box / 2) + 1)  # lon
+            start_idx_y = (r - int(size_box / 2))  # lat
+            stop_idx_y = (r + int(size_box / 2) + 1)  # lat
 
             if lat.ndim == 1 and lon.ndim == 1:
                 if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
@@ -198,8 +198,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     stop_idx_x = (c + int(size_box / 2) + 1)
     start_idx_y = (r - int(size_box / 2))
     stop_idx_y = (r + int(size_box / 2) + 1)
-    print(start_idx_y,stop_idx_y,start_idx_x,stop_idx_x,
-          '--------------------------------------------------------------------------------------------------------')
+    # print(start_idx_y, stop_idx_y, start_idx_x, stop_idx_x,
+    #       '--------------------------------------------------------------------------------------------------------')
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
     search_pattern = 'rrs_'
@@ -358,6 +358,16 @@ def get_box_size(options):
     else:
         size_box = 25
     return size_box
+
+
+def get_sat_time(nc_sat, pdu):
+    sat_time = None
+    if 'start_date' in nc_sat.ncattrs():
+        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
+        sat_time = sat_time.replace(hour=11, minute=0, second=0)
+    else:
+        sat_time = get_sat_time_from_fname(pdu)
+    return sat_time
 
 
 def get_site_options(options):
@@ -568,6 +578,170 @@ def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop
     return product_path_list
 
 
+def run_insitu_option(options):
+    path_insitu = options['file_path']['path_insitu']
+    path_insitu_code = options['file_path']['path_insitu_code']
+    if not os.path.exists(path_insitu):
+        print(f'[ERROR] In situ file: {path_insitu} is not avialable')
+        return
+    if not os.path.exists(path_insitu_code) or not os.path.isdir(path_insitu_code):
+        print(f'[ERROR] In situ code folder: {path_insitu_code} is not avialable')
+        return
+    if args.verbose:
+        print(f'[INFO] Path in situ: {path_insitu}')
+        print(f'[INFO] Path code: {path_insitu_code}')
+    sys.path.append(path_insitu_code)
+    try:
+        from insitu.nc_insitu_file import NCInsituFile
+        from insitu.csv_insitu_file import CSVInsituFile
+    except ModuleNotFoundError:
+        print(f'[ERROR] trims3images_frominsitunc module is not found')
+        return
+
+    if path_insitu.endswith('nc'):
+        ifobj = NCInsituFile(path_insitu)
+    if path_insitu.endswith('csv'):
+        ifobj = CSVInsituFile(path_insitu)
+    path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+    ifobj.get_valid_dates(None, time_start, time_stop)
+    valid_dates = ifobj.valid_dates
+    name_variables = ifobj.variables
+
+    path_to_list = get_path_list_products(options)
+    if path_to_list is None:
+        return
+
+    product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
+    if len(product_path_list) == 0:
+        print(f'[WARNING] No valid datasets found on:  {path_source}')
+        print('[INFO] COMPLETED. 0 sat extract files were created')
+        return
+    path_output = get_output_path(options)
+    if path_output is None:
+        print(f'ERROR: {path_output} is not valid')
+        return
+
+    nminutes = 120
+    if options.has_option('satellite_options', 'max_time_diff'):
+        nminutes = int(options['satellite_options']['max_time_diff'])
+    if args.verbose:
+        print(f'[INFO] Maximum time difference between sat and in situ times: {nminutes} minutes')
+
+    maxtimediff = nminutes * 60
+    size_box = get_box_size(options)
+    ncreated = 0
+    formatdt = '%Y-%m-%d %H:%M:%S'
+    for filepath in product_path_list:
+        if args.verbose:
+            print('------------------------------')
+            pname = filepath.split('/')[-1]
+            print(f'[INFO]Checking sat extracts for product: {pname}')
+        nc_sat = Dataset(filepath, 'r')
+        var_lat, var_lon = get_lat_long_var_names(options)
+        lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
+        # sat_time = dt.strptime(nc_sat.start_time, formatdt)
+        pdu = filepath.split('/')[-1]
+        sat_time = get_sat_time(nc_sat, pdu)
+        sat_date_str = sat_time.strftime('%Y-%m-%d')
+
+        if sat_date_str in valid_dates.keys():
+            for h in valid_dates[sat_date_str]:
+                insitu_time_str = f'{sat_date_str} {h}'
+                insitu_time = dt.strptime(insitu_time_str, formatdt)
+                insitu_lat = valid_dates[sat_date_str][h]['lat']
+                insitu_lon = valid_dates[sat_date_str][h]['lon']
+                timediff = abs((insitu_time - sat_time).total_seconds())
+                contain_flag = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
+                if timediff < maxtimediff and contain_flag:
+                    if args.verbose:
+                        print(
+                            f'[INFO] Preparing extract. In situ latitude: {insitu_lat} Longitude: {insitu_lon} Time: {insitu_time_str}')
+                    r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+                    itime = insitu_time.strftime('%H%M%S')
+                    extract = f'{itime}_{r}_{c}'
+                    filename = filepath.split('/')[-1].replace('.', '_') + '_extract_insitu_' + extract + '.nc'
+                    ofname = os.path.join(path_output, filename)
+                    global_at = get_global_atrib(nc_sat)
+                    global_at['station_name'] = 'in situ dataset'
+                    global_at['in_situ_lat'] = insitu_lat
+                    global_at['in_situ_lon'] = insitu_lon
+                    insitu_info = valid_dates[sat_date_str][h]
+                    created = create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time,
+                                                    insitu_info, name_variables)
+                    if created:
+                        ncreated = ncreated + 1
+        nc_sat.close()
+        # nhere = 1  # nhere = launch_create_extract_syke(filepath, syke_file, options)
+        # ncreated = ncreated + nhere
+    print('------------------------------')
+    print(f'COMPLETED. {ncreated} sat extract files were created')
+
+
+def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time, insitu_info, name_variables):
+    size_box = get_box_size(options)
+    start_idx_x = (c - int(size_box / 2))
+    stop_idx_x = (c + int(size_box / 2) + 1)
+    start_idx_y = (r - int(size_box / 2))
+    stop_idx_y = (r + int(size_box / 2) + 1)
+    window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
+
+    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat)
+    if n_bands == 0:
+        print('[ERROR] reflectance bands are not defined')
+        return False
+
+    newEXTRACT = SatExtract(ofname)
+    if not newEXTRACT.FILE_CREATED:
+        print(f'[ERROR] File {ofname} could not be created')
+        return False
+
+    if args.verbose:
+        print(f'[INFO]Creating file: {ofname}')
+    newEXTRACT.set_global_attributes(global_at)
+
+    newEXTRACT.create_dimensions(size_box, n_bands)
+
+    var_lat, var_lon = get_lat_long_var_names(options)
+    lat, long = get_lat_long_arrays(nc_sat, var_lat, var_lon)
+    newEXTRACT.create_lat_long_variables(lat, long, window)
+
+    # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
+    sat_time = get_sat_time(nc_sat,pdu)
+    newEXTRACT.create_satellite_time_variable(sat_time)
+
+    # pdu variable
+    newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
+
+    satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
+    rbands = list(reflectance_bands.keys())
+    wavelenghts = []
+    for index in range(len(rbands)):
+        rband = rbands[index]
+        bandarray = ma.array(nc_sat.variables[rband][:, :])
+        satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
+        wl = reflectance_bands[rband]['wavelenght']
+        wavelenghts.append(wl)
+    newEXTRACT.create_satellite_bands_variable(wavelenghts)
+
+
+    ##add in situ variables
+    formatdt = '%Y-%m-%d %H:%M:%S'
+    sat_time = dt.strptime(nc_sat.start_time, formatdt)
+    timediff = abs((insitu_time - sat_time).total_seconds())
+    insitulat_var, insitulon_var, insitutime_var, time_difference_var = newEXTRACT.create_insitu_variables_for_single_insitu_data()
+    insitulat_var[0] = global_at['in_situ_lat']
+    insitulon_var[0] = global_at['in_situ_lon']
+    insitutime_var[0] = insitu_time.timestamp()
+    time_difference_var[0] = timediff
+    for name_var in name_variables:
+        insitu_var = newEXTRACT.create_insitu_variable_for_single_insitu_data(name_var, 'unknown', 'unknown')
+        insitu_var[0] = insitu_info[name_var]
+
+    newEXTRACT.close_file()
+
+    return True
+
+
 def main():
     print('[INFO]Creating satellite extracts')
 
@@ -621,6 +795,10 @@ def main():
     #         print('------------------------------')
     #         print(f'COMPLETED. {ncreated} sat extract files were created')
     #     return
+
+    if options.has_option('file_path', 'path_insitu') and options.has_option('file_path', 'path_insitu_code'):
+        run_insitu_option(options)
+        return
 
     # work only with the specified product file
     if args.product_file:

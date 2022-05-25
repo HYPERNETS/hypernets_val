@@ -38,6 +38,7 @@ from datetime import datetime
 from datetime import timedelta
 import pandas as pd
 import configparser
+from MDB_extra import MDBExtra
 
 # import user defined functions from other .py
 code_home = os.path.abspath('../')
@@ -125,6 +126,17 @@ def copy_nc(ifile, ofile):
             dst[name].setncatts(src[name].__dict__)
 
             dst[name][:] = src[name][:]
+    return dst
+
+
+def create_variable_from_other_variable(src, dst, name, variable):
+    dst.createVariable(name, variable.datatype, variable.dimensions)
+
+    # copy variable attributes all at once via dictionary
+    dst[name].setncatts(src[name].__dict__)
+
+    dst[name][:] = src[name][:]
+
     return dst
 
 
@@ -279,7 +291,7 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
         return True
 
 
-def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window):
+def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window, mdb_secondary):
     satellite_date = satellite_datetime.strftime('%Y-%m-%d')
     check_date = areader.prepare_data_fordate(satellite_date)
     if not check_date:
@@ -309,8 +321,29 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
     rrs = areader.extract_rrs(False)
     exactwl = areader.extract_spectral_data('Exact_Wavelengths', False)
 
+
+    #check nc secondary
+    ncsecondary = None
+    if mdb_secondary is not None:
+        dinput = Dataset(extract_path)
+        sat_time = datetime.fromtimestamp(float(dinput.variables['satellite_time'][0]))
+        lat_array = ma.array(dinput.variables['satellite_latitude'][:])
+        lon_array = ma.array(dinput.variables['satellite_longitude'][:])
+        ncsecondary = mdb_secondary.get_extradaset(dinput.satellite, dinput.platform, sat_time, lat_array, lon_array)
+        dinput.close()
+        if ncsecondary is None:
+            print(f'[WARNING] No extra data found for date: {satellite_date}')
+            return False
+
     # to append to nc file
     new_MDB = copy_nc(extract_path, ofile)
+
+    # add varibles from mdb secondary
+    if not ncsecondary is None:
+        for varname in mdb_secondary.variables:
+            var_secondary = ncsecondary.variables[varname]
+            new_MDB = create_variable_from_other_variable(ncsecondary, new_MDB, varname, var_secondary)
+
 
     # add time window diff
     new_MDB.time_diff = f'{time_window_seconds}'  # in seconds
@@ -427,7 +460,12 @@ def make_simple_builder(options, path_extract, path_out):
     if options.has_option('satellite_options', 'satellite') and options.has_option('satellite_options', 'platform'):
         satellite = options['satellite_options']['satellite']
         platform = options['satellite_options']['platform']
-        wce = f'{satellite}{platform}'
+        if platform.find(
+                ',') > 0:  # if platform is a coma-separated list (e.g. 'A,B'), it's not included in the wildcard
+            platform = platform.replace(',', '_')
+            wce = f'{satellite}'
+        else:
+            wce = f'{satellite}{platform}'
 
     ac = 'AC'
     if options.has_option('satellite_options', 'ac'):
@@ -447,6 +485,10 @@ def make_simple_builder(options, path_extract, path_out):
         print(f'[INFO] Out file: {ncout_file}')
 
     list_files = get_simple_fileextracts_list(path_extract, wce, datetime_start, datetime_stop)
+
+    if len(list_files) == 0:
+        print(f'[WARNING] No sat extract files were found. Please review params in config file')
+        return
 
     if len(list_files) > 100:
         if args.verbose:
@@ -475,7 +517,6 @@ def make_simple_builder(options, path_extract, path_out):
         if err:
             print(f'[ERROR]{err}')
 
-
         [os.remove(f) for f in list_files_tmp[:-1]]
 
 
@@ -495,14 +536,23 @@ def make_simple_builder(options, path_extract, path_out):
     print(f'Concatenated file created: {ncout_file}')
 
 
+def check():
+    return True
+
+
 # #############################
 # %%
 def main():
     print('Creating MDB files!')
+    ##CALLING ONLY FOR PRE-TESTING###
+    # b = check()
+    # if b:
+    #     return
+    #################################
     if args.debug:
         print('Entering Debugging Mode:')
-    # load config file
 
+    # load config file (if exists)
     if args.config_file:
         if os.path.isfile(args.config_file):
             options = config_reader(args.config_file)
@@ -513,6 +563,8 @@ def main():
     elif args.config_file:
         if options['file_path']['output_dir']:
             path_out = options['file_path']['output_dir']
+    if not os.path.isdir(path_out):
+        os.mkdir(path_out)
     if args.verbose:
         print(f'Path to output: {path_out}')
 
@@ -525,12 +577,18 @@ def main():
     if args.verbose:
         print(f'Path to satellite sources: {satellite_path_source}')
 
+    ##SYKE and INSITU MODE, SIMPLE BUILDER WITHOUT ADDING IN SITU REFLECTANCE DATA
     if options.has_option('Time_and_sites_selection', 'insitu_type'):
         if options['Time_and_sites_selection']['insitu_type'] == 'SYKE':
             print(f'[INFO] Entering simple concatenation mode...')
             make_simple_builder(options, satellite_path_source, path_out)
             return
+        if options['Time_and_sites_selection']['insitu_type'] == 'INSITU':
+            print(f'[INFO] Entering simple concatenation mode...')
+            make_simple_builder(options, satellite_path_source, path_out)
+            return
 
+    # satellite, platform, sensor
     if args.satellite:
         sat_sensor = args.satellite
     elif args.config_file:
@@ -542,22 +600,17 @@ def main():
         print(f'Satellite sensor: {sat_sensor.upper()}')
         print(f'Satellite platform: {sat_platform.upper()}')
 
-    if not os.path.isdir(path_out):
-        os.mkdir(path_out)
-
-    # create list of sat extracts
+    # resolution
     if args.resolution:
         res = args.resolution
     elif args.config_file:
         res = options['satellite_options']['resolution']
 
+    # atmospheric correction
     atm_corr = 'STANDARD'
     if args.config_file:
         if options.has_option('satellite_options', 'ac'):
             atm_corr = options['satellite_options']['ac']
-
-    # if os.path.exists(f'{path_out}/OL_2_{res}_{atm_corr}_list.txt'):
-    #     os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
     # in situ site
     if args.sitename:
@@ -566,27 +619,29 @@ def main():
         station_name = options['Time_and_sites_selection']['sites']
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
     if args.verbose:
-        print(f'station_name: {station_name} with lat: {in_situ_lat}, lon: {in_situ_lon}')
+        print(f'Station name: {station_name} with lat: {in_situ_lat}, long: {in_situ_lon}')
 
+    # wild card expression for searching extracts
     if sat_sensor.upper() == 'OLCI' and atm_corr == 'STANDARD':
         wce = f'"{sat_satellite}{sat_platform}*OL_2_{res}*{station_name}*"'  # wild card expression
     else:
         wce = f'"{sat_satellite}{sat_platform}*nc"'
 
-    if args.debug:
+    if args.verbose:
         print(f'Satellite extract Wild Card Expression: {wce}')
 
+    # searching for file extracts
     path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, atm_corr)
-    if args.debug:
+    if args.verbose:
         print(f'Path to satellite extract list: {path_to_satellite_list}')
 
-    # create list of in situ files
+    # in situ sensor: PANTHYR, HYPERNETS, AERONET
     if args.insitu:
         ins_sensor = args.insitu
     elif args.config_file:
         if options['Time_and_sites_selection']['insitu_type']:
             ins_sensor = options['Time_and_sites_selection']['insitu_type']
-
+    # wild card expression for in situ data
     if ins_sensor == 'PANTHYR':
         wce = f'"*AZI_270_data.csv"'  # wild card expression
     elif ins_sensor == 'HYPERNETS':  # 'HYPSTAR':
@@ -595,7 +650,7 @@ def main():
         wce = f'*{station_name}*'
     if args.debug:
         print(f'In Situ Wild Card Expression: {wce}')
-
+    # in situ path source
     if args.path_to_ins:
         insitu_path_source = args.path_to_ins
     elif args.config_file:
@@ -603,11 +658,10 @@ def main():
             insitu_path_source = options['file_path']['ins_source_dir']
     if args.verbose:
         print(f'Path to in situ data: {insitu_path_source}')
-
+    # sarching for in situ data
     path_to_insitu_list = create_list_products(insitu_path_source, path_out, wce, res, 'insitu')
     if args.debug:
         print(f'Path to in situ list: {path_to_insitu_list}')
-
     areader = None
     if ins_sensor == 'AERONET':
         f = open(path_to_insitu_list)
@@ -620,11 +674,12 @@ def main():
         if args.debug:
             print(f'Path to AERONET NC file: {file_aeronet}')
 
-    # in situ
+    # time dif between in situ and sat data
     time_window = 3  # in hours (+- hours)
 
     file_list = []  # for the concatenation later
 
+    # defining start and end date
     if args.startdate:
         datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
     elif args.config_file:
@@ -648,6 +703,21 @@ def main():
     if args.verbose:
         print(f'Start date: {datetime_start}')
         print(f'End date: {datetime_end}')
+
+    # defining secondary extracts (if available)
+    mbd_secondary = None
+    if args.config_file:
+        if options.has_option('file_path', 'sat_extract_secondary') and options.has_option('file_path',
+                                                                                           'sat_extract_secondary_variables'):
+            path_secondary = options['file_path']['sat_extract_secondary'].strip()
+            if os.path.exists(path_secondary):
+                if args.verbose:
+                    print(f'[INFO] Started MDB secondary from path: {path_secondary}')
+                mdb_secondary = MDBExtra(path_secondary, False)
+                var_names = options['file_path']['sat_extract_secondary_variables'].split(',')
+                for idx in range(len(var_names)):
+                    var_names[idx] = var_names[idx].strip()
+                mdb_secondary.variables = var_names
 
     with open(path_to_satellite_list, 'r') as file:
         for cnt, line in enumerate(file):
@@ -686,7 +756,8 @@ def main():
                         path_to_list_daily = None
                         filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{ins_sensor}_{station_name}.nc'
                         ofile = os.path.join(path_out, filename)
-                        if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window):
+                        if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window,
+                                              mdb_secondary):
                             print(f'[INFO] File created: {ofile}')
                             file_list.append(ofile)  # for ncrcat later
                     else:
@@ -719,7 +790,7 @@ def main():
     level_prod = 'L2'
 
     # calling subprocess for concatanating ncdf files # # ncrcat -h MDB_S3*.nc outcat2.nN
-    print(res_str)
+
     ncout_file = os.path.join(path_out,
                               f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{atm_corr}_{level_prod}_{ins_sensor}_{station_name}.nc')
     file_list.append(ncout_file)

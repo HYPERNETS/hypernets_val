@@ -51,8 +51,24 @@ class MDBFile:
             self.n_mu_total = len(self.dimensions['satellite_id'])
             print('[INFO ]Total mu: ', self.n_mu_total)
             self.sat_times = []
+
             for st in self.variables['satellite_time']:
-                self.sat_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
+                self.sat_times.append(datetime.fromtimestamp(float(st)))
+            # for idx in range(len(self.nc.variables['satellite_PDU'])):
+            #     pdu = self.nc.variables['satellite_PDU'][idx]
+            #     time_pdu = self.get_sat_time_from_fname(pdu)
+            #     # self.sat_times.append(self.get_sat_time_from_fname(pdu))
+            #     st = self.variables['satellite_time'][idx]
+            #     # dt_1 = datetime(1970, 1, 1) + timedelta(seconds=int(st))
+            #     # dt_2 = datetime(1970, 1, 1) + timedelta(seconds=float(st))
+            #     dt_3 = datetime.fromtimestamp(float(st))
+            #     # print(time_pdu,dt_1,dt_2,dt_3)
+            #     self.sat_times.append(dt_3)
+
+
+            # for st in self.variables['satellite_time']:
+            #     #self.sat_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
+            #     self.sat_times.append(datetime.fromtimestamp(float(st)))
             self.start_date = self.sat_times[0]
             self.end_date = self.sat_times[-1]
             self.insitu_bands = self.nc.variables['insitu_original_bands'][:]  # insitu_bands(insitu_bands)
@@ -233,11 +249,30 @@ class MDBFile:
         return mask, cond_min_valid_pxs, NGP, NTP
 
     def retrieve_ins_info_mu_spectra(self, index_mu):
-        time_difference = self.variables['time_difference'][index_mu]
+        time_difference_prev = self.variables['time_difference'][index_mu]
+        time_difference = np.ma.copy(time_difference_prev)
+        times_here = self.variables['insitu_time'][index_mu]
+        sat_time_here = self.sat_times[index_mu]
+        for idx in range(len(times_here)):
+            itime = times_here[idx]
+            if not np.ma.is_masked(itime):
+                #insitu_time_here = datetime(1970, 1, 1) + timedelta(seconds=int(itime))
+                insitu_time_here = datetime.fromtimestamp(float(itime))
+                if index_mu==4:
+                    print('----------> ',insitu_time_here)
+                time_diff_here = abs((sat_time_here-insitu_time_here).total_seconds())
+                time_difference[idx] = time_diff_here
+                if index_mu==4:
+                    #print(idx,sat_time_here,insitu_time_here,time_diff_here)
+                    print(idx,time_difference_prev[idx],time_difference[idx],sat_time_here,insitu_time_here)
+
+        #time_difference = time_difference_prev
+
         if 'insitu_exact_wavelenghts' in self.variables:
             exact_wl = self.variables['insitu_exact_wavelenghts'][index_mu]
         else:
             exact_wl = self.variables['insitu_original_bands']
+
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
         if time_condition and valid_insitu:
@@ -281,6 +316,8 @@ class MDBFile:
         # Index match-up
         self.index_mu = index_mu
 
+
+
         # Sat and instrument rrs
         self.insitu_rrs = self.variables['insitu_Rrs'][index_mu]
         self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
@@ -290,9 +327,15 @@ class MDBFile:
         if self.info['satellite_aco_processor'] == 'CCI':
             self.mu_sat_time = self.mu_sat_time.replace(hour=11)
 
+        if index_mu==4:
+            print(self.mu_sat_time)
+
+
         # self.ins_time_index, self.mu_insitu_time, time_condition = self.retrieve_ins_info_mu(index_mu)
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
+
+
 
         load_info['spectrum_complete'] = spectrum_complete
 
@@ -308,10 +351,14 @@ class MDBFile:
             load_info['status'] = -5  # f'INCOMPLETE IN SITU SPECTRUM'
             return is_mu_valid, load_info
 
+
+
         cond_min_pixels, cond_stats, valid_mu, sat_values = self.qc_sat.get_match_up_values(index_mu)
         if not valid_mu:
             load_info['status'] = -6  # f'NO VALID SAT DATA'
             return is_mu_valid, load_info
+
+
 
         # Getting spectra for comparison
         mu_valid_bands = [False] * len(self.wlref_sat_indices)
@@ -471,10 +518,16 @@ class MDBFile:
         for index_mu in range(self.n_mu_total):
             if index_mu % 100 == 0:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
-            print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
+            #print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
-            if mu_valid:
-                nmu_valid = nmu_valid + 1
+
+            # invalid = [2,94,136,140,159]
+            # if index_mu in invalid:
+            #     mu_valid = False
+            # if index_mu==94:
+            #     mu_valid = False
+            # if mu_valid:
+            #     nmu_valid = nmu_valid + 1
 
             spectrum_complete = info_mu['spectrum_complete']
             mu_valid_bands = info_mu['valid_bands']
@@ -483,6 +536,9 @@ class MDBFile:
             #     nmu_valid_complete = nmu_valid_complete + 1
             # else:
             #     n_good_bands = sum(mu_valid_bands)
+
+
+
 
             mukey = self.get_mu_key()
             time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
@@ -589,7 +645,7 @@ class MDBFile:
         sat = self.info['satellite']
         platform = self.info['platform']
         res = 'WFR'
-        insitu_sensor = 'AERONET'
+        insitu_sensor = 'HYPSTAR'
 
         insitu_site = self.info['insitu_site_name']
         ofname = f'{sat}{platform}_{res}_{insitu_sensor}_{insitu_site}'
@@ -658,6 +714,17 @@ class MDBFile:
                 if difwl <= maxdiff:
                     wllist.append(ins_wl)
         return wllist
+
+    def get_sat_time_from_fname(self,fname):
+        val_list = fname.split('_')
+        sat_time = None
+        for v in val_list:
+            try:
+                sat_time = datetime.strptime(v, '%Y%m%dT%H%M%S')
+                break
+            except ValueError:
+                continue
+        return sat_time
 
     def close(self):
         if self.VALID:

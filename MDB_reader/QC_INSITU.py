@@ -63,7 +63,7 @@ class QC_INSITU:
         self.wl_list = wlreflist
         self.wl_indices = []
         for wl in self.wl_list:
-            index = self.get_insitu_index(wl)
+            index, wl_index = self.get_insitu_index(wl)
             self.wl_indices.append(index)
 
     def start_quality_control(self):
@@ -90,8 +90,8 @@ class QC_INSITU:
                 continue
             wls = str(wl)
             if valuemin is not None:
-                self.thersholds[wls]['mim_th']['apply'] = True
-                self.thersholds[wls]['mim_th']['value'] = valuemin
+                self.thersholds[wls]['min_th']['apply'] = True
+                self.thersholds[wls]['min_th']['value'] = valuemin
             if valuemax is not None:
                 self.thersholds[wls]['max_th']['apply'] = True
                 self.thersholds[wls]['max_th']['value'] = valuemax
@@ -140,7 +140,6 @@ class QC_INSITU:
     def get_insitu_indices_mu(self, imu):
         indices = []
         valid_bands = [False] * len(self.wl_list)
-
         for idx in range(len(self.wl_list)):
             wl = self.wl_list[idx]
             index = self.get_insitu_index_mu(imu, wl)
@@ -184,6 +183,7 @@ class QC_INSITU:
         spectrum_complete = False
         ngood = 0
 
+
         for idx in range(len(dif_time_array)):
             t = dif_time_array[idx]
             if not ma.is_masked(t):
@@ -196,7 +196,9 @@ class QC_INSITU:
         rrs_values = None
         valid_values = False
         if time_condition:
+
             rrs_values, indices, valid_bands = self.get_good_spectrum_for_mu(index_mu, id_min_time, ngood)
+
             # if wl_ref is not None:
             #     for wlr in wl_ref:
             #         index_wlr = self.set_wllist_using_wlref()
@@ -261,7 +263,9 @@ class QC_INSITU:
 
     # ngood is only for checking (assing -1 for not using it)
     def get_good_spectrum_for_mu(self, index_mu, id_min_time, ngood):
+
         spectra, indices, valid_bands = self.get_all_good_spectra_for_mu(index_mu)
+
         rrs_values = None
         if ngood == -1:
             ngood = spectra.shape[0]
@@ -273,6 +277,7 @@ class QC_INSITU:
     def get_all_good_spectra_for_mu(self, index_mu):
         if index_mu < 0 or index_mu >= self.nmu:
             return None
+
 
         spectra = np.transpose(ma.array(self.insitu_rrs[index_mu]))
 

@@ -426,13 +426,13 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
             path_output = in_situ_sites[site]['path_out']
             if not os.path.exists(path_output):
                 os.mkdir(path_output)
-            print(f'Creating extract for site: {site}')
-            extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
-                                          make_brdf, None, None)
+            if args.verbose:
+                print(f'Creating extract for site: {site}')
+            extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,make_brdf)
             if not extract_path is None:
                 print(f'file created: {extract_path}')
         except Exception as e:
-            if args.debug:
+            if args.verbose:
                 print(f'Exception: {e}')
                 pass
 

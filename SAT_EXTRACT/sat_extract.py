@@ -52,6 +52,11 @@ class SatExtract:
         self.EXTRACT.insitu_lat = at['in_situ_lat']
         self.EXTRACT.insitu_lon = at['in_situ_lon']
 
+    def create_dimensions_basic(self, size_box):
+        self.EXTRACT.createDimension('satellite_id', None)
+        self.EXTRACT.createDimension('rows', size_box)
+        self.EXTRACT.createDimension('columns', size_box)
+
     def create_dimensions(self, size_box, n_bands):
         # dimensions
         self.EXTRACT.createDimension('satellite_id', None)
@@ -67,7 +72,7 @@ class SatExtract:
         self.EXTRACT.createDimension('satellite_bands', n_bands)
 
         self.EXTRACT.createDimension('insitu_original_bands', n_insitubands)
-        self.EXTRACT.createDimension('insitu_id', 30)
+        self.EXTRACT.createDimension('insitu_id', n_insituid)
 
     def create_geometry_variable(self, name_geom):
         if not name_geom in self.geometry_variables.keys():
@@ -79,9 +84,9 @@ class SatExtract:
         return gvar
 
     def create_satellite_time_variable(self, satellite_start_time):
+
         satellite_time = self.EXTRACT.createVariable('satellite_time', 'f8', ('satellite_id'), fill_value=-999,
                                                      zlib=True, complevel=6)
-
         satellite_time[0] = float(satellite_start_time.timestamp())
         satellite_time.units = "Seconds since 1970-1-1"
 
@@ -164,6 +169,18 @@ class SatExtract:
         satellite_flag.flag_masks = flag_masks
         satellite_flag.flag_meanings = flag_meanings
 
+    def create_2D_variable_general(self,var_name,var_array,window):
+        start_idx_y = window[0]
+        stop_idx_y = window[1]
+        start_idx_x = window[2]
+        stop_idx_x = window[3]
+        dtype = var_array.datatype.str
+        if dtype.startswith('<'):
+            dtype = dtype[1:]
+        satellite_2d_band = self.EXTRACT.createVariable(var_name,dtype,('satellite_id', 'rows', 'columns'),fill_value=-999, zlib=True, complevel=6)
+        satellite_2d_band[0, :, :] = [ma.array(var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])]
+        return satellite_2d_band
+
     def create_insitu_time_variable(self):
         insitu_time = self.EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id',), zlib=True,
                                                   complevel=6)
@@ -217,7 +234,49 @@ class SatExtract:
         insitu_lon.short_name = "longitude"
         insitu_lon.units = "degrees"
 
+
+
         return insitu_lat, insitu_lon
+
+    def create_insitu_variables_for_single_insitu_data(self):
+
+        insitu_lat = self.EXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
+                                                 fill_value=-999,
+                                                 zlib=True, complevel=6)
+        insitu_lat.short_name = "latitude"
+        insitu_lat.units = "degrees"
+
+        insitu_lon = self.EXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
+                                                 fill_value=-999,
+                                                 zlib=True, complevel=6)
+        insitu_lon.short_name = "longitude"
+        insitu_lon.units = "degrees"
+
+        time_difference = self.EXTRACT.createVariable('time_difference', 'f4', ('satellite_id',),
+                                                      fill_value=-999,
+                                                      zlib=True, complevel=6)
+        time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
+        time_difference.units = "seconds"
+
+        insitu_time = self.EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,
+                                                  complevel=6)
+        insitu_time.units = "Seconds since 1970-1-1"
+        insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
+
+        return insitu_lat,insitu_lon,insitu_time,time_difference
+
+    def create_insitu_variable_for_single_insitu_data(self,name_var,units,desc):
+
+        name = f'insitu_{name_var}'
+
+        insitu_var = self.EXTRACT.createVariable(name, 'f8', ('satellite_id',),
+                                                 fill_value=-999,
+                                                 zlib=True, complevel=6)
+        insitu_var.units = units
+        insitu_var.short_name = name_var
+        insitu_var.description = desc
+
+        return insitu_var
 
     def close_file(self):
         self.EXTRACT.close()
