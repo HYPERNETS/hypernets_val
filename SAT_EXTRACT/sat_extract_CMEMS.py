@@ -496,7 +496,7 @@ def get_find_product_info(options):
         wce = options['file_path']['wce']
     time_start = dt.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
     time_stop = dt.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(hours=24)
-
+    #print('temp')
     return path_source, org, wce, time_start, time_stop
 
 
