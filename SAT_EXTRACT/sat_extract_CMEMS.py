@@ -71,10 +71,10 @@ def launch_create_extract_skie(filepath, skie_file, options):
     for irow in range(skie_file.get_n_df_sub()):
         insitu_lat, insitu_lon = skie_file.get_lat_lon_at_subdb(irow)
         size_box = get_box_size(options)
-        contain_flag = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
+        contain_flag, r, c = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
         if not contain_flag:
             continue
-        r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+        #r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
         # insitu_time = skie_file.get_time_at_subdb(irow, None)
         # distd, timed, speed = skie_file.get_dist_timedif_speed_at_subdb(irow)
         # index = skie_file.get_index_at_subdb(irow)
@@ -190,6 +190,8 @@ def launch_create_extract(filepath, options):
                 print(f'[WARNING] Site {site} out of the image')
 
     return ncreated
+
+#def check_contain_flag():
 
 
 def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, skie_file, irows):
@@ -318,16 +320,29 @@ def config_reader(FILEconfig):
 
 def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
     contain_flag = False
+    r = -1
+    c = -1
     if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-        r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+        if lat.ndim == 1 and lon.ndim == 1:
+            r = np.argmin(np.abs(lat - insitu_lat))
+            c = np.argmin(np.abs(lon - insitu_lon))
+        else:
+            r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
         start_idx_x = (c - int(size_box / 2))
         stop_idx_x = (c + int(size_box / 2) + 1)
         start_idx_y = (r - int(size_box / 2))
         stop_idx_y = (r + int(size_box / 2) + 1)
-        if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                lat.shape[1]:
-            contain_flag = True
-    return contain_flag
+
+        if lat.ndim == 1 and lon.ndim == 1:
+            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                    lon.shape[0]:
+                contain_flag = True
+        else:
+            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                    lat.shape[1]:
+                contain_flag = True
+
+    return contain_flag, r, c
 
 
 def get_output_path(options):
@@ -606,6 +621,8 @@ def run_insitu_option(options):
     ifobj.get_valid_dates(None, time_start, time_stop)
     valid_dates = ifobj.valid_dates
     name_variables = ifobj.variables
+    flag_variables = ifobj.flag_variables
+    flag_info = ifobj.flag_info
 
     path_to_list = get_path_list_products(options)
     if path_to_list is None:
@@ -639,6 +656,7 @@ def run_insitu_option(options):
         nc_sat = Dataset(filepath, 'r')
         var_lat, var_lon = get_lat_long_var_names(options)
         lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
+
         # sat_time = dt.strptime(nc_sat.start_time, formatdt)
         pdu = filepath.split('/')[-1]
         sat_time = get_sat_time(nc_sat, pdu)
@@ -651,23 +669,23 @@ def run_insitu_option(options):
                 insitu_lat = valid_dates[sat_date_str][h]['lat']
                 insitu_lon = valid_dates[sat_date_str][h]['lon']
                 timediff = abs((insitu_time - sat_time).total_seconds())
-                contain_flag = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
+                contain_flag, r, c = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
                 if timediff < maxtimediff and contain_flag:
                     if args.verbose:
                         print(
                             f'[INFO] Preparing extract. In situ latitude: {insitu_lat} Longitude: {insitu_lon} Time: {insitu_time_str}')
-                    r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
                     itime = insitu_time.strftime('%H%M%S')
                     extract = f'{itime}_{r}_{c}'
                     filename = filepath.split('/')[-1].replace('.', '_') + '_extract_insitu_' + extract + '.nc'
                     ofname = os.path.join(path_output, filename)
-                    global_at = get_global_atrib(nc_sat)
+                    global_at = get_global_atrib(nc_sat,options)
                     global_at['station_name'] = 'in situ dataset'
                     global_at['in_situ_lat'] = insitu_lat
                     global_at['in_situ_lon'] = insitu_lon
                     insitu_info = valid_dates[sat_date_str][h]
+
                     created = create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time,
-                                                    insitu_info, name_variables)
+                                                    insitu_info, name_variables, flag_variables, flag_info)
                     if created:
                         ncreated = ncreated + 1
         nc_sat.close()
@@ -677,7 +695,7 @@ def run_insitu_option(options):
     print(f'COMPLETED. {ncreated} sat extract files were created')
 
 
-def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time, insitu_info, name_variables):
+def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time, insitu_info, name_variables, flag_variables, flag_info):
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
     stop_idx_x = (c + int(size_box / 2) + 1)
@@ -685,7 +703,15 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     stop_idx_y = (r + int(size_box / 2) + 1)
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
-    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat)
+    search_pattern = 'rrs_'
+    wl_atrib = None
+    if options.has_option('satellite_options', 'rrs_prefix'):
+        search_pattern = options['satellite_options']['rrs_prefix']
+        if not search_pattern.endswith('_'):
+            search_pattern = f'{search_pattern}_'
+    if options.has_option('satellite_options', 'wl_atrib'):
+        wl_atrib = options['satellite_options']['wl_atrib']
+    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat,search_pattern,wl_atrib)
     if n_bands == 0:
         print('[ERROR] reflectance bands are not defined')
         return False
@@ -713,20 +739,19 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
 
     satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
+
     rbands = list(reflectance_bands.keys())
     wavelenghts = []
     for index in range(len(rbands)):
         rband = rbands[index]
         bandarray = ma.array(nc_sat.variables[rband][:, :])
-        satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
+        satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
         wl = reflectance_bands[rband]['wavelenght']
         wavelenghts.append(wl)
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
 
 
     ##add in situ variables
-    formatdt = '%Y-%m-%d %H:%M:%S'
-    sat_time = dt.strptime(nc_sat.start_time, formatdt)
     timediff = abs((insitu_time - sat_time).total_seconds())
     insitulat_var, insitulon_var, insitutime_var, time_difference_var = newEXTRACT.create_insitu_variables_for_single_insitu_data()
     insitulat_var[0] = global_at['in_situ_lat']
@@ -736,11 +761,22 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     for name_var in name_variables:
         insitu_var = newEXTRACT.create_insitu_variable_for_single_insitu_data(name_var, 'unknown', 'unknown')
         insitu_var[0] = insitu_info[name_var]
-
+    for name_var in flag_variables:
+        insitu_flag_var = newEXTRACT.create_insitu_flag_variable(name_var,flag_info[name_var]['flag_masks'],flag_info[name_var]['flag_meanings_str'])
+        insitu_flag_var[0] = insitu_info[name_var]
     newEXTRACT.close_file()
 
     return True
 
+# def get_flag_value(flag_info, flag_var, flag_meaning):
+#     val = -1
+#     flag_meanings = flag_info[flag_var]['flag_meanings']
+#     if flag_meaning in flag_meanings:
+#         idx = flag_meanings.index(flag_meaning)
+#         if 0 <= idx < len(flag_meanings):
+#             flag_values = flag_info[flag_var]['flag_values']
+#             val = flag_values[idx]
+#     return val
 
 def main():
     print('[INFO]Creating satellite extracts')

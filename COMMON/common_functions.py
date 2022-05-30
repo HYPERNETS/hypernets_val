@@ -120,8 +120,7 @@ def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
     # % lat0 and lon0 is the coordinates of one point
     if contain_location(lat, lon, lat0, lon0):
         dist_squared = (lat - lat0) ** 2 + (lon - lon0) ** 2
-        r, c = np.unravel_index(np.argmin(dist_squared),
-                                lon.shape)  # index to the closest in the latitude and longitude arrays
+        r, c = np.unravel_index(np.argmin(dist_squared),lon.shape)  # index to the closest in the latitude and longitude arrays
     else:
         print('Warning: Location not contained in the file!!!')
         r = np.nan

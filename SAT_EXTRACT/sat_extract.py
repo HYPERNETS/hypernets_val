@@ -278,5 +278,15 @@ class SatExtract:
 
         return insitu_var
 
+    def create_insitu_flag_variable(self,name_var,flag_values,flag_meanings):
+
+        name = f'insitu_flag_{name_var}'
+        insitu_var = self.EXTRACT.createVariable(name,'i4', ('satellite_id',),fill_value=-999,zlib=True,complevel=6)
+        insitu_var.short_name = name_var
+        insitu_var.flag_masks = flag_values
+        insitu_var.flag_meanings = flag_meanings
+
+        return insitu_var
+
     def close_file(self):
         self.EXTRACT.close()
