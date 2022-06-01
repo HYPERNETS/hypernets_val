@@ -333,6 +333,8 @@ def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
         start_idx_y = (r - int(size_box / 2))
         stop_idx_y = (r + int(size_box / 2) + 1)
 
+        print('Check location line 336: ', r, c, start_idx_y,stop_idx_y,start_idx_x,stop_idx_x)
+
         if lat.ndim == 1 and lon.ndim == 1:
             if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
                     lon.shape[0]:
@@ -702,6 +704,8 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     start_idx_y = (r - int(size_box / 2))
     stop_idx_y = (r + int(size_box / 2) + 1)
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
+
+    print('Create extract in situ line 708:', r,c,start_idx_y,stop_idx_y, stop_idx_x,stop_idx_x)
 
     search_pattern = 'rrs_'
     wl_atrib = None

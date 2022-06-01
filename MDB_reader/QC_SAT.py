@@ -154,14 +154,23 @@ class QC_SAT:
         return True
 
     def compute_statistics_impl(self, stats, array):
-        stats['n_values'] = len(array)
-        stats['avg'] = np.mean(array)
-        stats['std'] = np.std(array)
-        stats['median'] = np.median(array)
-        stats['min'] = np.min(array)
-        stats['max'] = np.max(array)
-        CV = (stats['std'] / abs(stats['avg'])) * 100
-        stats['CV'] = CV
+        if not np.any(array):
+            stats['n_values'] = 0
+            stats['avg'] = 0
+            stats['std'] = 0
+            stats['median'] = 0
+            stats['min'] = 0
+            stats['max'] = 0
+            stats['CV'] = 0
+        else:
+            stats['n_values'] = len(array)
+            stats['avg'] = np.mean(array)
+            stats['std'] = np.std(array)
+            stats['median'] = np.median(array)
+            stats['min'] = np.min(array)
+            stats['max'] = np.max(array)
+            CV = (stats['std'] / abs(stats['avg'])) * 100
+            stats['CV'] = CV
         return stats
 
     def do_check_statistics(self):

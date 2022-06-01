@@ -1,3 +1,5 @@
+import netCDF4
+
 from MDBFile import MDBFile
 from MDBInSituFile import MDBInSituFile
 from MDBPlot import MDBPlot
@@ -33,7 +35,7 @@ class MDB_READER():
             mfile_here.qc_insitu.name = qc['name']
             # mfile_here.qc_insitu.apply_band_shift = False
             # mfile_here.qc_insitu.check_indices_by_mu = False
-            #print(mfile_here.qc_insitu.name, mfile_here.qc_insitu.time_max)
+            # print(mfile_here.qc_insitu.name, mfile_here.qc_insitu.time_max)
             n = mfile_here.prepare_df_validation()
             if n > 0:
                 mplot = MDBPlot(None, mfile_here.df_validation_valid)
@@ -110,8 +112,10 @@ def main():
     # do_comparison_aeronet_panthyr()
     # do_example()
     # do_chla()
+    # do_chla_sat()
+    do_check_reflectances()
 
-    do_lps()
+    # do_lps()
 
     # dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_UPDATED/WFR'
     # name_extract = 'S3A_OL_2_WFR____20210102T095605_20210102T095610_20210906T082804__trim_EXT_067_022_MAR_R_NT_003_SEN3_extract_VEIT.nc'
@@ -144,6 +148,7 @@ def main():
     # mdb = MDBFile(file_s3a)
     # mdb.load_mu_datav2(4)
 
+
 def do_lps():
     dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_UPDATED/MDBs_20052022'
     dir_ab = os.path.join(dir_base, 'MDB_S3AB')
@@ -151,8 +156,8 @@ def do_lps():
     # Single validation (scaterplot for each platform)
     file_s3a = os.path.join(dir_base, 'MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT.nc')
     file_s3b = os.path.join(dir_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT.nc')
-    #make_validation_single_MDB(dir_base,file_s3a)
-    #make_validation_single_MDB(dir_base, file_s3b)
+    # make_validation_single_MDB(dir_base,file_s3a)
+    # make_validation_single_MDB(dir_base, file_s3b)
 
     ##Concatenate dataframes A + B
     df_all_a = pd.read_csv(os.path.join(dir_ab, 'DataS3A.csv'), sep=';')
@@ -168,7 +173,7 @@ def do_lps():
     do_example(os.path.join(dir_ab, 'DataValid.csv'), os.path.join(dir_ab, 'ScatterPlotAB.jpg'))
 
     ## Param graphics
-    path_a = os.path.join(dir_base,'MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
+    path_a = os.path.join(dir_base, 'MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
     path_b = os.path.join(dir_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
     make_graphics_param_ab(path_a, path_b, dir_ab)
 
@@ -177,22 +182,177 @@ def do_lps():
     make_bargraphics_matchups(filein, fileout)
 
 
-
-
 def do_chla():
-    file_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
+    # file_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
+    name_mdb = 'MDB___CCIv5_INSITU_19970101_20191231.nc'
+    file_mdb = os.path.join(path_base, name_mdb)
     baltic_mlp_code = '/home/lois/PycharmProjects/aeronet'
     mfile = MDBInSituFile(file_mdb)
+    if not mfile.VALID:
+        return
     mfile.start_baltic_chla(baltic_mlp_code, 'insitu_CHLA')
     mfile.qc_sat.max_diff_wl = 6
+    mfile.qc_sat.window_size = 1
+    mfile.qc_sat.min_valid_pixels = 1
+    mfile.qc_sat.apply_outliers = False
+    mfile.qc_sat.stat_value = 'median'
+
     mfile.set_wlsatlist_aswlref([412, 443, 490, 510, 555, 670])
 
     # for imu in range(mfile.n_mu_total):
     #     mfile.compute_baltic_chla_ensemble_mu(imu)
     mfile.prepare_df_validation()
-    print(mfile.df_validation_valid)
-    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/ChlaBalMatchUps.csv'
+    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/ChlaBalCCIv5MatchUps_Central.csv'
     mfile.df_validation_valid.to_csv(file_out, sep=';')
+
+
+def do_chla_sat():
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
+    # file_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
+    name_mdb = 'MDB___CCIv5_INSITU_19970101_20191231.nc'
+    file_mdb = os.path.join(path_base, name_mdb)
+    name_out = 'MDB___CCIv5_INSITU_CHLASAT_19970101_20191231.nc'
+    file_out = os.path.join(path_base, name_out)
+    mfile = MDBInSituFile(file_mdb)
+    if not mfile.VALID:
+        return
+
+    mfile.add_baltic_chla(file_out, None, True)
+
+
+def do_check_reflectances():
+    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4'
+    path_extracts_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4yyyyjjj'
+    from netCDF4 import Dataset
+    from datetime import datetime as dt
+    import shutil
+
+    # for name in os.listdir(path_extracts):
+    #      if not name.endswith('nc'):
+    #          continue
+    #
+    #      yearstr = name[1:5]
+    #      jdaystr = name[5:8]
+    #      yearpath = os.path.join(path_extracts_out,yearstr)
+    #      if not os.path.exists(yearpath):
+    #          os.mkdir(yearpath)
+    #      jpath = os.path.join(yearpath,jdaystr)
+    #      if not os.path.exists(jpath):
+    #          os.mkdir(jpath)
+    #      file_orig = os.path.join(path_extracts,name)
+    #      file_dest = os.path.join(jpath,name)
+    #      print(file_orig,file_dest)
+    #      shutil.copy(file_orig,file_dest)
+
+    # file_orig = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__FM.csv'
+    # df = pd.read_csv(file_orig,sep=';')
+    # var_names = ['date','time','lat','lon','CHL_in','rrs_412','rrs_443','rrs_490','rrs_510','rrs_555','rrs_670']
+    # var_names_rrs = ['rrs_412','rrs_443','rrs_490','rrs_510','rrs_555','rrs_670']
+    # dfrec = df.loc[:,var_names]
+    # dfrec.loc[:,var_names_rrs] = -999
+    # pix_pos = [0] * len(dfrec.index)
+    # chlaref = -999
+    # iref = -1
+    # for index, row in dfrec.iterrows():
+    #     chlastr = row['CHL_in']
+    #     if chlastr!=chlaref:
+    #         iref = 0
+    #         pix_pos[index] = iref
+    #     else:
+    #         iref = iref +1
+    #         pix_pos[index] = iref
+    #     chlaref = chlastr
+    # file_new = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__FM_pix.csv'
+    # dfrec = pd.concat([dfrec,pd.Series(pix_pos)],axis=1)
+    # dfrec.to_csv(file_new,sep=';')
+
+    file_orig = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__FM_pix.csv'
+    file_new = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__FM_comp.csv'
+    dfrec = pd.read_csv(file_orig, sep=';')
+    dset = None
+    rrs412 = None
+    rrs443 = None
+    rrs490 = None
+    rrs510 = None
+    rrs555 = None
+    rrs670 = None
+    sat_lat = None
+    sat_lon = None
+
+    for index, row in dfrec.iterrows():
+        ppos = int(row['PixPos'])
+        chla_here = float(row['CHL_in'])
+        chla_here_str = "{:.2f}".format(chla_here)
+        datestr = str(int(row['date']))
+
+        if ppos == 0:
+            print('-------------------------------')
+            if dset is not None:
+                print('Closing previous dset...')
+                dset.close()
+            dset = None
+            dateref = dt.strptime(datestr, '%Y%m%d').strftime('%Y%j')
+            yaearstr = dateref[0:4]
+            jdaystr = dateref[4:7]
+            path_here = os.path.join(path_extracts_out, yaearstr, jdaystr)
+
+            for name in os.listdir(path_here):
+                fpath = os.path.join(path_here, name)
+                dset = netCDF4.Dataset(fpath)
+                chla = float(dset.variables['insitu_CHLA'][0])
+                chlastr = "{:.2f}".format(chla)
+                if chlastr==chla_here_str:
+                    rrs412 = np.array(dset.variables['satellite_Rrs'][0, 0, 11:14, 11:14])
+                    rrs412 = list(rrs412.flatten())
+                    rrs443 = np.array(dset.variables['satellite_Rrs'][0, 1, 11:14, 11:14])
+                    rrs443 = list(rrs443.flatten())
+                    rrs490 = np.array(dset.variables['satellite_Rrs'][0, 2, 11:14, 11:14])
+                    rrs490 = list(rrs490.flatten())
+                    rrs510 = np.array(dset.variables['satellite_Rrs'][0, 3, 11:14, 11:14])
+                    rrs510 = list(rrs510.flatten())
+                    rrs555 = np.array(dset.variables['satellite_Rrs'][0, 4, 11:14, 11:14])
+                    rrs555 = list(rrs555.flatten())
+                    rrs670 = np.array(dset.variables['satellite_Rrs'][0, 5, 11:14, 11:14])
+                    rrs670 = list(rrs670.flatten())
+                    sat_lat = dset.variables['satellite_latitude'][0,12,12]
+                    sat_lon = dset.variables['satellite_longitude'][0, 12, 12]
+                    break
+                else:
+                    dset.close()
+                    dset = None
+        dsetvalid = dset is not None
+        if dsetvalid:
+            dfrec.loc[index, 'rrs_412'] = rrs412[ppos]
+            dfrec.loc[index, 'rrs_443'] = rrs443[ppos]
+            dfrec.loc[index, 'rrs_490'] = rrs490[ppos]
+            dfrec.loc[index, 'rrs_510'] = rrs510[ppos]
+            dfrec.loc[index, 'rrs_555'] = rrs555[ppos]
+            dfrec.loc[index, 'rrs_670'] = rrs670[ppos]
+            dfrec.loc[index, 'sat_lat'] = sat_lat
+            dfrec.loc[index, 'sat_lon'] = sat_lon
+
+
+
+        # for idx in range(6):
+        #     rrs = np.array(nc.variables['satellite_Rrs'][0,idx,11:14,11:14])
+
+        # central_r, central_c, r_s, r_e, c_s, c_e = get_dimensions(nc.variables['satellite_Rrs'],3)
+        # print(central_r,central_c,r_s,r_e,c_s,c_e)
+
+    dfrec.to_csv(file_new, sep=';')
+
+def get_dimensions(satellite_rrs, window_size):
+    # Dimensions
+    nrows = satellite_rrs.shape[2]
+    ncols = satellite_rrs.shape[3]
+    central_r = int(np.floor(nrows / 2))
+    central_c = int(np.floor(ncols / 2))
+    r_s = central_r - int(np.floor(window_size / 2))  # starting row
+    r_e = central_r + int(np.floor(window_size / 2)) + 1  # ending row
+    c_s = central_c - int(np.floor(window_size / 2))  # starting col
+    c_e = central_c + int(np.floor(window_size / 2)) + 1  # ending col
+    return central_r, central_c, r_s, r_e, c_s, c_e
 
 
 def do_example(file_csv, file_out):

@@ -26,6 +26,22 @@ class MDBInSituFile:
         self.VALID = True
         self.balmlp = None
         file_name = file_path.split('/')[-1]
+
+        #self.delta_t = 7200 #2 hours
+        self.delta_t = 10800 #3 hours
+
+
+        # Variables defining a specific MU. To load a MU, uses load_mu_data
+        self.index_mu = 0
+        self.mu_sat_time = []
+        self.mu_insitu_time = []
+        self.satellite_rrs = []
+        self.mu_curr_sat_rrs_mean = []
+
+        self.df_validation = None
+        self.df_validation_valid = None
+        self.sat_retrievals = {}
+
         print(f'[INFO]Starting MDBInSituFile: {file_name}')
         try:
             self.nc = Dataset(file_path)
@@ -71,36 +87,24 @@ class MDBInSituFile:
             self.wlref_sat_indices = list(range(len(self.satellite_bands)))
             # self.set_wl_ref_insitu_indices()
 
-        self.delta_t = 7200
+            # SATELLITE QUALITY CONTROL
+            if self.nc.satellite_aco_processor == 'ACOLITE' or self.nc.satellite_aco_processor == 'Climate Change Initiative - European Space Agency':
+                self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
+                                     self.info['satellite_aco_processor'])
+            else:
+                self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
+                                     self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
 
-        # Variables defining a specific MU. To load a MU, uses load_mu_data
-        self.index_mu = 0
-        self.mu_sat_time = []
-        self.mu_insitu_time = []
-        self.satellite_rrs = []
-        self.mu_curr_sat_rrs_mean = []
-
-        # SATELLITE QUALITY CONTROL
-        if self.nc.satellite_aco_processor == 'ACOLITE' or self.nc.satellite_aco_processor == 'Climate Change Initiative - European Space Agency':
-            self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
-                                 self.info['satellite_aco_processor'])
-        else:
-            self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
-                                 self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
-
-        # Variables to make validation...
-        self.insitu_varnames = []
-        self.col_names = ['Index_MU', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Valid']
-        for var in self.nc.variables:
-            if var.startswith('insitu_'):
-                name = var.split('_')[1]
-                if name.startswith('lat') or name.startswith('long') or name.startswith('time'):
-                    continue
-                else:
-                    self.insitu_varnames.append(var)
-        self.df_validation = None
-        self.df_validation_valid = None
-        self.sat_retrievals = {}
+            # Variables to make validation...
+            self.insitu_varnames = []
+            self.col_names = ['Index_MU', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Valid']
+            for var in self.nc.variables:
+                if var.startswith('insitu_'):
+                    name = var.split('_')[1]
+                    if name.startswith('lat') or name.startswith('long') or name.startswith('time'):
+                        continue
+                    else:
+                        self.insitu_varnames.append(var)
 
     # Checking atrib, var and dimensions names
     def check_structure(self):
@@ -150,6 +154,7 @@ class MDBInSituFile:
         if len(wllist) == len(wlsatlist):
             self.set_wl_ref(wllist)
 
+    # start baltic chla retrievals, name_insitu_var must be the variable containing in situ chla
     def start_baltic_chla(self, path_code, name_insitu_var):
         sys.path.append(path_code)
         try:
@@ -159,8 +164,9 @@ class MDBInSituFile:
             print(f'[INFO] Loaded BalMLP module')
             if name_insitu_var is not None:
                 self.sat_retrievals[name_insitu_var] = {
-                    'function': 'baltic_chla_ensemble',
-                    'satvarname': name_insitu_var.replace('insitu', 'sat')
+                    'function': 'baltic_chla',
+                    'satvarnames': ['wgt3', 'wgt4', 'wgt5_412', 'wgt5_670', 'wgt6', 'chl3', 'chl4', 'chl5_412',
+                                    'chl5_670', 'chl6', 'ens3', 'ens4']
                 }
 
             return True
@@ -190,11 +196,13 @@ class MDBInSituFile:
         # Sat and instrument time
         self.mu_sat_time = self.sat_times[index_mu]
         if self.info['satellite_aco_processor'] == 'CCI':
-            self.mu_sat_time = self.mu_sat_time.replace(hour=11)
+            #self.mu_sat_time = self.mu_sat_time.replace(hour=11)
+            self.mu_sat_time = self.mu_sat_time.replace(hour=13)
 
         self.mu_insitu_time = self.insitu_times[index_mu]
 
-        time_diff = float(self.nc.variables['time_difference'][index_mu])
+        #time_diff = float(self.nc.variables['time_difference'][index_mu])
+        time_diff = abs((self.mu_sat_time-self.mu_insitu_time).total_seconds())
         time_condition = time_diff <= self.delta_t
 
         if not time_condition:
@@ -217,7 +225,8 @@ class MDBInSituFile:
         for varname in self.insitu_varnames:
             self.col_names.append(varname)
             if varname in self.sat_retrievals.keys():
-                self.col_names.append(self.sat_retrievals[varname]['satvarname'])
+                for satvarname in self.sat_retrievals[varname]['satvarnames']:
+                    self.col_names.append(satvarname)
 
         self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
         nmu_valid = 0
@@ -242,11 +251,13 @@ class MDBInSituFile:
                 varvalue = self.nc.variables[varname][index_mu]
                 row[varname] = [varvalue]
                 if varname in self.sat_retrievals.keys():
-                    satvarname = self.sat_retrievals[varname]['satvarname']
-                    value = -9999
+                    satvarnames = self.sat_retrievals[varname]['satvarnames']
                     if mu_valid:
-                        value = self.compute_sat_retrieval(self.sat_retrievals[varname]['function'])
-                    row[satvarname] = [value]
+                        values = self.compute_sat_retrieval(self.sat_retrievals[varname]['function'])
+                    else:
+                        values = [-999] * len(satvarnames)
+                    for idx in range(len(satvarnames)):
+                        row[satvarnames[idx]] = [values[idx]]
 
             self.df_validation.iloc[index_mu] = pd.DataFrame.from_dict(row)
 
@@ -256,21 +267,52 @@ class MDBInSituFile:
         return nmu_valid
 
     def compute_sat_retrieval(self, function):
-        if function == 'baltic_chla_ensemble':
-            return self.compute_baltic_chla_ensemble_mu(-1)
+        if function == 'baltic_chla':
+            return self.compute_baltic_chla_mu(-1)
 
-        return -999
+        return None
 
     # index_mu==-1 (or <0) to no load data
-    def compute_baltic_chla_ensemble_mu(self, index_mu):
+    def compute_baltic_chla_mu(self, index_mu):
         if index_mu >= 0:
             is_mu_valid, load_info = self.load_mu_datav2(index_mu)
+            if not is_mu_valid:
+                return None
+
         rrs = np.zeros((1, len(self.mu_curr_sat_rrs_mean)))
         rrs[0, :] = np.array(self.mu_curr_sat_rrs_mean)
-        chla_ens = self.balmlp.compute_chla_ensemble(rrs)
-        chla_ens = chla_ens[0][0]
-        return chla_ens
-        # chal_insitu = self.nc.variables['insitu_CHLA'][index_mu]
-        # if is_mu_valid:
-        #     print(
-        #         f'[INFO] Index Mu {index_mu} Sat time: {self.mu_sat_time} Chla In situ: {chal_insitu} Chla ensemble {chla_ens}')
+        self.balmlp.compute_chla_ensemble(rrs)
+        values = self.balmlp.get_values()
+        return values
+
+    def add_baltic_chla(self,ofile,ncdest,closedest):
+        if ncdest is None:
+            ncdest = self.copy_nc(ofile)
+        ncdest.createDimension('bal_chla_id', 12)
+        chla_var = ncdest.createVariable('satellite_chla_bal_mlp', 'f4', ('satellite_id','bal_chla_id','rows','columns'),
+                                                       fill_value=-999, zlib=True, complevel=6)
+        if closedest:
+            ncdest.close()
+
+    def copy_nc(self, ofile):
+
+        dst = Dataset(ofile, 'w', format='NETCDF4')
+
+        # copy global attributes all at once via dictionary
+        dst.setncatts(self.nc.__dict__)
+
+        # copy dimensions
+        for name, dimension in self.nc.dimensions.items():
+            dst.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+        # copy all file data except for the excluded
+        for name, variable in self.nc.variables.items():
+            dst.createVariable(name, variable.datatype, variable.dimensions)
+             # copy variable attributes all at once via dictionary
+            dst[name].setncatts(self.nc[name].__dict__)
+            dst[name][:] = self.nc[name][:]
+
+        return dst
+
+    def close_dataset(self):
+        self.nc.close()
