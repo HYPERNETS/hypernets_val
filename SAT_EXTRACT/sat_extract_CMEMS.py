@@ -238,7 +238,9 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
     if 'start_date' in nc_sat.ncattrs():
-        newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.start_date, '%Y-%m-%d'))
+        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
+        sat_time = sat_time.replace(hour=0,minute=0,second=0,microsecond=0)
+        newEXTRACT.create_satellite_time_variable(sat_time)
     else:
         sat_time = get_sat_time_from_fname(pdu)
         if sat_time is not None:

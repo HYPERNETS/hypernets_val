@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from PlotSpectra import PlotSpectra
 import numpy as np
 import math
-
+from datetime import datetime as dt
 
 class MDB_READER():
     def __init__(self, path_mdb, start_mdb):
@@ -113,7 +113,8 @@ def main():
     # do_example()
     # do_chla()
     # do_chla_sat()
-    do_check_reflectances()
+    # do_check_reflectances()
+    do_test()
 
     # do_lps()
 
@@ -148,6 +149,44 @@ def main():
     # mdb = MDBFile(file_s3a)
     # mdb.load_mu_datav2(4)
 
+def do_test():
+    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/CCI/extracts'
+    #path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4'
+    from netCDF4 import Dataset
+
+    for name in os.listdir(path_extracts):
+        if not name.endswith('nc'):
+            continue
+        fname = os.path.join(path_extracts,name)
+        nc = Dataset(fname)
+        dthere = dt.fromtimestamp(float(nc.variables['satellite_time'][0]))
+        #dtherebis = get_sat_time_from_fname(name)
+        dtherebis = get_sat_time_fromcci_fname(name)
+        dif = (dthere-dtherebis).total_seconds()
+        if dthere.year==2016:
+            print(dthere,dtherebis,dif)
+            if abs(dif)<1:
+                print('---------------------------------------->GOOD CUA')
+
+
+def get_sat_time_from_fname(fname):
+    val_list = fname.split('_')
+    sat_time = None
+    for v in val_list:
+        try:
+            sat_time = dt.strptime(v, '%Y%m%dT%H%M%S')
+            break
+        except ValueError:
+            continue
+    return sat_time
+
+def get_sat_time_fromcci_fname(fname):
+    sat_time = None
+    try:
+        sat_time = dt.strptime(fname[1:8],'%Y%j')
+    except ValueError:
+        pass
+    return sat_time
 
 def do_lps():
     dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_UPDATED/MDBs_20052022'
@@ -185,7 +224,8 @@ def do_lps():
 def do_chla():
     path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # file_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
-    name_mdb = 'MDB___CCIv5_INSITU_19970101_20191231.nc'
+    #name_mdb = 'MDB___CCIv5_INSITU_19970101_20191231.nc'
+    name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
     file_mdb = os.path.join(path_base, name_mdb)
     baltic_mlp_code = '/home/lois/PycharmProjects/aeronet'
     mfile = MDBInSituFile(file_mdb)
@@ -193,8 +233,8 @@ def do_chla():
         return
     mfile.start_baltic_chla(baltic_mlp_code, 'insitu_CHLA')
     mfile.qc_sat.max_diff_wl = 6
-    mfile.qc_sat.window_size = 1
-    mfile.qc_sat.min_valid_pixels = 1
+    mfile.qc_sat.window_size = 3
+    mfile.qc_sat.min_valid_pixels = 6
     mfile.qc_sat.apply_outliers = False
     mfile.qc_sat.stat_value = 'median'
 
@@ -203,7 +243,7 @@ def do_chla():
     # for imu in range(mfile.n_mu_total):
     #     mfile.compute_baltic_chla_ensemble_mu(imu)
     mfile.prepare_df_validation()
-    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/ChlaBalCCIv5MatchUps_Central.csv'
+    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/ChlaBalPolymerMatchUps_Central.csv'
     mfile.df_validation_valid.to_csv(file_out, sep=';')
 
 
