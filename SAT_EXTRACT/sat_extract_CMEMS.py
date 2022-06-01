@@ -705,7 +705,7 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     stop_idx_y = (r + int(size_box / 2) + 1)
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
-    print('Create extract in situ line 708:', r,c,start_idx_y,stop_idx_y, stop_idx_x,stop_idx_x)
+    print('Create extract in situ line 708:', r,c,start_idx_y,stop_idx_y, start_idx_x,stop_idx_x)
 
     search_pattern = 'rrs_'
     wl_atrib = None
@@ -749,6 +749,7 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     for index in range(len(rbands)):
         rband = rbands[index]
         bandarray = ma.array(nc_sat.variables[rband][:, :])
+        print('Line 752 Band array shape', bandarray.shape)
         satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
         wl = reflectance_bands[rband]['wavelenght']
         wavelenghts.append(wl)
