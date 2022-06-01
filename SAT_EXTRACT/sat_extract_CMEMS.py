@@ -333,7 +333,7 @@ def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
         start_idx_y = (r - int(size_box / 2))
         stop_idx_y = (r + int(size_box / 2) + 1)
 
-        print('Check location line 336: ', r, c, start_idx_y,stop_idx_y,start_idx_x,stop_idx_x)
+        #print('Check location line 336: ', r, c, start_idx_y,stop_idx_y,start_idx_x,stop_idx_x)
 
         if lat.ndim == 1 and lon.ndim == 1:
             if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
@@ -705,7 +705,7 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     stop_idx_y = (r + int(size_box / 2) + 1)
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
-    print('Create extract in situ line 708:', r,c,start_idx_y,stop_idx_y, start_idx_x,stop_idx_x)
+
 
     search_pattern = 'rrs_'
     wl_atrib = None
@@ -749,8 +749,7 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     for index in range(len(rbands)):
         rband = rbands[index]
         bandarray = ma.array(nc_sat.variables[rband][:, :])
-        print('Line 752 Band array shape', bandarray.shape)
-        satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x] / np.pi
+        satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
         wl = reflectance_bands[rband]['wavelenght']
         wavelenghts.append(wl)
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
