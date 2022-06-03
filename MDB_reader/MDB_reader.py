@@ -152,7 +152,7 @@ def main():
 
 
 def do_check_extract_times():
-    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/FUB/extractss'
+    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/FUB/extracts'
     # path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4'
     from netCDF4 import Dataset
 
