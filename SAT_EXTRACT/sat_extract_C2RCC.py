@@ -219,6 +219,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
         newEXTRACT.create_satellite_time_variable(dt.strptime(nc_sat.start_date, '%d-%b-%Y %H:%M:%S.%f'))
     else:
         sat_time = get_sat_time_from_fname(pdu)
+
         if sat_time is not None:
             newEXTRACT.create_satellite_time_variable(sat_time)
         else:

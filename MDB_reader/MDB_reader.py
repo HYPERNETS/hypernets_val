@@ -13,6 +13,7 @@ import numpy as np
 import math
 from datetime import datetime as dt
 
+
 class MDB_READER():
     def __init__(self, path_mdb, start_mdb):
         if path_mdb is not None:
@@ -114,7 +115,7 @@ def main():
     # do_chla()
     # do_chla_sat()
     # do_check_reflectances()
-    do_test()
+    do_check_extract_times()
 
     # do_lps()
 
@@ -149,24 +150,27 @@ def main():
     # mdb = MDBFile(file_s3a)
     # mdb.load_mu_datav2(4)
 
-def do_test():
-    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/CCI/extracts'
-    #path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4'
+
+def do_check_extract_times():
+    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/FUB/extractss'
+    # path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4'
     from netCDF4 import Dataset
 
     for name in os.listdir(path_extracts):
         if not name.endswith('nc'):
             continue
-        fname = os.path.join(path_extracts,name)
+        fname = os.path.join(path_extracts, name)
         nc = Dataset(fname)
         dthere = dt.fromtimestamp(float(nc.variables['satellite_time'][0]))
-        #dtherebis = get_sat_time_from_fname(name)
-        dtherebis = get_sat_time_fromcci_fname(name)
-        dif = (dthere-dtherebis).total_seconds()
-        if dthere.year==2016:
-            print(dthere,dtherebis,dif)
-            if abs(dif)<1:
-                print('---------------------------------------->GOOD CUA')
+        dtherebis = get_sat_time_from_fname(name)
+        #dtherebis = get_sat_time_fromcci_fname(name)
+        dif = (dthere - dtherebis).total_seconds()
+        if dif>1:
+            print('ERROR', dthere, dtherebis)
+        # if dthere.year == 2016:
+        #     print(dthere, dtherebis, dif)
+        #     if abs(dif) < 1:
+        #         print('---------------------------------------->GOOD CUA')
 
 
 def get_sat_time_from_fname(fname):
@@ -180,13 +184,15 @@ def get_sat_time_from_fname(fname):
             continue
     return sat_time
 
+
 def get_sat_time_fromcci_fname(fname):
     sat_time = None
     try:
-        sat_time = dt.strptime(fname[1:8],'%Y%j')
+        sat_time = dt.strptime(fname[1:8], '%Y%j')
     except ValueError:
         pass
     return sat_time
+
 
 def do_lps():
     dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_UPDATED/MDBs_20052022'
@@ -224,7 +230,7 @@ def do_lps():
 def do_chla():
     path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # file_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
-    #name_mdb = 'MDB___CCIv5_INSITU_19970101_20191231.nc'
+    # name_mdb = 'MDB___CCIv5_INSITU_19970101_20191231.nc'
     name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
     file_mdb = os.path.join(path_base, name_mdb)
     baltic_mlp_code = '/home/lois/PycharmProjects/aeronet'
@@ -342,7 +348,7 @@ def do_check_reflectances():
                 dset = netCDF4.Dataset(fpath)
                 chla = float(dset.variables['insitu_CHLA'][0])
                 chlastr = "{:.2f}".format(chla)
-                if chlastr==chla_here_str:
+                if chlastr == chla_here_str:
                     rrs412 = np.array(dset.variables['satellite_Rrs'][0, 0, 11:14, 11:14])
                     rrs412 = list(rrs412.flatten())
                     rrs443 = np.array(dset.variables['satellite_Rrs'][0, 1, 11:14, 11:14])
@@ -355,7 +361,7 @@ def do_check_reflectances():
                     rrs555 = list(rrs555.flatten())
                     rrs670 = np.array(dset.variables['satellite_Rrs'][0, 5, 11:14, 11:14])
                     rrs670 = list(rrs670.flatten())
-                    sat_lat = dset.variables['satellite_latitude'][0,12,12]
+                    sat_lat = dset.variables['satellite_latitude'][0, 12, 12]
                     sat_lon = dset.variables['satellite_longitude'][0, 12, 12]
                     break
                 else:
@@ -372,8 +378,6 @@ def do_check_reflectances():
             dfrec.loc[index, 'sat_lat'] = sat_lat
             dfrec.loc[index, 'sat_lon'] = sat_lon
 
-
-
         # for idx in range(6):
         #     rrs = np.array(nc.variables['satellite_Rrs'][0,idx,11:14,11:14])
 
@@ -381,6 +385,7 @@ def do_check_reflectances():
         # print(central_r,central_c,r_s,r_e,c_s,c_e)
 
     dfrec.to_csv(file_new, sep=';')
+
 
 def get_dimensions(satellite_rrs, window_size):
     # Dimensions
