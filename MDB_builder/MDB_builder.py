@@ -327,6 +327,7 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
     if mdb_secondary is not None:
         dinput = Dataset(extract_path)
         sat_time = datetime.fromtimestamp(float(dinput.variables['satellite_time'][0]))
+        #print(extract_path, sat_time, '=================================================================')
         lat_array = ma.array(dinput.variables['satellite_latitude'][:])
         lon_array = ma.array(dinput.variables['satellite_longitude'][:])
         ncsecondary = mdb_secondary.get_extradaset(dinput.satellite, dinput.platform, sat_time, lat_array, lon_array)
@@ -537,6 +538,14 @@ def make_simple_builder(options, path_extract, path_out):
 
 
 def check():
+    base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/WFR/extracts'
+    for name in os.listdir(base):
+        if not name.endswith('nc'):
+            continue
+        extract_path = os.path.join(base,name)
+        dinput = Dataset(extract_path)
+        sat_time = datetime.fromtimestamp(float(dinput.variables['satellite_time'][0]))
+        print(name, sat_time, '=================================================================')
     return True
 
 
@@ -545,9 +554,9 @@ def check():
 def main():
     print('Creating MDB files!')
     ##CALLING ONLY FOR PRE-TESTING###
-    # b = check()
-    # if b:
-    #     return
+    b = check()
+    if b:
+        return
     #################################
     if args.debug:
         print('Entering Debugging Mode:')

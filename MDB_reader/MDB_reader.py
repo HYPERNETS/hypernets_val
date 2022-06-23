@@ -152,21 +152,22 @@ def main():
 
 
 def do_check_extract_times():
-    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/FUB/extracts'
+    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Helsinki_Lighthouse/polymer/extracts'
     # path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4'
     from netCDF4 import Dataset
-
+    from datetime import timedelta
     for name in os.listdir(path_extracts):
         if not name.endswith('nc'):
             continue
         fname = os.path.join(path_extracts, name)
         nc = Dataset(fname)
-        dthere = dt.fromtimestamp(float(nc.variables['satellite_time'][0]))
+        dthere = dt.utcfromtimestamp(float(nc.variables['satellite_time'][0]))
+        dthereotro = dt(1970,1,1)+timedelta(seconds=float(nc.variables['satellite_time'][0]))
         dtherebis = get_sat_time_from_fname(name)
         #dtherebis = get_sat_time_fromcci_fname(name)
         dif = (dthere - dtherebis).total_seconds()
         if dif>1:
-            print('ERROR', dthere, dtherebis)
+            print('ERROR', dthere, dthereotro, dtherebis)
         # if dthere.year == 2016:
         #     print(dthere, dtherebis, dif)
         #     if abs(dif) < 1:

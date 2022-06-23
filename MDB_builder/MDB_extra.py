@@ -47,7 +47,7 @@ class MDBExtra():
     def get_extradaset(self, satellite, platform, sat_time, lat_array, lon_array):
         key = f'{satellite}{platform}'
         date_str = sat_time.strftime('%Y%m%d')
-        # print(f'{satellite}{platform}{sat_time}-------------------------------------------------------------------')
+        #print(f'{satellite}{platform}{sat_time}========================================================================')
         ncdataset = None
         if key in self.info_path.keys():
             if date_str in self.info_path[key].keys():
@@ -59,7 +59,7 @@ class MDBExtra():
                 if self.time_max > 0:
                     time_dif = abs((sat_time - extradate).total_seconds())
                     if time_dif > self.time_max:
-                        print(key, sat_time, extradate, time_dif)
+                        print('TIME DIF > TIME MAX',key, sat_time, extradate, time_dif)
                         valid = False
 
                 if valid:
