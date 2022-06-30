@@ -105,6 +105,7 @@ class MDBFile:
         self.mu_curr_ins_rrs = []
 
         # QUALITY CONTROL
+
         self.only_complete_spectra_valid = False
         self.qc_insitu = QC_INSITU(self.variables['insitu_Rrs'], self.variables['insitu_original_bands'])
         self.qc_insitu.time_max = self.delta_t
@@ -171,6 +172,8 @@ class MDBFile:
         # self.window_size = 3
         # self.valid_min_pixels = 1
         # self.delta_t = 7200
+
+
 
     def get_dimensions(self):
         # Dimensions
@@ -257,13 +260,8 @@ class MDBFile:
             if not np.ma.is_masked(itime):
                 # insitu_time_here = datetime(1970, 1, 1) + timedelta(seconds=int(itime))
                 insitu_time_here = datetime.fromtimestamp(float(itime))
-                if index_mu == 4:
-                    print('----------> ', insitu_time_here)
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
-                if index_mu == 4:
-                    # print(idx,sat_time_here,insitu_time_here,time_diff_here)
-                    print(idx, time_difference_prev[idx], time_difference[idx], sat_time_here, insitu_time_here)
 
         # time_difference = time_difference_prev
 
@@ -274,6 +272,9 @@ class MDBFile:
 
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
+
+
+
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.fromtimestamp(int(ins_time))
@@ -321,11 +322,11 @@ class MDBFile:
 
         # Sat and instrument time
         self.mu_sat_time = self.sat_times[index_mu]
-        if self.info['satellite_aco_processor'] == 'CCI':
-            self.mu_sat_time = self.mu_sat_time.replace(hour=11)
+        # THIS STEP IS NOW DONE BEFORE PREPARING DF FOR VALIDATION
+        # if self.info['satellite_aco_processor'] == 'CCI':
+        #     self.mu_sat_time = self.mu_sat_time.replace(hour=11)
 
-        if index_mu == 4:
-            print(self.mu_sat_time)
+
 
         # self.ins_time_index, self.mu_insitu_time, time_condition = self.retrieve_ins_info_mu(index_mu)
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
@@ -333,9 +334,9 @@ class MDBFile:
 
         load_info['spectrum_complete'] = spectrum_complete
 
-        if not time_condition:
-            load_info['status'] = -3  # f'IN SITU DATA OUT OF TIME WINDOW'
-            return is_mu_valid, load_info
+        # if not time_condition:
+        #     load_info['status'] = -3  # f'IN SITU DATA OUT OF TIME WINDOW'
+        #     return is_mu_valid, load_info
 
         if not valid_insitu:
             load_info['status'] = -4  # f'INVALID INSITU DATA'
@@ -495,6 +496,12 @@ class MDBFile:
         mukey = f'{sdate}_{idate}'
         return mukey
 
+    def set_hour_sat_time(self,hour,minute):
+        for index_mu in range(self.n_mu_total):
+            sat_time_prev = self.sat_times[index_mu]
+            sat_time_new = sat_time_prev.replace(hour=hour,minute=minute)
+            self.sat_times[index_mu] = sat_time_new
+
     def prepare_df_validation(self):
         print('[INFO] Preparing DF for validation...')
         nbands = len(self.wlref)
@@ -511,13 +518,19 @@ class MDBFile:
             # print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
+            # if not mu_valid:
+            #     status = info_mu['status']
+            #     print(f'[WARNING] MU: {index_mu} no valid: {status}')
+
+
             # invalid = [2,94,136,140,159]
             # if index_mu in invalid:
             #     mu_valid = False
             # if index_mu==94:
             #     mu_valid = False
-            # if mu_valid:
-            #     nmu_valid = nmu_valid + 1
+
+            if mu_valid:
+                nmu_valid = nmu_valid + 1
 
             spectrum_complete = info_mu['spectrum_complete']
             mu_valid_bands = info_mu['valid_bands']

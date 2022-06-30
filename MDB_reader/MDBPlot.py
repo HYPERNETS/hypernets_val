@@ -1,3 +1,5 @@
+import math
+
 import pandas as pd
 
 from MDBFile import MDBFile
@@ -12,6 +14,9 @@ from PlotSpectra import PlotSpectra
 from PlotScatter import PlotScatter
 from datetime import datetime as dt
 import seaborn as sns
+from scipy.stats import gaussian_kde
+from pylr2 import regress2
+from sklearn.metrics import r2_score
 
 
 class MDBPlot:
@@ -49,7 +54,13 @@ class MDBPlot:
             'mean_rel_diff': 0.0,
             'mean_abs_rel_diff': 0.0,
             'bias': 0.0,
-            'r2:': 0.0
+            'r2': 0.0,
+            'slope_typeII': 0.0,
+            'offset_typeII': 0.0,
+            'XAVG': 0.0,
+            'YAVG': 0.0,
+            'CPRMSE': 0.0,
+            'MAE': 0.0
         }
         self.df_valid_stats = None
 
@@ -82,11 +93,22 @@ class MDBPlot:
         self.ydata = self.ydata * 1000
         self.yregress = np.array(self.yregress) * 1000
         self.xregress = np.array(self.xregress) * 1000
-        for w in wl:
-            color = defaults.get_color_ref(w)
-            xhere = self.xdata[self.wldata == w]
-            yhere = self.ydata[self.wldata == w]
-            plot.plot_data(xhere, yhere, None, None, color, 'gray', 1.5)
+
+        if nwl > 1:
+            for w in wl:
+                color = defaults.get_color_ref(w)
+                xhere = self.xdata[self.wldata == w]
+                yhere = self.ydata[self.wldata == w]
+                plot.plot_data(xhere, yhere, None, None, color, 'gray', 1.5)
+        else:  # density scatter plot
+            xhere = np.asarray(self.xdata,dtype=np.float)
+            yhere = np.asarray(self.ydata,dtype=np.float)
+            xy = np.vstack([xhere, yhere])
+            z = gaussian_kde(xy)(xy)
+            idx = z.argsort()
+            xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
+            plot.plot_data(xhere, yhere, None, 25, z, None, None)
+            plot.set_cmap('jet')
 
         plot.set_equal_apect()
         max_x_data = np.min(self.xdata)
@@ -117,8 +139,6 @@ class MDBPlot:
             #     str0 = strwl + str0
             plot.plot_text(0.05, 0.70, str0)
 
-
-
             plot.plot_regress_line(self.xregress, self.yregress, 'black')
 
         # data_plot = pd.concat([self.xdata, self.ydata], axis=1).astype(dtype=np.float)
@@ -127,7 +147,7 @@ class MDBPlot:
 
         if title:
             title_here = self.title
-            if nwl==1:
+            if nwl == 1:
                 w = wl[0]
                 strwl = f' λ = {w:0.2f} nm \n'
                 title_here = self.title + strwl
@@ -247,9 +267,25 @@ class MDBPlot:
         self.valid_stats['p_value'] = p_value
         self.valid_stats['std_err'] = std_err
 
-        ref_obs = np.asarray(self.xdata)
-        sat_obs = np.asarray(self.ydata)
+        ref_obs = np.asarray(self.xdata,dtype=np.float)
+        sat_obs = np.asarray(self.ydata,dtype=np.float)
+
+        results = regress2(ref_obs, sat_obs, _method_type_2="reduced major axis")
+        self.valid_stats['slope_typeII'] = results['slope']
+        self.valid_stats['offset_typeII'] = results['intercept']
+
         self.valid_stats['rmse_val'] = cfs.rmse(sat_obs, ref_obs)
+
+        ref_mean = np.mean(ref_obs)
+        sat_mean = np.mean(sat_obs)
+        self.valid_stats['XAVG'] = ref_mean
+        self.valid_stats['YAVG'] = sat_mean
+
+        # CPRMSE
+        xdiff = ref_obs - ref_mean
+        ydiff = sat_obs - sat_mean
+        cprmse = cfs.rmse(ydiff, xdiff)
+        self.valid_stats['CPRMSE'] = cprmse
 
         # the mean of relative (signed) percent differences
         rel_diff = 100 * (ref_obs - sat_obs) / ref_obs
@@ -261,7 +297,12 @@ class MDBPlot:
         bias = np.mean(sat_obs - ref_obs)
         self.valid_stats['bias'] = bias
 
+        mae = np.mean(np.abs(sat_obs - ref_obs))
+        self.valid_stats['MAE'] = mae
+
         self.valid_stats['r2'] = r_value * r_value
+
+
 
     def plot_all_scatter_plot(self, path_out):
         dfval = self.get_df_val()
@@ -322,7 +363,6 @@ class MDBPlot:
         # self.ydata = dfval[(dfval['Wavelength'] == wl)]['HypstarRRS']
         # self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
 
-
         print('NValues: ', len(self.xdata), 'Wavelength: ', wl)
         show_title = False
         file_out = None
@@ -361,7 +401,6 @@ class MDBPlot:
         # self.ydata = dfval[:]['HypstarRRS']
         # self.wldata = dfval[:]['Wavelength']
 
-
         self.compute_statistics()
         for param in self.valid_stats:
             row = {}
@@ -387,7 +426,6 @@ class MDBPlot:
             # self.xdata = dfval[(dfval['Wavelength'] == wl)]['PanthyrRRS']
             # self.ydata = dfval[(dfval['Wavelength'] == wl)]['HypstarRRS']
             # self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
-
 
             self.compute_statistics()
             for iparam in range(nparam):
@@ -484,8 +522,8 @@ class MDBPlot:
         dfall_month = pd.DataFrame(index=year, columns=month, dtype=np.float)
         dfall_month[:] = 0
         for index, row in dfall.iterrows():
-            dif_wl = np.abs(np.float(row['Wavelenght'])-412)
-            if dif_wl<5:
+            dif_wl = np.abs(np.float(row['Wavelenght']) - 412)
+            if dif_wl < 5:
                 date_here = dt.strptime(row['Sat_Time'], '%Y-%m-%d %H:%M')
                 year_here = date_here.year
                 month_here = date_here.month
@@ -518,14 +556,14 @@ class MDBPlot:
 
     def make_validation_mdbfile(self, path_out):
         file_data_valid = os.path.join(path_out, 'DataValid.csv')
-        self.mfile.df_validation_valid.to_csv(file_data_valid)
+        self.mfile.df_validation_valid.to_csv(file_data_valid, sep=';')
         file_data = os.path.join(path_out, 'Data.csv')
-        self.mfile.df_validation.to_csv(file_data)
+        self.mfile.df_validation.to_csv(file_data, sep=';')
         self.plot_all_scatter_plot(path_out)
         self.plot_wavelenght_scatter_plots(path_out, None)
         self.compute_all_statistics(None)
         file_results = os.path.join(path_out, 'Params.csv')
-        self.df_valid_stats.to_csv(file_results)
+        self.df_valid_stats.to_csv(file_results, sep=';')
         self.plot_all_spectra_param(path_out)
 
     def save_validation_dfval_data(self, path_out):
@@ -547,7 +585,7 @@ class MDBPlot:
 
         self.compute_all_statistics(wllist)
         file_results = os.path.join(path_out, 'Params.csv')
-        self.df_valid_stats.to_csv(file_results,sep=';')
+        self.df_valid_stats.to_csv(file_results, sep=';')
         self.plot_all_spectra_param(path_out)
 
     def make_validation_dfval_insitu(self, path_out, title, file_name_base, wllist):
@@ -556,7 +594,7 @@ class MDBPlot:
             return
         self.title = title
         self.file_name_base = file_name_base
-        #self.plot_all_scatter_plot_insitu(path_out)
+        # self.plot_all_scatter_plot_insitu(path_out)
         self.compute_all_statistics(wllist)
         file_results = os.path.join(path_out, 'Params.csv')
         self.df_valid_stats.to_csv(file_results, sep=';')

@@ -14,6 +14,7 @@ class QC_SAT:
         self.nmu = self.satellite_rrs.shape[0]
         self.nbands = self.satellite_rrs.shape[1]
 
+
         self.stat_value = 'avg'
 
         self.window_size = 3
@@ -447,12 +448,13 @@ class QC_SAT:
             flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, satellite_flag.flag_meanings)
             flag_mask = flagging.MaskGeneral(satellite_flag_band)
             flag_mask[np.where(flag_mask != 0)] = 1
+        elif self.info_flag[flag_band]['ac_processor'] == 'IDEPIX':
+            flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, satellite_flag.flag_meanings)
+            flag_mask = flagging.Mask(satellite_flag_band, self.info_flag[flag_band]['flag_list'])
+            flag_mask[np.where(flag_mask != 0)] = 1
         else:
             flagging = flag.Class_Flags_OLCI(satellite_flag.flag_masks, satellite_flag.flag_meanings)
             if self.info_flag[flag_band]['ac_processor'] == 'C2RCC':  # C2RCC FLAGS
-                if index_mu == 0:
-                    print(satellite_flag.flag_meanings)
-                    print(satellite_flag.flag_masks)
                 valuePE = np.uint64(2147483648)
                 flag_mask = np.ones(satellite_flag_band.shape, dtype=np.uint64)
                 flag_mask[satellite_flag_band == valuePE] = 0
@@ -501,6 +503,7 @@ class QC_SAT:
         flag_list = None
         flag_land = None
         flag_inlandwaters = None
+
         if ac_processor == 'STANDARD':
             flag_list = 'CLOUD,CLOUD_AMBIGUOUS,CLOUD_MARGIN,INVALID,COSMETIC,SATURATED,SUSPECT,HISOLZEN,HIGHGLINT,SNOW_ICE,AC_FAIL,WHITECAPS,RWNEG_O2,RWNEG_O3,RWNEG_O4,RWNEG_O5,RWNEG_O6,RWNEG_O7,RWNEG_O8'
             flag_land = 'LAND'
@@ -509,7 +512,6 @@ class QC_SAT:
             # flag_list = 'LAND,CLOUD_BASE,L1_INVALID,NEGATIVE_BB,OUT_OF_BOUNDS,EXCEPTION,THICK_AEROSOL,HIGH_AIR_MASS,EXTERNAL_MASK'
             flag_list = 'LAND,CLOUD_BASE'
             flag_land = 'LAND'
-
         if ac_processor == 'C2RCC':
             flag_list = 'Rtosa_OOS, Rtosa_OOR, Rhow_OOR, Cloud_risk, Iop_OOR, Apig_at_max, Adet_at_max, Agelb_at_max, Bpart_at_max, Bwit_at_max, Apig_at_min, Adet_at_min, Agelb_at_min, Bpart_at_min, Bwit_at_min, Rhow_OOS, Kd489_OOR,Kdmin_OOR, Kd489_at_max, Kdmin_at_max'
             # flag_list =  ''
@@ -545,6 +547,21 @@ class QC_SAT:
         }
 
         self.add_band_statistics(-1, 560, 'CV', True, 20, 'greater')
+
+    def set_idepix_as_flag(self,satellite_idepix_flag):
+        flag_list = ['IDEPIX_LAND','IDEPIX_COASTLINE','IDEPIX_INVALID','IDEPIX_CLOUD','IDEPIX_CLOUD_BUFFER','IDEPIX_CLOUD_SHADOW','IDEPIX_SNOW_ICE']
+        flag_land = 'IDEPIX_LAND'
+        flag_inlandwater = None
+        self.info_flag = {}
+        self.info_flag[satellite_idepix_flag.name] = {
+            'variable': satellite_idepix_flag,
+            'flag_list': flag_list,
+            'flag_land': flag_land,
+            'flag_inlandwater': flag_inlandwater,
+            'ac_processor': 'IDEPIX',
+            'nflagged': 0,
+            'flag_stats': None
+        }
 
     def set_qc_from_qcbase(self, qcbase):
 

@@ -62,7 +62,9 @@ class MDBInSituFile:
             print('[INFO ]Total mu: ', self.n_mu_total)
             self.sat_times = []
             for st in self.variables['satellite_time']:
-                self.sat_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
+                #self.sat_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
+                sat_time_here = datetime.fromtimestamp(float(st))
+                self.sat_times.append(sat_time_here)
             self.insitu_times = []
             for st in self.variables['insitu_time']:
                 self.insitu_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
@@ -281,6 +283,7 @@ class MDBInSituFile:
 
         rrs = np.zeros((1, len(self.mu_curr_sat_rrs_mean)))
         rrs[0, :] = np.array(self.mu_curr_sat_rrs_mean)
+
         self.balmlp.compute_chla_ensemble(rrs)
         values = self.balmlp.get_values()
         return values

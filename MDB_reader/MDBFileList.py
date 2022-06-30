@@ -63,12 +63,33 @@ class MDBFileList():
                 mfile = MDBFile(self.mdb_list[fmdb]['path'])
                 if not self.wlref is None:
                     mfile.set_wl_ref(self.wlref)
+
+                if fmdb.find('CCI')>0:
+                    mfile.set_hour_sat_time(11, 0) ##ONLY FOR CCI
+
                 #mfile.qc_sat.set_qc_from_qcbase(self.qc_base)
                 mfile.qc_sat.set_eumetsat_defaults(3)
+                if 'satellite_pixel_classif_flags' in mfile.nc.variables:
+                    idepix_flag = mfile.nc.variables['satellite_pixel_classif_flags']
+                    mfile.qc_sat.set_idepix_as_flag(idepix_flag)
+
+                mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.003, 'greater')
+
                 mfile.qc_insitu.set_wllist_using_wlref(mfile.wlref)
-                mfile.qc_insitu.set_thershold(None,0.01,400,700)
-                mfile.qc_insitu.set_thershold(None, 0.001, 700, 800)
-                mfile.qc_sat.wl_ref = mfile.wlref
+                mfile.qc_insitu.check_indices_by_mu = True
+                mfile.qc_insitu.apply_band_shift = True
+                mfile.qc_insitu.set_thershold(0, None, 0, 600)
+                mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
+                mfile.qc_insitu.set_thershold(None, 0.01, 410, 415)
+
+                if fmdb.find('CCI')>0:
+                    mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##ONLY FOR CCI
+                    mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##ONLY FOR CCI
+
+
+                # mfile.qc_insitu.set_thershold(None,0.01,400,700)
+                # mfile.qc_insitu.set_thershold(None, 0.001, 700, 800)
+                #mfile.qc_sat.wl_ref = mfile.wlref
                 #mfile.qc_sat.add_theshold_mask(-1,510,0.008,'greater')#STANDARD
                 # mfile.qc_sat.add_theshold_mask(-1,412,0.006,'greater')#C2RCC
                 # mfile.qc_sat.add_theshold_mask(-1, 620, 0.0055, 'greater')  # C2RCC

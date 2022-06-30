@@ -1,3 +1,5 @@
+import datetime
+
 import netCDF4
 
 from MDBFile import MDBFile
@@ -12,6 +14,7 @@ from PlotSpectra import PlotSpectra
 import numpy as np
 import math
 from datetime import datetime as dt
+from datetime import timedelta
 
 
 class MDB_READER():
@@ -71,6 +74,19 @@ class MDB_READER():
 
 
 def main():
+    # fmdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
+    # do_check_mdb_times_impl(fmdb)
+    #do_check_mdb_times()
+    # do_check_extract_times()
+
+    # do_final_results()
+    # do_final_results_l3()
+    # do_final_results_CCI()
+
+    do_chla()
+
+    # check_dates_MDB()
+
     # make_validation_single_MDB()
     # make_variations_qc_single_MDB()
 
@@ -115,7 +131,7 @@ def main():
     # do_chla()
     # do_chla_sat()
     # do_check_reflectances()
-    do_check_extract_times()
+    # do_check_extract_times()
 
     # do_lps()
 
@@ -151,8 +167,343 @@ def main():
     # mdb.load_mu_datav2(4)
 
 
+def do_final_results_CCI():
+    print('CCI Results')
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    sites = ['Gustav_Dalen_Tower', 'Helsinki_Lighthouse', 'Irbe_Lighthouse']
+
+    # SINGLE VALIDATION FOR SITE
+    # for site in sites:
+    #     path_mdb = os.path.join(path_base,'CCIv6')
+    #     name_mdb = f'MDB___1KM_CCI_L2_AERONET_{site}.nc'
+    #     fmdb = os.path.join(path_mdb,name_mdb)
+    #     if os.path.exists(fmdb):
+    #         make_validation_single_MDB(path_mdb, name_mdb)
+
+    # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
+    # make_validation_list_MDB('CCIv6', '')
+    # make_validation_from_dfvalid('CCIv6', '')
+
+    acnames = ['STANDARD','POLYMER','CCIv6']
+
+    # # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
+    # bands = [412, 443, 490, 510, 560, 665]
+    # for band in bands:
+    #     make_together_atm(band,acnames,'AB','ACCombinations_StandardAB_PolymerAB_CCIv6')
+
+    # # PARAMETERS BY BAND
+    # bands = [412, 443, 490, 510, 560, 665]
+    # make_together_atm_params(bands,acnames,'AB','Params_StandardAB_PolymerAB_CCIv6')
+
+    # AVERAGE SPECTRA
+    # for ac in acnames:
+    #     print(ac)
+    #     make_average_spectra(ac, 'AB', 'SPECTRA')
+
+    #STATS TABLE
+    bands = [412, 443, 490, 510, 560, 665]
+    acs = ['STANDARD', 'POLYMER','CCIv6']
+    params = {
+        'N': 0,
+        'SLOPE': 11,
+        'OFFSET': 12,
+        'XAVG': 13,
+        'YAVG': 14,
+        'DETER(r2)': 10,
+        'RMSE': 6,
+        'CPRMSE': 15,
+        'BIAS': 9,
+        'PCC(r)': 3,
+        'RPD': 7,
+        'APD': 8,
+        'MAE': 16
+    }
+    get_table_stats(-1, 'AB', acs, params)
+    for wl in bands:
+        get_table_stats(wl, 'AB', acs, params)
+    get_table_stats_complete(bands, acs, 'AB', params)
+
+
+
+def do_final_results_l3():
+    print('L3 Results')
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    sites = ['Gustav_Dalen_Tower', 'Helsinki_Lighthouse', 'Irbe_Lighthouse']
+    #acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
+    acnames = ['STANDARD','POLYMER']
+    platform = 'AB'
+    # SINGLE VALIDATIONS FOR  AC/SITE
+    # for ac in acnames:
+    #     for site in sites:
+    #         path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac,3)
+    #         print(f'MDB: {fmdb}')
+    #         if os.path.exists(fmdb):
+    #             make_validation_single_MDB(path_mdb, name_mdb)
+
+    # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
+    # for ac in acnames:
+    #     #make_validation_list_MDB(ac, 'AB')
+    #     make_validation_from_dfvalid(ac, 'AB')
+
+    # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
+    # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
+    # for band in bands:
+    #     make_together_atm(band,acnames,'AB','ACCombinations_S3AB')
+
+    # PARAMETERS BY BAND
+    # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
+    # make_together_atm_params(bands,acnames,'AB','ParamsS3AB')
+
+    # AVERAGE SPECTRA
+    # for ac in acnames:
+    #     print(ac)
+    #     make_average_spectra(ac, 'AB', 'SPECTRA')
+
+    # STATS TABLE
+    # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
+    # acs = ['STANDARD', 'POLYMER']
+    # params = {
+    #     'N': 0,
+    #     'SLOPE': 11,
+    #     'OFFSET': 12,
+    #     'XAVG': 13,
+    #     'YAVG': 14,
+    #     'DETER(r2)': 10,
+    #     'RMSE': 6,
+    #     'CPRMSE': 15,
+    #     'BIAS': 9,
+    #     'PCC(r)': 3,
+    #     'RPD': 7,
+    #     'APD': 8,
+    #     'MAE': 16
+    # }
+    # get_table_stats(-1, 'AB', acs, params)
+    # for wl in bands:
+    #     get_table_stats(wl, 'AB', acs, params)
+    # get_table_stats_complete(bands, acs, 'AB', params)
+
+
+
+def do_final_results():
+    print('FINAL RESULTS')
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    platforms = ['A', 'B']
+    sites = ['Gustav_Dalen_Tower', 'Helsinki_Lighthouse', 'Irbe_Lighthouse']
+    acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
+    acnames = ['STANDARD', 'POLYMER']
+    # SINGLE VALIDATIONS FOR PLATFORM/AC/SITE
+    # for ac in acnames:
+    #     for platform in platforms:
+    #         for site in sites:
+    #             path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 2)
+    #             print(f'MDB: {fmdb}')
+    #             if os.path.exists(fmdb):
+    #                 make_validation_single_MDB(path_mdb, name_mdb)
+
+    # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
+    # for ac in acnames:
+    #     for platform in platforms:
+    #         #make_validation_list_MDB(ac, platform)
+    #         make_validation_from_dfvalid(ac, platform)
+
+    # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
+    # bands = [412, 443, 490, 510, 560, 620, 667]
+    # for band in bands:
+    #     make_together_atm(band,acnames,'A','ACCombinations_S3A')
+    #     make_together_atm(band,acnames,'B', 'ACCombinations_S3B')
+    # acnamesnofub = ['STANDARD', 'POLYMER', 'C2RCC']
+    # bandsnofub = [400,779]
+    # for band in bandsnofub:
+    #     make_together_atm(band,acnamesnofub,'A','ACCombinations_S3A')
+    #     make_together_atm(band,acnamesnofub,'B', 'ACCombinations_S3B')
+
+    # PARAMETERS BY BAND
+    # bands = [412, 443, 490, 510, 560, 620, 667]
+    # make_together_atm_params(bands,acnames,'A','ParamsS3A')
+    # make_together_atm_params(bands, acnames,'B','ParamsS3B')
+
+    # AVERAGE SPECTRA
+    # acnames = ['POLYMER', 'STANDARD', 'FUB', 'C2RCC']
+    # for ac in acnames:
+    #     for platform in platforms:
+    #         print(ac)
+    #         make_average_spectra(ac, platform, 'SPECTRA')
+
+    # AB COMPARISON
+    # for ac in acnames:
+    #     make_togheter_ab(ac)
+
+    # STATS TABLE
+    bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
+    acs = ['STANDARD', 'POLYMER']
+    params = {
+        'N': 0,
+        'SLOPE': 11,
+        'OFFSET': 12,
+        'XAVG': 13,
+        'YAVG': 14,
+        'DETER(r2)': 10,
+        'RMSE': 6,
+        'CPRMSE': 15,
+        'BIAS': 9,
+        'PCC(r)': 3,
+        'RPD': 7,
+        'APD': 8,
+        'MAE': 16
+    }
+    get_table_stats(-1, 'A', acs, params)
+    get_table_stats(-1, 'B', acs, params)
+    for wl in bands:
+        get_table_stats(wl, 'A', acs, params)
+        get_table_stats(wl, 'B', acs, params)
+    get_table_stats_complete(bands, acs, 'A', params)
+    get_table_stats_complete(bands, acs, 'B', params)
+
+
+def get_file_mdb(path_base, platform, site, acname,level):
+    path_mdb = os.path.join(path_base, acname)
+    res = 'EFR'
+    if acname == 'STANDARD':
+        res = 'WFR'
+    name_mdb = f'MDB_S3{platform}_OLCI_{res}_{acname}_L{level}_AERONET_{site}.nc'
+    fmdb = os.path.join(path_mdb, name_mdb)
+    return path_mdb, name_mdb, fmdb
+
+
+def check_dates_MDB():
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    platforms = ['A', 'B']
+    sites = ['Gustav_Dalen_Tower', 'Helsinki_Lighthouse', 'Irbe_Lighthouse']
+    acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
+    date_ini = dt(2016, 4, 29)
+    date_fin = dt(2022, 5, 31)
+    delta = date_fin - date_ini
+    ndays = delta.days + 1
+
+    # for platform in platforms:
+    #     for site in sites:
+    #
+    #         fout = os.path.join(path_base, 'INFO_DATES', f'Dates_S3{platform}_{site}.csv')
+    #
+    #         # acnames = ['STANDARD', 'POLYMER', 'C2RCC']
+    #         df = pd.DataFrame(index=list(range(ndays)),
+    #                           columns=['Date', 'STANDARD', 'POLYMER', 'C2RCC', 'FUB', 'Total'])
+    #         for idx in range(ndays):
+    #             df.loc[idx, 'Date'] = (date_ini + timedelta(days=idx)).strftime('%Y-%m-%d')
+    #             for ac in acnames:
+    #                 df.loc[idx, ac] = 0
+    #             df.loc[idx, 'Total'] = 0
+    #
+    #         for ac in acnames:
+    #             res = 'EFR'
+    #             if ac == 'STANDARD':
+    #                 res = 'WFR'
+    #             path_mdb = os.path.join(path_base, ac)
+    #             name_mdb = f'MDB_S3{platform}_OLCI_{res}_{ac}_L2_AERONET_{site}.nc'
+    #             fmdb = os.path.join(path_mdb, name_mdb)
+    #             print(fmdb, os.path.exists(fmdb))
+    #             mdbfile = MDBFile(fmdb)
+    #             for time in mdbfile.sat_times:
+    #                 date_here = time
+    #                 idx = (date_here - date_ini).days
+    #                 df.loc[idx, ac] = df.loc[idx, ac] + 1
+    #
+    #         for idx in range(ndays):
+    #             for ac in acnames:
+    #                 df.loc[idx, 'Total'] = df.loc[idx, 'Total'] + df.loc[idx, ac]
+    #
+    #         df.to_csv(fout, sep=';')
+
+    for site in sites:
+        fcsv_a = os.path.join(path_base, 'INFO_DATES', f'Dates_S3A_{site}.csv')
+        fcsv_b = os.path.join(path_base, 'INFO_DATES', f'Dates_S3B_{site}.csv')
+        df_a = pd.read_csv(fcsv_a, sep=';')
+        df_b = pd.read_csv(fcsv_b, sep=';')
+        df = pd.DataFrame(index=list(range(ndays)), columns=['Date', 'S3A', 'S3B', 'Total'])
+        for idx in range(ndays):
+            df.loc[idx, 'Date'] = (date_ini + timedelta(days=idx)).strftime('%Y-%m-%d')
+            df.loc[idx, 'S3A'] = 0
+            df.loc[idx, 'S3B'] = 0
+            if df_a.loc[idx, 'Total'] == 4:
+                df.loc[idx, 'S3A'] = 1
+            if df_b.loc[idx, 'Total'] == 4:
+                df.loc[idx, 'S3B'] = 1
+            df.loc[idx, 'Total'] = df.loc[idx, 'S3A'] + df.loc[idx, 'S3B']
+        fout = os.path.join(path_base, 'INFO_DATES', f'Dates_S3_{site}.csv')
+        df.to_csv(fout, sep=';')
+
+    for platform in platforms:
+        fcsv_gdt = os.path.join(path_base, 'INFO_DATES', f'Dates_S3{platform}_Gustav_Dalen_Tower.csv')
+        fcsv_hlh = os.path.join(path_base, 'INFO_DATES', f'Dates_S3{platform}_Helsinki_Lighthouse.csv')
+        fcsv_ilh = os.path.join(path_base, 'INFO_DATES', f'Dates_S3{platform}_Irbe_Lighthouse.csv')
+        df_gdt = pd.read_csv(fcsv_gdt, sep=';')
+        df_hlh = pd.read_csv(fcsv_hlh, sep=';')
+        df_ilh = pd.read_csv(fcsv_ilh, sep=';')
+        df = pd.DataFrame(index=list(range(ndays)),
+                          columns=['Date', 'Gustav_Dalen_Tower', 'Helsinki_Lighthouse', 'Irbe_Lighthouse'])
+        for idx in range(ndays):
+            df.loc[idx, 'Date'] = (date_ini + timedelta(days=idx)).strftime('%Y-%m-%d')
+            df.loc[idx, 'Gustav_Dalen_Tower'] = 0
+            df.loc[idx, 'Helsinki_Lighthouse'] = 0
+            df.loc[idx, 'Irbe_Lighthouse'] = 0
+            if df_gdt.loc[idx, 'Total'] == 4:
+                df.loc[idx, 'Gustav_Dalen_Tower'] = 1
+            if df_hlh.loc[idx, 'Total'] == 4:
+                df.loc[idx, 'Helsinki_Lighthouse'] = 1
+            if df_ilh.loc[idx, 'Total'] == 4:
+                df.loc[idx, 'Irbe_Lighthouse'] = 1
+            df.loc[idx, 'Total'] = df.loc[idx, 'Gustav_Dalen_Tower'] + df.loc[idx, 'Helsinki_Lighthouse'] + df.loc[
+                idx, 'Irbe_Lighthouse']
+        fout = os.path.join(path_base, 'INFO_DATES', f'Dates_S3{platform}.csv')
+        df.to_csv(fout, sep=';')
+
+
+
+def do_check_mdb_times():
+    # path_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDB'
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    # platforms = ['A', 'B']
+
+    # acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
+    acnames = ['POLYMER']
+    platforms = ['A', 'B']
+    sites = ['Irbe_Lighthouse']
+    hours_array = []
+    for platform in platforms:
+        for site in sites:
+            for ac in acnames:
+                res = 'EFR'
+                if ac == 'STANDARD':
+                    res = 'WFR'
+                path_mdb = os.path.join(path_base, ac)
+                name_mdb = f'MDB_S3{platform}_OLCI_{res}_{ac}_L2_AERONET_{site}.nc'
+                fmdb = os.path.join(path_mdb, name_mdb)
+                print(fmdb, os.path.exists(fmdb))
+                mdbfile = MDBFile(fmdb)
+                for time in mdbfile.sat_times:
+                    date_ref = time.replace(hour=0, minute=0, second=0, microsecond=0)
+                    hours = (time - date_ref).total_seconds() / 3600
+                    print(hours)
+                    hours_array.append(hours)
+    mean_hour = np.mean(np.asarray(hours_array, dtype=float))
+    print('--------')
+    date_mean_site = dt.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=mean_hour)
+    print(date_mean_site)
+
+def do_check_mdb_times_impl(fmdb):
+    hours_array = []
+    mdbfile = MDBInSituFile(fmdb)
+    for time in mdbfile.sat_times:
+        date_ref = time.replace(hour=0, minute=0, second=0, microsecond=0)
+        hours = (time - date_ref).total_seconds() / 3600
+        print(hours)
+        hours_array.append(hours)
+    mean_hour = np.mean(np.asarray(hours_array, dtype=float))
+    print('--------')
+    date_mean_site = dt.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=mean_hour)
+    print(date_mean_site)
 def do_check_extract_times():
-    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Helsinki_Lighthouse/polymer/extracts'
+    path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/polymer/extractsAB'
     # path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4'
     from netCDF4 import Dataset
     from datetime import timedelta
@@ -162,11 +513,12 @@ def do_check_extract_times():
         fname = os.path.join(path_extracts, name)
         nc = Dataset(fname)
         dthere = dt.utcfromtimestamp(float(nc.variables['satellite_time'][0]))
-        dthereotro = dt(1970,1,1)+timedelta(seconds=float(nc.variables['satellite_time'][0]))
+        dthereotro = dt(1970, 1, 1) + timedelta(seconds=float(nc.variables['satellite_time'][0]))
         dtherebis = get_sat_time_from_fname(name)
-        #dtherebis = get_sat_time_fromcci_fname(name)
-        dif = (dthere - dtherebis).total_seconds()
-        if dif>1:
+        # dtherebis = get_sat_time_fromcci_fname(name)
+        dif = abs((dthere - dtherebis).total_seconds())
+        print(dthere, dtherebis, dif)
+        if dif > 1:
             print('ERROR', dthere, dthereotro, dtherebis)
         # if dthere.year == 2016:
         #     print(dthere, dtherebis, dif)
@@ -232,7 +584,8 @@ def do_chla():
     path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # file_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
     # name_mdb = 'MDB___CCIv5_INSITU_19970101_20191231.nc'
-    name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
+    #name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
+    name_mdb = 'MDB_S3AB_OLCI_POLYMER_INSITU_20160401_20220531.nc'
     file_mdb = os.path.join(path_base, name_mdb)
     baltic_mlp_code = '/home/lois/PycharmProjects/aeronet'
     mfile = MDBInSituFile(file_mdb)
@@ -241,17 +594,20 @@ def do_chla():
     mfile.start_baltic_chla(baltic_mlp_code, 'insitu_CHLA')
     mfile.qc_sat.max_diff_wl = 6
     mfile.qc_sat.window_size = 3
-    mfile.qc_sat.min_valid_pixels = 6
-    mfile.qc_sat.apply_outliers = False
-    mfile.qc_sat.stat_value = 'median'
+    mfile.qc_sat.min_valid_pixels = 9
+    mfile.qc_sat.apply_outliers = True
+    mfile.qc_sat.stat_value = 'avg'
 
     mfile.set_wlsatlist_aswlref([412, 443, 490, 510, 555, 670])
 
     # for imu in range(mfile.n_mu_total):
     #     mfile.compute_baltic_chla_ensemble_mu(imu)
     mfile.prepare_df_validation()
-    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/ChlaBalPolymerMatchUps_Central.csv'
+    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/ChlaBalPolymerL3MatchUps_Central.csv'
     mfile.df_validation_valid.to_csv(file_out, sep=';')
+
+def do_chla_validation(fcsv):
+    df = pd.read_csv(fcsv,';')
 
 
 def do_chla_sat():
@@ -476,62 +832,129 @@ def plot_sam():
     plt.close(h)
 
 
-def get_table_stats(wlref):
-    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs/SYKE'
+def get_table_stats(wlref, platform, acs, params):
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
     path_out = os.path.join(path_base, 'TABLE_PARAM')
     if not os.path.exists(path_out):
         os.mkdir(path_out)
-    acs = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
+
     # acs = ['POLYMER', 'CCI']
-    params = ['N', 'r2', 'RMSD', 'APD', 'RPD', 'bias']
-    table = pd.DataFrame(columns=acs, index=params)
+    # params = ['N', 'r2', 'RMSD', 'APD', 'RPD', 'bias']
+    table = pd.DataFrame(columns=acs, index=params.keys())
     for ac in acs:
-        postname = '_S3A'
-        if ac == 'CCI':
+        postname = f'_S3{platform}'
+        if ac == 'CCIv6':
             postname = ''
         path_ac = os.path.join(path_base, ac, f'MDB_{ac}{postname}', 'Params.csv')
         table_ac = pd.read_csv(path_ac, sep=';')
         index = -1
         if wlref == -1:
             index = 2
-            name_out = 'ParamAll_SYKE.csv'
+            name_out = f'ParamAll_S3{platform}.csv'
         else:
 
             wllist = list(table_ac.columns[3:].astype(dtype=np.float64))
             index_wl, wl_aca = get_index_wl_list(wlref, wllist)
             if index_wl >= 0:
                 index = index_wl + 3
-                name_out = f'Param{wlref}.csv'
+                name_out = f'Param{wlref}_{platform}.csv'
         if index >= 0:
-            table.loc['N', ac] = table_ac.loc[0].iat[index]
-            table.loc['r2', ac] = table_ac.loc[11].iat[index]
-            table.loc['RMSD', ac] = table_ac.loc[6].iat[index]
-            table.loc['APD', ac] = table_ac.loc[8].iat[index]
-            table.loc['RPD', ac] = table_ac.loc[7].iat[index]
-            table.loc['bias', ac] = table_ac.loc[9].iat[index]
+            for param in params.keys():
+                irow_ac = params[param]
+                table.loc[param, ac] = table_ac.loc[irow_ac].iat[index]
 
             file_out = os.path.join(path_out, name_out)
             table.to_csv(file_out, sep=';')
 
 
-def make_validation_list_MDB():
+def get_table_stats_complete(bands, acs, platform, params):
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    path_out = os.path.join(path_base, 'TABLE_PARAM')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+
+    nrows = len(params) * len(acs)
+    col_names = ['Param', 'AC', 'All']
+    for wl in bands:
+        col_names.append(str(wl))
+    table = pd.DataFrame(columns=col_names, index=range(nrows))
+
+    idx = 0
+    idxs = {}
+    for param in params.keys():
+        for ac in acs:
+            table.loc[idx, 'Param'] = param
+            table.loc[idx, 'AC'] = ac
+            if param not in idxs.keys():
+                idxs[param] = {
+                    ac: idx
+                }
+            else:
+                idxs[param][ac] = idx
+            idx = idx + 1
+
+    for ac in acs:
+        postname = f'_S3{platform}'
+        if ac == 'CCIv6':
+            postname = ''
+        path_ac = os.path.join(path_base, ac, f'MDB_{ac}{postname}', 'Params.csv')
+        table_ac = pd.read_csv(path_ac, sep=';')
+        for param in params.keys():
+            idx = idxs[param][ac]
+            irow_ac = params[param]
+            icol_ac = 2
+            table.loc[idx, 'All'] = table_ac.loc[irow_ac].iat[icol_ac]
+            wllist = list(table_ac.columns[3:].astype(dtype=np.float64))
+            for wl in bands:
+                wls = str(wl)
+                icol_ac = -1
+                index_wl, wl_aca = get_index_wl_list(wl, wllist)
+                if index_wl >= 0:
+                    icol_ac = index_wl + 3
+                if icol_ac >= 0:
+                    table.loc[idx, wls] = table_ac.loc[irow_ac].iat[icol_ac]
+
+    file_out = os.path.join(path_out, f'TableAllParams_S3{platform}.csv')
+    table.to_csv(file_out, sep=';')
+
+
+def make_validation_list_MDB(acname, platform):
+    path_ini = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
     mdblist = MDBFileList()
-    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs/C2RCC'
-    wcard = 'S3A'
+    path_base = os.path.join(path_ini, acname)
+    if not os.path.exists(path_base):
+        return
+    wcard = f'S3{platform}'
+    if acname == 'CCIv6':
+        wcard = 'CCI'
+
+    nfiles = 0
     for f in os.listdir(path_base):
         if (wcard is not None and f.find(wcard) > 0) and f.endswith('.nc'):
             path_mdb = os.path.join(path_base, f)
             mdblist.add_mdb_file(path_mdb)
+            nfiles = nfiles +1
+    if nfiles==0:
+        print(f'No files found for: {acname} {platform}')
+        return
 
-    path_out = os.path.join(path_base, 'MDB_C2RCC_S3A')
+    if acname == 'CCIv6':
+        path_out = os.path.join(path_base, f'MDB_{acname}')
+    else:
+        path_out = os.path.join(path_base, f'MDB_{acname}_S3{platform}')
     if not os.path.exists(path_out):
         os.mkdir(path_out)
 
-    wllist = [400, 412, 443, 490, 510, 560, 620, 665, 779]  # -> POLYMER, STANDARD, FUB (NO INCLUIRIA 412)
-    mdblist.set_wlsatlist_from_wlreflist_asref(wllist)
-    print(mdblist.wlref)
+    wllist = [400, 412, 443, 490, 510, 560, 620, 665, 779]  # -> POLYMER, STANDARD, C2RCC
+    if acname == 'FUB':
+        wllist = [412, 443, 490, 510, 560, 620, 665]
+    if acname == 'CCIv6':
+        wllist = [412, 443, 490, 510, 560, 665]
 
-    mdblist.qc_base.set_sat_eumetsat_defaults(3)
+    mdblist.set_wl_ref(wllist)
+    ##qc_base not implemented. See prepared_df_for_validation in MDBFileList to check QC
+    # mdblist.qc_base.set_sat_eumetsat_defaults(3)
+
     mdblist.prepare_df_for_validation()
     mdblist.save_df_validation_to_file(path_out)
 
@@ -552,16 +975,37 @@ def make_validation_single_MDB(path_base, name_mdb):
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/CCI/MDBs'
     # name_mdb = 'MDB___1KM_CCI_L2_AERONET_Gustav_Dalen_Tower.nc'
     # name_mdb = 'MDB___1KM_CCI_L2_AERONET_Helsinki_Lighthouse.nc'
+
     path_mdb = os.path.join(path_base, name_mdb)
     reader = MDB_READER(path_mdb, True)
-    reader.mfile.set_wlsatrange_aswlref(400, 800)
+    ##AERONET WAVELENGHTS
+    wllist = [400, 412, 443, 490, 510, 560, 620, 665, 779]
+    if name_mdb.find('FUB') > 0:
+        wllist = [412, 443, 490, 510, 560, 620, 665]
+    if name_mdb.find('CCI') > 0:
+        wllist = [412, 443, 490, 510, 560, 665]
+        reader.mfile.set_hour_sat_time(11, 0)
+
+    reader.mfile.set_wl_ref(wllist)
     reader.mfile.qc_insitu.set_wllist_using_wlref(reader.mfile.wlref)
-    reader.mfile.qc_insitu.check_indices_by_mu = False
+
+    # IN SITU QUALITY CONTROL
+    reader.mfile.qc_insitu.check_indices_by_mu = True
     reader.mfile.qc_insitu.set_thershold(0, None, 0, 600)
-    reader.mfile.qc_insitu.set_thershold(None, 0.006, 615, 625)
+    reader.mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
     reader.mfile.qc_insitu.set_thershold(None, 0.01, 410, 415)
-    # reader.mfile.qc_insitu.apply_band_shift = True
+    if name_mdb.find('CCI') > 0:
+        reader.mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##CCI
+        reader.mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##CCI
+    reader.mfile.qc_insitu.apply_band_shift = True
+
+    # SATELLITE QUALITY CONTROL
     reader.mfile.qc_sat.set_eumetsat_defaults(3)
+    if 'satellite_pixel_classif_flags' in reader.mfile.nc.variables:
+        idepix_flag = reader.mfile.nc.variables['satellite_pixel_classif_flags']
+        reader.mfile.qc_sat.set_idepix_as_flag(idepix_flag)
+    reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.003, 'greater')
+
     reader.mfile.prepare_df_validation()
     mplot = MDBPlot(reader.mfile, None)
     path_out = os.path.join(path_base, f'{name_mdb[:-3]}')
@@ -572,15 +1016,28 @@ def make_validation_single_MDB(path_base, name_mdb):
 
 def make_validation_from_dfvalid(ac, platform):
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/CCI/MDBs/CCI_BalTower_Results_5'
-    path_base_b = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs/SYKE/'
-    name = f'MDB_{ac}_S3{platform}'
+    path_orig = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    path_base_b = os.path.join(path_orig, ac)
+    if ac == 'CCIv6':
+        name = f'MDB_{ac}'
+    else:
+        name = f'MDB_{ac}_S3{platform}'
     path_base = os.path.join(path_base_b, name)
     file_path = os.path.join(path_base, 'DataValid.csv')
+    if not os.path.exists(file_path):
+        print(f'File: {file_path} does not exist')
+        return
     dfval = pd.read_csv(file_path, sep=';')
     wldata = dfval[dfval['Valid']]['Wavelenght']
     wllist = list(wldata.unique())
     mplot = MDBPlot(None, dfval)
-    mplot.make_validation_dfval(path_base, ac, ac, wllist)
+    if ac == 'CCIv6':
+        title = ac
+        filenamebase = ac
+    else:
+        title = f'S3{platform} {ac}'
+        filenamebase = f'S3{platform}_{ac}'
+    mplot.make_validation_dfval(path_base, title, filenamebase, wllist)
 
 
 def make_variations_qc_single_MDB():
@@ -699,17 +1156,21 @@ def make_togheter_ab(ac):
     plt.close(h)
 
 
-def make_together_atm(wlref, acnames, name_out):
-    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs/SYKE'
+def make_together_atm(wlref, acnames, platform, name_out):
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
     path_out = os.path.join(path_base, name_out)
     if not os.path.exists(path_out):
         os.mkdir(path_out)
 
     df_wl = None
+    name_acs = None
+
     for ac in acnames:
-        postname = '_S3A'
-        if ac == 'CCI':
+        postname = f'_S3{platform}'
+        if ac == 'CCIv6':
             postname = ''
+
+
 
         file_ac = os.path.join(path_base, ac, 'MDB_' + ac + postname, 'DataValid.csv')
         print(file_ac)
@@ -744,51 +1205,69 @@ def make_together_atm(wlref, acnames, name_out):
     plt.close(h)
 
 
-def make_together_atm_params(wlreflist, acnames, name_out):
-    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs/SYKE'
+def make_together_atm_params(wlreflist, acnames, platform, name_out):
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
     path_out = os.path.join(path_base, name_out)
     if not os.path.exists(path_out):
         os.mkdir(path_out)
-    params = ['N', 'slope', 'intercept', 'rmse_val', 'mean_rel_diff', 'mean_abs_rel_diff', 'r2', 'bias']
-    params_file = ['N', 'slope', 'intercept', 'RMSD', 'RPD', 'APD', 'r2', 'bias']
+    params = ['N', 'slope_typeII', 'offset_typeII', 'rmse_val', 'mean_rel_diff', 'mean_abs_rel_diff', 'r2', 'bias',
+              'r_value', 'XAVG', 'YAVG', 'CPRMSE', 'MAE']
+    params_file = ['N', 'SLOPE', 'OFFSET', 'RMSE', 'RPD', 'APD', 'r2', 'BIAS', 'r', 'XAVG', 'YAVG', 'CPRMSE', 'MAE']
+
+    includeCCI = False
+
     for idx in range(len(params)):
         param = params[idx]
         param_file = params_file[idx]
         df_param = pd.DataFrame(index=acnames, columns=wlreflist)
+        name_acs = None
         for ac in acnames:
-            postname = '_S3A'
-            if ac == 'CCI':
+            postname = f'_S3{platform}'
+            if ac == 'CCIv6':
                 postname = ''
+                includeCCI = True
+            if name_acs is None:
+                name_acs = ac
+            else:
+                name_acs = f'{name_acs}_{ac}'
             file_ac = os.path.join(path_base, ac, 'MDB_' + ac + postname, 'Params.csv')
             df_param_here = pd.read_csv(file_ac, sep=';')
             df_param_here = df_param_here[df_param_here['Param'] == param]
             wlparam = list(df_param_here.columns[3:].astype(dtype=np.float64))
             indices = get_indices_wl_list(wlreflist, wlparam)
-            print(ac, indices)
             for index_wl in range(len(indices)):
                 if indices[index_wl] >= 0:
                     index_df = indices[index_wl] + 3
                     # print(df_param_here.iat[0,index_df])
                     df_param.loc[ac].iat[index_wl] = df_param_here.iat[0, index_df]
-        df_param.to_csv(os.path.join(path_out, param_file + '.csv'), sep=';')
+        namefile = f'S3{platform}_{param_file}'
+        if includeCCI:
+            namefile = f'{name_acs}_{param_file}'
+        df_param.to_csv(os.path.join(path_out, f'{namefile}.csv'), sep=';')
         df_param_new = get_df_from_pivot_df(df_param, 'ac', 'wavelength', param)
+
+        df_param_new.rename(columns={param: param_file}, inplace=True)
+        df_param_new.rename(columns={'wavelength': 'Wavelength (nm)'}, inplace=True)
+
         h = plt.figure()
         sns.set_theme()
         dashes = [''] * len(acnames)
         markers = ['o'] * len(acnames)
-        sns.relplot(kind='line', data=df_param_new, x="wavelength", y=param, hue="ac", markers=markers, dashes=dashes,
+        sns.relplot(kind='line', data=df_param_new, x="Wavelength (nm)", y=param_file, hue="ac", markers=markers,
+                    dashes=dashes,
                     style="ac")
-        plt.savefig(os.path.join(path_out, param_file + '.jpg'), dpi=300)
+        # plt.xlabel = 'Wavelength (nm)'
+        plt.savefig(os.path.join(path_out, f'{namefile}.jpg'), dpi=300)
         plt.close(h)
 
 
-def make_average_spectra(ac, platform):
+def make_average_spectra(ac, platform, name_out):
     path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
-    path_out = os.path.join(path_base, 'SPECTRA')
+    path_out = os.path.join(path_base, name_out)
     if not os.path.exists(path_out):
         os.mkdir(path_out)
     postname = f'_S3{platform}'
-    if ac == 'CCI':
+    if ac == 'CCIv6':
         postname = ''
     path_valid = os.path.join(path_base, ac, 'MDB_' + ac + postname, 'DataValid.csv')
     df_valid = pd.read_csv(path_valid, sep=';')

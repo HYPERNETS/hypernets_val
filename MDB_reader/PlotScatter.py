@@ -34,6 +34,8 @@ class PlotScatter():
             'fontsize':12
         }
 
+
+
     def start_plot(self):
         plt.figure()
 
@@ -53,6 +55,7 @@ class PlotScatter():
         if linewidth is not None:
             style['linewidths'] = linewidth
 
+
         plt.scatter(xdata, ydata,
                     marker = style['marker'],
                     s = style['s'],
@@ -64,7 +67,11 @@ class PlotScatter():
         data_plot = pd.concat([xdata, ydata], axis=1).astype(dtype=np.float)
         sns.lmplot(data = data_plot,x='Ins_Rrs',y='Sat_Rrs',line_kws={'color': color})
 
+    def colorbar(self):
+        plt.colorbar()
 
+    def set_cmap(self,cmap):
+        plt.set_cmap(cmap)
 
     def set_equal_apect(self):
         plt.gca().set_aspect('equal', adjustable='box')

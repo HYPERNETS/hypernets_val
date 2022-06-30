@@ -737,7 +737,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             # time
             if args.verbose:
                 print('Adding time and PDU...')
-            satellite_time = new_EXTRACT.createVariable('satellite_time', 'f4', ('satellite_id'), fill_value=-999,
+            satellite_time = new_EXTRACT.createVariable('satellite_time', 'f8', ('satellite_id'), fill_value=-999,
                                                         zlib=True, complevel=6)
             satellite_time[0] = float(datetime.strptime(satellite_start_time, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
             satellite_time.units = "Seconds since 1970-1-1"

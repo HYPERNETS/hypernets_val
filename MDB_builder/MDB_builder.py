@@ -330,11 +330,14 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
         #print(extract_path, sat_time, '=================================================================')
         lat_array = ma.array(dinput.variables['satellite_latitude'][:])
         lon_array = ma.array(dinput.variables['satellite_longitude'][:])
+
         ncsecondary = mdb_secondary.get_extradaset(dinput.satellite, dinput.platform, sat_time, lat_array, lon_array)
+
         dinput.close()
         if ncsecondary is None:
             print(f'[WARNING] No extra data found for date: {satellite_date}')
             return False
+
 
     # to append to nc file
     new_MDB = copy_nc(extract_path, ofile)
@@ -403,7 +406,7 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
     if insitu_idx == 0:
         if os.path.exists(ofile):
             os.remove(ofile)
-            if args.debug:
+            if args.verbose:
                 print('Not in situ measurements within the time window. MDB file deleted!')
         return False
     else:
@@ -538,7 +541,7 @@ def make_simple_builder(options, path_extract, path_out):
 
 
 def check():
-    base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/WFR/extracts'
+    base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Irbe_Lighthouse/WFR/extracts'
     for name in os.listdir(base):
         if not name.endswith('nc'):
             continue
@@ -554,9 +557,9 @@ def check():
 def main():
     print('Creating MDB files!')
     ##CALLING ONLY FOR PRE-TESTING###
-    b = check()
-    if b:
-        return
+    # b = check()
+    # if b:
+    #     return
     #################################
     if args.debug:
         print('Entering Debugging Mode:')
@@ -714,7 +717,7 @@ def main():
         print(f'End date: {datetime_end}')
 
     # defining secondary extracts (if available)
-    mbd_secondary = None
+    mdb_secondary = None
     if args.config_file:
         if options.has_option('file_path', 'sat_extract_secondary') and options.has_option('file_path',
                                                                                            'sat_extract_secondary_variables'):
@@ -765,8 +768,7 @@ def main():
                         path_to_list_daily = None
                         filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{ins_sensor}_{station_name}.nc'
                         ofile = os.path.join(path_out, filename)
-                        if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window,
-                                              mdb_secondary):
+                        if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window,mdb_secondary):
                             print(f'[INFO] File created: {ofile}')
                             file_list.append(ofile)  # for ncrcat later
                     else:
@@ -786,7 +788,7 @@ def main():
 
                 # except:
                 except Exception as e:
-                    if args.debug:
+                    if args.verbose:
                         print(f'Exception: {e}')
                     pass
 

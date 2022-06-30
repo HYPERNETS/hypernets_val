@@ -7,7 +7,7 @@ import numpy.ma as ma
 class MDBExtra():
     def __init__(self, path, verbose):
         self.info_path = self.extract_info_path(path, verbose)
-        self.time_max = 60
+        self.time_max = 120
         self.variables = None
 
     def extract_info_path(self, path, verbose):
@@ -65,19 +65,23 @@ class MDBExtra():
                 if valid:
                     ncdataset = Dataset(self.info_path[key][date_str]['Path'])
                     if lat_array is not None and lon_array is not None:
+
                         lat_array_here = ma.array(ncdataset.variables['satellite_latitude'][:])
                         lon_array_here = ma.array(ncdataset.variables['satellite_longitude'][:])
+
                         max_dif_lat = ma.max(ma.abs(lat_array_here - lat_array))
                         max_dif_lon = ma.max(ma.abs(lon_array_here - lon_array))
-                        if max_dif_lat > 0.000001 or max_dif_lon > 0.000001:
-                            ncdataset = None
-                            print(f'[WARNING] Lat and long arrays of main and secondary extract do not coincide.')
+                        print(f'[INFO] Max dif lat: {max_dif_lat} Max dif lon: {max_dif_lon}')
+
+                        #print(max_dif_lat,'<------->',max_dif_lon)
+
+                        # if max_dif_lat > 0.000001 or max_dif_lon > 0.000001:
+                        # #if max_dif_lat > 0.01 or max_dif_lon > 0.01:
+                        #     ncdataset = None
+                        #     print(f'[WARNING] Lat and long arrays of main and secondary extract do not coincide. Max dif lat: {max_dif_lat} Max dif lon: {max_dif_lon}')
                 else:
                     print(
                         f'[WARNING] Extra sat extract are not available withing the corresponding time window for: {key} {sat_time}')
-
-
-
             else:
                 print(f'[WARNING] Extra sat extracts are not available for date:  {key} {sat_time}')
         return ncdataset
