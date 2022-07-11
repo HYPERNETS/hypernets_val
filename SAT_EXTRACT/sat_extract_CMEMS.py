@@ -112,12 +112,13 @@ def launch_create_extract_skie(filepath, skie_file, options):
 def launch_create_extract(filepath, options):
     ncreated = 0
 
-    # Retrieving sites
+
     path_output = get_output_path(options)
     if path_output is None:
         print(f'ERROR: {path_output} is not valid')
         return ncreated
 
+    # Retrieving sites
     site_file, site_list, region_list = get_site_options(options)
     if site_file is not None:
         sites = cfs.get_sites_from_file(site_file, site_list, region_list, path_output)
@@ -778,6 +779,25 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
 def run_cmems_option(options):
     if args.verbose:
         print('[INFO] Started CMEMS option...')
+
+    ncreated = 0
+    path_output = get_output_path(options)
+    if path_output is None:
+        print(f'ERROR: {path_output} is not valid')
+        return ncreated
+
+    # Retrieving sites
+    site_file, site_list, region_list = get_site_options(options)
+    if site_file is not None:
+        sites = cfs.get_sites_from_file(site_file, site_list, region_list, path_output)
+    else:
+        sites = cfs.get_sites_from_list(site_list, path_output)
+
+    if len(sites) == 0:
+        print('[ERROR] No sites are defined')
+        return ncreated
+
+
     path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
     sys.path.append(path_code_eistools)
     import product_info
@@ -793,16 +813,75 @@ def run_cmems_option(options):
     for line in ff:
         strdate = line.strip()
         try:
-            print(strdate)
             date = dt.strptime(strdate, '%Y-%m-%d')
-            print(date)
             reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
-            file = pinfo.get_file_path_orig(None, date)
-            print('FILE IS: ', file)
+            filenc = pinfo.get_file_path_orig(None, date)
+            path_output_site = os.path.join(path_output)
+            if not os.path.exists(path_output_site):
+                os.mkdir(path_output_site)
+            create_extract_cmems(filenc,options,sites,path_output_site)
         except:
             print('ERROR FILE')
             pass
     ff.close()
+
+def create_extract_cmems(filepath, options, sites, path_output):
+
+    nc_sat = Dataset(filepath, 'r')
+    # Retriving lat and long arrays
+    if args.verbose:
+        print('[INFO] Retrieving lat/long data...')
+    var_lat, var_lon = get_lat_long_var_names(options)
+    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
+
+    # Retrieving global atribbutes
+    if args.verbose:
+        print('[INFO] Retrieving global attributes...')
+    global_at = get_global_atrib(nc_sat, options)
+
+    ncreated = 0
+    # Working for each site, checking if there is in the image
+    for site in sites:
+        if args.verbose:
+            print(f'[INFO]Working for site: {site}')
+        insitu_lat = sites[site]['latitude']
+        insitu_lon = sites[site]['longitude']
+        contain_flag = 0
+        if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
+            if lat.ndim == 1 and lon.ndim == 1:
+                r = np.argmin(np.abs(lat - insitu_lat))
+                c = np.argmin(np.abs(lon - insitu_lon))
+            else:
+                r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+            size_box = get_box_size(options)
+            start_idx_x = (c - int(size_box / 2))  # lon
+            stop_idx_x = (c + int(size_box / 2) + 1)  # lon
+            start_idx_y = (r - int(size_box / 2))  # lat
+            stop_idx_y = (r + int(size_box / 2) + 1)  # lat
+
+            if lat.ndim == 1 and lon.ndim == 1:
+                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                        lon.shape[0]:
+                    contain_flag = 1
+            else:
+                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                        lat.shape[1]:
+                    contain_flag = 1
+        if contain_flag == 1:
+            filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
+            pdu = filepath.split('/')[-1]
+
+            ofname = os.path.join(path_output, filename)
+            global_at['station_name'] = site
+            global_at['in_situ_lat'] = insitu_lat
+            global_at['in_situ_lon'] = insitu_lon
+            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
+            if res:
+                ncreated = ncreated + 1
+                print(f'[INFO] Extract file created: {ofname}')
+        else:
+            if args.verbose:
+                print(f'[WARNING] Site {site} out of the image')
 
 
 def main():
