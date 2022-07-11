@@ -26,7 +26,6 @@ parser.add_argument('-ac', "--atm_correction", help="Atmospheric correction algo
 args = parser.parse_args()
 
 
-
 # no implemented yet
 def launch_create_extract_skie(filepath, skie_file, options):
     ncreated = 0
@@ -794,11 +793,14 @@ def run_cmems_option(options):
     for line in ff:
         strdate = line.split()
         try:
+            print(strdate)
             date = dt.strptime(strdate, '%Y-%m-%d')
+            print(date)
             reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
             file = pinfo.get_file_path_orig(None, date)
             print('FILE IS: ', file)
         except:
+            print('ERROR FILE')
             pass
     ff.close()
 
@@ -809,14 +811,7 @@ def main():
     if not args.config_file:
         return
 
-    print('estamos aquii...')
-
-
     options = config_reader(args.config_file)
-
-    print('imprimie las opciones')
-
-    print(options)
 
     # if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
     #     path_skie = options['file_path']['path_skie']
@@ -868,9 +863,9 @@ def main():
         run_insitu_option(options)
         return
 
-    if options.has_option('Time_and_sites_selection', 'time_list') and options.has_option('file_path',
-                                                                                          'cmems_product') and options.has_option(
-        'file_path', 'cmems_dataset'):
+    if options.has_option('Time_and_sites_selection', 'time_list') and \
+            options.has_option('file_path','cmems_product') and \
+            options.has_option('file_path', 'cmems_dataset'):
         run_cmems_option(options)
         return
 
