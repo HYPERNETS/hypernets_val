@@ -25,10 +25,7 @@ parser.add_argument('-ac', "--atm_correction", help="Atmospheric correction algo
 
 args = parser.parse_args()
 
-path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
-sys.path.append(path_code_eistools)
-import product_info
-import reformattoCMEMS_202207 as reformat
+
 
 # no implemented yet
 def launch_create_extract_skie(filepath, skie_file, options):
@@ -782,7 +779,11 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
 def run_cmems_option(options):
     if args.verbose:
         print('[INFO] Started CMEMS option...')
-
+    path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
+    sys.path.append(path_code_eistools)
+    import product_info
+    import reformattoCMEMS_202207_class
+    reformat = reformattoCMEMS_202207_class.ReformatCMEMS()
 
     product_name = options['file_path']['cmems_product']
     dataset_name = options['file_path']['cmems_dataset']
