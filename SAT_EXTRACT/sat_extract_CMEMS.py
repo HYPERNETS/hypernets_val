@@ -482,7 +482,9 @@ def get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib):
     nbands = 0
     imin = 100000
     imax = 0
+    print(search_pattern)
     for var in nc_sat.variables:
+        print('dflsjflks-> ',var)
         if var.startswith(search_pattern):
             ival = int(var.split('_')[1].strip())
             if ival < imin:
