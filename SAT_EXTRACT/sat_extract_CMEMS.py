@@ -776,6 +776,8 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
 
 
 def run_cmems_option(options):
+    if args.verbose:
+        print('[INFO] Started CMEMS option...')
     path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
     sys.path.append(path_code_eistools)
     import product_info
@@ -807,9 +809,12 @@ def main():
 
     print('estamos aquii...')
 
+
     options = config_reader(args.config_file)
 
     print('imprimie las opciones')
+
+    print(options)
 
     # if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
     #     path_skie = options['file_path']['path_skie']
