@@ -491,7 +491,7 @@ def get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib):
             if ival > imax:
                 imax = ival
 
-    if imax==0 and imin==10000:
+    if imax==0 and imin==100000:
         search_pattern = search_pattern[:-1]
         lw = len(search_pattern)
         for var in nc_sat.variables:
