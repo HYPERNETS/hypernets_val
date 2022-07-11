@@ -782,8 +782,8 @@ def run_cmems_option(options):
     path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
     sys.path.append(path_code_eistools)
     import product_info
-    import reformattoCMEMS_202207_class
-    reformat = reformattoCMEMS_202207_class.ReformatCMEMS()
+    import reformatCMEMS_202207_class
+    reformat = reformatCMEMS_202207_class.ReformatCMEMS()
 
     product_name = options['file_path']['cmems_product']
     dataset_name = options['file_path']['cmems_dataset']
