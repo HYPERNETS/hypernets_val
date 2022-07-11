@@ -823,15 +823,28 @@ def run_cmems_option(options):
     for line in ff:
         strdate = line.strip()
         try:
+
             date = dt.strptime(strdate, '%Y-%m-%d')
+            if args.verbose:
+                print('----------------------------------')
+                print(f'Date: {strdate}')
             reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
             filenc = pinfo.get_file_path_orig(None, date)
-            create_extract_cmems(filenc, options, sites, path_output)
+            if args.verbose:
+                print(f'[INFO] Reformatted file {filenc}')
+            nhere = create_extract_cmems(filenc, options, sites, path_output)
+            ncreated = ncreated + nhere
+            if args.verbose:
+                print(f'[INFO] Removing file {filenc}')
+            os.remove(filenc)
+
         except:
             print('ERROR FILE')
             pass
     ff.close()
-
+    if args.verbose:
+        print('*********************************************************************************')
+        print(f'[INFO] Extraction completed. Sat extracts created: {ncreated}')
 
 def create_extract_cmems(filepath, options, sites, path_output):
     nc_sat = Dataset(filepath, 'r')
@@ -850,7 +863,7 @@ def create_extract_cmems(filepath, options, sites, path_output):
     # Working for each site, checking if there is in the image
     for site in sites:
         if args.verbose:
-            print(f'[INFO]Working for site: {site}')
+            print(f'[INFO]    Working for site: {site}')
         insitu_lat = sites[site]['latitude']
         insitu_lon = sites[site]['longitude']
         contain_flag = 0
@@ -887,12 +900,12 @@ def create_extract_cmems(filepath, options, sites, path_output):
             res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
             if res:
                 ncreated = ncreated + 1
-                print(f'[INFO] Extract file created: {ofname}')
+                print(f'[INFO]    Extract file created: {ofname}')
         else:
             if args.verbose:
                 print(f'[WARNING] Site {site} out of the image')
 
-
+    return ncreated
 def main():
     print('[INFO]Creating satellite extracts')
 
