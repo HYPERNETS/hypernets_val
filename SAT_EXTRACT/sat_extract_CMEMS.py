@@ -901,6 +901,7 @@ def create_extract_cmems(filepath, options, sites, path_output):
             if res:
                 ncreated = ncreated + 1
                 print(f'[INFO]    Extract file created: {ofname}')
+            nc_sat.close()
         else:
             if args.verbose:
                 print(f'[WARNING] Site {site} out of the image')
