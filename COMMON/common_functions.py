@@ -72,6 +72,9 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'RdP-EsNM':
         Latitude = -34.818
         Longitude = -57.8959
+    elif station_name == 'Casablanca_Platform':
+        Latitude: 40.717
+        Longitude: 1.358
     else:
         Latitude = None
         Longitude = None

@@ -826,7 +826,6 @@ def run_cmems_option(options):
             date = dt.strptime(strdate, '%Y-%m-%d')
             reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
             filenc = pinfo.get_file_path_orig(None, date)
-
             create_extract_cmems(filenc, options, sites, path_output)
         except:
             print('ERROR FILE')
