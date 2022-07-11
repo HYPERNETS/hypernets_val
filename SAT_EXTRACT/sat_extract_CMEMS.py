@@ -112,7 +112,6 @@ def launch_create_extract_skie(filepath, skie_file, options):
 def launch_create_extract(filepath, options):
     ncreated = 0
 
-
     path_output = get_output_path(options)
     if path_output is None:
         print(f'ERROR: {path_output} is not valid')
@@ -491,7 +490,7 @@ def get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib):
             if ival > imax:
                 imax = ival
 
-    if imax==0 and imin==100000:
+    if imax == 0 and imin == 100000:
         search_pattern = search_pattern[:-1]
         lw = len(search_pattern)
         for var in nc_sat.variables:
@@ -501,7 +500,6 @@ def get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib):
                     imin = ival
                 if ival > imax:
                     imax = ival
-
 
     for ival in range(imin, imax + 1):
         var_name = search_pattern + str(ival)
@@ -810,7 +808,6 @@ def run_cmems_option(options):
         print('[ERROR] No sites are defined')
         return ncreated
 
-
     path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
     sys.path.append(path_code_eistools)
     import product_info
@@ -829,17 +826,15 @@ def run_cmems_option(options):
             date = dt.strptime(strdate, '%Y-%m-%d')
             reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
             filenc = pinfo.get_file_path_orig(None, date)
-            path_output_site = os.path.join(path_output)
-            if not os.path.exists(path_output_site):
-                os.mkdir(path_output_site)
-            create_extract_cmems(filenc,options,sites,path_output_site)
+
+            create_extract_cmems(filenc, options, sites, path_output)
         except:
             print('ERROR FILE')
             pass
     ff.close()
 
-def create_extract_cmems(filepath, options, sites, path_output):
 
+def create_extract_cmems(filepath, options, sites, path_output):
     nc_sat = Dataset(filepath, 'r')
     # Retriving lat and long arrays
     if args.verbose:
@@ -883,8 +878,10 @@ def create_extract_cmems(filepath, options, sites, path_output):
         if contain_flag == 1:
             filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
             pdu = filepath.split('/')[-1]
-
-            ofname = os.path.join(path_output, filename)
+            path_output_site = os.path.join(path_output, site)
+            if not os.path.exists(path_output_site):
+                os.mkdir(path_output_site)
+            ofname = os.path.join(path_output_site, filename)
             global_at['station_name'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
@@ -956,7 +953,7 @@ def main():
         return
 
     if options.has_option('Time_and_sites_selection', 'time_list') and \
-            options.has_option('file_path','cmems_product') and \
+            options.has_option('file_path', 'cmems_product') and \
             options.has_option('file_path', 'cmems_dataset'):
         run_cmems_option(options)
         return

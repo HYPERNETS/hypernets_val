@@ -87,7 +87,7 @@ class SatExtract:
 
         satellite_time = self.EXTRACT.createVariable('satellite_time', 'f8', ('satellite_id'), fill_value=-999,
                                                      zlib=True, complevel=6)
-        print('Satellite start time es: ',satellite_start_time)
+        #print('Satellite start time es: ',satellite_start_time)
         satellite_time[0] = float(satellite_start_time.timestamp())
         satellite_time.units = "Seconds since 1970-1-1"
 
