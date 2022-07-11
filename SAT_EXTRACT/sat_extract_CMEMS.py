@@ -786,18 +786,17 @@ def run_cmems_option(options):
     pinfo = product_info.ProductInfo()
     pinfo.set_dataset_info(product_name, dataset_name)
     flist = options['Time_and_sites_selection']['time_list']
-    ff = open(flist,'r')
+    ff = open(flist, 'r')
     for line in ff:
-        strdate  = line.split()
+        strdate = line.split()
         try:
-            date = dt.strptime(strdate,'%Y-%m-%d')
+            date = dt.strptime(strdate, '%Y-%m-%d')
             reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
             file = pinfo.get_file_path_orig(None, date)
-            print('FILE IS: ',file)
+            print('FILE IS: ', file)
         except:
             pass
     ff.close()
-
 
 
 def main():
@@ -806,7 +805,11 @@ def main():
     if not args.config_file:
         return
 
+    print('estamos aquii...')
+
     options = config_reader(args.config_file)
+
+    print('imprimie las opciones')
 
     # if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
     #     path_skie = options['file_path']['path_skie']
@@ -860,7 +863,7 @@ def main():
 
     if options.has_option('Time_and_sites_selection', 'time_list') and options.has_option('file_path',
                                                                                           'cmems_product') and options.has_option(
-            'file_path', 'cmems_dataset'):
+        'file_path', 'cmems_dataset'):
         run_cmems_option(options)
         return
 
