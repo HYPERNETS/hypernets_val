@@ -10,6 +10,7 @@ import os
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib import cm
 from PlotSpectra import PlotSpectra
 import numpy as np
 import math
@@ -76,14 +77,29 @@ class MDB_READER():
 def main():
     # fmdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
     # do_check_mdb_times_impl(fmdb)
-    #do_check_mdb_times()
+    # do_check_mdb_times()
     # do_check_extract_times()
 
-    # do_final_results()
+    #do_final_results()
     # do_final_results_l3()
     # do_final_results_CCI()
 
-    do_chla()
+    # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
+    # # name_mdb = 'MDB_CCIv6_INSITU_19970101_20221231.nc'
+    # for name_mdb in os.listdir(path_base):
+    #     if not name_mdb.endswith('nc'):
+    #         continue
+    #     do_chla(path_base, name_mdb)
+
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
+    for name_csv in os.listdir(path_base):
+        if not name_csv.endswith('csv'):
+            continue
+        # name_csv = 'MDB_CCIv6_INSITU_19970101_20221231.csv'
+        do_chla_validation(path_base, name_csv)
+
+    # retrieve_insitu_chla_from_paper_files()
+    # compare_chlainsitu_with_paper()
 
     # check_dates_MDB()
 
@@ -173,18 +189,18 @@ def do_final_results_CCI():
     sites = ['Gustav_Dalen_Tower', 'Helsinki_Lighthouse', 'Irbe_Lighthouse']
 
     # SINGLE VALIDATION FOR SITE
-    # for site in sites:
-    #     path_mdb = os.path.join(path_base,'CCIv6')
-    #     name_mdb = f'MDB___1KM_CCI_L2_AERONET_{site}.nc'
-    #     fmdb = os.path.join(path_mdb,name_mdb)
-    #     if os.path.exists(fmdb):
-    #         make_validation_single_MDB(path_mdb, name_mdb)
+    for site in sites:
+        path_mdb = os.path.join(path_base,'CCIv6')
+        name_mdb = f'MDB___1KM_CCI_L2_AERONET_{site}.nc'
+        fmdb = os.path.join(path_mdb,name_mdb)
+        if os.path.exists(fmdb):
+            make_validation_single_MDB(path_mdb, name_mdb)
 
     # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
     # make_validation_list_MDB('CCIv6', '')
-    # make_validation_from_dfvalid('CCIv6', '')
+    make_validation_from_dfvalid('CCIv6', '')
 
-    acnames = ['STANDARD','POLYMER','CCIv6']
+
 
     # # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
     # bands = [412, 443, 490, 510, 560, 665]
@@ -192,17 +208,22 @@ def do_final_results_CCI():
     #     make_together_atm(band,acnames,'AB','ACCombinations_StandardAB_PolymerAB_CCIv6')
 
     # # PARAMETERS BY BAND
-    # bands = [412, 443, 490, 510, 560, 665]
-    # make_together_atm_params(bands,acnames,'AB','Params_StandardAB_PolymerAB_CCIv6')
+    acnames = ['STANDARD', 'POLYMER', 'CCIv6']
+    bands = [412, 443, 490, 510, 560, 665]
+    make_together_atm_params(bands,acnames,'AB','Params_StandardAB_PolymerAB_CCIv6')
+    acnames = ['POLYMER', 'CCIv6']
+    make_together_atm_params(bands, acnames, 'AB', 'Params_PolymerAB_CCIv6')
+
+
 
     # AVERAGE SPECTRA
     # for ac in acnames:
     #     print(ac)
     #     make_average_spectra(ac, 'AB', 'SPECTRA')
 
-    #STATS TABLE
+    # STATS TABLE
     bands = [412, 443, 490, 510, 560, 665]
-    acs = ['STANDARD', 'POLYMER','CCIv6']
+    acs = ['STANDARD', 'POLYMER', 'CCIv6']
     params = {
         'N': 0,
         'SLOPE': 11,
@@ -223,27 +244,31 @@ def do_final_results_CCI():
         get_table_stats(wl, 'AB', acs, params)
     get_table_stats_complete(bands, acs, 'AB', params)
 
+    # MU INFO
+    acnames = ['CCIv6']
+    # make_mu_info(path_base, acnames, '')
+    # make_mu_info_bytower(path_base, 'CCIv6', 2005, 2021)
 
 
 def do_final_results_l3():
     print('L3 Results')
     path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
     sites = ['Gustav_Dalen_Tower', 'Helsinki_Lighthouse', 'Irbe_Lighthouse']
-    #acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
-    acnames = ['STANDARD','POLYMER']
+    # acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
+    acnames = ['STANDARD', 'POLYMER']
     platform = 'AB'
     # SINGLE VALIDATIONS FOR  AC/SITE
-    # for ac in acnames:
-    #     for site in sites:
-    #         path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac,3)
-    #         print(f'MDB: {fmdb}')
-    #         if os.path.exists(fmdb):
-    #             make_validation_single_MDB(path_mdb, name_mdb)
+    for ac in acnames:
+        for site in sites:
+            path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac,3)
+            print(f'MDB: {fmdb}')
+            if os.path.exists(fmdb):
+                make_validation_single_MDB(path_mdb, name_mdb)
 
     # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
-    # for ac in acnames:
-    #     #make_validation_list_MDB(ac, 'AB')
-    #     make_validation_from_dfvalid(ac, 'AB')
+    for ac in acnames:
+        # make_validation_list_MDB(ac, 'AB')
+        make_validation_from_dfvalid(ac, 'AB')
 
     # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
     # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
@@ -251,8 +276,8 @@ def do_final_results_l3():
     #     make_together_atm(band,acnames,'AB','ACCombinations_S3AB')
 
     # PARAMETERS BY BAND
-    # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
-    # make_together_atm_params(bands,acnames,'AB','ParamsS3AB')
+    bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
+    make_together_atm_params(bands,acnames,'AB','ParamsS3AB')
 
     # AVERAGE SPECTRA
     # for ac in acnames:
@@ -260,28 +285,31 @@ def do_final_results_l3():
     #     make_average_spectra(ac, 'AB', 'SPECTRA')
 
     # STATS TABLE
-    # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
-    # acs = ['STANDARD', 'POLYMER']
-    # params = {
-    #     'N': 0,
-    #     'SLOPE': 11,
-    #     'OFFSET': 12,
-    #     'XAVG': 13,
-    #     'YAVG': 14,
-    #     'DETER(r2)': 10,
-    #     'RMSE': 6,
-    #     'CPRMSE': 15,
-    #     'BIAS': 9,
-    #     'PCC(r)': 3,
-    #     'RPD': 7,
-    #     'APD': 8,
-    #     'MAE': 16
-    # }
-    # get_table_stats(-1, 'AB', acs, params)
-    # for wl in bands:
-    #     get_table_stats(wl, 'AB', acs, params)
-    # get_table_stats_complete(bands, acs, 'AB', params)
+    bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
+    acs = ['STANDARD', 'POLYMER']
+    params = {
+        'N': 0,
+        'SLOPE': 11,
+        'OFFSET': 12,
+        'XAVG': 13,
+        'YAVG': 14,
+        'DETER(r2)': 10,
+        'RMSE': 6,
+        'CPRMSE': 15,
+        'BIAS': 9,
+        'PCC(r)': 3,
+        'RPD': 7,
+        'APD': 8,
+        'MAE': 16
+    }
+    get_table_stats(-1, 'AB', acs, params)
+    for wl in bands:
+        get_table_stats(wl, 'AB', acs, params)
+    get_table_stats_complete(bands, acs, 'AB', params)
 
+    # MUINfo
+    # make_mu_info(path_base, acnames, 'AB')
+    # make_mu_info_bytower(path_base, 'POLYMER', 2016, 2021)
 
 
 def do_final_results():
@@ -330,8 +358,8 @@ def do_final_results():
     #         make_average_spectra(ac, platform, 'SPECTRA')
 
     # AB COMPARISON
-    # for ac in acnames:
-    #     make_togheter_ab(ac)
+    for ac in acnames:
+        make_togheter_ab(ac)
 
     # STATS TABLE
     bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
@@ -359,8 +387,11 @@ def do_final_results():
     get_table_stats_complete(bands, acs, 'A', params)
     get_table_stats_complete(bands, acs, 'B', params)
 
+    # MUINFO
+    # make_mu_info(path_base, acnames, 'AB')
 
-def get_file_mdb(path_base, platform, site, acname,level):
+
+def get_file_mdb(path_base, platform, site, acname, level):
     path_mdb = os.path.join(path_base, acname)
     res = 'EFR'
     if acname == 'STANDARD':
@@ -458,7 +489,6 @@ def check_dates_MDB():
         df.to_csv(fout, sep=';')
 
 
-
 def do_check_mdb_times():
     # path_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDB'
     path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
@@ -490,6 +520,7 @@ def do_check_mdb_times():
     date_mean_site = dt.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=mean_hour)
     print(date_mean_site)
 
+
 def do_check_mdb_times_impl(fmdb):
     hours_array = []
     mdbfile = MDBInSituFile(fmdb)
@@ -502,6 +533,8 @@ def do_check_mdb_times_impl(fmdb):
     print('--------')
     date_mean_site = dt.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=mean_hour)
     print(date_mean_site)
+
+
 def do_check_extract_times():
     path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Gustav_Dalen_Tower/polymer/extractsAB'
     # path_extracts = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CCI/extractsv4'
@@ -580,34 +613,78 @@ def do_lps():
     make_bargraphics_matchups(filein, fileout)
 
 
-def do_chla():
-    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
-    # file_mdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
-    # name_mdb = 'MDB___CCIv5_INSITU_19970101_20191231.nc'
-    #name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
-    name_mdb = 'MDB_S3AB_OLCI_POLYMER_INSITU_20160401_20220531.nc'
+def do_chla(path_base, name_mdb):
+    name_out = name_mdb[:-3]
+    file_out = os.path.join(path_base, f'{name_out}.csv')
+    if os.path.exists(file_out):
+        return
     file_mdb = os.path.join(path_base, name_mdb)
     baltic_mlp_code = '/home/lois/PycharmProjects/aeronet'
     mfile = MDBInSituFile(file_mdb)
+    mfile.delta_t = (2*3600)
+
     if not mfile.VALID:
         return
     mfile.start_baltic_chla(baltic_mlp_code, 'insitu_CHLA')
     mfile.qc_sat.max_diff_wl = 6
     mfile.qc_sat.window_size = 3
     mfile.qc_sat.min_valid_pixels = 9
-    mfile.qc_sat.apply_outliers = True
-    mfile.qc_sat.stat_value = 'avg'
+    mfile.qc_sat.apply_outliers = False
+    mfile.qc_sat.stat_value = 'median'
 
     mfile.set_wlsatlist_aswlref([412, 443, 490, 510, 555, 670])
 
     # for imu in range(mfile.n_mu_total):
     #     mfile.compute_baltic_chla_ensemble_mu(imu)
     mfile.prepare_df_validation()
-    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/ChlaBalPolymerL3MatchUps_Central.csv'
+
     mfile.df_validation_valid.to_csv(file_out, sep=';')
 
-def do_chla_validation(fcsv):
-    df = pd.read_csv(fcsv,';')
+
+def do_chla_validation(path_base, name_csv):
+    fcsv = os.path.join(path_base, name_csv)
+    path_out = os.path.join(path_base, name_csv[:-4])
+    if not os.path.exists(path_out):
+        os.mkdir((path_out))
+
+    lcsv = name_csv[:-4].split('_')
+
+    df = pd.read_csv(fcsv, sep=';')
+    col_names = df.columns
+    var_names = []
+    col_names_stats = ['Param']
+    for col in col_names:
+        if col.startswith('ens') or col.startswith('chl'):
+            var_names.append(col)
+            col_names_stats.append(col)
+    params = ['N', 'slope', 'intercept', 'r_value', 'p_value', 'std_err', 'rmse_val',
+              'mean_rel_diff', 'mean_abs_rel_diff', 'bias', 'r2', 'slope_typeII', 'offset_typeII', 'XAVG', 'YAVG',
+              'CPRMSE', 'MAE']
+    df_valid_stats = pd.DataFrame(index=params, columns=col_names_stats)
+    mdbplot = MDBPlot(None, None)
+    mdbplot.set_units('chla')
+    insitu_chla = df.loc[:, 'insitu_CHLA']
+    for var in var_names:
+        print(var)
+        sat_chla = df.loc[:, var]
+        sat_chla_here = sat_chla[~np.isnan(sat_chla)]
+        insitu_chla_here = insitu_chla[~np.isnan(sat_chla)]
+
+        mdbplot.xdata = insitu_chla_here
+        mdbplot.ydata = sat_chla_here
+        mdbplot.wldata = pd.Index(np.zeros(insitu_chla.shape))
+        mdbplot.xlabel = r'Chl-a $_R$$_E$$_F$'
+        mdbplot.ylabel = r'Chl-a $_S$$_A$$_T$'
+        mdbplot.ylabel = f'{mdbplot.ylabel} ({var})'
+        mdbplot.title = f'In situ chl-a vs. {lcsv[1]} ({var}) {lcsv[3]}-{lcsv[4]}'
+        mdbplot.log_scale = True
+        mdbplot.plot_scatter_plot(True, False, True, os.path.join(path_out, f'ScatterPlot_InSituChla_{var}.jpg'))
+        mdbplot.compute_statistics()
+        for param in mdbplot.valid_stats:
+            df_valid_stats.loc[param, var] = mdbplot.valid_stats[param]
+
+    file_results = os.path.join(path_out, f'Params.csv')
+    df_valid_stats.to_csv(file_results, sep=';')
 
 
 def do_chla_sat():
@@ -670,78 +747,156 @@ def do_check_reflectances():
     # dfrec = pd.concat([dfrec,pd.Series(pix_pos)],axis=1)
     # dfrec.to_csv(file_new,sep=';')
 
-    file_orig = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__FM_pix.csv'
-    file_new = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__FM_comp.csv'
-    dfrec = pd.read_csv(file_orig, sep=';')
-    dset = None
-    rrs412 = None
-    rrs443 = None
-    rrs490 = None
-    rrs510 = None
-    rrs555 = None
-    rrs670 = None
-    sat_lat = None
-    sat_lon = None
+    # file_orig = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__FM_pix.csv'
+    # file_new = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__FM_comp.csv'
+    # dfrec = pd.read_csv(file_orig, sep=';')
+    # dset = None
+    # rrs412 = None
+    # rrs443 = None
+    # rrs490 = None
+    # rrs510 = None
+    # rrs555 = None
+    # rrs670 = None
+    # sat_lat = None
+    # sat_lon = None
+    #
+    # for index, row in dfrec.iterrows():
+    #     ppos = int(row['PixPos'])
+    #     chla_here = float(row['CHL_in'])
+    #     chla_here_str = "{:.2f}".format(chla_here)
+    #     datestr = str(int(row['date']))
+    #
+    #     if ppos == 0:
+    #         print('-------------------------------')
+    #         if dset is not None:
+    #             print('Closing previous dset...')
+    #             dset.close()
+    #         dset = None
+    #         dateref = dt.strptime(datestr, '%Y%m%d').strftime('%Y%j')
+    #         yaearstr = dateref[0:4]
+    #         jdaystr = dateref[4:7]
+    #         path_here = os.path.join(path_extracts_out, yaearstr, jdaystr)
+    #
+    #         for name in os.listdir(path_here):
+    #             fpath = os.path.join(path_here, name)
+    #             dset = netCDF4.Dataset(fpath)
+    #             chla = float(dset.variables['insitu_CHLA'][0])
+    #             chlastr = "{:.2f}".format(chla)
+    #             if chlastr == chla_here_str:
+    #                 rrs412 = np.array(dset.variables['satellite_Rrs'][0, 0, 11:14, 11:14])
+    #                 rrs412 = list(rrs412.flatten())
+    #                 rrs443 = np.array(dset.variables['satellite_Rrs'][0, 1, 11:14, 11:14])
+    #                 rrs443 = list(rrs443.flatten())
+    #                 rrs490 = np.array(dset.variables['satellite_Rrs'][0, 2, 11:14, 11:14])
+    #                 rrs490 = list(rrs490.flatten())
+    #                 rrs510 = np.array(dset.variables['satellite_Rrs'][0, 3, 11:14, 11:14])
+    #                 rrs510 = list(rrs510.flatten())
+    #                 rrs555 = np.array(dset.variables['satellite_Rrs'][0, 4, 11:14, 11:14])
+    #                 rrs555 = list(rrs555.flatten())
+    #                 rrs670 = np.array(dset.variables['satellite_Rrs'][0, 5, 11:14, 11:14])
+    #                 rrs670 = list(rrs670.flatten())
+    #                 sat_lat = dset.variables['satellite_latitude'][0, 12, 12]
+    #                 sat_lon = dset.variables['satellite_longitude'][0, 12, 12]
+    #                 break
+    #             else:
+    #                 dset.close()
+    #                 dset = None
+    #     dsetvalid = dset is not None
+    #     if dsetvalid:
+    #         dfrec.loc[index, 'rrs_412'] = rrs412[ppos]
+    #         dfrec.loc[index, 'rrs_443'] = rrs443[ppos]
+    #         dfrec.loc[index, 'rrs_490'] = rrs490[ppos]
+    #         dfrec.loc[index, 'rrs_510'] = rrs510[ppos]
+    #         dfrec.loc[index, 'rrs_555'] = rrs555[ppos]
+    #         dfrec.loc[index, 'rrs_670'] = rrs670[ppos]
+    #         dfrec.loc[index, 'sat_lat'] = sat_lat
+    #         dfrec.loc[index, 'sat_lon'] = sat_lon
 
-    for index, row in dfrec.iterrows():
-        ppos = int(row['PixPos'])
-        chla_here = float(row['CHL_in'])
-        chla_here_str = "{:.2f}".format(chla_here)
-        datestr = str(int(row['date']))
+    # for idx in range(6):
+    #     rrs = np.array(nc.variables['satellite_Rrs'][0,idx,11:14,11:14])
 
-        if ppos == 0:
-            print('-------------------------------')
-            if dset is not None:
-                print('Closing previous dset...')
-                dset.close()
-            dset = None
-            dateref = dt.strptime(datestr, '%Y%m%d').strftime('%Y%j')
-            yaearstr = dateref[0:4]
-            jdaystr = dateref[4:7]
-            path_here = os.path.join(path_extracts_out, yaearstr, jdaystr)
+    # central_r, central_c, r_s, r_e, c_s, c_e = get_dimensions(nc.variables['satellite_Rrs'],3)
+    # print(central_r,central_c,r_s,r_e,c_s,c_e)
 
-            for name in os.listdir(path_here):
-                fpath = os.path.join(path_here, name)
-                dset = netCDF4.Dataset(fpath)
-                chla = float(dset.variables['insitu_CHLA'][0])
-                chlastr = "{:.2f}".format(chla)
-                if chlastr == chla_here_str:
-                    rrs412 = np.array(dset.variables['satellite_Rrs'][0, 0, 11:14, 11:14])
-                    rrs412 = list(rrs412.flatten())
-                    rrs443 = np.array(dset.variables['satellite_Rrs'][0, 1, 11:14, 11:14])
-                    rrs443 = list(rrs443.flatten())
-                    rrs490 = np.array(dset.variables['satellite_Rrs'][0, 2, 11:14, 11:14])
-                    rrs490 = list(rrs490.flatten())
-                    rrs510 = np.array(dset.variables['satellite_Rrs'][0, 3, 11:14, 11:14])
-                    rrs510 = list(rrs510.flatten())
-                    rrs555 = np.array(dset.variables['satellite_Rrs'][0, 4, 11:14, 11:14])
-                    rrs555 = list(rrs555.flatten())
-                    rrs670 = np.array(dset.variables['satellite_Rrs'][0, 5, 11:14, 11:14])
-                    rrs670 = list(rrs670.flatten())
-                    sat_lat = dset.variables['satellite_latitude'][0, 12, 12]
-                    sat_lon = dset.variables['satellite_longitude'][0, 12, 12]
-                    break
-                else:
-                    dset.close()
-                    dset = None
-        dsetvalid = dset is not None
-        if dsetvalid:
-            dfrec.loc[index, 'rrs_412'] = rrs412[ppos]
-            dfrec.loc[index, 'rrs_443'] = rrs443[ppos]
-            dfrec.loc[index, 'rrs_490'] = rrs490[ppos]
-            dfrec.loc[index, 'rrs_510'] = rrs510[ppos]
-            dfrec.loc[index, 'rrs_555'] = rrs555[ppos]
-            dfrec.loc[index, 'rrs_670'] = rrs670[ppos]
-            dfrec.loc[index, 'sat_lat'] = sat_lat
-            dfrec.loc[index, 'sat_lon'] = sat_lon
+    # dfrec.to_csv(file_new, sep=';')
 
-        # for idx in range(6):
-        #     rrs = np.array(nc.variables['satellite_Rrs'][0,idx,11:14,11:14])
 
-        # central_r, central_c, r_s, r_e, c_s, c_e = get_dimensions(nc.variables['satellite_Rrs'],3)
-        # print(central_r,central_c,r_s,r_e,c_s,c_e)
+def retrieve_insitu_chla_from_paper_files():
+    path = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA/BRANDO2021_CHLA'
+    # file_orig = os.path.join(path, 'matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__AlgLine.csv')
+    # file_out = os.path.join(path, 'AlgLine_Paper_chlainsitu.csv')
+    file_orig = os.path.join(path, 'matchup_bal_cci_chl_surf6_orig__rrsmatch_w12CHL__COMBINE.csv')
+    file_out = os.path.join(path, 'Combine_Paper_chlainsitu.csv')
+    df = pd.read_csv(file_orig, sep=';')
+    dfnew = df.copy()
+    chlaref = -999
+    latref = -999
+    lonref = -999
+    index_df = 0
+    for index, row in df.iterrows():
+        chlastr = row['CHL_in']
+        latstr = row['lat']
+        lonstr = row['lon']
+        if chlastr != chlaref and latstr != latref and lonstr != lonref:
+            dfnew.iloc[index_df, :] = row[:]
+            chlaref = chlastr
+            latref = latstr
+            lonref = lonstr
+            index_df = index_df + 1
+    dfnew = dfnew[:index_df]
+    col_names = ['date', 'time', 'lat', 'lon', 'CHL_in']
+    dfnew = dfnew.loc[:, col_names]
+    for index, row in dfnew.iterrows():
+        # strdate = str(int(row['date']))
+        # datehere = dt.strptime(strdate, '%Y%m%d')
+        datehere = dt.strptime(row['date'], '%d/%m/%Y')
+        datehere = datehere.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=row['time'])
+        strdatenew = datehere.strftime('%Y-%m-%d')
+        strtimenew = datehere.strftime('%H:%M')
+        dfnew.loc[index, 'date'] = strdatenew
+        dfnew.loc[index, 'time'] = strtimenew
 
-    dfrec.to_csv(file_new, sep=';')
+    dfnew.to_csv(file_out, sep=';')
+
+
+def compare_chlainsitu_with_paper():
+    path = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/CHLA_DATA'
+    filebal = os.path.join(path, 'Baltic_CHLA_All.csv')
+    filepaper = os.path.join(path, 'BRANDO2021_CHLA', 'All_chlainsitu.csv')
+    fileout = os.path.join(path, 'BRANDO2021_CHLA', 'All_chlainsitu_allidx.csv')
+
+    datelist = []
+    chlalist = []
+    idxlist = []
+    dfbal = pd.read_csv(filebal, sep=';')
+    for index, row in dfbal.iterrows():
+        datestr = row['DATE']
+        timestr = row['HOUR']
+        strdate = f'{datestr}T{timestr}'
+        datehere = dt.strptime(strdate, '%d/%m/%YT%H:%M:%S')
+        datelist.append(datehere)
+        chlalist.append(float(row['CHLA']))
+        idxlist.append(int(row['IDX']))
+
+    dfpaper = pd.read_csv(filepaper, sep=';')
+    dfnew = dfpaper.copy()
+    idxbal = [-1] * len(dfpaper.index)
+    for index, row in dfpaper.iterrows():
+        datestr = row['date']
+        timestr = row['time']
+        strdate = f'{datestr}T{timestr}'
+        datepaper = dt.strptime(strdate, '%d/%m/%YT%H:%M')
+        chlapaper = float(row['CHL_in'])
+
+        for idx in range(len(datelist)):
+            datebal = datelist[idx]
+            chlabal = chlalist[idx]
+            tdif = abs((datepaper - datebal).total_seconds())
+            cdif = abs(chlapaper - chlabal)
+            if tdif < 120 and cdif < 0.000001:
+                idxbal[index] = idxlist[idx]
+    dfnew['IDX_BAL'] = pd.Series(idxbal)
+    dfnew.to_csv(fileout,sep=';')
 
 
 def get_dimensions(satellite_rrs, window_size):
@@ -933,8 +1088,8 @@ def make_validation_list_MDB(acname, platform):
         if (wcard is not None and f.find(wcard) > 0) and f.endswith('.nc'):
             path_mdb = os.path.join(path_base, f)
             mdblist.add_mdb_file(path_mdb)
-            nfiles = nfiles +1
-    if nfiles==0:
+            nfiles = nfiles + 1
+    if nfiles == 0:
         print(f'No files found for: {acname} {platform}')
         return
 
@@ -1037,6 +1192,7 @@ def make_validation_from_dfvalid(ac, platform):
     else:
         title = f'S3{platform} {ac}'
         filenamebase = f'S3{platform}_{ac}'
+    print(path_base)
     mplot.make_validation_dfval(path_base, title, filenamebase, wllist)
 
 
@@ -1066,6 +1222,20 @@ def make_variations_qc_single_MDB():
         list_qc_ref.append(qc_here)
 
     reader.compare_different_qcinsitu(list_qc_ref, file_out)
+
+
+def make_bargraphics(df, xlabel, ylabel, title, fileout):
+    h = plt.figure()
+    plt.bar(df.index, df.loc[:, 'Total'], color=[0.8, 0.8, 0.8, 1])
+    plt.bar(df.index, df.loc[:, 'Valid'], color=[0.65, 0.8, 0.55, 1])
+    plt.xticks(df.index)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    str_legend = ['# Total match-ups', '# Valid match-ups']
+    plt.legend(str_legend, loc='upper right')  # bbox_to_anchor=)
+    plt.title(title)
+    plt.savefig(fileout, dpi=300)
+    plt.close(h)
 
 
 def make_bargraphics_matchups(filein, fileout):
@@ -1156,6 +1326,104 @@ def make_togheter_ab(ac):
     plt.close(h)
 
 
+def make_mu_info_bytower(path_base, ac, year_min, year_max):
+    if not ac.startswith('CCI'):
+        name_out = f'MUINFO_{ac}_AB'
+        path_out = os.path.join(path_base, name_out)
+    else:
+        name_out = f'MUINFO_{ac}'
+        path_out = os.path.join(path_base, name_out)
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+
+    year = list(range(year_min, year_max + 1))
+    year.reverse()
+    towers_df = ['Gustav Dalen Tower', 'Irbe Lighthouse', 'Helsinki Lighthouse']
+    towers = ['Gustav_Dalen_Tower', 'Irbe_Lighthouse', 'Helsinki_Lighthouse']
+    col_names = ['Total', 'NoValid', 'Valid', '%Valid']
+    dftower = pd.DataFrame(index=towers_df, columns=col_names, dtype=float)
+    dfall = pd.DataFrame(index=year, columns=towers_df, dtype=float)
+    dfvalid = pd.DataFrame(index=year, columns=towers_df, dtype=float)
+    for year in range(year_min, year_max + 1):
+        dfall.loc[year, :] = 0
+        dfvalid.loc[year, :] = 0
+    for tower in towers_df:
+        dftower.loc[tower, :] = 0
+
+    path_ac = os.path.join(path_base, ac)
+    for tower in towers:
+        tower_here = tower.replace('_', ' ')
+        lista_paths = []
+        for name in os.listdir(path_ac):
+            path_mdb = os.path.join(path_ac, name)
+            if os.path.isdir(path_mdb) and name.find(tower) >= 0 and (name.find('S3AB_') >= 0 or name.find('CCI') >= 0):
+                lista_paths.append(path_mdb)
+        for path_mdb in lista_paths:
+            fall = os.path.join(path_mdb, 'Data.csv')
+            fvalid = os.path.join(path_mdb, 'DataValid.csv')
+            dfall_data = pd.read_csv(fall, sep=';')
+            dfvalid_data = pd.read_csv(fvalid, sep=';')
+            for index, row in dfall_data.iterrows():
+                if row['Wavelenght'] == 490:
+                    date_here = dt.strptime(row['Sat_Time'], '%Y-%m-%d %H:%M')
+                    year_here = date_here.year
+                    dfall.loc[year_here, tower_here] = dfall.loc[year_here, tower_here] + 1
+                    dftower.loc[tower_here, 'Total'] = dftower.loc[tower_here, 'Total'] + 1
+            for index, row in dfvalid_data.iterrows():
+                if row['Wavelenght'] == 490:
+                    date_here = dt.strptime(row['Sat_Time'], '%Y-%m-%d %H:%M')
+                    year_here = date_here.year
+                    dfvalid.loc[year_here, tower_here] = dfvalid.loc[year_here, tower_here] + 1
+                    dftower.loc[tower_here, 'Valid'] = dftower.loc[tower_here, 'Valid'] + 1
+
+    dfall.to_csv(os.path.join(path_out, f'{name_out}_ByYearTower_All.csv'), sep=';')
+    dfvalid.to_csv(os.path.join(path_out, f'{name_out}_ByYearTower_Valid.csv'), sep=';')
+    for tower in towers_df:
+        dftower.loc[tower, 'NoValid'] = dftower.loc[tower, 'Total'] - dftower.loc[tower, 'Valid']
+        dftower.loc[tower, '%Valid'] = (dftower.loc[tower, 'Valid'] / dftower.loc[tower, 'Total']) * 100
+    dftower.to_csv(os.path.join(path_out, f'{name_out}_Tower.csv'), sep=';')
+
+    title = f'# Potential match-ups ({ac})'
+    plot_heatmap(dfall, 'Tower', 'Year', title, os.path.join(path_out, f'{name_out}_ByYearTower_All.jpg'))
+    title = f'# Valid match-ups ({ac})'
+    plot_heatmap(dfvalid, 'Tower', 'Year', title, os.path.join(path_out, f'{name_out}_ByYearTower_Valid.jpg'))
+
+    title = f'# Match-ups ({ac})'
+    make_bargraphics(dftower, 'Tower', '# Match-ups', title, os.path.join(path_out, f'{name_out}_Tower.jpg'))
+
+
+def plot_heatmap(df, xlabel, ylabel, title, fjpg):
+    h = plt.Figure()
+    cmap = cm.get_cmap('RdYlBu_r')
+    dfall_withnan = df
+    dfall_withnan[df == 0] = np.nan
+    sns.heatmap(dfall_withnan, annot=False, cmap=cmap, linewidths=1, linecolor='black')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.savefig(fjpg, dpi=300)
+    plt.close(h)
+    plt.close('all')
+
+
+def make_mu_info(path_base, acnames, platform):
+    # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+
+    for ac in acnames:
+        postname = f'_S3{platform}'
+        if ac == 'CCIv6':
+            postname = ''
+        file_valid = os.path.join(path_base, ac, 'MDB_' + ac + postname, 'DataValid.csv')
+        file_all = os.path.join(path_base, ac, 'MDB_' + ac + postname, 'Data.csv')
+        dfall = pd.read_csv(file_all, sep=';')
+        dfvalid = pd.read_csv(file_valid, sep=';')
+        mdbplot = MDBPlot(None, None)
+        path_out = os.path.join(path_base, f'MUINFO_{ac}_{platform}')
+        if not os.path.exists(path_out):
+            os.mkdir((path_out))
+        mdbplot.obtain_mu_info(dfall, dfvalid, path_out)
+
+
 def make_together_atm(wlref, acnames, platform, name_out):
     path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
     path_out = os.path.join(path_base, name_out)
@@ -1169,8 +1437,6 @@ def make_together_atm(wlref, acnames, platform, name_out):
         postname = f'_S3{platform}'
         if ac == 'CCIv6':
             postname = ''
-
-
 
         file_ac = os.path.join(path_base, ac, 'MDB_' + ac + postname, 'DataValid.csv')
         print(file_ac)

@@ -74,7 +74,7 @@ def launch_create_extract_skie(filepath, skie_file, options):
         contain_flag, r, c = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
         if not contain_flag:
             continue
-        #r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+        # r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
         # insitu_time = skie_file.get_time_at_subdb(irow, None)
         # distd, timed, speed = skie_file.get_dist_timedif_speed_at_subdb(irow)
         # index = skie_file.get_index_at_subdb(irow)
@@ -191,7 +191,8 @@ def launch_create_extract(filepath, options):
 
     return ncreated
 
-#def check_contain_flag():
+
+# def check_contain_flag():
 
 
 def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, skie_file, irows):
@@ -239,7 +240,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
     if 'start_date' in nc_sat.ncattrs():
         sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
-        sat_time = sat_time.replace(hour=0,minute=0,second=0,microsecond=0)
+        sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
         newEXTRACT.create_satellite_time_variable(sat_time)
     else:
         sat_time = get_sat_time_from_fname(pdu)
@@ -335,7 +336,7 @@ def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
         start_idx_y = (r - int(size_box / 2))
         stop_idx_y = (r + int(size_box / 2) + 1)
 
-        #print('Check location line 336: ', r, c, start_idx_y,stop_idx_y,start_idx_x,stop_idx_x)
+        # print('Check location line 336: ', r, c, start_idx_y,stop_idx_y,start_idx_x,stop_idx_x)
 
         if lat.ndim == 1 and lon.ndim == 1:
             if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
@@ -515,7 +516,7 @@ def get_find_product_info(options):
         wce = options['file_path']['wce']
     time_start = dt.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
     time_stop = dt.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(hours=24)
-    #print('temp')
+    # print('temp')
     return path_source, org, wce, time_start, time_stop
 
 
@@ -682,7 +683,7 @@ def run_insitu_option(options):
                     extract = f'{itime}_{r}_{c}'
                     filename = filepath.split('/')[-1].replace('.', '_') + '_extract_insitu_' + extract + '.nc'
                     ofname = os.path.join(path_output, filename)
-                    global_at = get_global_atrib(nc_sat,options)
+                    global_at = get_global_atrib(nc_sat, options)
                     global_at['station_name'] = 'in situ dataset'
                     global_at['in_situ_lat'] = insitu_lat
                     global_at['in_situ_lon'] = insitu_lon
@@ -699,15 +700,14 @@ def run_insitu_option(options):
     print(f'COMPLETED. {ncreated} sat extract files were created')
 
 
-def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time, insitu_info, name_variables, flag_variables, flag_info):
+def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time, insitu_info, name_variables,
+                          flag_variables, flag_info):
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
     stop_idx_x = (c + int(size_box / 2) + 1)
     start_idx_y = (r - int(size_box / 2))
     stop_idx_y = (r + int(size_box / 2) + 1)
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
-
-
 
     search_pattern = 'rrs_'
     wl_atrib = None
@@ -717,7 +717,7 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
             search_pattern = f'{search_pattern}_'
     if options.has_option('satellite_options', 'wl_atrib'):
         wl_atrib = options['satellite_options']['wl_atrib']
-    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat,search_pattern,wl_atrib)
+    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib)
     if n_bands == 0:
         print('[ERROR] reflectance bands are not defined')
         return False
@@ -738,7 +738,7 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
     newEXTRACT.create_lat_long_variables(lat, long, window)
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
-    sat_time = get_sat_time(nc_sat,pdu)
+    sat_time = get_sat_time(nc_sat, pdu)
     newEXTRACT.create_satellite_time_variable(sat_time)
 
     # pdu variable
@@ -756,7 +756,6 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
         wavelenghts.append(wl)
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
 
-
     ##add in situ variables
     timediff = abs((insitu_time - sat_time).total_seconds())
     insitulat_var, insitulon_var, insitutime_var, time_difference_var = newEXTRACT.create_insitu_variables_for_single_insitu_data()
@@ -768,21 +767,38 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
         insitu_var = newEXTRACT.create_insitu_variable_for_single_insitu_data(name_var, 'unknown', 'unknown')
         insitu_var[0] = insitu_info[name_var]
     for name_var in flag_variables:
-        insitu_flag_var = newEXTRACT.create_insitu_flag_variable(name_var,flag_info[name_var]['flag_masks'],flag_info[name_var]['flag_meanings_str'])
+        insitu_flag_var = newEXTRACT.create_insitu_flag_variable(name_var, flag_info[name_var]['flag_masks'],
+                                                                 flag_info[name_var]['flag_meanings_str'])
         insitu_flag_var[0] = insitu_info[name_var]
     newEXTRACT.close_file()
 
     return True
 
-# def get_flag_value(flag_info, flag_var, flag_meaning):
-#     val = -1
-#     flag_meanings = flag_info[flag_var]['flag_meanings']
-#     if flag_meaning in flag_meanings:
-#         idx = flag_meanings.index(flag_meaning)
-#         if 0 <= idx < len(flag_meanings):
-#             flag_values = flag_info[flag_var]['flag_values']
-#             val = flag_values[idx]
-#     return val
+
+def run_cmems_option(options):
+    path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
+    sys.path.append(path_code_eistools)
+    import product_info
+    import reformattoCMEMS_202207 as reformat
+
+    product_name = options['file_path']['cmems_product']
+    dataset_name = options['file_path']['cmems_dataset']
+    pinfo = product_info.ProductInfo()
+    pinfo.set_dataset_info(product_name, dataset_name)
+    flist = options['Time_and_sites_selection']['time_list']
+    ff = open(flist,'r')
+    for line in ff:
+        strdate  = line.split()
+        try:
+            date = dt.strptime(strdate,'%Y-%m-%d')
+            reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
+            file = pinfo.get_file_path_orig(None, date)
+            print('FILE IS: ',file)
+        except:
+            pass
+    ff.close()
+
+
 
 def main():
     print('[INFO]Creating satellite extracts')
@@ -840,6 +856,12 @@ def main():
 
     if options.has_option('file_path', 'path_insitu') and options.has_option('file_path', 'path_insitu_code'):
         run_insitu_option(options)
+        return
+
+    if options.has_option('Time_and_sites_selection', 'time_list') and options.has_option('file_path',
+                                                                                          'cmems_product') and options.has_option(
+            'file_path', 'cmems_dataset'):
+        run_cmems_option(options)
         return
 
     # work only with the specified product file

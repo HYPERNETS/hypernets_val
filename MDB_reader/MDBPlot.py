@@ -64,6 +64,15 @@ class MDBPlot:
         }
         self.df_valid_stats = None
 
+        self.units = r'sr$^-$$^1$'
+        self.log_scale = False
+
+    def set_units(self, type):
+        if type == 'chla':
+            self.units = r'mg m$^-$$^3$'
+        if type == 'rrs':
+            self.units = r'sr$^-$$^1$'
+
     def get_df_val(self):
         dfval = None
         if self.mfile is not None and isinstance(self.mfile, MDBFile):
@@ -89,10 +98,11 @@ class MDBPlot:
         plot.close_plot()
         plot.start_plot()
 
-        self.xdata = self.xdata * 1000
-        self.ydata = self.ydata * 1000
-        self.yregress = np.array(self.yregress) * 1000
-        self.xregress = np.array(self.xregress) * 1000
+        if not self.title.lower().find('in situ') >= 0:
+            self.xdata = self.xdata * 1000
+            self.ydata = self.ydata * 1000
+            self.yregress = np.array(self.yregress) * 1000
+            self.xregress = np.array(self.xregress) * 1000
 
         if nwl > 1:
             for w in wl:
@@ -101,8 +111,14 @@ class MDBPlot:
                 yhere = self.ydata[self.wldata == w]
                 plot.plot_data(xhere, yhere, None, None, color, 'gray', 1.5)
         else:  # density scatter plot
-            xhere = np.asarray(self.xdata,dtype=np.float)
-            yhere = np.asarray(self.ydata,dtype=np.float)
+            xhere = np.asarray(self.xdata, dtype=np.float)
+            yhere = np.asarray(self.ydata, dtype=np.float)
+
+            print(len(xhere))
+            print(len(yhere))
+
+
+            # Density
             xy = np.vstack([xhere, yhere])
             z = gaussian_kde(xy)(xy)
             idx = z.argsort()
@@ -110,36 +126,83 @@ class MDBPlot:
             plot.plot_data(xhere, yhere, None, 25, z, None, None)
             plot.set_cmap('jet')
 
-        plot.set_equal_apect()
-        max_x_data = np.min(self.xdata)
-        max_y_data = np.max(self.ydata)
-        max_xy = np.ceil(np.max([max_x_data, max_y_data]))
+            # 2DHistogrm
+            # histo, xedges, yedges = np.histogram2d(xhere, yhere, bins=1000, density=False)
+            # xvalues = []
+            # yvalues = []
+            # zvalues = []
+            # sum = 0
+            # for idx in range(len(xedges) - 1):
+            #     #print(xedges[idx],yedges[idx])
+            #     if histo[idx, idx] > 0:
+            #         xvalues.append(xedges[idx])
+            #         yvalues.append(yedges[idx])
+            #         zvalues.append(histo[idx][idx])
+            #     sum = sum + histo[idx][idx]
+            # print(sum)
+            # zvalues = np.array(zvalues)
+            # xvalues = np.array(xvalues)
+            # yvalues = np.array(yvalues)
+            # print(zvalues.shape, xvalues.shape, yvalues.shape)
+            # plot.plot_data(xvalues, yvalues, None, 25, zvalues, None, None)
+            # plot.set_cmap('jet')
+            # self.log_scale = False
+            # cmap = plt.cm.jet
+            # cmap.set_bad('white')
+
+        if self.log_scale:
+            plot.set_log_scale()
+            min_xy = 0.1
+            max_xy = 100
+
+        else:
+            min_xy = 0
+            max_x_data = np.min(self.xdata)
+            max_y_data = np.max(self.ydata)
+            max_xy = np.ceil(np.max([max_x_data, max_y_data]))
         # if max_xy > 10:
         #     max_xy = 10
         # if max_xy <= 4:
         #     max_xy = 5
-        plot.set_limits(0, max_xy)
+        plot.set_limits(min_xy, max_xy)
         plot.set_xaxis_title(self.xlabel)
         plot.set_yaxis_title(self.ylabel)
+        plot.set_equal_apect()
         if legend:
             plot.set_legend(str_legend)
         plot.plot_identity_line()
 
         if include_stats:
-            str0 = 'N={:d}\nRMSD={:,.4f}\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.4f}' \
-                .format(self.valid_stats['N'],
-                        self.valid_stats['rmse_val'],
-                        self.valid_stats['mean_abs_rel_diff'],
-                        self.valid_stats['mean_rel_diff'],
-                        self.valid_stats['r_value'] ** 2,
-                        self.valid_stats['bias'])
+            if self.units.startswith('mg'):  # chla
+                str0 = 'N={:d}\nRMSD={:,.2f} UNITS\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.2f} UNITS' \
+                    .format(self.valid_stats['N'],
+                            self.valid_stats['rmse_val'],
+                            self.valid_stats['mean_abs_rel_diff'],
+                            self.valid_stats['mean_rel_diff'],
+                            self.valid_stats['r_value'] ** 2,
+                            self.valid_stats['bias'])
+                str0 = str0.replace('UNITS', self.units)
+                plot.plot_text(0.05, 0.68, str0)
+
+            if self.units.startswith('sr'):  # rrs
+                str0 = 'N={:d}\nRMSD={:,.1e} UNITS\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.1e} UNITS' \
+                    .format(self.valid_stats['N'],
+                            self.valid_stats['rmse_val'],
+                            self.valid_stats['mean_abs_rel_diff'],
+                            self.valid_stats['mean_rel_diff'],
+                            self.valid_stats['r_value'] ** 2,
+                            self.valid_stats['bias'])
+                str0 = str0.replace('UNITS', self.units)
+                plot.plot_text(0.05, 0.70, str0)
+
             # if nwl == 1:
             #     w = wl[0]
             #     strwl = f'λ = {w:0.2f} nm \n'
             #     str0 = strwl + str0
-            plot.plot_text(0.05, 0.70, str0)
 
-            plot.plot_regress_line(self.xregress, self.yregress, 'black')
+            # plot.plot_text(0.05, 0.70, str0)
+            if not self.log_scale:
+                plot.plot_regress_line(self.xregress, self.yregress, 'black')
 
         # data_plot = pd.concat([self.xdata, self.ydata], axis=1).astype(dtype=np.float)
 
@@ -147,7 +210,7 @@ class MDBPlot:
 
         if title:
             title_here = self.title
-            if nwl == 1:
+            if nwl == 1 and not title_here.lower().find('in situ') >= 0:
                 w = wl[0]
                 strwl = f' λ = {w:0.2f} nm \n'
                 title_here = self.title + strwl
@@ -267,8 +330,8 @@ class MDBPlot:
         self.valid_stats['p_value'] = p_value
         self.valid_stats['std_err'] = std_err
 
-        ref_obs = np.asarray(self.xdata,dtype=np.float)
-        sat_obs = np.asarray(self.ydata,dtype=np.float)
+        ref_obs = np.asarray(self.xdata, dtype=np.float)
+        sat_obs = np.asarray(self.ydata, dtype=np.float)
 
         results = regress2(ref_obs, sat_obs, _method_type_2="reduced major axis")
         self.valid_stats['slope_typeII'] = results['slope']
@@ -288,7 +351,7 @@ class MDBPlot:
         self.valid_stats['CPRMSE'] = cprmse
 
         # the mean of relative (signed) percent differences
-        rel_diff = 100 * (ref_obs - sat_obs) / ref_obs
+        rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)
         self.valid_stats['mean_rel_diff'] = np.mean(rel_diff)
 
         #  the mean of absolute (unsigned) percent differences
@@ -301,8 +364,6 @@ class MDBPlot:
         self.valid_stats['MAE'] = mae
 
         self.valid_stats['r2'] = r_value * r_value
-
-
 
     def plot_all_scatter_plot(self, path_out):
         dfval = self.get_df_val()
@@ -498,19 +559,41 @@ class MDBPlot:
         if dfvalid is None:
             dfvalid = self.dfparam
 
-        path_out = os.path.join(path_out_base, 'MUINFO')
+        if path_out_base.find('MUINFO') > 0:
+            path_out = path_out_base
+        else:
+            path_out = os.path.join(path_out_base, 'MUINFO')
         if not os.path.exists(path_out):
             os.mkdir(path_out)
 
-        file_jpg = os.path.join(path_out, 'AllMUByMonth.jpg')
-        fcsv = os.path.join(path_out, 'NMuAllMonth.csv')
-        self.obtain_mu_info_impl(dfall, fcsv, file_jpg)
+        name = path_out.split('/')[-2]
+        lname = name.split('_')
+        platform = 'S3'
+        level = 'L2'
+        if lname[2] == 'A':
+            platform = 'S3A'
+        elif lname[2] == 'B':
+            platform = 'S3B'
+        elif lname[2] == 'AB':
+            platform = 'S3'
+            level = 'L3'
+        else:
+            platform = lname[2]
+            level = 'L3'
 
-        file_jpg = os.path.join(path_out, 'ValidMUByMonth.jpg')
-        fcsv = os.path.join(path_out, 'NMuValidMonth.csv')
-        self.obtain_mu_info_impl(dfvalid, fcsv, file_jpg)
+        tname = f'{platform} {lname[1]} {level}'
 
-    def obtain_mu_info_impl(self, dfall, fcsv, fjpg):
+        file_jpg = os.path.join(path_out, f'{name}_all.jpg')
+        fcsv = os.path.join(path_out, f'{name}_all.csv')
+        title = f'# Potential match-ups ({tname})'
+        self.obtain_mu_info_impl(dfall, fcsv, file_jpg, title)
+
+        file_jpg = os.path.join(path_out, f'{name}_valid.jpg')
+        fcsv = os.path.join(path_out, f'{name}_valid.csv')
+        title = f'# Valid match-ups ({tname})'
+        self.obtain_mu_info_impl(dfvalid, fcsv, file_jpg, title)
+
+    def obtain_mu_info_impl(self, dfall, fcsv, fjpg, title):
         nall = len(dfall.index)
         first_date = dt.strptime(dfall.iloc[0].at['Sat_Time'], '%Y-%m-%d %H:%M')
         last_date = dt.strptime(dfall.iloc[nall - 1].at['Sat_Time'], '%Y-%m-%d %H:%M')
@@ -536,9 +619,10 @@ class MDBPlot:
         sns.heatmap(dfall_month_withnan, annot=False, cmap=cmap, linewidths=1, linecolor='black')
         plt.xlabel('Month')
         plt.ylabel('Year')
-
+        plt.title(title)
         plt.savefig(fjpg, dpi=300)
         plt.close(h)
+        plt.close('all')
 
         sum_by_month = np.zeros(12)
         for imonth in range(12):

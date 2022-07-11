@@ -2,6 +2,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.ticker import FormatStrFormatter
 
 class PlotScatter():
 
@@ -41,6 +42,12 @@ class PlotScatter():
 
     def close_plot(self):
         plt.close()
+
+    def set_log_scale(self):
+        plt.gca().set_yscale('log')
+        plt.gca().set_xscale('log')
+        plt.gca().yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+        plt.gca().xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
 
     def plot_data(self,xdata,ydata,marker,markersize,color,edgecolor,linewidth):
         style = self.style_default
@@ -101,6 +108,7 @@ class PlotScatter():
 
     def plot_regress_line(self,xdata,ydata,color):
         plt.plot(xdata, ydata,color= color,linestyle='-',linewidth=1,marker=None)
+
 
     def plot_text(self,xpos, ypos, str):
         plt.text(xpos, ypos, str,
