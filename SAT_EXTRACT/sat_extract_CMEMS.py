@@ -791,7 +791,7 @@ def run_cmems_option(options):
     flist = options['Time_and_sites_selection']['time_list']
     ff = open(flist, 'r')
     for line in ff:
-        strdate = line.split()
+        strdate = line.strip()
         try:
             print(strdate)
             date = dt.strptime(strdate, '%Y-%m-%d')
