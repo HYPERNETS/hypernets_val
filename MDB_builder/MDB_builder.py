@@ -688,6 +688,11 @@ def main():
 
     # time dif between in situ and sat data
     time_window = 3  # in hours (+- hours)
+    if args.config_file:
+        if options.has_option('Time_and_sites_selection','time_window'):
+            time_window = int(options['Time_and_sites_selection']['time_window'])
+    if args.verbose:
+        print(f'[INFO] Time window: {time_window} hours')
 
     file_list = []  # for the concatenation later
 
@@ -742,14 +747,19 @@ def main():
                 datetime_here = datetime(int(lpath[2]), int(lpath[3]), int(lpath[4]), int(lpath[5]), int(lpath[6]),
                                          int(lpath[7]))
                 datetime_str = datetime_here.strftime('%Y%m%dT%H%M%S')
-            elif atm_corr == 'CCI':
+            elif atm_corr == 'CCI' or atm_corr == 'MULTI':
                 res_str = res
                 nc_sat = Dataset(extract_path)
                 datetime_here = datetime.fromtimestamp(float(nc_sat.variables['satellite_time'][0]))
-                datetime_here = datetime_here.replace(hour=11)
+                if options.has_option('Time_and_sites_selection','time_sat_default'):
+                    hm = options['Time_and_sites_selection']['time_sat_default']
+                    dhm = datetime.strptime(hm,'%H:%M')
+                    datetime_here = datetime_here.replace(hour=dhm.hour,minute=dhm.minute)
+                else:
+                    datetime_here = datetime_here.replace(hour=11)
                 datetime_str = datetime_here.strftime('%Y%m%dT%H%M%S')
                 nc_sat.close()
-                sensor_str = 'CCI'
+                sensor_str = atm_corr
             else:
                 res_str = extract_path.split('/')[-1].split('_')[3]
                 datetime_str = extract_path.split('/')[-1].split('_')[7]

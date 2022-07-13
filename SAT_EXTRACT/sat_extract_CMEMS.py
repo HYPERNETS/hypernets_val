@@ -495,21 +495,24 @@ def get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib):
         lw = len(search_pattern)
         for var in nc_sat.variables:
             if var.startswith(search_pattern):
-                ival = int(var[lw:].strip())
-                if ival < imin:
-                    imin = ival
-                if ival > imax:
-                    imax = ival
-
-    for ival in range(imin, imax + 1):
-        var_name = search_pattern + str(ival)
-        if var_name in nc_sat.variables:
-            if wl_atrib is not None:
-                wl_band = nc_sat.variables[var_name].getncattr(wl_atrib)
-            else:
-                wl_band = ival
-            reflectance_bands[var_name] = {'wavelenght': wl_band}
-            nbands = nbands + 1
+                ival = var[lw:].strip()
+                ival = ival.replace('_','.')
+                if wl_atrib is not None:
+                    wl_band = nc_sat.variables[var].getncattr(wl_atrib)
+                else:
+                    wl_band = float(ival)
+                reflectance_bands[var] = {'wavelenght': wl_band}
+                nbands = nbands + 1
+    else:
+        for ival in range(imin, imax + 1):
+            var_name = search_pattern + str(ival)
+            if var_name in nc_sat.variables:
+                if wl_atrib is not None:
+                    wl_band = nc_sat.variables[var_name].getncattr(wl_atrib)
+                else:
+                    wl_band = ival
+                reflectance_bands[var_name] = {'wavelenght': wl_band}
+                nbands = nbands + 1
 
     if nbands == 0:
         reflectance_bands = None
