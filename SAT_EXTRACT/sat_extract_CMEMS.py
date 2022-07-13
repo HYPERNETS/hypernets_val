@@ -823,11 +823,24 @@ def run_cmems_option(options):
     for line in ff:
         strdate = line.strip()
         try:
-
             date = dt.strptime(strdate, '%Y-%m-%d')
             if args.verbose:
                 print('----------------------------------')
                 print(f'Date: {strdate}')
+            ##checking if output files already exist
+            filesExist = True
+            for site in sites:
+                path_output_site = os.path.join(path_output, site)
+                filename = filenc.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
+                ofname = os.path.join(path_output_site, filename)
+                if not os.path.exists(ofname):
+                    filesExist = False
+            if filesExist:
+                if args.verbose:
+                    print(f'[INFO] Files for date: {strdate} already exist. Skipping...')
+                continue
+
+
             reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
             filenc = pinfo.get_file_path_orig(None, date)
             if args.verbose:
@@ -845,6 +858,7 @@ def run_cmems_option(options):
     if args.verbose:
         print('*********************************************************************************')
         print(f'[INFO] Extraction completed. Sat extracts created: {ncreated}')
+
 
 def create_extract_cmems(filepath, options, sites, path_output):
     nc_sat = Dataset(filepath, 'r')
@@ -907,6 +921,8 @@ def create_extract_cmems(filepath, options, sites, path_output):
                 print(f'[WARNING] Site {site} out of the image')
 
     return ncreated
+
+
 def main():
     print('[INFO]Creating satellite extracts')
 
