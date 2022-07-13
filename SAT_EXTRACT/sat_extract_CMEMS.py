@@ -831,7 +831,8 @@ def run_cmems_option(options):
             filesExist = True
             for site in sites:
                 path_output_site = os.path.join(path_output, site)
-                filename = filenc.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
+                filepath = pinfo.get_file_path_orig(None, date)
+                filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
                 ofname = os.path.join(path_output_site, filename)
                 if not os.path.exists(ofname):
                     filesExist = False
@@ -839,7 +840,6 @@ def run_cmems_option(options):
                 if args.verbose:
                     print(f'[INFO] Files for date: {strdate} already exist. Skipping...')
                 continue
-
 
             reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
             filenc = pinfo.get_file_path_orig(None, date)
