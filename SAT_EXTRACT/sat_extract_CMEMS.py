@@ -831,7 +831,7 @@ def run_cmems_option(options):
             filesExist = True
             for site in sites:
                 path_output_site = os.path.join(path_output, site)
-                filepath = pinfo.get_file_path_orig(None, date)
+                filepath = pinfo.get_file_path_orig_name(None, date)
                 filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
                 ofname = os.path.join(path_output_site, filename)
                 if not os.path.exists(ofname):
