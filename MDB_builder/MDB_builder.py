@@ -321,13 +321,12 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
     rrs = areader.extract_rrs(False)
     exactwl = areader.extract_spectral_data('Exact_Wavelengths', False)
 
-
-    #check nc secondary
+    # check nc secondary
     ncsecondary = None
     if mdb_secondary is not None:
         dinput = Dataset(extract_path)
         sat_time = datetime.fromtimestamp(float(dinput.variables['satellite_time'][0]))
-        #print(extract_path, sat_time, '=================================================================')
+        # print(extract_path, sat_time, '=================================================================')
         lat_array = ma.array(dinput.variables['satellite_latitude'][:])
         lon_array = ma.array(dinput.variables['satellite_longitude'][:])
 
@@ -338,7 +337,6 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
             print(f'[WARNING] No extra data found for date: {satellite_date}')
             return False
 
-
     # to append to nc file
     new_MDB = copy_nc(extract_path, ofile)
 
@@ -348,14 +346,13 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
             var_secondary = ncsecondary.variables[varname]
             new_MDB = create_variable_from_other_variable(ncsecondary, new_MDB, varname, var_secondary)
 
-
     # add time window diff
     new_MDB.time_diff = f'{time_window_seconds}'  # in seconds
 
     n_insitu_bands = areader.nwl
 
     # create in situ dimensions
-    new_MDB.createDimension('insitu_id', 30)
+    new_MDB.createDimension('insitu_id', 50)
     new_MDB.createDimension('insitu_original_bands', n_insitu_bands)
     # new_MDB.createDimension('insitu_Rrs_bands', None)
 
@@ -540,12 +537,68 @@ def make_simple_builder(options, path_extract, path_out):
     print(f'Concatenated file created: {ncout_file}')
 
 
+def concatenate_nc_impl(list_files, path_out, ncout_file):
+
+
+    if len(list_files) == 0:
+        print(f'[WARNING] No sat extract files were found. Please review params in config file')
+        return
+
+    if len(list_files) > 100:
+        if args.verbose:
+            print(f'[INFO] Preparing contatenation of {len(list_files)} files...')
+        list_files_tmp = []
+        for icent in range(0, len(list_files), 100):
+            if args.verbose:
+                print(f'[INFO] Concatening: {icent} / {len(list_files)}')
+            indextmp = int(icent / 100)
+            list_files_here = list_files[icent:icent + 100]
+            ncout_file_tmp = os.path.join(path_out, f'Temp_{indextmp}.nc')
+            list_files_tmp.append(ncout_file_tmp)
+            list_files_here.append(ncout_file_tmp)
+            # concatenation
+            cmd = [f"ncrcat -O -h"] + list_files_here
+            cmd = " ".join(cmd)
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(f'[ERROR]{err}')
+        list_files_tmp.append(ncout_file)
+        cmd = [f"ncrcat -O -h"] + list_files_tmp
+        cmd = " ".join(cmd)
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(f'[ERROR]{err}')
+
+        [os.remove(f) for f in list_files_tmp[:-1]]
+        if not args.nodelfiles:
+            [os.remove(f) for f in list_files]
+
+    else:
+        list_files.append(ncout_file)
+        # concatenation
+        cmd = [f"ncrcat -O -h"] + list_files
+        cmd = " ".join(cmd)
+        if args.debug:
+            print(f'CMD="{cmd}"')
+        # os.system(cmd)
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(f'[ERROR]{err}')
+
+        if not args.nodelfiles:
+            [os.remove(f) for f in list_files[:-1]]
+    print(f'Concatenated file created: {ncout_file}')
+
+
 def check():
     base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Irbe_Lighthouse/WFR/extracts'
     for name in os.listdir(base):
         if not name.endswith('nc'):
             continue
-        extract_path = os.path.join(base,name)
+        extract_path = os.path.join(base, name)
         dinput = Dataset(extract_path)
         sat_time = datetime.fromtimestamp(float(dinput.variables['satellite_time'][0]))
         print(name, sat_time, '=================================================================')
@@ -689,7 +742,7 @@ def main():
     # time dif between in situ and sat data
     time_window = 3  # in hours (+- hours)
     if args.config_file:
-        if options.has_option('Time_and_sites_selection','time_window'):
+        if options.has_option('Time_and_sites_selection', 'time_window'):
             time_window = int(options['Time_and_sites_selection']['time_window'])
     if args.verbose:
         print(f'[INFO] Time window: {time_window} hours')
@@ -751,10 +804,10 @@ def main():
                 res_str = res
                 nc_sat = Dataset(extract_path)
                 datetime_here = datetime.fromtimestamp(float(nc_sat.variables['satellite_time'][0]))
-                if options.has_option('Time_and_sites_selection','time_sat_default'):
+                if options.has_option('Time_and_sites_selection', 'time_sat_default'):
                     hm = options['Time_and_sites_selection']['time_sat_default']
-                    dhm = datetime.strptime(hm,'%H:%M')
-                    datetime_here = datetime_here.replace(hour=dhm.hour,minute=dhm.minute)
+                    dhm = datetime.strptime(hm, '%H:%M')
+                    datetime_here = datetime_here.replace(hour=dhm.hour, minute=dhm.minute)
                 else:
                     datetime_here = datetime_here.replace(hour=11)
                 datetime_str = datetime_here.strftime('%Y%m%dT%H%M%S')
@@ -778,7 +831,8 @@ def main():
                         path_to_list_daily = None
                         filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{ins_sensor}_{station_name}.nc'
                         ofile = os.path.join(path_out, filename)
-                        if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window,mdb_secondary):
+                        if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window,
+                                              mdb_secondary):
                             print(f'[INFO] File created: {ofile}')
                             file_list.append(ofile)  # for ncrcat later
                     else:
@@ -814,18 +868,17 @@ def main():
 
     ncout_file = os.path.join(path_out,
                               f'MDB_{sat_satellite}{sat_platform}_{sat_sensor.upper()}_{res_str}_{atm_corr}_{level_prod}_{ins_sensor}_{station_name}.nc')
-    file_list.append(ncout_file)
 
-    # concatenation
-    cmd = [f"ncrcat -O -h"] + file_list
-    cmd = " ".join(cmd)
-    if args.debug:
-        print(f'CMD="{cmd}"')
-
-    os.system(cmd)
-
-    if not args.nodelfiles:
-        [os.remove(f) for f in file_list[:-1]]
+    concatenate_nc_impl(file_list,path_out,ncout_file)
+    # file_list.append(ncout_file)
+    # # concatenation
+    # cmd = [f"ncrcat -O -h"] + file_list
+    # cmd = " ".join(cmd)
+    # if args.verbose:
+    #     print(f'CMD="{cmd}"')
+    # os.system(cmd)
+    # if not args.nodelfiles:
+    #     [os.remove(f) for f in file_list[:-1]]
 
     print(f'Concatenated file created: {ncout_file}')
 

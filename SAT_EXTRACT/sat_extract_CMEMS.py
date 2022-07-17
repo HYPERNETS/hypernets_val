@@ -843,9 +843,10 @@ def run_cmems_option(options):
                 if args.verbose:
                     print(f'[INFO] Files for date: {strdate} already exist. Skipping...')
                 continue
-
-            reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
             filenc = pinfo.get_file_path_orig(None, date)
+            if not os.path.exists(filenc):
+                reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
+
             if args.verbose:
                 print(f'[INFO] Reformatted file {filenc}')
             nhere = create_extract_cmems(filenc, options, sites, path_output)
@@ -914,6 +915,7 @@ def create_extract_cmems(filepath, options, sites, path_output):
             global_at['station_name'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
+            print('llega aqui ', r ,c)
             res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
             if res:
                 ncreated = ncreated + 1
