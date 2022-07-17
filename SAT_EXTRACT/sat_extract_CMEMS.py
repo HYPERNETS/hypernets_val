@@ -201,8 +201,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     stop_idx_x = (c + int(size_box / 2) + 1)
     start_idx_y = (r - int(size_box / 2))
     stop_idx_y = (r + int(size_box / 2) + 1)
-    # print(start_idx_y, stop_idx_y, start_idx_x, stop_idx_x,
-    #       '--------------------------------------------------------------------------------------------------------')
+    print(start_idx_y, stop_idx_y, start_idx_x, stop_idx_x,
+          '--------------------------------------------------------------------------------------------------------')
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
     search_pattern = 'rrs_'
@@ -214,6 +214,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     if options.has_option('satellite_options', 'wl_atrib'):
         wl_atrib = options['satellite_options']['wl_atrib']
     reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib)
+
 
     if n_bands == 0:
         print('[ERROR] reflectance bands are not defined')
@@ -229,13 +230,16 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
 
     if args.verbose:
         print(f'[INFO]Creating file: {ofname}')
+
     newEXTRACT.set_global_attributes(global_at)
+    print('235')
     if skie_file is not None:
         newEXTRACT.create_dimensions_incluidinginsitu(size_box, n_bands, skie_file.get_n_bands(), 30)
     else:
         newEXTRACT.create_dimensions(size_box, n_bands)
-
+    print('240')
     newEXTRACT.create_lat_long_variables(lat, long, window)
+    print('242')
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
     if 'start_date' in nc_sat.ncattrs():
@@ -250,10 +254,10 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
             print(f'[ERROR] Satellite time is not defined...')
             newEXTRACT.close_file()
             return False
-
+    print('257')
     # pdu variable
     newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
-
+    print('260')
     # Rrs and wavelenghts
     satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
     rbands = list(reflectance_bands.keys())
@@ -270,7 +274,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
         wl = reflectance_bands[rband]['wavelenght']
         wavelenghts.append(wl)
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
-
+    print('277')
     # flags
     # flag_band = nc_sat.variables[flag_band_name]
     #
@@ -915,7 +919,7 @@ def create_extract_cmems(filepath, options, sites, path_output):
             global_at['station_name'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
-            print('llega aqui ', r ,c)
+
             res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
             if res:
                 ncreated = ncreated + 1
