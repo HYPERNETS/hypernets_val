@@ -99,12 +99,18 @@ class SatExtract:
         satellite_PDU.long_name = f'{sensor} source PDU name'
 
     def create_lat_long_variables(self, lat, lon, window):
+
         start_idx_y = window[0]
         stop_idx_y = window[1]
         start_idx_x = window[2]
         stop_idx_x = window[3]
         nrows = (window[1] - window[0])
         ncols = (window[3] - window[2])
+
+        print('109')
+        print(nrows,ncols,start_idx_x,stop_idx_x,start_idx_y,stop_idx_y)
+        print(lat.shape)
+        print(lon.shape)
 
         # latitude
         satellite_latitude = self.EXTRACT.createVariable('satellite_latitude', 'f8',
