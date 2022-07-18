@@ -114,9 +114,6 @@ class MDBPlot:
             xhere = np.asarray(self.xdata, dtype=np.float)
             yhere = np.asarray(self.ydata, dtype=np.float)
 
-            print(len(xhere))
-            print(len(yhere))
-
 
             # Density
             xy = np.vstack([xhere, yhere])
@@ -126,26 +123,31 @@ class MDBPlot:
             plot.plot_data(xhere, yhere, None, 25, z, None, None)
             plot.set_cmap('jet')
 
+
+
             # 2DHistogrm
-            # histo, xedges, yedges = np.histogram2d(xhere, yhere, bins=1000, density=False)
+            # histo, xedges, yedges = np.histogram2d(xhere, yhere, bins=5000, density=False)
             # xvalues = []
             # yvalues = []
             # zvalues = []
             # sum = 0
             # for idx in range(len(xedges) - 1):
-            #     #print(xedges[idx],yedges[idx])
-            #     if histo[idx, idx] > 0:
-            #         xvalues.append(xedges[idx])
-            #         yvalues.append(yedges[idx])
-            #         zvalues.append(histo[idx][idx])
-            #     sum = sum + histo[idx][idx]
-            # print(sum)
+            #     for idy in range(len(yedges)-1):
+            #         if histo[idx, idy] > 0:
+            #             xvalues.append((xedges[idx]+xedges[idx+1])/2)
+            #             yvalues.append((yedges[idy]+yedges[idy+1])/2)
+            #             zvalues.append(histo[idx][idy])
+            #             sum = sum + histo[idx][idy]
             # zvalues = np.array(zvalues)
             # xvalues = np.array(xvalues)
             # yvalues = np.array(yvalues)
-            # print(zvalues.shape, xvalues.shape, yvalues.shape)
-            # plot.plot_data(xvalues, yvalues, None, 25, zvalues, None, None)
+            # idx = zvalues.argsort()
+            # xhere, yhere, z = xvalues[idx], yvalues[idx], zvalues[idx]
+            # plot.plot_data(xhere, yhere, None, 25, z, None, None)
             # plot.set_cmap('jet')
+
+
+
             # self.log_scale = False
             # cmap = plt.cm.jet
             # cmap.set_bad('white')
@@ -333,7 +335,31 @@ class MDBPlot:
         ref_obs = np.asarray(self.xdata, dtype=np.float)
         sat_obs = np.asarray(self.ydata, dtype=np.float)
 
-        results = regress2(ref_obs, sat_obs, _method_type_2="reduced major axis")
+        sat_avg = np.mean(sat_obs)
+        ref_avg = np.mean(ref_obs)
+        sat_minus_avg2 = 0
+        ref_minus_avg2 = 0
+        sat_ref = 0
+        cval = 0
+        for idx in range(len(sat_obs)):
+            vsat = sat_obs[idx]
+            vref = ref_obs[idx]
+            val_sat = (vsat-sat_avg)*(vsat-sat_avg)
+            sat_minus_avg2 = sat_minus_avg2 + val_sat
+            val_ref = (vref - ref_avg) * (vref - ref_avg)
+            ref_minus_avg2 = ref_minus_avg2 + val_ref
+            val_here = (vsat-sat_avg)*(vref - ref_avg)
+            sat_ref = sat_ref + val_here
+            cval_here = math.pow(((vsat - sat_avg)- (vref - ref_avg)),2)
+            cval = cval + cval_here
+
+        num1 = math.pow((sat_minus_avg2-ref_minus_avg2),2)
+        num2 = math.pow(sat_ref, 2) * 4
+        num3 = math.pow((num1+num2),0.5)
+        num = sat_minus_avg2 - ref_minus_avg2 + num3
+        dem = 2 * sat_ref
+
+        results = regress2(ref_obs, sat_obs, _method_type_2="major axis")
         self.valid_stats['slope_typeII'] = results['slope']
         self.valid_stats['offset_typeII'] = results['intercept']
 

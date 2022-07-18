@@ -273,7 +273,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
         wl = reflectance_bands[rband]['wavelenght']
         wavelenghts.append(wl)
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
-    
+
     # flags
     # flag_band = nc_sat.variables[flag_band_name]
     #
@@ -837,10 +837,10 @@ def run_cmems_option(options):
                 print(f'[INFO] Date: {strdate}')
             ##checking if output files already exist
             filesExist = True
+            expected_file_nc = pinfo.get_file_path_orig_name(None, date)
             for site in sites:
                 path_output_site = os.path.join(path_output, site)
-                filepath = pinfo.get_file_path_orig_name(None, date)
-                filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
+                filename = expected_file_nc.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
                 ofname = os.path.join(path_output_site, filename)
                 if not os.path.exists(ofname):
                     filesExist = False
@@ -848,10 +848,13 @@ def run_cmems_option(options):
                 if args.verbose:
                     print(f'[INFO] Files for date: {strdate} already exist. Skipping...')
                 continue
-            filenc = pinfo.get_file_path_orig(None, date)
-            if filenc is None: ##os.path.exists(filenc):
-                reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
 
+            if not os.path.exists(expected_file_nc):
+                reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
+            filenc = pinfo.get_file_path_orig(None, date)
+            if filenc is None:
+                print(f'[WARNING] Refformatted file {expected_file_nc} could not be created. Skypping...')
+                continue
             if args.verbose:
                 print(f'[INFO] Reformatted file {filenc}')
             nhere = create_extract_cmems(filenc, options, sites, path_output)

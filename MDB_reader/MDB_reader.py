@@ -80,10 +80,10 @@ def main():
     # do_check_mdb_times()
     # do_check_extract_times()
 
-    #do_final_results()
+    do_final_results()
     # do_final_results_l3()
     # do_final_results_CCI()
-    do_final_results_CNR()
+    # do_final_results_CNR()
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # # name_mdb = 'MDB_CCIv6_INSITU_19970101_20221231.nc'
@@ -327,6 +327,8 @@ def do_final_results():
     sites = ['Gustav_Dalen_Tower', 'Helsinki_Lighthouse', 'Irbe_Lighthouse']
     acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
     acnames = ['STANDARD', 'POLYMER']
+
+
     # SINGLE VALIDATIONS FOR PLATFORM/AC/SITE
     # for ac in acnames:
     #     for platform in platforms:
@@ -337,10 +339,12 @@ def do_final_results():
     #                 make_validation_single_MDB(path_mdb, name_mdb)
 
     # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
-    # for ac in acnames:
-    #     for platform in platforms:
-    #         #make_validation_list_MDB(ac, platform)
-    #         make_validation_from_dfvalid(ac, platform)
+    platforms = ['A']
+    acnames = ['POLYMER']
+    for ac in acnames:
+        for platform in platforms:
+            #make_validation_list_MDB(ac, platform)
+            make_validation_from_dfvalid(ac, platform)
 
     # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
     # bands = [412, 443, 490, 510, 560, 620, 667]
@@ -366,34 +370,34 @@ def do_final_results():
     #         make_average_spectra(ac, platform, 'SPECTRA')
 
     # AB COMPARISON
-    for ac in acnames:
-        make_togheter_ab(ac)
+    # for ac in acnames:
+    #     make_togheter_ab(ac)
 
     # STATS TABLE
-    bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
-    acs = ['STANDARD', 'POLYMER']
-    params = {
-        'N': 0,
-        'SLOPE': 11,
-        'OFFSET': 12,
-        'XAVG': 13,
-        'YAVG': 14,
-        'DETER(r2)': 10,
-        'RMSE': 6,
-        'CPRMSE': 15,
-        'BIAS': 9,
-        'PCC(r)': 3,
-        'RPD': 7,
-        'APD': 8,
-        'MAE': 16
-    }
-    get_table_stats(-1, 'A', acs, params)
-    get_table_stats(-1, 'B', acs, params)
-    for wl in bands:
-        get_table_stats(wl, 'A', acs, params)
-        get_table_stats(wl, 'B', acs, params)
-    get_table_stats_complete(bands, acs, 'A', params)
-    get_table_stats_complete(bands, acs, 'B', params)
+    # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
+    # acs = ['STANDARD', 'POLYMER']
+    # params = {
+    #     'N': 0,
+    #     'SLOPE': 11,
+    #     'OFFSET': 12,
+    #     'XAVG': 13,
+    #     'YAVG': 14,
+    #     'DETER(r2)': 10,
+    #     'RMSE': 6,
+    #     'CPRMSE': 15,
+    #     'BIAS': 9,
+    #     'PCC(r)': 3,
+    #     'RPD': 7,
+    #     'APD': 8,
+    #     'MAE': 16
+    # }
+    # get_table_stats(-1, 'A', acs, params)
+    # get_table_stats(-1, 'B', acs, params)
+    # for wl in bands:
+    #     get_table_stats(wl, 'A', acs, params)
+    #     get_table_stats(wl, 'B', acs, params)
+    # get_table_stats_complete(bands, acs, 'A', params)
+    # get_table_stats_complete(bands, acs, 'B', params)
 
     # MUINFO
     # make_mu_info(path_base, acnames, 'AB')
