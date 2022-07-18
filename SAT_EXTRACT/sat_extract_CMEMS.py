@@ -228,7 +228,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
         return False
 
     if args.verbose:
-        print(f'[INFO]Creating file: {ofname}')
+        print(f'[INFO]    Creating file: {ofname}')
 
     newEXTRACT.set_global_attributes(global_at)
 
@@ -253,10 +253,10 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
             print(f'[ERROR] Satellite time is not defined...')
             newEXTRACT.close_file()
             return False
-    print('257')
+
     # pdu variable
     newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
-    print('260')
+
     # Rrs and wavelenghts
     satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
     rbands = list(reflectance_bands.keys())
@@ -273,7 +273,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
         wl = reflectance_bands[rband]['wavelenght']
         wavelenghts.append(wl)
     newEXTRACT.create_satellite_bands_variable(wavelenghts)
-    print('277')
+    
     # flags
     # flag_band = nc_sat.variables[flag_band_name]
     #
