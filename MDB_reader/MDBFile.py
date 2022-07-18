@@ -114,6 +114,8 @@ class MDBFile:
         if self.nc.satellite_aco_processor == 'ACOLITE' or self.nc.satellite_aco_processor == 'Climate Change Initiative - European Space Agency':
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                  self.info['satellite_aco_processor'])
+        elif len(self.nc.satellite_aco_processor) == 0:
+            self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None, 'Climate Change Initiative - European Space Agency')
         else:
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
                                  self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
@@ -172,8 +174,6 @@ class MDBFile:
         # self.window_size = 3
         # self.valid_min_pixels = 1
         # self.delta_t = 7200
-
-
 
     def get_dimensions(self):
         # Dimensions
@@ -273,8 +273,6 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
 
-
-
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.fromtimestamp(int(ins_time))
@@ -325,8 +323,6 @@ class MDBFile:
         # THIS STEP IS NOW DONE BEFORE PREPARING DF FOR VALIDATION
         # if self.info['satellite_aco_processor'] == 'CCI':
         #     self.mu_sat_time = self.mu_sat_time.replace(hour=11)
-
-
 
         # self.ins_time_index, self.mu_insitu_time, time_condition = self.retrieve_ins_info_mu(index_mu)
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
@@ -496,10 +492,10 @@ class MDBFile:
         mukey = f'{sdate}_{idate}'
         return mukey
 
-    def set_hour_sat_time(self,hour,minute):
+    def set_hour_sat_time(self, hour, minute):
         for index_mu in range(self.n_mu_total):
             sat_time_prev = self.sat_times[index_mu]
-            sat_time_new = sat_time_prev.replace(hour=hour,minute=minute)
+            sat_time_new = sat_time_prev.replace(hour=hour, minute=minute)
             self.sat_times[index_mu] = sat_time_new
 
     def prepare_df_validation(self):
@@ -521,7 +517,6 @@ class MDBFile:
             # if not mu_valid:
             #     status = info_mu['status']
             #     print(f'[WARNING] MU: {index_mu} no valid: {status}')
-
 
             # invalid = [2,94,136,140,159]
             # if index_mu in invalid:

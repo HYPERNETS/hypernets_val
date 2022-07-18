@@ -232,14 +232,14 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
         print(f'[INFO]Creating file: {ofname}')
 
     newEXTRACT.set_global_attributes(global_at)
-    print('235')
+
     if skie_file is not None:
         newEXTRACT.create_dimensions_incluidinginsitu(size_box, n_bands, skie_file.get_n_bands(), 30)
     else:
         newEXTRACT.create_dimensions(size_box, n_bands)
-    print('240')
+
     newEXTRACT.create_lat_long_variables(lat, long, window)
-    print('242')
+
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
     if 'start_date' in nc_sat.ncattrs():

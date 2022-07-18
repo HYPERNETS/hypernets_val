@@ -83,6 +83,7 @@ def main():
     #do_final_results()
     # do_final_results_l3()
     # do_final_results_CCI()
+    do_final_results_CNR()
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # # name_mdb = 'MDB_CCIv6_INSITU_19970101_20221231.nc'
@@ -91,12 +92,12 @@ def main():
     #         continue
     #     do_chla(path_base, name_mdb)
 
-    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
-    for name_csv in os.listdir(path_base):
-        if not name_csv.endswith('csv'):
-            continue
-        # name_csv = 'MDB_CCIv6_INSITU_19970101_20221231.csv'
-        do_chla_validation(path_base, name_csv)
+    # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
+    # for name_csv in os.listdir(path_base):
+    #     if not name_csv.endswith('csv'):
+    #         continue
+    #     # name_csv = 'MDB_CCIv6_INSITU_19970101_20221231.csv'
+    #     do_chla_validation(path_base, name_csv)
 
     # retrieve_insitu_chla_from_paper_files()
     # compare_chlainsitu_with_paper()
@@ -182,6 +183,13 @@ def main():
     # mdb = MDBFile(file_s3a)
     # mdb.load_mu_datav2(4)
 
+def do_final_results_CNR():
+    print('CCI Results')
+    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/MDBs'
+    name_mdb = f'MDB___1KM_MULTI_L2_AERONET_Casablanca_Platform.nc'
+    fmdb = os.path.join(path_base,name_mdb)
+    if os.path.exists(fmdb):
+        make_validation_single_MDB(path_base, name_mdb)
 
 def do_final_results_CCI():
     print('CCI Results')
@@ -1137,7 +1145,7 @@ def make_validation_single_MDB(path_base, name_mdb):
     wllist = [400, 412, 443, 490, 510, 560, 620, 665, 779]
     if name_mdb.find('FUB') > 0:
         wllist = [412, 443, 490, 510, 560, 620, 665]
-    if name_mdb.find('CCI') > 0:
+    if name_mdb.find('CCI') > 0 or name_mdb.find('MULTI')>0:
         wllist = [412, 443, 490, 510, 560, 665]
         reader.mfile.set_hour_sat_time(11, 0)
 
