@@ -850,7 +850,7 @@ def run_cmems_option(options):
                     print(f'[INFO] Files for date: {strdate} already exist. Skipping...')
                 continue
             filenc = pinfo.get_file_path_orig(None, date)
-            if not filenc is None: ##os.path.exists(filenc):
+            if filenc is None: ##os.path.exists(filenc):
                 reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
 
             if args.verbose:
