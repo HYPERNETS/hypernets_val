@@ -201,8 +201,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     stop_idx_x = (c + int(size_box / 2) + 1)
     start_idx_y = (r - int(size_box / 2))
     stop_idx_y = (r + int(size_box / 2) + 1)
-    print(start_idx_y, stop_idx_y, start_idx_x, stop_idx_x,
-          '--------------------------------------------------------------------------------------------------------')
+
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
 
     search_pattern = 'rrs_'
@@ -830,7 +829,6 @@ def run_cmems_option(options):
     flist = options['Time_and_sites_selection']['time_list']
     ff = open(flist, 'r')
     for line in ff:
-        print('line is:',line)
         strdate = line.strip()
         try:
             date = dt.strptime(strdate, '%Y-%m-%d')

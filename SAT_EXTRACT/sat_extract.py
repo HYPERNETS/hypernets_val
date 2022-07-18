@@ -116,7 +116,6 @@ class SatExtract:
 
         if lat.ndim == 1:
             for r in range(nrows):
-                print('r->',r)
                 satellite_latitude[0, r, :] = [lat[start_idx_x:stop_idx_x]]
         else:
             satellite_latitude[0, :, :] = [lat[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
