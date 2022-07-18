@@ -821,9 +821,11 @@ def run_cmems_option(options):
     import reformatCMEMS_202207_class
     reformat = reformatCMEMS_202207_class.ReformatCMEMS()
 
+
     product_name = options['file_path']['cmems_product']
     dataset_name = options['file_path']['cmems_dataset']
     pinfo = product_info.ProductInfo()
+    pinfo.MODE = 'REFORMAT'
     pinfo.set_dataset_info(product_name, dataset_name)
     flist = options['Time_and_sites_selection']['time_list']
     ff = open(flist, 'r')
@@ -833,7 +835,7 @@ def run_cmems_option(options):
             date = dt.strptime(strdate, '%Y-%m-%d')
             if args.verbose:
                 print('----------------------------------')
-                print(f'Date: {strdate}')
+                print(f'[INFO] Date: {strdate}')
             ##checking if output files already exist
             filesExist = True
             for site in sites:
@@ -848,7 +850,7 @@ def run_cmems_option(options):
                     print(f'[INFO] Files for date: {strdate} already exist. Skipping...')
                 continue
             filenc = pinfo.get_file_path_orig(None, date)
-            if not os.path.exists(filenc):
+            if not filenc is None: ##os.path.exists(filenc):
                 reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
 
             if args.verbose:

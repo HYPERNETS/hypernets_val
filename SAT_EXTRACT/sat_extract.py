@@ -107,7 +107,7 @@ class SatExtract:
         nrows = (window[1] - window[0])
         ncols = (window[3] - window[2])
 
-        
+
 
         # latitude
         satellite_latitude = self.EXTRACT.createVariable('satellite_latitude', 'f8',
