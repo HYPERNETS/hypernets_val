@@ -80,9 +80,9 @@ def main():
     # do_check_mdb_times()
     # do_check_extract_times()
 
-    do_final_results()
-    # do_final_results_l3()
-    # do_final_results_CCI()
+    # do_final_results()
+    #do_final_results_l3()
+    do_final_results_CCI()
     # do_final_results_CNR()
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
@@ -253,7 +253,7 @@ def do_final_results_CCI():
     get_table_stats_complete(bands, acs, 'AB', params)
 
     # MU INFO
-    acnames = ['CCIv6']
+    # acnames = ['CCIv6']
     # make_mu_info(path_base, acnames, '')
     # make_mu_info_bytower(path_base, 'CCIv6', 2005, 2021)
 
@@ -339,8 +339,6 @@ def do_final_results():
     #                 make_validation_single_MDB(path_mdb, name_mdb)
 
     # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
-    platforms = ['A']
-    acnames = ['POLYMER']
     for ac in acnames:
         for platform in platforms:
             #make_validation_list_MDB(ac, platform)
