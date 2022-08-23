@@ -814,7 +814,8 @@ def run_cmems_option(options):
         print('[ERROR] No sites are defined')
         return ncreated
 
-    path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
+    #path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
+    path_code_eistools = '/store/COP2-OC-TAC/CODE/eistools'
     sys.path.append(path_code_eistools)
     import product_info
     import reformatCMEMS_202207_class

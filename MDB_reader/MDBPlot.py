@@ -116,12 +116,12 @@ class MDBPlot:
 
 
             # Density
-            # xy = np.vstack([xhere, yhere])
-            # z = gaussian_kde(xy)(xy)
-            # idx = z.argsort()
-            # xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
-            # plot.plot_data(xhere, yhere, None, 25, z, None, None)
-            # plot.set_cmap('jet')
+            xy = np.vstack([xhere, yhere])
+            z = gaussian_kde(xy)(xy)
+            idx = z.argsort()
+            xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
+            plot.plot_data(xhere, yhere, None, 25, z, None, None)
+            plot.set_cmap('jet')
 
             #histo2d visualization
             # plt.hist2d(xhere,yhere,bins = 50,cmin=max([np.min(xhere),np.min(yhere)]),cmax=min([np.max(xhere),np.max(yhere)]))
@@ -129,25 +129,25 @@ class MDBPlot:
 
 
             # 2DHistogrm
-            histo, xedges, yedges = np.histogram2d(xhere, yhere, bins=50, density=False)
-            xvalues = []
-            yvalues = []
-            zvalues = []
-            sum = 0
-            for idx in range(len(xedges) - 1):
-                for idy in range(len(yedges)-1):
-                    if histo[idx, idy] > 0:
-                        xvalues.append((xedges[idx]+xedges[idx+1])/2)
-                        yvalues.append((yedges[idy]+yedges[idy+1])/2)
-                        zvalues.append(histo[idx][idy])
-                        sum = sum + histo[idx][idy]
-            zvalues = np.array(zvalues)
-            xvalues = np.array(xvalues)
-            yvalues = np.array(yvalues)
-            idx = zvalues.argsort()
-            xhere, yhere, z = xvalues[idx], yvalues[idx], zvalues[idx]
-            plot.plot_data(xhere, yhere, None, 50, z, None, None)
-            plot.set_cmap('jet')
+            # histo, xedges, yedges = np.histogram2d(xhere, yhere, bins=50, density=False)
+            # xvalues = []
+            # yvalues = []
+            # zvalues = []
+            # sum = 0
+            # for idx in range(len(xedges) - 1):
+            #     for idy in range(len(yedges)-1):
+            #         if histo[idx, idy] > 0:
+            #             xvalues.append((xedges[idx]+xedges[idx+1])/2)
+            #             yvalues.append((yedges[idy]+yedges[idy+1])/2)
+            #             zvalues.append(histo[idx][idy])
+            #             sum = sum + histo[idx][idy]
+            # zvalues = np.array(zvalues)
+            # xvalues = np.array(xvalues)
+            # yvalues = np.array(yvalues)
+            # idx = zvalues.argsort()
+            # xhere, yhere, z = xvalues[idx], yvalues[idx], zvalues[idx]
+            # plot.plot_data(xhere, yhere, None, 50, z, None, None)
+            # plot.set_cmap('jet')
 
 
 
@@ -161,8 +161,11 @@ class MDBPlot:
             max_xy = 100
 
         else:
-            min_xy = 0
-            max_x_data = np.min(self.xdata)
+            #min_xy = 0
+            min_x_data = np.min(self.xdata)
+            min_y_data = np.min(self.ydata)
+            min_xy = np.floor(np.min([min_x_data, min_y_data]))
+            max_x_data = np.max(self.xdata)
             max_y_data = np.max(self.ydata)
             max_xy = np.ceil(np.max([max_x_data, max_y_data]))
         # if max_xy > 10:

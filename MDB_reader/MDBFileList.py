@@ -66,6 +66,10 @@ class MDBFileList():
 
                 if fmdb.find('CCI')>0:
                     mfile.set_hour_sat_time(11, 0) ##ONLY FOR CCI
+                if fmdb.find('MULTI')>0:
+                    mfile.set_hour_sat_time(11,0)
+                if fmdb.find('OLCI-L3')>0:
+                    mfile.set_hour_sat_time(11,0)
 
                 #mfile.qc_sat.set_qc_from_qcbase(self.qc_base)
                 mfile.qc_sat.set_eumetsat_defaults(3)
@@ -73,7 +77,8 @@ class MDBFileList():
                     idepix_flag = mfile.nc.variables['satellite_pixel_classif_flags']
                     mfile.qc_sat.set_idepix_as_flag(idepix_flag)
 
-                mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.003, 'greater')
+                #mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.003, 'greater')
+                mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0, 'lower')
 
                 mfile.qc_insitu.set_wllist_using_wlref(mfile.wlref)
                 mfile.qc_insitu.check_indices_by_mu = True

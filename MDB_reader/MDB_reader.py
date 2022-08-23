@@ -81,16 +81,17 @@ def main():
     # do_check_extract_times()
 
     # do_final_results()
-    #do_final_results_l3()
-    do_final_results_CCI()
-    # do_final_results_CNR()
+    # do_final_results_l3()
+    # do_final_results_CCI()
+    do_final_results_CNR('MED', 'OLCI-L3', 2)
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
-    # # name_mdb = 'MDB_CCIv6_INSITU_19970101_20221231.nc'
-    # for name_mdb in os.listdir(path_base):
-    #     if not name_mdb.endswith('nc'):
-    #         continue
-    #     do_chla(path_base, name_mdb)
+    # #name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc' #LEVEL 2
+    # name_mdb = 'MDB_S3AB_OLCI_POLYMER_INSITU_20160401_20220531.nc' #LEVEL 3
+    # # # for name_mdb in os.listdir(path_base):
+    # # #     if not name_mdb.endswith('nc'):
+    # # #         continue
+    # do_chla(path_base, name_mdb)
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # for name_csv in os.listdir(path_base):
@@ -183,13 +184,74 @@ def main():
     # mdb = MDBFile(file_s3a)
     # mdb.load_mu_datav2(4)
 
-def do_final_results_CNR():
-    print('CCI Results')
-    path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/MDBs'
-    name_mdb = f'MDB___1KM_MULTI_L2_AERONET_Casablanca_Platform.nc'
-    fmdb = os.path.join(path_base,name_mdb)
-    if os.path.exists(fmdb):
-        make_validation_single_MDB(path_base, name_mdb)
+
+def do_final_results_CNR(region, sensor, step):
+    # region: MED or BLK
+    # sensor: MULTI o OLCI-L3
+    res = '1KM'
+    if sensor == 'OLCI-L3':
+        res = '300m'
+    print('CNR Results')
+    path_base = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{region}_MATCHUPS/MDBs/{sensor}'
+    if region == 'MED':
+        sites = ['Casablanca_Platform', 'Venise']
+    if region == 'BLK' and sensor == 'MULTI':
+        sites = ['Galata_Platform', 'Gloria', 'Section-7_Platform']
+    if region == 'BLK' and sensor == 'OLCI-L3':
+        sites = ['Galata_Platform', 'Section-7_Platform']
+
+    # single validation
+    if step == 1:
+        for site in sites:
+            name_mdb = f'MDB___{res}_{sensor}_L2_AERONET_{site}.nc'
+            fmdb = os.path.join(path_base, name_mdb)
+            if os.path.exists(fmdb):
+                make_validation_single_MDB(path_base, name_mdb)
+
+    # PREPARE DF CSV COMBINING ALL THE SITES AND VALIDATING
+    if step == 11:
+        make_validation_list_MDB(sensor, '', region)  # only first time
+    if step == 2:
+        make_validation_from_dfvalid(sensor, '', region)
+
+    if sensor == 'MULTI':
+        bands = [412, 443, 490, 510, 555, 670]
+    if sensor == 'OLCI-L3' and region == 'MED':
+        bands = [412, 443, 490, 560, 665]
+    if sensor == 'OLCI-L3' and region == 'BLK':
+        bands = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
+
+    # # PARAMETERS BY BAND
+    if step == 2:
+        path_here = os.path.join(path_base, f'MDB_{sensor}')
+        make_atm_params(path_here, bands, sensor, region)
+
+    ## TABLE STATS
+    if sensor == 'MULTI':
+        acs = ['MULTI']
+    if sensor == 'OLCI-L3':
+        acs = ['OLCI-L3']
+    params = {
+        'N': 0,
+        'SLOPE': 11,
+        'OFFSET': 12,
+        'XAVG': 13,
+        'YAVG': 14,
+        'DETER(r2)': 10,
+        'RMSE': 6,
+        'CPRMSE': 15,
+        'BIAS': 9,
+        'PCC(r)': 3,
+        'RPD': 7,
+        'APD': 8,
+        'MAE': 16
+    }
+    if step == 2:
+        get_table_stats_cnr(-1, acs, region, params)
+        for wl in bands:
+            get_table_stats_cnr(wl, acs, region, params)
+        get_table_stats_complete_cnr(bands, acs, region, params)
+
 
 def do_final_results_CCI():
     print('CCI Results')
@@ -198,17 +260,15 @@ def do_final_results_CCI():
 
     # SINGLE VALIDATION FOR SITE
     for site in sites:
-        path_mdb = os.path.join(path_base,'CCIv6')
+        path_mdb = os.path.join(path_base, 'CCIv6')
         name_mdb = f'MDB___1KM_CCI_L2_AERONET_{site}.nc'
-        fmdb = os.path.join(path_mdb,name_mdb)
+        fmdb = os.path.join(path_mdb, name_mdb)
         if os.path.exists(fmdb):
             make_validation_single_MDB(path_mdb, name_mdb)
 
     # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
-    # make_validation_list_MDB('CCIv6', '')
-    make_validation_from_dfvalid('CCIv6', '')
-
-
+    # make_validation_list_MDB('CCIv6', '', None)
+    make_validation_from_dfvalid('CCIv6', '', None)
 
     # # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
     # bands = [412, 443, 490, 510, 560, 665]
@@ -218,11 +278,9 @@ def do_final_results_CCI():
     # # PARAMETERS BY BAND
     acnames = ['STANDARD', 'POLYMER', 'CCIv6']
     bands = [412, 443, 490, 510, 560, 665]
-    make_together_atm_params(bands,acnames,'AB','Params_StandardAB_PolymerAB_CCIv6')
+    make_together_atm_params(bands, acnames, 'AB', 'Params_StandardAB_PolymerAB_CCIv6')
     acnames = ['POLYMER', 'CCIv6']
     make_together_atm_params(bands, acnames, 'AB', 'Params_PolymerAB_CCIv6')
-
-
 
     # AVERAGE SPECTRA
     # for ac in acnames:
@@ -268,15 +326,15 @@ def do_final_results_l3():
     # SINGLE VALIDATIONS FOR  AC/SITE
     for ac in acnames:
         for site in sites:
-            path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac,3)
+            path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 3)
             print(f'MDB: {fmdb}')
             if os.path.exists(fmdb):
                 make_validation_single_MDB(path_mdb, name_mdb)
 
     # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
     for ac in acnames:
-        # make_validation_list_MDB(ac, 'AB')
-        make_validation_from_dfvalid(ac, 'AB')
+        # make_validation_list_MDB(ac, 'AB', None)
+        make_validation_from_dfvalid(ac, 'AB', None)
 
     # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
     # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
@@ -285,7 +343,7 @@ def do_final_results_l3():
 
     # PARAMETERS BY BAND
     bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
-    make_together_atm_params(bands,acnames,'AB','ParamsS3AB')
+    make_together_atm_params(bands, acnames, 'AB', 'ParamsS3AB')
 
     # AVERAGE SPECTRA
     # for ac in acnames:
@@ -328,7 +386,6 @@ def do_final_results():
     acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
     acnames = ['STANDARD', 'POLYMER']
 
-
     # SINGLE VALIDATIONS FOR PLATFORM/AC/SITE
     # for ac in acnames:
     #     for platform in platforms:
@@ -341,8 +398,8 @@ def do_final_results():
     # PREPARE DF CSV COMBINING ALL THE STATIONS AND VALIDATING
     for ac in acnames:
         for platform in platforms:
-            #make_validation_list_MDB(ac, platform)
-            make_validation_from_dfvalid(ac, platform)
+            # make_validation_list_MDB(ac, platform, None)
+            make_validation_from_dfvalid(ac, platform, None)
 
     # SCATTER PLOT FOR BANDS COMBINING AC PROCESSORS
     # bands = [412, 443, 490, 510, 560, 620, 667]
@@ -625,20 +682,24 @@ def do_lps():
 
 def do_chla(path_base, name_mdb):
     name_out = name_mdb[:-3]
-    file_out = os.path.join(path_base, f'{name_out}.csv')
-    if os.path.exists(file_out):
-        return
+    dir_out = os.path.join(path_base, name_out)
+    if not os.path.exists(dir_out):
+        os.mkdir(dir_out)
+    file_out_all = os.path.join(dir_out, f'{name_out}_all.csv')
+    file_out_valid = os.path.join(dir_out, f'{name_out}_valid.csv')
+    # if os.path.exists(file_out):
+    #     return
     file_mdb = os.path.join(path_base, name_mdb)
     baltic_mlp_code = '/home/lois/PycharmProjects/aeronet'
     mfile = MDBInSituFile(file_mdb)
-    mfile.delta_t = (2*3600)
+    mfile.delta_t = (3 * 3600)
 
     if not mfile.VALID:
         return
     mfile.start_baltic_chla(baltic_mlp_code, 'insitu_CHLA')
     mfile.qc_sat.max_diff_wl = 6
     mfile.qc_sat.window_size = 3
-    mfile.qc_sat.min_valid_pixels = 9
+    mfile.qc_sat.min_valid_pixels = 4
     mfile.qc_sat.apply_outliers = False
     mfile.qc_sat.stat_value = 'median'
 
@@ -648,7 +709,10 @@ def do_chla(path_base, name_mdb):
     #     mfile.compute_baltic_chla_ensemble_mu(imu)
     mfile.prepare_df_validation()
 
-    mfile.df_validation_valid.to_csv(file_out, sep=';')
+    mfile.df_validation_valid.to_csv(file_out_valid, sep=';')
+    mfile.df_validation.to_csv(file_out_all, sep=';')
+
+    do_chla_validation(dir_out, file_out_valid)
 
 
 def do_chla_validation(path_base, name_csv):
@@ -686,7 +750,8 @@ def do_chla_validation(path_base, name_csv):
         mdbplot.xlabel = r'Chl-a $_R$$_E$$_F$'
         mdbplot.ylabel = r'Chl-a $_S$$_A$$_T$'
         mdbplot.ylabel = f'{mdbplot.ylabel} ({var})'
-        mdbplot.title = f'In situ chl-a vs. {lcsv[1]} ({var}) {lcsv[3]}-{lcsv[4]}'
+        # mdbplot.title = f'In situ chl-a vs. {lcsv[1]} ({var}) {lcsv[3]}-{lcsv[4]}'
+        mdbplot.title = f'In situ chl-a vs. satellite chl-a ({var})'
         mdbplot.log_scale = True
         mdbplot.plot_scatter_plot(True, False, True, os.path.join(path_out, f'ScatterPlot_InSituChla_{var}.jpg'))
         mdbplot.compute_statistics()
@@ -695,6 +760,7 @@ def do_chla_validation(path_base, name_csv):
 
     file_results = os.path.join(path_out, f'Params.csv')
     df_valid_stats.to_csv(file_results, sep=';')
+    get_table_stats_insitu(path_out, var_names)
 
 
 def do_chla_sat():
@@ -906,7 +972,7 @@ def compare_chlainsitu_with_paper():
             if tdif < 120 and cdif < 0.000001:
                 idxbal[index] = idxlist[idx]
     dfnew['IDX_BAL'] = pd.Series(idxbal)
-    dfnew.to_csv(fileout,sep=';')
+    dfnew.to_csv(fileout, sep=';')
 
 
 def get_dimensions(satellite_rrs, window_size):
@@ -997,6 +1063,65 @@ def plot_sam():
     plt.close(h)
 
 
+def get_table_stats_insitu(path_base, acs):
+    file_params = os.path.join(path_base, 'Params.csv')
+    file_out = os.path.join(path_base, 'TableParams.csv')
+    params = {
+        'N': 0,
+        'SLOPE': 11,
+        'OFFSET': 12,
+        'XAVG': 13,
+        'YAVG': 14,
+        'DETER(r2)': 10,
+        'RMSE': 6,
+        'CPRMSE': 15,
+        'BIAS': 9,
+        'PCC(r)': 3,
+        'RPD': 7,
+        'APD': 8,
+        'MAE': 16
+    }
+    table = pd.DataFrame(columns=acs, index=params.keys())
+    table_ac = pd.read_csv(file_params, sep=';')
+
+    for param in params.keys():
+        irow_ac = params[param]
+        for idx in range(len(acs)):
+            ac = acs[idx]
+            index_col = 2 + idx
+            table.loc[param, ac] = table_ac.loc[irow_ac].iat[index_col]
+    table.to_csv(file_out, sep=';')
+
+
+def get_table_stats_cnr(wlref, acs, region, params):
+    # region: MED or BLK
+
+    path_base = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{region}_MATCHUPS/MDBs'
+    path_out = os.path.join(path_base, 'TABLE_PARAM')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+    table = pd.DataFrame(columns=acs, index=params.keys())
+    for ac in acs:
+        path_ac = os.path.join(path_base, ac, f'MDB_{ac}', 'Params.csv')
+        table_ac = pd.read_csv(path_ac, sep=';')
+        index = -1
+        if wlref == -1:
+            index = 2
+            name_out = f'ParamAll_{ac}_{region}.csv'
+        else:
+            wllist = list(table_ac.columns[3:].astype(dtype=np.float64))
+            index_wl, wl_aca = get_index_wl_list(wlref, wllist)
+            if index_wl >= 0:
+                index = index_wl + 3
+                name_out = f'Param{wlref}_{ac}_{region}.csv'
+        if index >= 0:
+            for param in params.keys():
+                irow_ac = params[param]
+                table.loc[param, ac] = table_ac.loc[irow_ac].iat[index]
+            file_out = os.path.join(path_out, name_out)
+            table.to_csv(file_out, sep=';')
+
+
 def get_table_stats(wlref, platform, acs, params):
     path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
     path_out = os.path.join(path_base, 'TABLE_PARAM')
@@ -1030,6 +1155,54 @@ def get_table_stats(wlref, platform, acs, params):
 
             file_out = os.path.join(path_out, name_out)
             table.to_csv(file_out, sep=';')
+
+
+def get_table_stats_complete_cnr(bands, acs, region, params):
+    path_base = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{region}_MATCHUPS/MDBs'
+    path_out = os.path.join(path_base, 'TABLE_PARAM')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+
+    nrows = len(params) * len(acs)
+    col_names = ['Param', 'AC', 'All']
+    for wl in bands:
+        col_names.append(str(wl))
+    table = pd.DataFrame(columns=col_names, index=range(nrows))
+
+    idx = 0
+    idxs = {}
+    for param in params.keys():
+        for ac in acs:
+            table.loc[idx, 'Param'] = param
+            table.loc[idx, 'AC'] = ac
+            if param not in idxs.keys():
+                idxs[param] = {
+                    ac: idx
+                }
+            else:
+                idxs[param][ac] = idx
+            idx = idx + 1
+
+    for ac in acs:
+        path_ac = os.path.join(path_base, ac, f'MDB_{ac}', 'Params.csv')
+        table_ac = pd.read_csv(path_ac, sep=';')
+        for param in params.keys():
+            idx = idxs[param][ac]
+            irow_ac = params[param]
+            icol_ac = 2
+            table.loc[idx, 'All'] = table_ac.loc[irow_ac].iat[icol_ac]
+            wllist = list(table_ac.columns[3:].astype(dtype=np.float64))
+            for wl in bands:
+                wls = str(wl)
+                icol_ac = -1
+                index_wl, wl_aca = get_index_wl_list(wl, wllist)
+                if index_wl >= 0:
+                    icol_ac = index_wl + 3
+                if icol_ac >= 0:
+                    table.loc[idx, wls] = table_ac.loc[irow_ac].iat[icol_ac]
+
+    file_out = os.path.join(path_out, f'TableComplete_{region}.csv')
+    table.to_csv(file_out, sep=';')
 
 
 def get_table_stats_complete(bands, acs, platform, params):
@@ -1083,8 +1256,10 @@ def get_table_stats_complete(bands, acs, platform, params):
     table.to_csv(file_out, sep=';')
 
 
-def make_validation_list_MDB(acname, platform):
+def make_validation_list_MDB(acname, platform, region):
     path_ini = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    if acname == 'MULTI' or acname == 'OLCI-L3':
+        path_ini = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{region}_MATCHUPS/MDBs'
     mdblist = MDBFileList()
     path_base = os.path.join(path_ini, acname)
     if not os.path.exists(path_base):
@@ -1092,6 +1267,10 @@ def make_validation_list_MDB(acname, platform):
     wcard = f'S3{platform}'
     if acname == 'CCIv6':
         wcard = 'CCI'
+    if acname == 'MULTI':
+        wcard = 'MULTI'
+    if acname == 'OLCI-L3':
+        wcard = 'OLCI-L3'
 
     nfiles = 0
     for f in os.listdir(path_base):
@@ -1103,7 +1282,7 @@ def make_validation_list_MDB(acname, platform):
         print(f'No files found for: {acname} {platform}')
         return
 
-    if acname == 'CCIv6':
+    if acname == 'CCIv6' or acname == 'MULTI' or acname == 'OLCI-L3':
         path_out = os.path.join(path_base, f'MDB_{acname}')
     else:
         path_out = os.path.join(path_base, f'MDB_{acname}_S3{platform}')
@@ -1115,7 +1294,14 @@ def make_validation_list_MDB(acname, platform):
         wllist = [412, 443, 490, 510, 560, 620, 665]
     if acname == 'CCIv6':
         wllist = [412, 443, 490, 510, 560, 665]
-
+    if acname == 'MULTI':
+        wllist = [412, 443, 490, 510, 555, 670]
+    if acname == 'OLCI-L3':
+        # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8]
+        # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
+        wllist = [412, 443, 490, 560, 665]
+        if region == 'BLK':
+            wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
     mdblist.set_wl_ref(wllist)
     ##qc_base not implemented. See prepared_df_for_validation in MDBFileList to check QC
     # mdblist.qc_base.set_sat_eumetsat_defaults(3)
@@ -1147,9 +1333,24 @@ def make_validation_single_MDB(path_base, name_mdb):
     wllist = [400, 412, 443, 490, 510, 560, 620, 665, 779]
     if name_mdb.find('FUB') > 0:
         wllist = [412, 443, 490, 510, 560, 620, 665]
-    if name_mdb.find('CCI') > 0 or name_mdb.find('MULTI')>0:
+    if name_mdb.find('CCI') > 0:
         wllist = [412, 443, 490, 510, 560, 665]
         reader.mfile.set_hour_sat_time(11, 0)
+    if name_mdb.find('MULTI') > 0:
+        wllist = [412, 443, 490, 510, 555, 670]
+        reader.mfile.set_hour_sat_time(11, 0)
+    if name_mdb.find('OLCI-L3') > 0:
+        print('--------------------------------------------------------------------------------->', name_mdb)
+        # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8]
+        # wllist = [400,412.5, 442.5, 490, 510, 560, 620 ,665]
+        # wllist = [412.5, 442.5, 490, 560, 665]
+        wllist = [412, 443, 490, 560, 665]
+        if name_mdb.find('Galata') > 0 or name_mdb.find('Section-7') > 0 or name_mdb.find('Casablanca') > 0:
+            wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
+
+        reader.mfile.set_hour_sat_time(11, 0)
+
+    print(wllist)
 
     reader.mfile.set_wl_ref(wllist)
     reader.mfile.qc_insitu.set_wllist_using_wlref(reader.mfile.wlref)
@@ -1162,6 +1363,7 @@ def make_validation_single_MDB(path_base, name_mdb):
     if name_mdb.find('CCI') > 0:
         reader.mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##CCI
         reader.mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##CCI
+
     reader.mfile.qc_insitu.apply_band_shift = True
 
     # SATELLITE QUALITY CONTROL
@@ -1169,7 +1371,13 @@ def make_validation_single_MDB(path_base, name_mdb):
     if 'satellite_pixel_classif_flags' in reader.mfile.nc.variables:
         idepix_flag = reader.mfile.nc.variables['satellite_pixel_classif_flags']
         reader.mfile.qc_sat.set_idepix_as_flag(idepix_flag)
-    reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.003, 'greater')
+    #mask values lower than 0
+    for iband in range(reader.mfile.qc_sat.nbands):
+        reader.mfile.qc_sat.add_theshold_mask(iband,-1,-100,'lower')
+    reader.mfile.qc_sat.min_valid_pixels = 4
+    reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.01, 'greater')
+    # reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0, 'lower')
+    # reader.mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0, 'lower')
 
     reader.mfile.prepare_df_validation()
     mplot = MDBPlot(reader.mfile, None)
@@ -1179,11 +1387,13 @@ def make_validation_single_MDB(path_base, name_mdb):
     mplot.make_validation_mdbfile(path_out)
 
 
-def make_validation_from_dfvalid(ac, platform):
+def make_validation_from_dfvalid(ac, platform, region):
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/CCI/MDBs/CCI_BalTower_Results_5'
     path_orig = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    if ac == 'MULTI' or ac == 'OLCI-L3':
+        path_orig = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{region}_MATCHUPS/MDBs'
     path_base_b = os.path.join(path_orig, ac)
-    if ac == 'CCIv6':
+    if ac == 'CCIv6' or ac == 'MULTI' or ac == 'OLCI-L3':
         name = f'MDB_{ac}'
     else:
         name = f'MDB_{ac}_S3{platform}'
@@ -1196,13 +1406,17 @@ def make_validation_from_dfvalid(ac, platform):
     wldata = dfval[dfval['Valid']]['Wavelenght']
     wllist = list(wldata.unique())
     mplot = MDBPlot(None, dfval)
-    if ac == 'CCIv6':
-        title = ac
-        filenamebase = ac
+    if ac == 'CCIv6' or ac == 'MULTI' or ac == 'OLCI-L3':
+        if region is not None:
+            title = f'{ac} {region}'
+            filenamebase = f'{ac}_{region}'
+        else:
+            title = ac
+            filenamebase = ac
     else:
         title = f'S3{platform} {ac}'
         filenamebase = f'S3{platform}_{ac}'
-    print(path_base)
+
     mplot.make_validation_dfval(path_base, title, filenamebase, wllist)
 
 
@@ -1479,6 +1693,48 @@ def make_together_atm(wlref, acnames, platform, name_out):
     plt.plot([xmin, xmax], [xmin, xmax], '--k')
     plt.savefig(os.path.join(path_out, 'WL_' + str(wlref) + '.jpg'), dpi=300)
     plt.close(h)
+
+
+def make_atm_params(path_base, wlreflist, acname, region):
+    path_out = os.path.join(path_base, 'PARAMS')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+    params = ['N', 'slope_typeII', 'offset_typeII', 'rmse_val', 'mean_rel_diff', 'mean_abs_rel_diff', 'r2', 'bias',
+              'r_value', 'XAVG', 'YAVG', 'CPRMSE', 'MAE']
+    params_file = ['N', 'SLOPE', 'OFFSET', 'RMSE', 'RPD', 'APD', 'r2', 'BIAS', 'r', 'XAVG', 'YAVG', 'CPRMSE', 'MAE']
+    acnames = [acname]
+    for idx in range(len(params)):
+        param = params[idx]
+        param_file = params_file[idx]
+        df_param = pd.DataFrame(index=acnames, columns=wlreflist)
+        file_ac = os.path.join(path_base, 'Params.csv')
+        df_param_here = pd.read_csv(file_ac, sep=';')
+        df_param_here = df_param_here[df_param_here['Param'] == param]
+        wlparam = list(df_param_here.columns[3:].astype(dtype=np.float64))
+        indices = get_indices_wl_list(wlreflist, wlparam)
+        for index_wl in range(len(indices)):
+            if indices[index_wl] >= 0:
+                index_df = indices[index_wl] + 3
+                # print(df_param_here.iat[0,index_df])
+                df_param.loc[acname].iat[index_wl] = df_param_here.iat[0, index_df]
+        namefile = f'{acname}_{region}_{param_file}'
+
+        df_param.to_csv(os.path.join(path_out, f'{namefile}.csv'), sep=';')
+        df_param_new = get_df_from_pivot_df(df_param, 'ac', 'wavelength', param)
+
+        df_param_new.rename(columns={param: param_file}, inplace=True)
+        df_param_new.rename(columns={'wavelength': 'Wavelength (nm)'}, inplace=True)
+
+        h = plt.figure()
+        sns.set_theme()
+        dashes = [''] * 1
+        markers = ['o'] * 1
+        sns.relplot(kind='line', data=df_param_new, x="Wavelength (nm)", y=param_file, hue="ac", markers=markers,
+                    dashes=dashes,
+                    style="ac")
+        # plt.xlabel = 'Wavelength (nm)'
+        plt.savefig(os.path.join(path_out, f'{namefile}.jpg'), dpi=300)
+        plt.close(h)
 
 
 def make_together_atm_params(wlreflist, acnames, platform, name_out):

@@ -205,16 +205,7 @@ def get_global_atrib(file_path):
     return at
 
 
-def get_sat_time_from_fname(fname):
-    val_list = fname.split('_')
-    sat_time = None
-    for v in val_list:
-        try:
-            sat_time = dt.strptime(v, '%Y%m%dT%H%M%S')
-            break
-        except ValueError:
-            continue
-    return sat_time
+
 
 
 def get_box_size(options):

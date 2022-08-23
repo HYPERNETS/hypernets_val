@@ -80,7 +80,7 @@ class QC_SAT:
             }
         # print(self.statistics[sat_index_str]['without_outliers'])
 
-        self.max_diff_wl = 5
+        self.max_diff_wl = 10
 
         self.apply_band_shifting = False
         self.wl_ref = None
@@ -171,6 +171,10 @@ class QC_SAT:
             sat_index_str = str(sat_index)
             rrs_here = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
             rrs_valid = rrs_here[self.flag_mask == 0]
+            if sat_index==4:
+                print('-------------------------------------')
+                rrs_valid[:] = rrs_valid[:]/10
+                print(rrs_valid)
             stats = self.compute_statistics_impl(self.statistics[sat_index_str]['without_outliers'], rrs_valid)
             self.statistics[sat_index_str]['without_outliers'] = stats
             # self.statistics[sat_index_str]['without_outliers']['avg'] = np.mean(rrs_valid)
@@ -217,14 +221,12 @@ class QC_SAT:
         CHECK = True
         for check_stat in self.check_statistics:
             index_sat = str(check_stat['index_sat'])
-            # type_stat = check_stat['type_stat']
 
             if index_sat in self.statistics:
                 outliers_str = 'with_outliers'
                 if not check_stat['with_outliers']:
                     outliers_str = 'without_outliers'
                 val_here = self.statistics[index_sat][outliers_str][check_stat['type_stat']]
-                # print(val_here, check_stat['value_th'])
                 if check_stat['type_th'] == 'greater' and val_here > check_stat['value_th']:
                     CHECK = False
                 if check_stat['type_th'] == 'lower' and val_here < check_stat['value_th']:
@@ -253,12 +255,15 @@ class QC_SAT:
         values = [0] * len(indexes_bands)
 
         if cond_min_pixels:
+
             outliers_str = 'without_outliers'
             if self.apply_outliers:
                 outliers_str = 'with_outliers'
             self.compute_statistics(index_mu)
 
             cond_stats = self.do_check_statistics()
+
+
             if cond_stats:
                 valid_mu = True
             for idx in range(len(indexes_bands)):
@@ -320,6 +325,14 @@ class QC_SAT:
         for idx in range(len(self.th_masks)):
             th_mask = self.th_masks[idx]
             rrs_here = self.satellite_rrs[index_mu, th_mask['index_sat'], r_s:r_e, c_s:c_e]
+
+
+            # if index_mu==54:
+            #     print('***************************************************')
+            #     ital = th_mask['index_sat']
+            #     if ital==0:
+            #         print(th_mask['index_sat'])
+            #         print(rrs_here)
             mask_thershold_here = np.zeros(rrs_here.shape, dtype=np.uint64)
             if th_mask['type_th'] == 'greater':
                 mask_thershold_here[rrs_here > th_mask['value_th']] = 1

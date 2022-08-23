@@ -224,12 +224,16 @@ class MDBInSituFile:
         print('[INFO] Preparing DF for validation...')
         ntot = self.n_mu_total
 
+        for wl in self.wlref:
+            wls =  '{0:3.0f}'.format(wl)
+            self.col_names.append(f'{wls}')
+
         for varname in self.insitu_varnames:
             self.col_names.append(varname)
             if varname in self.sat_retrievals.keys():
                 for satvarname in self.sat_retrievals[varname]['satvarnames']:
                     self.col_names.append(satvarname)
-
+        print(self.col_names)
         self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
         nmu_valid = 0
 
@@ -237,6 +241,10 @@ class MDBInSituFile:
             if index_mu % 100 == 0:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             mu_valid, status = self.load_mu_datav2(index_mu)
+            ##MANUAL
+            if index_mu==112 or index_mu==288:
+                mu_valid = False
+
             if mu_valid:
                 nmu_valid = nmu_valid + 1
 
@@ -249,6 +257,11 @@ class MDBInSituFile:
                 'Time_Diff': [time_diff],
                 'Valid': [mu_valid]  # [self.mu_valid_bands[sat_band_index]]
             }
+            for idx in range(len(self.wlref)):
+                wl = self.wlref[idx]
+                wls = '{0:3.0f}'.format(wl)
+                rrsvalue = self.mu_curr_sat_rrs_mean[idx]
+                row[wls] = [rrsvalue]
             for varname in self.insitu_varnames:
                 varvalue = self.nc.variables[varname][index_mu]
                 row[varname] = [varvalue]
