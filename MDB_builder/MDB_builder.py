@@ -202,7 +202,7 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
         print('debug MDB_builder Line 202: Creating in situ dimensions')
 
     new_MDB.createDimension('insitu_id', 30)
-    new_MDB.createDimension('insitu_original_bands', 1605)
+    new_MDB.createDimension('insitu_original_bands', 1603)
 
     # create variable
     if args.debug:
@@ -289,7 +289,7 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
                     nc_ins = Dataset(line[:-1], 'r')
                     if insitu_idx == 0:
                         insitu_original_bands[:] = nc_ins.variables['wavelength'][:].tolist()
-                        ins_water_leaving_radiance = nc_ins.variables['water_leaving_radiance'][:]
+                        #ins_water_leaving_radiance = nc_ins.variables['water_leaving_radiance'][:]
 
                     insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]]
 
