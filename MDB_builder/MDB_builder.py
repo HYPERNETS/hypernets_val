@@ -187,17 +187,27 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
     satellite_datetime = datetime.strptime(datetime_str, date_format)
 
     # to append to nc file
+    if args.debug:
+        print('debug MDB_builder Line 191: Creating copy of MDB file')
+
     new_MDB = copy_nc(extract_path, ofile)
 
     # add time window diff
+    if args.debug:
+        print('debug MDB_builder Line 197: Adding time window attribute')
     new_MDB.time_diff = f'{time_window * 60 * 60}'  # in seconds
 
     # create in situ dimensions
+    if args.debug:
+        print('debug MDB_builder Line 202: Creating in situ dimensions')
+
     new_MDB.createDimension('insitu_id', 30)
     new_MDB.createDimension('insitu_original_bands', 1605)
-    # new_MDB.createDimension('insitu_Rrs_bands', None)
 
-    # create variable 
+    # create variable
+    if args.debug:
+        print('debug MDB_builder Line 210: Creating in situ and time difference variables')
+
     insitu_time = new_MDB.createVariable('insitu_time', 'f4', ('satellite_id', 'insitu_id',), zlib=True, complevel=6)
     insitu_time.units = "Seconds since 1970-1-1"
     insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
@@ -225,6 +235,8 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
 
     insitu_idx = 0
     # extract in situ data
+    if args.debug:
+        print('debug MDB_builder Line 240: Starting extraction...')
     with open(path_to_list_daily) as file:
         for idx, line in enumerate(file):
             # HYPERNETS ex: HYPERNETS_W_BEFR_L2A_REF_202103151201_202103231711_v1.1.nc
@@ -247,6 +259,10 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
             insitu_datetime = datetime(int(YYYY_str), int(MM_str), int(DD_str), int(HH_str), int(mm_str), int(ss_str))
 
             time_diff = (insitu_datetime - satellite_datetime).total_seconds() / (60 * 60)
+
+            if args.debug:
+                print(f'debug MDB_builder Line 264. Time diff: {time_diff} Time Window {time_window}')
+
             if np.abs(time_diff) <= time_window:
                 if args.debug:
                     print(f'debug: In situ found for: {line}')
@@ -577,7 +593,7 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
         if err:
             print(f'[ERROR]{err}')
 
-        #[os.remove(f) for f in list_files_tmp[:-1]]
+        # [os.remove(f) for f in list_files_tmp[:-1]]
         if not args.nodelfiles:
             [os.remove(f) for f in list_files]
 
@@ -601,8 +617,8 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
 
 def check_single_mdbfile(mdbfile):
     valid = True
-    #sizegood = 6 #multi
-    sizegood = 11 #olci
+    # sizegood = 6 #multi
+    sizegood = 11  # olci
     nc = Dataset(mdbfile)
     if nc.dimensions['satellite_bands'].size != sizegood:
         valid = False
@@ -630,7 +646,7 @@ def check():
     #     print(name, sat_time, '=================================================================')
     # return True
     base = '/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/EXTRACTS/OLCI'
-    pathextracts = os.path.join(base,'Casablanca_Platform')
+    pathextracts = os.path.join(base, 'Casablanca_Platform')
     for name in os.listdir(base):
         # if  name.endswith('extract_Casablanca_Platform.nc'):
         #     print(name)
@@ -638,15 +654,16 @@ def check():
             continue
         ltal = name.split('_')
         datestr = ltal[3]
-        datehere = datetime.strptime(datestr,'%Y%m%dT%H%M%S')
+        datehere = datetime.strptime(datestr, '%Y%m%dT%H%M%S')
         daten = datehere.strftime('%Y%j')
         namen = f'CMEMS2_O{daten}-rrs-med-fr_nc_extract_Casablanca_Platform.nc'
-        fextract = os.path.join(pathextracts,namen)
-        fextractout = os.path.join(base,namen)
-        #print(fextract,fextractout)
-        os.replace(fextract,fextractout)
+        fextract = os.path.join(pathextracts, namen)
+        fextractout = os.path.join(base, namen)
+        # print(fextract,fextractout)
+        os.replace(fextract, fextractout)
         print(namen)
     return True
+
 
 # #############################
 # %%
@@ -872,7 +889,7 @@ def main():
             if not valid_extract:
                 if args.verbose:
                     print('-----------------')
-                    print(f'[WARNING] Extract {extract_path }is not valid. Skipping...')
+                    print(f'[WARNING] Extract {extract_path}is not valid. Skipping...')
                 continue
             if args.verbose:
                 print('-----------------')
@@ -887,7 +904,7 @@ def main():
                         path_to_list_daily = None
                         prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
                         postfilename = f'{ins_sensor}_{station_name}.nc'
-                        print(prefilename,postfilename)
+                        print(prefilename, postfilename)
                         filename_prev = check_single_mdbfile_exist(prefilename, postfilename, list_mdbfiles_pathout)
                         if not filename_prev is None:
                             ofile = os.path.join(path_out, filename_prev)
@@ -897,13 +914,15 @@ def main():
                                 file_list.append(ofile)  # for ncrcat later
                             else:
                                 print(f'[WARNING] File {ofile} is not valid')
-                                filecopy = os.path.join('/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/EXTRACTS/OLCI',filename_prev)
-                                shutil.copy(ofile,filecopy)
+                                filecopy = os.path.join('/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/EXTRACTS/OLCI',
+                                                        filename_prev)
+                                shutil.copy(ofile, filecopy)
                         else:
                             filename = f'{prefilename}_{datetime_creation}_{postfilename}'
                             ofile = os.path.join(path_out, filename)
                             print(f'[INFO] Creating file from extract: {extract_path}')
-                            if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window,mdb_secondary):
+                            if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window,
+                                                  mdb_secondary):
                                 print(f'[INFO] File created: {ofile}')
                                 file_list.append(ofile)  # for ncrcat later
                     else:

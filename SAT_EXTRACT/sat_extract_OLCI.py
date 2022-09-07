@@ -92,7 +92,6 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
     if os.path.exists(path_to_list):
         print('Deleting previous file list...')
         cmd = f'rm {path_to_list}'
-        print(cmd)
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:
