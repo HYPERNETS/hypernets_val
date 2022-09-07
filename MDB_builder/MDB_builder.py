@@ -12,6 +12,8 @@ Run as:
 python MDB_builder.py -c path_to_config_file
 
 """
+import shutil
+
 """
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -618,16 +620,33 @@ def check_single_mdbfile_exist(prename, postname, list_mdbfiles_pathout):
 
 
 def check():
-    base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Irbe_Lighthouse/WFR/extracts'
+    # base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Irbe_Lighthouse/WFR/extracts'
+    # for name in os.listdir(base):
+    #     if not name.endswith('nc'):
+    #         continue
+    #     extract_path = os.path.join(base, name)
+    #     dinput = Dataset(extract_path)
+    #     sat_time = datetime.fromtimestamp(float(dinput.variables['satellite_time'][0]))
+    #     print(name, sat_time, '=================================================================')
+    # return True
+    base = '/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/EXTRACTS/OLCI'
+    pathextracts = os.path.join(base,'Casablanca_Platform')
     for name in os.listdir(base):
-        if not name.endswith('nc'):
+        # if  name.endswith('extract_Casablanca_Platform.nc'):
+        #     print(name)
+        if not name.endswith('AERONET_Casablanca_Platform.nc'):
             continue
-        extract_path = os.path.join(base, name)
-        dinput = Dataset(extract_path)
-        sat_time = datetime.fromtimestamp(float(dinput.variables['satellite_time'][0]))
-        print(name, sat_time, '=================================================================')
+        ltal = name.split('_')
+        datestr = ltal[3]
+        datehere = datetime.strptime(datestr,'%Y%m%dT%H%M%S')
+        daten = datehere.strftime('%Y%j')
+        namen = f'CMEMS2_O{daten}-rrs-med-fr_nc_extract_Casablanca_Platform.nc'
+        fextract = os.path.join(pathextracts,namen)
+        fextractout = os.path.join(base,namen)
+        #print(fextract,fextractout)
+        os.replace(fextract,fextractout)
+        print(namen)
     return True
-
 
 # #############################
 # %%
@@ -858,8 +877,7 @@ def main():
             if args.verbose:
                 print('-----------------')
                 print(f'[INFO] Date: {datetime_str} Satellite/Platform: {sensor_str} Resolution: {res_str}')
-            if args.debug:
-                print(f'extract_path: {extract_path}')
+                print(f'[INFO] Extract_path: {extract_path}')
             date_format = '%Y%m%dT%H%M%S'
             satellite_datetime = datetime.strptime(datetime_str, date_format)
             datetime_creation = datetime.today().strftime(date_format)
@@ -869,6 +887,7 @@ def main():
                         path_to_list_daily = None
                         prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
                         postfilename = f'{ins_sensor}_{station_name}.nc'
+                        print(prefilename,postfilename)
                         filename_prev = check_single_mdbfile_exist(prefilename, postfilename, list_mdbfiles_pathout)
                         if not filename_prev is None:
                             ofile = os.path.join(path_out, filename_prev)
@@ -878,6 +897,8 @@ def main():
                                 file_list.append(ofile)  # for ncrcat later
                             else:
                                 print(f'[WARNING] File {ofile} is not valid')
+                                filecopy = os.path.join('/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/EXTRACTS/OLCI',filename_prev)
+                                shutil.copy(ofile,filecopy)
                         else:
                             filename = f'{prefilename}_{datetime_creation}_{postfilename}'
                             ofile = os.path.join(path_out, filename)

@@ -457,6 +457,10 @@ class MDBPlot:
         # self.wldata = dfval[(dfval['Wavelength'] == wl)]['Wavelength']
 
         print('NValues: ', len(self.xdata), 'Wavelength: ', wl)
+
+        if len(self.xdata)==0:
+            return
+
         show_title = False
         file_out = None
         if not path_out is None:
@@ -471,6 +475,7 @@ class MDBPlot:
         if wllist is None and self.mfile is not None:
             wllist = self.mfile.wlref
         for wl in wllist:
+            print(f'Creating scatter plot for wavelength: {wl}')
             self.plot_wavelength_scatter_plot(-1, wl, path_out)
 
     def compute_all_statistics(self, wllist):

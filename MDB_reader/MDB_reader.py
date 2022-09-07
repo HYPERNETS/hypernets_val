@@ -83,7 +83,9 @@ def main():
     # do_final_results()
     # do_final_results_l3()
     # do_final_results_CCI()
-    do_final_results_CNR('MED', 'OLCI-L3', 2)
+    do_final_results_CNR('MED', 'OLCI-L3', 1)
+    do_final_results_CNR('MED', 'OLCI-L3', 11)
+    do_final_results_CNR('MED', 'OLCI-L3', 2) 
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # #name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc' #LEVEL 2
@@ -198,7 +200,7 @@ def do_final_results_CNR(region, sensor, step):
     if region == 'BLK' and sensor == 'MULTI':
         sites = ['Galata_Platform', 'Gloria', 'Section-7_Platform']
     if region == 'BLK' and sensor == 'OLCI-L3':
-        sites = ['Galata_Platform', 'Section-7_Platform']
+        sites = ['Galata_Platform','Gloria','Section-7_Platform']
 
     # single validation
     if step == 1:
@@ -1298,8 +1300,8 @@ def make_validation_list_MDB(acname, platform, region):
         wllist = [412, 443, 490, 510, 555, 670]
     if acname == 'OLCI-L3':
         # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8]
-        # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
-        wllist = [412, 443, 490, 560, 665]
+        wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
+        #wllist = [412, 443, 490, 560, 665]
         if region == 'BLK':
             wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
     mdblist.set_wl_ref(wllist)
@@ -1344,22 +1346,25 @@ def make_validation_single_MDB(path_base, name_mdb):
         # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8]
         # wllist = [400,412.5, 442.5, 490, 510, 560, 620 ,665]
         # wllist = [412.5, 442.5, 490, 560, 665]
-        wllist = [412, 443, 490, 560, 665]
-        if name_mdb.find('Galata') > 0 or name_mdb.find('Section-7') > 0 or name_mdb.find('Casablanca') > 0:
+        wllist = [412.5, 442.5, 490, 560, 665]
+        if name_mdb.find('Gloria') > 0 or name_mdb.find('Galata') > 0 or name_mdb.find('Section-7') > 0 or name_mdb.find('Casablanca') > 0:
             wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
 
-        reader.mfile.set_hour_sat_time(11, 0)
 
-    print(wllist)
+        reader.mfile.set_hour_sat_time(11, 0)
+    # print('======================================================================================')
+    # print(wllist)
 
     reader.mfile.set_wl_ref(wllist)
     reader.mfile.qc_insitu.set_wllist_using_wlref(reader.mfile.wlref)
+    reader.mfile.qc_sat.wl_ref = wllist
 
     # IN SITU QUALITY CONTROL
     reader.mfile.qc_insitu.check_indices_by_mu = True
-    reader.mfile.qc_insitu.set_thershold(0, None, 0, 600)
+    reader.mfile.qc_insitu.set_thershold(0, None, 0, 800)
     reader.mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
     reader.mfile.qc_insitu.set_thershold(None, 0.01, 410, 415)
+    reader.mfile.qc_insitu.set_thershold(None, 0.005, 750, 800)
     if name_mdb.find('CCI') > 0:
         reader.mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##CCI
         reader.mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##CCI
@@ -1376,6 +1381,7 @@ def make_validation_single_MDB(path_base, name_mdb):
         reader.mfile.qc_sat.add_theshold_mask(iband,-1,-100,'lower')
     reader.mfile.qc_sat.min_valid_pixels = 4
     reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.01, 'greater')
+    reader.mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0.0035, 'greater')
     # reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0, 'lower')
     # reader.mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0, 'lower')
 

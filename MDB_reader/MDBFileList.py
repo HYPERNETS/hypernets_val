@@ -20,12 +20,12 @@ class MDBFileList():
         self.qc_base = QCBase()
 
     def set_wlsatlist_as_ref(self):
-         for fmdb in self.mdb_list:
-             if self.mdb_list[fmdb]['include']:
+        for fmdb in self.mdb_list:
+            if self.mdb_list[fmdb]['include']:
                 mfile = MDBFile(self.mdb_list[fmdb]['path'])
                 self.wlref = mfile.wlref
-                
-    def set_wlsatlist_from_wlreflist_asref(self,wlsatlist):
+
+    def set_wlsatlist_from_wlreflist_asref(self, wlsatlist):
         for fmdb in self.mdb_list:
             if self.mdb_list[fmdb]['include']:
                 mfile = MDBFile(self.mdb_list[fmdb]['path'])
@@ -34,8 +34,6 @@ class MDBFileList():
 
     def set_wl_ref(self, wllist):
         self.wlref = wllist
-
-
 
     def add_mdb_file(self, path_mdb):
         mfile = MDBFile(path_mdb)
@@ -63,39 +61,50 @@ class MDBFileList():
                 mfile = MDBFile(self.mdb_list[fmdb]['path'])
                 if not self.wlref is None:
                     mfile.set_wl_ref(self.wlref)
+                    if fmdb.find('Venise')>0:
+                        wllist = [412.5, 442.5, 490, 560, 665]
+                        mfile.set_wl_ref(wllist)
 
-                if fmdb.find('CCI')>0:
-                    mfile.set_hour_sat_time(11, 0) ##ONLY FOR CCI
-                if fmdb.find('MULTI')>0:
-                    mfile.set_hour_sat_time(11,0)
-                if fmdb.find('OLCI-L3')>0:
-                    mfile.set_hour_sat_time(11,0)
+                if fmdb.find('CCI') > 0:
+                    mfile.set_hour_sat_time(11, 0)  ##ONLY FOR CCI
+                if fmdb.find('MULTI') > 0:
+                    mfile.set_hour_sat_time(11, 0)
+                if fmdb.find('OLCI-L3') > 0:
+                    mfile.set_hour_sat_time(11, 0)
 
-                #mfile.qc_sat.set_qc_from_qcbase(self.qc_base)
+                # mfile.qc_sat.set_qc_from_qcbase(self.qc_base)
+                mfile.qc_sat.wl_ref = mfile.wlref
+
+
                 mfile.qc_sat.set_eumetsat_defaults(3)
                 if 'satellite_pixel_classif_flags' in mfile.nc.variables:
                     idepix_flag = mfile.nc.variables['satellite_pixel_classif_flags']
                     mfile.qc_sat.set_idepix_as_flag(idepix_flag)
 
-                #mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.003, 'greater')
-                mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0, 'lower')
+                # mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.003, 'greater')
+                # mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0, 'lower')
+                for iband in range(mfile.qc_sat.nbands):
+                    mfile.qc_sat.add_theshold_mask(iband, -1, -100, 'lower')
+                mfile.qc_sat.min_valid_pixels = 4
+                mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.01, 'greater')
+                mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0.0035, 'greater')
 
                 mfile.qc_insitu.set_wllist_using_wlref(mfile.wlref)
                 mfile.qc_insitu.check_indices_by_mu = True
                 mfile.qc_insitu.apply_band_shift = True
-                mfile.qc_insitu.set_thershold(0, None, 0, 600)
+                mfile.qc_insitu.set_thershold(0, None, 0, 800)
                 mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
                 mfile.qc_insitu.set_thershold(None, 0.01, 410, 415)
+                mfile.qc_insitu.set_thershold(None, 0.005, 750, 800)
 
-                if fmdb.find('CCI')>0:
+                if fmdb.find('CCI') > 0:
                     mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##ONLY FOR CCI
                     mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##ONLY FOR CCI
 
-
                 # mfile.qc_insitu.set_thershold(None,0.01,400,700)
                 # mfile.qc_insitu.set_thershold(None, 0.001, 700, 800)
-                #mfile.qc_sat.wl_ref = mfile.wlref
-                #mfile.qc_sat.add_theshold_mask(-1,510,0.008,'greater')#STANDARD
+                # mfile.qc_sat.wl_ref = mfile.wlref
+                # mfile.qc_sat.add_theshold_mask(-1,510,0.008,'greater')#STANDARD
                 # mfile.qc_sat.add_theshold_mask(-1,412,0.006,'greater')#C2RCC
                 # mfile.qc_sat.add_theshold_mask(-1, 620, 0.0055, 'greater')  # C2RCC
                 mfile.prepare_df_validation()
@@ -133,10 +142,10 @@ class MDBFileList():
                             list_products_day = list([mu_dates_here[mu_date]])
                             self.mu_dates[mu_date] = list_products_day
 
-    def save_df_validation_to_file(self,path_out):
+    def save_df_validation_to_file(self, path_out):
         if self.df_validation is not None:
             file_data = os.path.join(path_out, 'Data.csv')
-            self.df_validation.to_csv(file_data,sep=';')
+            self.df_validation.to_csv(file_data, sep=';')
 
     def get_df_validation(self, params_include, param_agrup, strict_agrup):
         if self.df_validation is None:
@@ -181,14 +190,14 @@ class MDBFileList():
                 row['Valid'] = valid_mu
 
             if row['Valid']:
-                #print(type(row), row)
+                # print(type(row), row)
                 rowdf = pd.DataFrame.transpose(pd.DataFrame(row))
                 if index_valid == 0:
                     dfvalid = rowdf
                 else:
                     dfvalid = pd.concat([dfvalid, rowdf], ignore_index=True)
                 index_valid = index_valid + 1
-                #print(f'Index valid: {index_valid} of {len(dfvalid.index)}')
+                # print(f'Index valid: {index_valid} of {len(dfvalid.index)}')
 
         print(f'[INFO] # Valid pooints: {index_valid}')
         if param_agrup is not None:
@@ -199,8 +208,6 @@ class MDBFileList():
                 print(f'Group: {g}  # match-ups: {len(imu)}')
 
         return dfvalid, groups, start_date, end_date
-
-
 
     def check_validity(self, list_products, row, param_agrup, g):
         for product in list_products:
@@ -236,17 +243,3 @@ class MDBFileList():
                 os.mkdir(path_out)
             mplot = MDBPlot(mfile, None)
             mplot.make_validation_mdbfile(path_out)
-
-
-
-
-
-
-
-
-
-
-
-
-
-

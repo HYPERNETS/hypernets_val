@@ -171,10 +171,10 @@ class QC_SAT:
             sat_index_str = str(sat_index)
             rrs_here = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
             rrs_valid = rrs_here[self.flag_mask == 0]
-            if sat_index==4:
-                print('-------------------------------------')
-                rrs_valid[:] = rrs_valid[:]/10
-                print(rrs_valid)
+            # if sat_index==4:
+            #     print('-------------------------------------')
+            #     rrs_valid[:] = rrs_valid[:]/10
+            #     print(rrs_valid)
             stats = self.compute_statistics_impl(self.statistics[sat_index_str]['without_outliers'], rrs_valid)
             self.statistics[sat_index_str]['without_outliers'] = stats
             # self.statistics[sat_index_str]['without_outliers']['avg'] = np.mean(rrs_valid)
@@ -242,7 +242,9 @@ class QC_SAT:
         valid_mu = False
 
         wl_orig = []
+
         if self.wl_ref is None:
+            print('ATTENTION: NON DEBERIA ARRIVARE QUI, SAREBBE UN ERRORRE', self.nbands)
             indexes_bands = range(self.nbands)
             wl_orig = self.sat_bands
         else:

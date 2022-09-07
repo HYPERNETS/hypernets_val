@@ -78,6 +78,9 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'Section-7_Platform':
         Latitude = 44.5458
         Longitude = 29.4466
+    elif station_name == 'Garda' or station_name == 'GAIT':
+        Latitude = 45.577008
+        Longitude = 10.579382
     else:
         Latitude = None
         Longitude = None
@@ -126,14 +129,13 @@ def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
     # % lat0 and lon0 is the coordinates of one point
     if contain_location(lat, lon, lat0, lon0):
         dist_squared = (lat - lat0) ** 2 + (lon - lon0) ** 2
-        r, c = np.unravel_index(np.argmin(dist_squared),lon.shape)  # index to the closest in the latitude and longitude arrays
+        r, c = np.unravel_index(np.argmin(dist_squared),
+                                lon.shape)  # index to the closest in the latitude and longitude arrays
     else:
         print('Warning: Location not contained in the file!!!')
         r = np.nan
         c = np.nan
     return r, c
-
-
 
 
 def get_sites_from_file(file_sites, site_list, region_list, path_out):
