@@ -114,7 +114,6 @@ class MDBPlot:
             xhere = np.asarray(self.xdata, dtype=np.float)
             yhere = np.asarray(self.ydata, dtype=np.float)
 
-
             # Density
             xy = np.vstack([xhere, yhere])
             z = gaussian_kde(xy)(xy)
@@ -123,10 +122,9 @@ class MDBPlot:
             plot.plot_data(xhere, yhere, None, 25, z, None, None)
             plot.set_cmap('jet')
 
-            #histo2d visualization
+            # histo2d visualization
             # plt.hist2d(xhere,yhere,bins = 50,cmin=max([np.min(xhere),np.min(yhere)]),cmax=min([np.max(xhere),np.max(yhere)]))
             # plt.set_cmap('jet')
-
 
             # 2DHistogrm
             # histo, xedges, yedges = np.histogram2d(xhere, yhere, bins=50, density=False)
@@ -149,8 +147,6 @@ class MDBPlot:
             # plot.plot_data(xhere, yhere, None, 50, z, None, None)
             # plot.set_cmap('jet')
 
-
-
             # self.log_scale = False
             # cmap = plt.cm.jet
             # cmap.set_bad('white')
@@ -161,7 +157,7 @@ class MDBPlot:
             max_xy = 100
 
         else:
-            #min_xy = 0
+            # min_xy = 0
             min_x_data = np.min(self.xdata)
             min_y_data = np.min(self.ydata)
             min_xy = np.floor(np.min([min_x_data, min_y_data]))
@@ -350,18 +346,18 @@ class MDBPlot:
         for idx in range(len(sat_obs)):
             vsat = sat_obs[idx]
             vref = ref_obs[idx]
-            val_sat = (vsat-sat_avg)*(vsat-sat_avg)
+            val_sat = (vsat - sat_avg) * (vsat - sat_avg)
             sat_minus_avg2 = sat_minus_avg2 + val_sat
             val_ref = (vref - ref_avg) * (vref - ref_avg)
             ref_minus_avg2 = ref_minus_avg2 + val_ref
-            val_here = (vsat-sat_avg)*(vref - ref_avg)
+            val_here = (vsat - sat_avg) * (vref - ref_avg)
             sat_ref = sat_ref + val_here
-            cval_here = math.pow(((vsat - sat_avg)- (vref - ref_avg)),2)
+            cval_here = math.pow(((vsat - sat_avg) - (vref - ref_avg)), 2)
             cval = cval + cval_here
 
-        num1 = math.pow((sat_minus_avg2-ref_minus_avg2),2)
+        num1 = math.pow((sat_minus_avg2 - ref_minus_avg2), 2)
         num2 = math.pow(sat_ref, 2) * 4
-        num3 = math.pow((num1+num2),0.5)
+        num3 = math.pow((num1 + num2), 0.5)
         num = sat_minus_avg2 - ref_minus_avg2 + num3
         dem = 2 * sat_ref
 
@@ -458,7 +454,7 @@ class MDBPlot:
 
         print('NValues: ', len(self.xdata), 'Wavelength: ', wl)
 
-        if len(self.xdata)==0:
+        if len(self.xdata) == 0:
             return
 
         show_title = False
@@ -529,6 +525,58 @@ class MDBPlot:
             for iparam in range(nparam):
                 param = self.df_valid_stats.at[iparam, 'Param']
                 self.df_valid_stats.at[iparam, w_str] = self.valid_stats[param]
+
+    def plot_spectra_mu(self, index_mu, platform, path_out):
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+        if not platform is None:
+            dfvalp = dfval[dfval['PLATFORM'] == platform][:]
+        else:
+            dfvalp = dfval
+
+        dfmu = dfvalp[dfvalp['Index_MU'] == index_mu][:]
+        sat_rrs = np.array(dfmu['Sat_Rrs'][:])
+        ins_rrs = np.array(dfmu['Ins_Rrs'][:])
+        self.ydata = np.array([sat_rrs, ins_rrs])
+        self.xdata = np.array(dfmu['Wavelenght'][:])
+        self.xlabel = defaults.xlabel_wl_default
+        self.ylabel = defaults.ylabel_rrs
+        title = f'Match-up #{index_mu}'
+
+        name = f'MU_{index_mu}'
+        if not platform is None:
+            title = f'{title} S3{platform}'
+            name = f'S3{platform}_{name}'
+
+        self.title = title
+
+        fout = os.path.join(path_out,f'{name}.jpg')
+
+        mu_sat_time = dfmu.iloc[0].at['Sat_Time']
+        mu_insitu_time = dfmu.iloc[0].at['Ins_Time']
+
+        legend = [f"S3{platform}-{mu_sat_time}",
+                  f"Hypstar-{mu_insitu_time}"]
+
+        self.plot_spectra_plot(title,legend,fout)
+
+    def plot_all_spectra_mu(self,path_out):
+        dfval = self.get_df_val()
+        if dfval is None:
+            return
+        if 'PLATFORM' in dfval:
+            plat_values = np.unique(np.array(dfval[:]['PLATFORM']))
+            for plat in plat_values:
+
+                muvalues = np.unique(np.array(dfval[dfval['PLATFORM'] == plat]['Index_MU']))
+                for mu in muvalues:
+                    print(plat, mu)
+                    self.plot_spectra_mu(mu, plat, path_out)
+        else:
+            muvalues = np.unique(np.array(dfval[:]['Index_MU']))
+            for mu in muvalues:
+                self.plot_spectra_mu(mu, None, path_out)
 
     def plot_spectra_param(self, param, path_out):
         if self.df_valid_stats is None:
@@ -604,6 +652,7 @@ class MDBPlot:
             os.mkdir(path_out)
 
         name = path_out.split('/')[-2]
+
         lname = name.split('_')
         platform = 'S3'
         level = 'L2'
@@ -676,10 +725,12 @@ class MDBPlot:
         dfall_month.to_csv(fcsv, sep=';')
 
     def make_validation_mdbfile(self, path_out):
-        file_data_valid = os.path.join(path_out, 'DataValid.csv')
-        self.mfile.df_validation_valid.to_csv(file_data_valid, sep=';')
         file_data = os.path.join(path_out, 'Data.csv')
         self.mfile.df_validation.to_csv(file_data, sep=';')
+        file_data_valid = os.path.join(path_out, 'DataValid.csv')
+        self.mfile.df_validation_valid.to_csv(file_data_valid, sep=';')
+        file_mu = os.path.join(path_out,'MUData.csv')
+        self.mfile.df_mu.to_csv(file_mu,sep=';')
         self.plot_all_scatter_plot(path_out)
         self.plot_wavelenght_scatter_plots(path_out, None)
         self.compute_all_statistics(None)

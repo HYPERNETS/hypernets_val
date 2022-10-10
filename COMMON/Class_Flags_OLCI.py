@@ -20,7 +20,6 @@ class Class_Flags_OLCI(object):
         myCode = self.Code(maskList)
         flags = np.uint64(flags)
         # print(myCode,flags)
-        # print flags
         # print myCode
         return np.bitwise_and(flags, myCode)
 

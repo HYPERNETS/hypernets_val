@@ -81,6 +81,9 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'Garda' or station_name == 'GAIT':
         Latitude = 45.577008
         Longitude = 10.579382
+    elif station_name == 'TAIT' or station_name == 'Trasimeno_Lake':
+        Latitude = 43.12278
+        Longitude = 12.13306
     else:
         Latitude = None
         Longitude = None

@@ -17,6 +17,8 @@ import math
 from datetime import datetime as dt
 from datetime import timedelta
 
+from netCDF4 import Dataset
+
 
 class MDB_READER():
     def __init__(self, path_mdb, start_mdb):
@@ -74,7 +76,32 @@ class MDB_READER():
             df_summary.to_csv(file_out, sep=';')
 
 
+def do_make_test():
+    input_dir = '/mnt/c/data_luis/hypernets_work/olci_gait_analysis/GAIT_TRIM_LAKE'
+    for name in os.listdir(input_dir):
+        if not name.startswith('S3'):
+            continue
+
+        fhere = os.path.join(input_dir, name, 'Oa08_reflectance.nc')
+        print(fhere)
+        nchere = Dataset(fhere)
+
+        var_here = np.array(nchere.variables['Oa08_reflectance'])
+        var_here_valid = var_here[var_here<65000]
+        if len(var_here_valid) == 0:
+            continue
+
+        histo, bins = np.histogram(var_here_valid, bins=100, density=True)
+        bins = bins[0:-1]
+        h = plt.figure()
+        plt.plot(bins,histo)
+        fout = os.path.join(input_dir, 'HISTOBand_8', name + '.jpg')
+        plt.savefig(fout)
+        plt.close(h)
+
+
 def main():
+    do_make_test()
     # fmdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
     # do_check_mdb_times_impl(fmdb)
     # do_check_mdb_times()
@@ -83,9 +110,11 @@ def main():
     # do_final_results()
     # do_final_results_l3()
     # do_final_results_CCI()
-    do_final_results_CNR('MED', 'OLCI-L3', 1)
-    do_final_results_CNR('MED', 'OLCI-L3', 11)
-    do_final_results_CNR('MED', 'OLCI-L3', 2) 
+    # do_final_results_CNR('MED', 'OLCI-L3', 1)
+    # do_final_results_CNR('MED', 'OLCI-L3', 11)
+    # do_final_results_CNR('MED', 'OLCI-L3', 2)
+
+    # do_results_hypernets(1)
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # #name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc' #LEVEL 2
@@ -117,7 +146,8 @@ def main():
     #     for p in platforms:
     #         make_validation_from_dfvalid(ac,p)
 
-    # make_togheter_ab('SYKE')
+    # pathbase = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    # make_togheter_ab(pathbase,'SYKE')
 
     # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
     # acnames = ['POLYMER', 'STANDARD', 'FUB', 'C2RCC']
@@ -187,6 +217,32 @@ def main():
     # mdb.load_mu_datav2(4)
 
 
+def do_results_hypernets(step):
+    print('Hypernets results')
+    print('FINAL RESULTS')
+    path_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_GAIT_ANALYSIS/MDBs'
+    platforms = ['A', 'B']
+    sites = ['GAIT']
+    # acnames = ['STANDARD', 'POLYMER', 'C2RCC', 'FUB']
+    acnames = ['STANDARD']
+
+    # SINGLE VALIDATIONS FOR PLATFORM/AC/SITE
+    if step == 1:
+        for ac in acnames:
+            for platform in platforms:
+                for site in sites:
+                    path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 2, 'HYPERNETS')
+                    print(f'MDB: {fmdb}')
+                    if os.path.exists(fmdb):
+                        # make_validation_single_MDB(path_mdb, name_mdb)
+                        save_sat_images(path_mdb, name_mdb)
+    # PREPARE VALIDATION COMBINING A AND B
+    if step == 2:
+        for ac in acnames:
+            # make_togheter_ab(path_base, ac)
+            make_validation_from_dfvalid(ac, 'AB', 'GAIT')
+
+
 def do_final_results_CNR(region, sensor, step):
     # region: MED or BLK
     # sensor: MULTI o OLCI-L3
@@ -200,7 +256,7 @@ def do_final_results_CNR(region, sensor, step):
     if region == 'BLK' and sensor == 'MULTI':
         sites = ['Galata_Platform', 'Gloria', 'Section-7_Platform']
     if region == 'BLK' and sensor == 'OLCI-L3':
-        sites = ['Galata_Platform','Gloria','Section-7_Platform']
+        sites = ['Galata_Platform', 'Gloria', 'Section-7_Platform']
 
     # single validation
     if step == 1:
@@ -328,7 +384,7 @@ def do_final_results_l3():
     # SINGLE VALIDATIONS FOR  AC/SITE
     for ac in acnames:
         for site in sites:
-            path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 3)
+            path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 3, 'AERONET')
             print(f'MDB: {fmdb}')
             if os.path.exists(fmdb):
                 make_validation_single_MDB(path_mdb, name_mdb)
@@ -392,7 +448,7 @@ def do_final_results():
     # for ac in acnames:
     #     for platform in platforms:
     #         for site in sites:
-    #             path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 2)
+    #             path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 2, 'AERONET')
     #             print(f'MDB: {fmdb}')
     #             if os.path.exists(fmdb):
     #                 make_validation_single_MDB(path_mdb, name_mdb)
@@ -428,7 +484,8 @@ def do_final_results():
 
     # AB COMPARISON
     # for ac in acnames:
-    #     make_togheter_ab(ac)
+    #     pathbase = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+    #     make_togheter_ab(pathbase,ac)
 
     # STATS TABLE
     # bands = [400, 412, 443, 490, 510, 560, 620, 667, 779]
@@ -460,12 +517,13 @@ def do_final_results():
     # make_mu_info(path_base, acnames, 'AB')
 
 
-def get_file_mdb(path_base, platform, site, acname, level):
+# insitusensor: AERONET, HYPERNETS
+def get_file_mdb(path_base, platform, site, acname, level, insitusensor):
     path_mdb = os.path.join(path_base, acname)
     res = 'EFR'
     if acname == 'STANDARD':
         res = 'WFR'
-    name_mdb = f'MDB_S3{platform}_OLCI_{res}_{acname}_L{level}_AERONET_{site}.nc'
+    name_mdb = f'MDB_S3{platform}_OLCI_{res}_{acname}_L{level}_{insitusensor}_{site}.nc'
     fmdb = os.path.join(path_mdb, name_mdb)
     return path_mdb, name_mdb, fmdb
 
@@ -1262,6 +1320,8 @@ def make_validation_list_MDB(acname, platform, region):
     path_ini = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
     if acname == 'MULTI' or acname == 'OLCI-L3':
         path_ini = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{region}_MATCHUPS/MDBs'
+    if region == 'GAIT':
+        path_ini = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_GAIT_ANALYSIS/MDBs'
     mdblist = MDBFileList()
     path_base = os.path.join(path_ini, acname)
     if not os.path.exists(path_base):
@@ -1301,7 +1361,7 @@ def make_validation_list_MDB(acname, platform, region):
     if acname == 'OLCI-L3':
         # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8]
         wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
-        #wllist = [412, 443, 490, 560, 665]
+        # wllist = [412, 443, 490, 560, 665]
         if region == 'BLK':
             wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
     mdblist.set_wl_ref(wllist)
@@ -1324,6 +1384,19 @@ def make_validation_list_MDB(acname, platform, region):
     # mplot.make_validation_dfval(path_out, None, file_name_base, mdblist.wlref)
 
 
+def save_sat_images(path_base, name_mdb):
+    path_mdb = os.path.join(path_base, name_mdb)
+    path_out = os.path.join(path_base, f'{name_mdb[:-3]}')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+    path_img = os.path.join(path_out, 'SatImages')
+    if not os.path.exists(path_img):
+        os.mkdir(path_img)
+    mdb_file = MDBFile(path_mdb)
+    mdb_file.save_rgb_images(path_img)
+    # mdb_file.save_flag_images(path_img)
+
+
 def make_validation_single_MDB(path_base, name_mdb):
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/CCI/MDBs'
     # name_mdb = 'MDB___1KM_CCI_L2_AERONET_Gustav_Dalen_Tower.nc'
@@ -1342,46 +1415,55 @@ def make_validation_single_MDB(path_base, name_mdb):
         wllist = [412, 443, 490, 510, 555, 670]
         reader.mfile.set_hour_sat_time(11, 0)
     if name_mdb.find('OLCI-L3') > 0:
-        print('--------------------------------------------------------------------------------->', name_mdb)
+        # print('--------------------------------------------------------------------------------->', name_mdb)
         # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8]
         # wllist = [400,412.5, 442.5, 490, 510, 560, 620 ,665]
         # wllist = [412.5, 442.5, 490, 560, 665]
         wllist = [412.5, 442.5, 490, 560, 665]
-        if name_mdb.find('Gloria') > 0 or name_mdb.find('Galata') > 0 or name_mdb.find('Section-7') > 0 or name_mdb.find('Casablanca') > 0:
+        if name_mdb.find('Gloria') > 0 or name_mdb.find('Galata') > 0 or name_mdb.find(
+                'Section-7') > 0 or name_mdb.find('Casablanca') > 0:
             wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
-
-
         reader.mfile.set_hour_sat_time(11, 0)
-    # print('======================================================================================')
-    # print(wllist)
+
+    if name_mdb.find('OLCI_WFR_STANDARD_L2_HYPERNETS'):
+        wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8, 865]
+    print('======================================================================================')
+    print(wllist)
 
     reader.mfile.set_wl_ref(wllist)
     reader.mfile.qc_insitu.set_wllist_using_wlref(reader.mfile.wlref)
     reader.mfile.qc_sat.wl_ref = wllist
 
     # IN SITU QUALITY CONTROL
-    reader.mfile.qc_insitu.check_indices_by_mu = True
-    reader.mfile.qc_insitu.set_thershold(0, None, 0, 800)
-    reader.mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
-    reader.mfile.qc_insitu.set_thershold(None, 0.01, 410, 415)
-    reader.mfile.qc_insitu.set_thershold(None, 0.005, 750, 800)
-    if name_mdb.find('CCI') > 0:
-        reader.mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##CCI
-        reader.mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##CCI
 
-    reader.mfile.qc_insitu.apply_band_shift = True
+    ##PARA AERONET
+    # reader.mfile.qc_insitu.check_indices_by_mu = True
+    # reader.mfile.qc_insitu.set_thershold(0, None, 0, 800)
+    # reader.mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
+    # reader.mfile.qc_insitu.set_thershold(None, 0.01, 410, 415)
+    # reader.mfile.qc_insitu.set_thershold(None, 0.005, 750, 800)
+    # if name_mdb.find('CCI') > 0:
+    #     reader.mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##CCI
+    #     reader.mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##CCI
+    # reader.mfile.qc_insitu.apply_band_shift = True
+
+    ##PARA HYPERNETS
+    reader.mfile.qc_insitu.check_indices_by_mu = False
+    reader.mfile.qc_insitu.apply_band_shift = False
+    reader.mfile.qc_insitu.set_thershold(None, 0.007, 390, 410)
 
     # SATELLITE QUALITY CONTROL
     reader.mfile.qc_sat.set_eumetsat_defaults(3)
     if 'satellite_pixel_classif_flags' in reader.mfile.nc.variables:
         idepix_flag = reader.mfile.nc.variables['satellite_pixel_classif_flags']
         reader.mfile.qc_sat.set_idepix_as_flag(idepix_flag)
-    #mask values lower than 0
-    for iband in range(reader.mfile.qc_sat.nbands):
-        reader.mfile.qc_sat.add_theshold_mask(iband,-1,-100,'lower')
     reader.mfile.qc_sat.min_valid_pixels = 4
-    reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.01, 'greater')
-    reader.mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0.0035, 'greater')
+    # #mask values lower than 0
+    # for iband in range(reader.mfile.qc_sat.nbands):
+    #     reader.mfile.qc_sat.add_theshold_mask(iband,-1,-100,'lower')
+
+    # reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0.01, 'greater')
+    # reader.mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0.0035, 'greater')
     # reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0, 'lower')
     # reader.mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0, 'lower')
 
@@ -1396,6 +1478,10 @@ def make_validation_single_MDB(path_base, name_mdb):
 def make_validation_from_dfvalid(ac, platform, region):
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/CCI/MDBs/CCI_BalTower_Results_5'
     path_orig = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs'
+
+    if region == 'GAIT':
+        path_orig = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_GAIT_ANALYSIS/MDBs'
+
     if ac == 'MULTI' or ac == 'OLCI-L3':
         path_orig = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{region}_MATCHUPS/MDBs'
     path_base_b = os.path.join(path_orig, ac)
@@ -1424,6 +1510,11 @@ def make_validation_from_dfvalid(ac, platform, region):
         filenamebase = f'S3{platform}_{ac}'
 
     mplot.make_validation_dfval(path_base, title, filenamebase, wllist)
+
+    path_out = os.path.join(path_base, 'MU_PLOTS')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+    mplot.plot_all_spectra_mu(path_out)
 
 
 def make_variations_qc_single_MDB():
@@ -1514,24 +1605,43 @@ def make_graphics_param_ab(path_a, path_b, path_out):
         plt.close(h)
 
 
-def make_togheter_ab(ac):
-    file_path = f'/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs/{ac}'
+def make_togheter_ab(pathbase, ac):
+    # file_path = f'/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/MDBs/{ac}'
+    file_path = f'{pathbase}/{ac}'
     prename = f'MDB_{ac}_S3'
-
-    path_out = os.path.join(file_path, prename + 'AB')
-    if not os.path.exists(path_out):
-        os.mkdir(path_out)
+    prename = 'MDB_S3'
 
     path_a = os.path.join(file_path, prename + 'A')
     path_b = os.path.join(file_path, prename + 'B')
 
+    if not os.path.exists(path_a):
+        ptal = prename + 'A'
+        for name in os.listdir(file_path):
+            if name.startswith(ptal) and name.endswith('.nc') is False:
+                path_a = os.path.join(file_path, name)
+
+    if not os.path.exists(path_b):
+        ptal = prename + 'B'
+        for name in os.listdir(file_path):
+            if name.startswith(ptal) and not name.endswith('.nc'):
+                path_b = os.path.join(file_path, name)
+
+    prename = f'MDB_{ac}_S3'
+    path_out = os.path.join(file_path, prename + 'AB')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+
     df_all_a = pd.read_csv(os.path.join(path_a, 'Data.csv'), sep=';')
+    df_all_a['PLATFORM'] = 'A'
     df_all_b = pd.read_csv(os.path.join(path_b, 'Data.csv'), sep=';')
+    df_all_b['PLATFORM'] = 'B'
     df_all = pd.concat([df_all_a, df_all_b], ignore_index=True)
     df_all.to_csv(os.path.join(path_out, 'Data.csv'), sep=';')
 
     df_valid_a = pd.read_csv(os.path.join(path_a, 'DataValid.csv'), sep=';')
+    df_valid_a['PLATFORM'] = 'A'
     df_valid_b = pd.read_csv(os.path.join(path_b, 'DataValid.csv'), sep=';')
+    df_valid_b['PLATFORM'] = 'B'
     df_valid = pd.concat([df_valid_a, df_valid_b], ignore_index=True)
     df_valid.to_csv(os.path.join(path_out, 'DataValid.csv'), sep=';')
 
@@ -1540,20 +1650,20 @@ def make_togheter_ab(ac):
 
     make_graphics_param_ab(path_a, path_b, path_out)
 
-    h = plt.figure()
-    sns.set_theme()
-    sns.lmplot(data=df_valid, x="Ins_Rrs", y="Sat_Rrs", hue="platform", truncate=False, scatter_kws={"s": 10})
-    xmin, xmax = plt.gca().get_xlim()
-    ymin, ymax = plt.gca().get_ylim()
-    xmin = np.min([xmin, ymin])
-    xmax = np.min([xmax, ymax])
-    if xmin < 0:
-        xmin = 0
-    plt.gca().set_xlim([xmin, xmax])
-    plt.gca().set_ylim([xmin, xmax])
-    plt.plot([xmin, xmax], [xmin, xmax], '--k')
-    plt.savefig(os.path.join(path_out, prename + 'AB' + '.jpg'), dpi=300)
-    plt.close(h)
+    # h = plt.figure()
+    # sns.set_theme()
+    # sns.lmplot(data=df_valid, x="Ins_Rrs", y="Sat_Rrs", hue="platform", truncate=False, scatter_kws={"s": 10})
+    # xmin, xmax = plt.gca().get_xlim()
+    # ymin, ymax = plt.gca().get_ylim()
+    # xmin = np.min([xmin, ymin])
+    # xmax = np.min([xmax, ymax])
+    # if xmin < 0:
+    #     xmin = 0
+    # plt.gca().set_xlim([xmin, xmax])
+    # plt.gca().set_ylim([xmin, xmax])
+    # plt.plot([xmin, xmax], [xmin, xmax], '--k')
+    # plt.savefig(os.path.join(path_out, prename + 'AB' + '.jpg'), dpi=300)
+    # plt.close(h)
 
 
 def make_mu_info_bytower(path_base, ac, year_min, year_max):

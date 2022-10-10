@@ -15,6 +15,9 @@ import COMMON.Class_Flags_OLCI as flag
 from QC_INSITU import QC_INSITU
 from QC_SAT import QC_SAT
 
+from skimage import exposure
+from matplotlib.colors import ListedColormap
+
 DIMENSION_NAMES = ['satellite_id', 'rows', 'columns', 'satellite_bands', 'insitu_id', 'insitu_original_bands']
 VAR_NAMES = ['satellite_time', 'satellite_latitude', 'satellite_longitude', 'satellite_bands',
              'satellite_Rrs', 'insitu_time', 'insitu_original_bands', 'insitu_Rrs', 'time_difference']
@@ -105,7 +108,6 @@ class MDBFile:
         self.mu_curr_ins_rrs = []
 
         # QUALITY CONTROL
-
         self.only_complete_spectra_valid = False
         self.qc_insitu = QC_INSITU(self.variables['insitu_Rrs'], self.variables['insitu_original_bands'])
         self.qc_insitu.time_max = self.delta_t
@@ -115,7 +117,8 @@ class MDBFile:
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                  self.info['satellite_aco_processor'])
         elif len(self.nc.satellite_aco_processor) == 0:
-            self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None, 'Climate Change Initiative - European Space Agency')
+            self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
+                                 'Climate Change Initiative - European Space Agency')
         else:
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
                                  self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
@@ -128,7 +131,13 @@ class MDBFile:
         self.df_validation_valid = None
         self.mu_dates = {}
 
-    # Checking atrib, var and dimensions names
+        self.df_mu = None
+        self.col_names_mu = ['Index_MU', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'satellite', 'platform', 'sensor', 'site',
+                             'ac', 'mu_valid', 'spectrum_complete', 'n_good_bands', 'status']
+
+        # variables controlling display images
+        self.rgb_bands = [665, 560, 490]
+
     def check_structure(self):
         check_var = True
         check_dim = True
@@ -330,20 +339,28 @@ class MDBFile:
 
         load_info['spectrum_complete'] = spectrum_complete
 
-        # if not time_condition:
-        #     load_info['status'] = -3  # f'IN SITU DATA OUT OF TIME WINDOW'
-        #     return is_mu_valid, load_info
+        if not time_condition:
+            self.mu_curr_ins_rrs = []
+            self.mu_curr_sat_rrs_mean = []
+            load_info['status'] = -3  # f'IN SITU DATA OUT OF TIME WINDOW'
+            return is_mu_valid, load_info
 
         if not valid_insitu:
+            self.mu_curr_ins_rrs = []
+            self.mu_curr_sat_rrs_mean = []
             load_info['status'] = -4  # f'INVALID INSITU DATA'
             return is_mu_valid, load_info
 
         if not spectrum_complete and self.qc_insitu.only_complete_spectra:
+            self.mu_curr_ins_rrs = []
+            self.mu_curr_sat_rrs_mean = []
             load_info['status'] = -5  # f'INCOMPLETE IN SITU SPECTRUM'
             return is_mu_valid, load_info
 
         cond_min_pixels, cond_stats, valid_mu, sat_values = self.qc_sat.get_match_up_values(index_mu)
         if not valid_mu:
+            self.mu_curr_ins_rrs = []
+            self.mu_curr_sat_rrs_mean = []
             load_info['status'] = -6  # f'NO VALID SAT DATA'
             return is_mu_valid, load_info
 
@@ -498,6 +515,113 @@ class MDBFile:
             sat_time_new = sat_time_prev.replace(hour=hour, minute=minute)
             self.sat_times[index_mu] = sat_time_new
 
+    def save_flag_images(self, path_img):
+        print('[INFO] Saving FLAG images...')
+        for index_mu in range(self.n_mu_total):
+            flagging = flag.Class_Flags_OLCI(self.variables[self.flag_band_name].flag_masks,
+                                             self.variables[self.flag_band_name].flag_meanings)
+            satellite_flag_band = np.array(self.variables[self.flag_band_name][index_mu])
+
+            mask = np.zeros((25, 25))
+
+            # clouds
+            flag_clouds = ['CLOUD', 'CLOUD_AMBIGUOUS', 'CLOUD_MARGIN']
+            mask_clouds = flagging.Mask(satellite_flag_band, flag_clouds)
+            mask[np.where(mask_clouds != 0)] = 1
+
+            # other
+            flag_others = ['INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN', 'HIGHGLINT', 'SNOW_ICE',
+                           'AC_FAIL', 'WHITECAPS']
+            mask_others = flagging.Mask(satellite_flag_band, flag_others)
+            mask[np.where(mask_others != 0)] = 2
+
+            # negative reflectance
+            flag_rwneg = ['RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4', 'RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
+            mask_rwneg = flagging.Mask(satellite_flag_band, flag_rwneg)
+            mask[np.where(mask_rwneg != 0)] = 3
+
+            # land
+            flag_land = ['LAND','COASTLINE']
+            mask_land = flagging.Mask(satellite_flag_band, flag_land)
+            mask[np.where(mask_land != 0)] = 4
+
+            mu_sat_time = self.sat_times[index_mu]
+            mu_sat_time_str = mu_sat_time.strftime('%Y%m%d_%H%M')
+            file_name = f'SATFLAG_{mu_sat_time_str}.png'
+            file_img = os.path.join(path_img, file_name)
+            print(file_img)
+            extent = [0, 25, 0, 25]
+            cmap_here = ListedColormap(['b', 'w', 'red', 'orange', 'maroon'])
+
+            plt.imshow(mask, interpolation=None, extent=extent,cmap = cmap_here, vmin=0, vmax=5)
+
+            plt.hlines(11, 11, 14, colors=['r'])
+            plt.hlines(14, 11, 14, colors=['r'])
+            plt.vlines(11, 11, 14, colors=['r'])
+            plt.vlines(14, 11, 14, colors=['r'])
+            plt.colorbar()
+            plt.savefig(file_img)
+            plt.close()
+
+    def save_rgb_images(self, path_img):
+        print('[INFO] Saving RGB images...')
+        for index_mu in range(self.n_mu_total):
+            satellite_rrs = self.variables['satellite_Rrs'][index_mu]
+
+            indexred = np.argmin(np.abs(self.rgb_bands[0] - self.satellite_bands))
+            indexgreen = np.argmin(np.abs(self.rgb_bands[1] - self.satellite_bands))
+            indexblue = np.argmin(np.abs(self.rgb_bands[2] - self.satellite_bands))
+
+            print(indexred, indexgreen, indexblue)
+
+            band_red = np.ma.array(satellite_rrs[indexred][:][:])
+            band_green = np.ma.array(satellite_rrs[indexgreen][:][:])
+            band_blue = np.ma.array(satellite_rrs[indexblue][:][:])
+
+            rgb = np.ma.zeros((25, 25, 3))
+
+            rgb[:, :, 0] = self.scale_array(band_red, None, None)
+            rgb[:, :, 1] = self.scale_array(band_green, None, None)
+            rgb[:, :, 2] = self.scale_array(band_blue, None, None)
+            # rgbi = rgb * 255
+            # rgbi = rgb.astype(int)
+
+            # rgb[rgb.mask] = 1
+            # rgb = exposure.equalize_adapthist(rgb)
+
+            mu_sat_time = self.sat_times[index_mu]
+            mu_sat_time_str = mu_sat_time.strftime('%Y%m%d_%H%M')
+            file_name = f'SATRGB_{mu_sat_time_str}.png'
+            file_img = os.path.join(path_img, file_name)
+            print(file_img)
+            extent = [0, 25, 0, 25]
+            plt.imshow(rgb, interpolation=None, extent=extent)
+            # plt.xticks(np.arange(2, 25, 3))
+            # plt.yticks(np.arange(2, 25, 3))
+            # plt.grid()
+            # plt.grid(b=True, which='major', color='#666666', linestyle='-')
+            # plt.minorticks_on()
+            # plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+            plt.hlines(11, 11, 14, colors=['r'])
+            plt.hlines(14, 11, 14, colors=['r'])
+            plt.vlines(11, 11, 14, colors=['r'])
+            plt.vlines(14, 11, 14, colors=['r'])
+            # plt.colorbar()
+            plt.savefig(file_img)
+            plt.close()
+
+    def scale_array(self, array, min_value, max_value):
+        # print('=====================================')
+        # print(array)
+        if min_value is None:
+            min_value = np.min(array)
+        if max_value is None:
+            max_value = np.max(array)
+        array_out = (array - min_value) / (max_value - min_value)
+
+
+        return array_out
+
     def prepare_df_validation(self):
         print('[INFO] Preparing DF for validation...')
         nbands = len(self.wlref)
@@ -513,6 +637,8 @@ class MDBFile:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             # print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
+
+            # self.plot_spectra(None)
 
             # if not mu_valid:
             #     status = info_mu['status']
@@ -539,6 +665,7 @@ class MDBFile:
             time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
             if not mukey in self.mu_dates.keys():
                 self.mu_dates[mukey] = {
+                    'Index_MU': index_mu,
                     'Sat_Time': self.mu_sat_time.strftime('%Y-%m-%d %H:%M'),
                     'Ins_Time': self.mu_insitu_time.strftime('%Y-%m-%d %H:%M'),
                     'Time_Diff': time_diff,
@@ -549,7 +676,8 @@ class MDBFile:
                     'ac': self.info['satellite_aco_processor'].upper(),
                     'mu_valid': mu_valid,
                     'spectrum_complete': spectrum_complete,
-                    'n_good_bands': 0
+                    'n_good_bands': 0,
+                    'status': info_mu['status']
                 }
                 if self.mu_dates[mukey]['ac'] == 'ATMOSPHERIC CORRECTION PROCESSOR: XXX':
                     self.mu_dates[mukey]['ac'] = 'STANDARD'
@@ -595,17 +723,33 @@ class MDBFile:
 
         self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
 
+        self.prepare_df_mu()
         print(
             f'[INFO]# total match-ups: {self.n_mu_total} Valid: {nmu_valid}  With complete spectrum: {nmu_valid_complete}')
         return nmu_valid
 
+    def prepare_df_mu(self):
+        self.df_mu = pd.DataFrame(columns=self.col_names_mu, index=list(range(len(self.mu_dates))))
+
+        # self.col_names_mu = ['Index_MU', 'Sat_Time', 'InsTime', 'Time_Diff', 'satellite', 'platform', 'sensor', 'site',
+        #                     'ac', 'mu_valid', 'spectrum_complete', 'n_good_bands', 'status']
+        index_tot = 0
+        for mukey in self.mu_dates:
+            row = self.mu_dates[mukey]
+            for c in row:
+                self.df_mu.iloc[index_tot].at[c] = row[c]  # pd.DataFrame.from_dict(row)
+            index_tot = index_tot + 1
+
     ##PLOT FUNCTIONS
     def plot_spectra(self, hfig):
+        if len(self.mu_curr_sat_rrs_mean) == 0 or len(self.mu_curr_ins_rrs) == 0:
+            return
+
         print('Plot spectra...')
         legend = [f"S3{self.nc.platform}-{self.mu_sat_time.strftime('%d-%m-%Y %H:%M')}",
                   f"Hypstar-{self.mu_insitu_time.strftime('%d-%m-%Y %H:%M')}"]
         row_names = []
-        for w in self.satellite_bands:
+        for w in self.wlref:
             wn = f'{w}'
             row_names.append(wn)
         ydata = np.array([self.mu_curr_sat_rrs_mean, self.mu_curr_ins_rrs])
@@ -615,7 +759,7 @@ class MDBFile:
         if hfig is None:
             hfig = plt.figure()
         df.plot(lw=2, marker='.', markersize=10)
-        rindex = list(range(16))
+        rindex = list(range(len(self.wlref)))
         plt.xticks(rindex, row_names, rotation=45, fontsize=12)
         plt.xlabel('Wavelength(nm)', fontsize=14)
         plt.ylabel('R$_{rs}$[1/sr]', fontsize=14)
@@ -623,6 +767,20 @@ class MDBFile:
         plt.gcf().subplots_adjust(bottom=0.18)
         plt.gcf().subplots_adjust(left=0.20)
         plt.gcf().canvas.draw()
+
+        ofname = f"Spectra_{self.index_mu}.jpg"
+        path_base = os.path.dirname(self.file_path)
+        name_mdb = os.path.basename(self.file_path)
+        path_out = os.path.join(path_base, f'{name_mdb[:-3]}')
+        if not os.path.exists(path_out):
+            os.mkdir(path_out)
+        path_out_mu = os.path.join(path_out, 'MUPlots')
+        if not os.path.exists(path_out_mu):
+            os.mkdir(path_out_mu)
+        ofname = os.path.join(path_out_mu, ofname)
+        print('Name out:', ofname)
+        plt.savefig(ofname, dpi=300)
+        plt.close()
 
         return hfig
 
