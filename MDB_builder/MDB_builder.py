@@ -726,7 +726,8 @@ def check_single_mdbfile_exist(prename, postname, list_mdbfiles_pathout):
 
 def get_time_list_from_resto_dataset(insitu_dataset):
     time_list = []
-    time_array = np.array(insitu_dataset.variables['TIME'][:])
+    print(insitu_dataset.variables)
+    time_array = insitu_dataset.variables['TIME'][:]
     for time in time_array:
         timehere = datetime.fromtimestamp(float(time))
         print(timehere)
@@ -1047,6 +1048,7 @@ def main():
                                 file_list.append(ofile)  # for ncrcat later
 
                     elif ins_sensor == 'RESTO':
+                        path_to_list_daily = None
                         insitu_dataset = Dataset(path_to_insitu)
                         resto_time_list = get_time_list_from_resto_dataset(insitu_dataset)
                         prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
