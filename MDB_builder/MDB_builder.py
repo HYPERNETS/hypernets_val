@@ -726,8 +726,7 @@ def check_single_mdbfile_exist(prename, postname, list_mdbfiles_pathout):
 
 def get_time_list_from_resto_dataset(insitu_dataset):
     time_list = []
-    print(insitu_dataset.variables)
-    time_array = insitu_dataset.variables['TIME'][:]
+    time_array = np.array(insitu_dataset.variables['Time'][:])
     for time in time_array:
         timehere = datetime.fromtimestamp(float(time))
         print(timehere)
