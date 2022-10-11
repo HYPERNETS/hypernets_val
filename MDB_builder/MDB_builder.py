@@ -870,6 +870,8 @@ def main():
     elif args.config_file:
         if options['Time_and_sites_selection']['insitu_type']:
             ins_sensor = options['Time_and_sites_selection']['insitu_type']
+    print('-->'+ins_sensor+'<--')
+
     # wild card expression for in situ data
     if ins_sensor == 'PANTHYR':
         wce = f'"*AZI_270_data.csv"'  # wild card expression
