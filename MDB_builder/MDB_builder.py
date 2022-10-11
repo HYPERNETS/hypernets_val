@@ -870,7 +870,7 @@ def main():
     elif args.config_file:
         if options['Time_and_sites_selection']['insitu_type']:
             ins_sensor = options['Time_and_sites_selection']['insitu_type']
-    print('-->'+ins_sensor+'<--')
+
 
     # wild card expression for in situ data
     if ins_sensor == 'PANTHYR':
@@ -892,7 +892,7 @@ def main():
     if args.verbose:
         print(f'Path to in situ data: {insitu_path_source}')
     # sarching for in situ data
-    if ins_sensor is not 'RESTO':
+    if ins_sensor != 'RESTO':
         path_to_insitu_list = create_list_products(insitu_path_source, path_out, wce, res, 'insitu')
     if args.debug:
         print(f'Path to in situ list: {path_to_insitu_list}')
@@ -919,7 +919,8 @@ def main():
         if not os.path.exists(path_to_insitu):
             print(f'[ERROR] RESTO in situ path {path_to_insitu} does not exist')
             return
-
+        if args.verbose:
+            print(f'[INFO] Path to RESTO file: {path_to_insitu}')
 
     # time dif between in situ and sat data
     time_window = 3  # in hours (+- hours)
@@ -1013,6 +1014,7 @@ def main():
                 print('-----------------')
                 print(f'[INFO] Date: {datetime_str} Satellite/Platform: {sensor_str} Resolution: {res_str}')
                 print(f'[INFO] Extract_path: {extract_path}')
+                print(ins_sensor)
             date_format = '%Y%m%dT%H%M%S'
             satellite_datetime = datetime.strptime(datetime_str, date_format)
             datetime_creation = datetime.today().strftime(date_format)
@@ -1066,6 +1068,7 @@ def main():
                                 print(f'[INFO] File created: {ofile}')
                                 file_list.append(ofile)  # for ncrcat later
                     else:
+                        print('es resto, aqui no deberia llegar...')
                         path_to_list_daily = create_insitu_list_daily(path_to_insitu_list, datetime_str)
                         if not os.stat(path_to_list_daily).st_size == 0:  # no PANTHYR data or not for that angle
                             filename = f'MDB_{sensor_str}_{res_str}_{datetime_str}_{datetime_creation}_{ins_sensor}_{station_name}.nc'
