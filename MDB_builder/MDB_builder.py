@@ -427,6 +427,96 @@ def add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_wi
     else:
         return True
 
+def add_insitu_resto(extract_path, ofile, insitu_dataset, time_list, satellite_datetime, time_window):
+    satellite_date = satellite_datetime.strftime('%Y-%m-%d')
+    insitu_start_time = datetime.strptime(insitu_dataset.start_date,'%Y-%m-%d %H:%M')
+    insitu_end_time = datetime.strptime(insitu_dataset.end_date, '%Y-%m-%d %H:%M')
+    if satellite_datetime<insitu_start_time or satellite_datetime>insitu_end_time:
+        print(f'[WARNING] No in situ spectra were found for date: {satellite_datetime}')
+        return False
+    # dtref = datetime(1970, 1, 1, 0, 0, 0).replace(microsecond=0)
+    # start_search = satellite_datetime
+    # sec = float((satellite_datetime. - self.dtref).total_seconds())
+
+    nspectra = len(time_list)
+    nspectra_within_timewindow = 0
+    spectra_within_timewindow = np.zeros(nspectra, dtype=bool)
+    time_dif_seconds = np.zeros(nspectra, dtype=float)
+    time_window_seconds = time_window * 3600
+    for i in range(nspectra):
+        time_dif_seconds[i] = float(abs((time_list[i] - satellite_datetime).total_seconds()))
+        if time_dif_seconds[i] < time_window_seconds:
+            spectra_within_timewindow[i] = True
+            nspectra_within_timewindow = nspectra_within_timewindow + 1
+
+    if args.verbose:
+        print(f'[INFO] Number of in-situ spectra on date {satellite_date}:{nspectra}')
+        print(f'[INFO] --> within the time window: {nspectra_within_timewindow}')
+
+    if nspectra_within_timewindow == 0:
+        print(f'[WARNING] No in situ spectra were found for date: {satellite_date} within the specified time window')
+        return False
+
+    #sat extract nc file
+    new_MDB = copy_nc(extract_path, ofile)
+
+    # add time window diff
+    new_MDB.time_diff = f'{time_window_seconds}'  # in seconds
+
+    #n insitu bands
+    nw = insitu_dataset.variables['Nominal_Wavelenghts'][:]
+    n_insitu_bands = len(nw)
+
+    # create in situ dimensions
+    new_MDB.createDimension('insitu_id', 50)
+    new_MDB.createDimension('insitu_original_bands', n_insitu_bands)
+
+    # create variables
+    insitu_time = new_MDB.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id',), zlib=True, complevel=6)
+    insitu_time.units = "Seconds since 1970-01-01"
+    insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
+
+    insitu_original_bands = new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'),
+                                                   fill_value=-999, zlib=True, complevel=6)
+    insitu_original_bands.description = 'In situ bands in nm'
+
+    insitu_Rrs = new_MDB.createVariable('insitu_Rrs', 'f4', ('satellite_id', 'insitu_original_bands', 'insitu_id'),
+                                        fill_value=-999, zlib=True, complevel=6)
+    insitu_Rrs.description = 'In situ Rrs'
+
+    # insitu_exact_wavelenghts = new_MDB.createVariable('insitu_exact_wavelenghts', 'f4',
+    #                                                   ('satellite_id', 'insitu_original_bands', 'insitu_id'),
+    #                                                   fill_value=-999, zlib=True, complevel=6)
+    # insitu_exact_wavelenghts.description = 'In situ bands in nm'
+
+    time_difference = new_MDB.createVariable('time_difference', 'f4', ('satellite_id', 'insitu_id'), fill_value=-999,
+                                             zlib=True, complevel=6)
+    time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
+    time_difference.units = "seconds"
+
+    insitu_original_bands[:] = nw
+
+    insitu_idx = 0
+    for i in range(nspectra):
+        if not spectra_within_timewindow[i]:
+            continue
+
+        insitu_time[0, insitu_idx] = float(time_list[i].timestamp())
+        time_difference[0, insitu_idx] = time_dif_seconds[i]
+
+        rrs_here = np.ma.array(insitu_dataset.variables['RRS'][i][:])
+        rrs_here[rrs_here.mask] = -999
+        insitu_Rrs[0, :, insitu_idx] = rrs_here
+
+        # wl_here = np.array(exactwl[i][:])
+        # wl_here[exactwl[i][:].mask] = -999
+        # insitu_exact_wavelenghts[0, :, insitu_idx] = wl_here
+
+        insitu_idx = insitu_idx + 1
+
+    new_MDB.close()
+
+    return True
 
 def get_simple_fileextracts_list(path_extract, wce, datetime_start, datetime_stop):
     list_files = []
@@ -634,6 +724,16 @@ def check_single_mdbfile_exist(prename, postname, list_mdbfiles_pathout):
             break
     return file_prev
 
+def get_time_list_from_resto_dataset(insitu_dataset):
+    time_list = []
+    time_array = np.array(insitu_dataset.variables['TIME'][:])
+    for time in time_array:
+        timehere = datetime.fromtimestamp(float(time))
+        print(timehere)
+        time_list.append(timehere)
+    return time_list
+
+
 
 def check():
     # base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/Irbe_Lighthouse/WFR/extracts'
@@ -764,7 +864,7 @@ def main():
     if args.verbose:
         print(f'Path to satellite extract list: {path_to_satellite_list}')
 
-    # in situ sensor: PANTHYR, HYPERNETS, AERONET
+    # in situ sensor: PANTHYR, HYPERNETS, AERONET, RESTO
     if args.insitu:
         ins_sensor = args.insitu
     elif args.config_file:
@@ -777,6 +877,8 @@ def main():
         wce = f'"HYPERNETS_W_*{station_name}*L2A_REF*_v1.2.nc"'
     elif ins_sensor == 'AERONET':
         wce = f'*{station_name}*'
+    elif ins_sensor == 'RESTO':
+        wce = f'RESTO_{station_name}'
     if args.debug:
         print(f'In Situ Wild Card Expression: {wce}')
     # in situ path source
@@ -788,7 +890,8 @@ def main():
     if args.verbose:
         print(f'Path to in situ data: {insitu_path_source}')
     # sarching for in situ data
-    path_to_insitu_list = create_list_products(insitu_path_source, path_out, wce, res, 'insitu')
+    if ins_sensor is not 'RESTO':
+        path_to_insitu_list = create_list_products(insitu_path_source, path_out, wce, res, 'insitu')
     if args.debug:
         print(f'Path to in situ list: {path_to_insitu_list}')
     areader = None
@@ -802,6 +905,19 @@ def main():
         areader = AERONETReader(file_aeronet)
         if args.debug:
             print(f'Path to AERONET NC file: {file_aeronet}')
+
+    path_to_insitu = None
+    if ins_sensor == 'RESTO':
+        if args.config_file:
+            if options.has_option('Time_and_sites_selection','name_file'):
+                path_to_insitu = os.path.join(insitu_path_source,options['Time_and_sites_selection']['name_file'])
+        if path_to_insitu is None:
+            print(f'[ERROR] RESTO in situ path {path_to_insitu} was not defined')
+            return
+        if not os.path.exists(path_to_insitu):
+            print(f'[ERROR] RESTO in situ path {path_to_insitu} does not exist')
+            return
+
 
     # time dif between in situ and sat data
     time_window = 3  # in hours (+- hours)
@@ -922,6 +1038,28 @@ def main():
                             ofile = os.path.join(path_out, filename)
                             print(f'[INFO] Creating file from extract: {extract_path}')
                             if add_insitu_aeronet(extract_path, ofile, areader, satellite_datetime, time_window,
+                                                  mdb_secondary):
+                                print(f'[INFO] File created: {ofile}')
+                                file_list.append(ofile)  # for ncrcat later
+
+                    elif ins_sensor == 'RESTO':
+                        insitu_dataset = Dataset(path_to_insitu)
+                        resto_time_list = get_time_list_from_resto_dataset(insitu_dataset)
+                        prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
+                        postfilename = f'{ins_sensor}_{station_name}.nc'
+                        print(prefilename, postfilename)
+                        filename_prev = check_single_mdbfile_exist(prefilename, postfilename, list_mdbfiles_pathout)
+                        if not filename_prev is None:
+                            ofile = os.path.join(path_out, filename_prev)
+                            if args.verbose:
+                                print(f'[INFO] File already created: {ofile}')
+                            if check_single_mdbfile(ofile):
+                                file_list.append(ofile)  # for ncrcat later
+                        else:
+                            filename = f'{prefilename}_{datetime_creation}_{postfilename}'
+                            ofile = os.path.join(path_out, filename)
+                            print(f'[INFO] Creating file from extract: {extract_path}')
+                            if add_insitu_resto(extract_path, ofile, insitu_dataset,resto_time_list, satellite_datetime, time_window,
                                                   mdb_secondary):
                                 print(f'[INFO] File created: {ofile}')
                                 file_list.append(ofile)  # for ncrcat later
