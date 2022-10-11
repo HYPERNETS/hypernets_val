@@ -769,14 +769,14 @@ def check():
 # #############################
 # %%
 def main():
-    print('Creating MDB files!')
+    print('[INFO] Creating MDB files!')
     ##CALLING ONLY FOR PRE-TESTING###
     # b = check()
     # if b:
     #     return
     #################################
     if args.debug:
-        print('Entering Debugging Mode:')
+        print('[DEBUG] Entering Debugging Mode:')
 
     # load config file (if exists)
     if args.config_file:
@@ -792,7 +792,7 @@ def main():
     if not os.path.isdir(path_out):
         os.mkdir(path_out)
     if args.verbose:
-        print(f'Path to output: {path_out}')
+        print(f'[INFO] Path to output: {path_out}')
 
     list_mdbfiles_pathout = []
     for name in os.listdir(path_out):
@@ -805,7 +805,7 @@ def main():
         if options['file_path']['sat_extract_dir']:
             satellite_path_source = options['file_path']['sat_extract_dir']
     if args.verbose:
-        print(f'Path to satellite sources: {satellite_path_source}')
+        print(f'[INFO] Path to satellite sources: {satellite_path_source}')
 
     ##SYKE and INSITU MODE, SIMPLE BUILDER WITHOUT ADDING IN SITU REFLECTANCE DATA
     if options.has_option('Time_and_sites_selection', 'insitu_type'):
@@ -826,9 +826,9 @@ def main():
         sat_satellite = options['satellite_options']['satellite']
         sat_platform = options['satellite_options']['platform']
     if args.verbose:
-        print(f'Satellite: {sat_satellite.upper()}')
-        print(f'Satellite sensor: {sat_sensor.upper()}')
-        print(f'Satellite platform: {sat_platform.upper()}')
+        print(f'[INFO] Satellite: {sat_satellite.upper()}')
+        print(f'[INFO] Satellite sensor: {sat_sensor.upper()}')
+        print(f'[INFO] Satellite platform: {sat_platform.upper()}')
 
     # resolution
     if args.resolution:
@@ -849,7 +849,7 @@ def main():
         station_name = options['Time_and_sites_selection']['sites']
     in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
     if args.verbose:
-        print(f'Station name: {station_name} with lat: {in_situ_lat}, long: {in_situ_lon}')
+        print(f'[INFO] Station name: {station_name} with lat: {in_situ_lat}, long: {in_situ_lon}')
 
     # wild card expression for searching extracts
     if sat_sensor.upper() == 'OLCI' and atm_corr == 'STANDARD':
@@ -858,12 +858,12 @@ def main():
         wce = f'"{sat_satellite}{sat_platform}*nc"'
 
     if args.verbose:
-        print(f'Satellite extract Wild Card Expression: {wce}')
+        print(f'[INFO] Satellite extract Wild Card Expression: {wce}')
 
     # searching for file extracts
     path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, atm_corr)
     if args.verbose:
-        print(f'Path to satellite extract list: {path_to_satellite_list}')
+        print(f'[INFO] Path to satellite extract list: {path_to_satellite_list}')
 
     # in situ sensor: PANTHYR, HYPERNETS, AERONET, RESTO
     if args.insitu:
@@ -882,7 +882,7 @@ def main():
     elif ins_sensor == 'RESTO':
         wce = f'RESTO_{station_name}'
     if args.debug:
-        print(f'In Situ Wild Card Expression: {wce}')
+        print(f'[DEBUG] In Situ Wild Card Expression: {wce}')
     # in situ path source
     if args.path_to_ins:
         insitu_path_source = args.path_to_ins
@@ -890,12 +890,12 @@ def main():
         if options['file_path']['ins_source_dir']:
             insitu_path_source = options['file_path']['ins_source_dir']
     if args.verbose:
-        print(f'Path to in situ data: {insitu_path_source}')
+        print(f'[INFO] Path to in situ data: {insitu_path_source}')
     # sarching for in situ data
     if ins_sensor != 'RESTO':
         path_to_insitu_list = create_list_products(insitu_path_source, path_out, wce, res, 'insitu')
     if args.debug:
-        print(f'Path to in situ list: {path_to_insitu_list}')
+        print(f'[DEBUG] Path to in situ list: {path_to_insitu_list}')
     areader = None
     if ins_sensor == 'AERONET':
         f = open(path_to_insitu_list)
@@ -906,7 +906,7 @@ def main():
         from base.anet_nc_reader import AERONETReader
         areader = AERONETReader(file_aeronet)
         if args.debug:
-            print(f'Path to AERONET NC file: {file_aeronet}')
+            print(f'[DEBUG] Path to AERONET NC file: {file_aeronet}')
 
     path_to_insitu = None
     if ins_sensor == 'RESTO':
@@ -954,8 +954,8 @@ def main():
         datetime_end = datetime.today()
 
     if args.verbose:
-        print(f'Start date: {datetime_start}')
-        print(f'End date: {datetime_end}')
+        print(f'[INFO] Start date: {datetime_start}')
+        print(f'[INFO] End date: {datetime_end}')
 
     # defining secondary extracts (if available)
     mdb_secondary = None
@@ -1014,7 +1014,6 @@ def main():
                 print('-----------------')
                 print(f'[INFO] Date: {datetime_str} Satellite/Platform: {sensor_str} Resolution: {res_str}')
                 print(f'[INFO] Extract_path: {extract_path}')
-                print(ins_sensor)
             date_format = '%Y%m%dT%H%M%S'
             satellite_datetime = datetime.strptime(datetime_str, date_format)
             datetime_creation = datetime.today().strftime(date_format)
@@ -1024,7 +1023,7 @@ def main():
                         path_to_list_daily = None
                         prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
                         postfilename = f'{ins_sensor}_{station_name}.nc'
-                        print(prefilename, postfilename)
+                        #print(prefilename, postfilename)
                         filename_prev = check_single_mdbfile_exist(prefilename, postfilename, list_mdbfiles_pathout)
                         if not filename_prev is None:
                             ofile = os.path.join(path_out, filename_prev)
@@ -1080,24 +1079,24 @@ def main():
                             else:
                                 if add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_window,
                                               ins_sensor):
-                                    print(f'file created: {ofile}')
+                                    print(f'[INFO] file created: {ofile}')
                                     file_list.append(ofile)  # for ncrcat later
 
                         else:
                             if args.verbose:
-                                print('No in situ measurements found!')
+                                print('[WARNING] No in situ measurements found!')
 
                 # except:
                 except Exception as e:
                     if args.verbose:
-                        print(f'Exception: {e}')
+                        print(f'[ERROR] Exception: {e}')
                     pass
 
                 if path_to_list_daily is not None and os.path.exists(path_to_list_daily):
                     os.remove(path_to_list_daily)
             else:
                 if args.verbose:
-                    print('Out of time frame.')
+                    print('[WARNING] Out of time frame.')
 
     level_prod = 'L2'
 
@@ -1117,7 +1116,7 @@ def main():
     # if not args.nodelfiles:
     #     [os.remove(f) for f in file_list[:-1]]
 
-    print(f'Concatenated file created: {ncout_file}')
+    print(f'[INFO]Concatenated file created: {ncout_file}')
 
 
 # %%
