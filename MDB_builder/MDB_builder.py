@@ -1176,6 +1176,7 @@ def main():
                                 print(f'[INFO] File created: {ofile}')
                                 file_list.append(ofile)  # for ncrcat later
                     elif ins_sensor == 'MEDA':
+                        path_to_list_daily = None
                         prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
                         postfilename = f'{ins_sensor}_{station_name}.nc'
                         # print(prefilename, postfilename)
