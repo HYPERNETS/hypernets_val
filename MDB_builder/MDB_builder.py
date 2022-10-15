@@ -520,6 +520,97 @@ def add_insitu_resto(extract_path, ofile, insitu_dataset, time_list, satellite_d
     return True
 
 
+def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_window, ins_sensor):
+    # print(f'Satellite time {datetime_str}')
+    date_format = '%Y%m%dT%H%M%S'
+    satellite_datetime = datetime.strptime(datetime_str, date_format)
+
+    # to append to nc file
+    if args.debug:
+        print('debug MDB_builder Line 191: Creating copy of MDB file')
+
+    new_MDB = copy_nc(extract_path, ofile)
+
+    # add time window diff
+    if args.debug:
+        print('debug MDB_builder Line 197: Adding time window attribute')
+    new_MDB.time_diff = f'{time_window * 60 * 60}'  # in seconds
+
+    # create in situ dimensions
+    if args.debug:
+        print('debug MDB_builder Line 202: Creating in situ dimensions')
+
+    new_MDB.createDimension('insitu_id', 30)
+    new_MDB.createDimension('insitu_original_bands', 7)
+
+    # create variable
+    if args.debug:
+        print('debug MDB_builder Line 210: Creating in situ and time difference variables')
+
+    insitu_time = new_MDB.createVariable('insitu_time', 'f4', ('satellite_id', 'insitu_id',), zlib=True, complevel=6)
+    insitu_time.units = "Seconds since 1970-1-1"
+    insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
+
+    insitu_filename = new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id', 'insitu_id'), zlib=True,
+                                             complevel=6)
+    insitu_filename.description = 'In situ filename.'
+
+    insitu_filepath = new_MDB.createVariable('insitu_filepath', 'S2', ('satellite_id', 'insitu_id'), zlib=True,
+                                             complevel=6)
+    insitu_filepath.description = 'In situ file path.'
+
+    insitu_original_bands = new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'),
+                                                   fill_value=-999, zlib=True, complevel=6)
+    insitu_original_bands.description = 'In situ bands in nm.'
+
+    insitu_Rrs = new_MDB.createVariable('insitu_Rrs', 'f4', ('satellite_id', 'insitu_original_bands', 'insitu_id'),
+                                        fill_value=-999, zlib=True, complevel=6)
+    insitu_Rrs.description = 'In situ Rrs'
+
+    time_difference = new_MDB.createVariable('time_difference', 'f4', ('satellite_id', 'insitu_id'), fill_value=-999,
+                                             zlib=True, complevel=6)
+    time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
+    time_difference.units = "seconds"
+
+    insitu_idx = 0
+    # extract in situ data
+    if args.debug:
+        print('debug MDB_builder Line 240: Starting extraction...')
+    with open(path_to_list_daily) as file:
+        for idx, line in enumerate(file):
+
+            ins_path = line[:-1]
+            ins_filename = ins_path.split('/')[-1]
+            nc_ins = Dataset(ins_path, 'r')
+            ins_date = datetime.strptime(ins_filename.split('_')[3],'%y%m%d').replace(hour=0,minute=0,seconds=0,microsecond=0)
+
+            ins_hours = nc_ins.variables['timetag'][:]
+            for ihour in range(len(ins_hours)):
+                ins_hour = ins_hours[idx]
+                insitu_datetime = ins_date + timedelta(hours=ins_hour)
+                time_diff = (insitu_datetime - satellite_datetime).total_seconds() / (60 * 60)
+                if args.debug:
+                    print(f'debug MDB_builder Line 592. Time diff: {time_diff} Time Window {time_window}')
+                if np.abs(time_diff) <= time_window:
+                    insitu_time[0, insitu_idx] = float(insitu_datetime.timestamp())  # Ex: 2021-02-24T11:31:00Z
+                    insitu_filename[0, insitu_idx] = os.path.basename(line[:-1])
+                    insitu_filepath[0, insitu_idx] = line[:-1]
+                    time_difference[0, insitu_idx] = float(time_diff) * 60 * 60  # in seconds
+                    insitu_RrsArray  = np.array(nc_ins.variables['rrs'][ihour,:])
+                    insitu_Rrs[0, :, insitu_idx] = [insitu_RrsArray]
+                    insitu_idx += 1
+            nc_ins.close()
+    new_MDB.close()
+    if insitu_idx == 0:
+        if os.path.exists(ofile):
+            os.remove(ofile)
+        if args.debug:
+            print('Not in situ measurements within the time window. MDB file deleted!')
+        return False
+    else:
+        return True
+
+
 def get_simple_fileextracts_list(path_extract, wce, datetime_start, datetime_stop):
     list_files = []
     for f in os.listdir(path_extract):
@@ -881,6 +972,8 @@ def main():
         wce = f'*{station_name}*'
     elif ins_sensor == 'RESTO':
         wce = f'RESTO_{station_name}'
+    elif ins_sensor == 'MEDA':
+        wce = f'meda_lam_opt_*_L1v1.nc'
     if args.debug:
         print(f'[DEBUG] In Situ Wild Card Expression: {wce}')
     # in situ path source
@@ -1023,7 +1116,7 @@ def main():
                         path_to_list_daily = None
                         prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
                         postfilename = f'{ins_sensor}_{station_name}.nc'
-                        #print(prefilename, postfilename)
+                        # print(prefilename, postfilename)
                         filename_prev = check_single_mdbfile_exist(prefilename, postfilename, list_mdbfiles_pathout)
                         if not filename_prev is None:
                             ofile = os.path.join(path_out, filename_prev)
@@ -1051,7 +1144,7 @@ def main():
                         resto_time_list = get_time_list_from_resto_dataset(insitu_dataset)
                         prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
                         postfilename = f'{ins_sensor}_{station_name}.nc'
-                        #print(prefilename, postfilename)
+                        # print(prefilename, postfilename)
                         filename_prev = check_single_mdbfile_exist(prefilename, postfilename, list_mdbfiles_pathout)
                         if not filename_prev is None:
                             ofile = os.path.join(path_out, filename_prev)
@@ -1067,6 +1160,28 @@ def main():
                                                 satellite_datetime, time_window):
                                 print(f'[INFO] File created: {ofile}')
                                 file_list.append(ofile)  # for ncrcat later
+                    elif ins_sensor == 'MEDA':
+                        prefilename = f'MDB_{sensor_str}_{res_str}_{datetime_str}'
+                        postfilename = f'{ins_sensor}_{station_name}.nc'
+                        # print(prefilename, postfilename)
+                        filename_prev = check_single_mdbfile_exist(prefilename, postfilename, list_mdbfiles_pathout)
+                        if not filename_prev is None:
+                            ofile = os.path.join(path_out, filename_prev)
+                            if args.verbose:
+                                print(f'[INFO] File already created: {ofile}')
+                            if check_single_mdbfile(ofile):
+                                file_list.append(ofile)  # for ncrcat later
+                        else:
+                            filename = f'{prefilename}_{datetime_creation}_{postfilename}'
+                            ofile = os.path.join(path_out, filename)
+                            print(f'[INFO] Creating file from extract (MEDA): {extract_path}')
+                            path_to_list_daily = create_insitu_list_daily(path_to_insitu_list, datetime_str)
+                            if add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_window,
+                                          ins_sensor):
+                                print(f'[INFO] file created: {ofile}')
+                                file_list.append(ofile)  # for ncrcat later
+
+
                     else:
                         path_to_list_daily = create_insitu_list_daily(path_to_insitu_list, datetime_str)
                         if not os.stat(path_to_list_daily).st_size == 0:  # no PANTHYR data or not for that angle
