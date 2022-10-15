@@ -601,7 +601,7 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
 
             ins_hours = nc_ins.variables['timetag'][:]
             for ihour in range(len(ins_hours)):
-                ins_hour = ins_hours[idx]
+                ins_hour = float(ins_hours[idx])
                 insitu_datetime = ins_date + timedelta(hours=ins_hour)
                 time_diff = (insitu_datetime - satellite_datetime).total_seconds() / (60 * 60)
                 if args.debug:
