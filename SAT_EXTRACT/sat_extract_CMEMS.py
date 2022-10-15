@@ -1026,6 +1026,7 @@ def create_extract_cmems_multiple(ncpath,date, options, sites, path_output):
     for b in band_list:
         name = f'O{strdate}-{b}-med-fr.nc'
         fname = os.path.join(ncpath,name)
+        print(fname,os.path.exists(fname))
         ncfiles.append(fname)
 
     nc_sat = Dataset(ncfiles[0], 'r')
