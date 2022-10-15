@@ -596,7 +596,7 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
             ins_path = line[:-1]
             ins_filename = ins_path.split('/')[-1]
             nc_ins = Dataset(ins_path, 'r')
-            ins_date = datetime.strptime(ins_filename.split('_')[3], '%y%m%d').replace(hour=0, minute=0, seconds=0,
+            ins_date = datetime.strptime(ins_filename.split('_')[3], '%y%m%d').replace(hour=0, minute=0, second=0,
                                                                                        microsecond=0)
 
             ins_hours = nc_ins.variables['timetag'][:]
