@@ -309,6 +309,79 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
 
     return True
 
+def create_extract_multiple(ofname, pdu, options, nc_files, global_at, lat, long, r, c):
+    size_box = get_box_size(options)
+    start_idx_x = (c - int(size_box / 2))
+    stop_idx_x = (c + int(size_box / 2) + 1)
+    start_idx_y = (r - int(size_box / 2))
+    stop_idx_y = (r + int(size_box / 2) + 1)
+
+    window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
+
+    n_bands = len(nc_files)
+
+    if n_bands == 0:
+        print('[ERROR] reflectance bands are not defined')
+        return False
+
+    newEXTRACT = SatExtract(ofname)
+    if not newEXTRACT.FILE_CREATED:
+        print(f'[ERROR] File {ofname} could not be created')
+        return False
+
+    if args.verbose:
+        print(f'[INFO]    Creating file: {ofname}')
+
+    newEXTRACT.set_global_attributes(global_at)
+
+    newEXTRACT.create_dimensions(size_box, n_bands)
+
+    newEXTRACT.create_lat_long_variables(lat, long, window)
+
+    # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
+    nc_sat = Dataset(nc_files[0])
+    if 'start_date' in nc_sat.ncattrs():
+        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
+        sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        newEXTRACT.create_satellite_time_variable(sat_time)
+    else:
+        sat_time = get_sat_time_from_fname(pdu)
+        if sat_time is not None:
+            newEXTRACT.create_satellite_time_variable(sat_time)
+        else:
+            print(f'[ERROR] Satellite time is not defined...')
+            newEXTRACT.close_file()
+            return False
+    nc_sat.close()
+
+    # pdu variable
+    newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
+
+    # Rrs and wavelenghts
+    satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
+    wavelenghts = []
+    for index in range(len(nc_files)):
+        f = nc_files[index]
+        nc_sat = Dataset(f)
+        name_file = f.split('/')[-1]
+        rband = name_file.split('-')[1].upper()
+        wls = rband[3:].replace('_', '.')
+        wl = float(wls)
+        wavelenghts.append(wl)
+        rbandvar = nc_sat.variables[rband]
+        if rbandvar.ndim == 3:
+            bandarray = ma.array(rbandvar[:, :, :])
+            satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        elif rbandvar.ndim == 2:
+            bandarray = ma.array(rbandvar[:, :])
+            satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        nc_sat.close()
+
+    newEXTRACT.create_satellite_bands_variable(wavelenghts)
+
+    newEXTRACT.close_file()
+
+    return True
 
 def config_reader(FILEconfig):
     """
@@ -850,19 +923,26 @@ def run_cmems_option(options):
                     print(f'[INFO] Files for date: {strdate} already exist. Skipping...')
                 continue
 
-            if not os.path.exists(expected_file_nc):
-                reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
-            filenc = pinfo.get_file_path_orig(None, date)
-            if filenc is None:
-                print(f'[WARNING] Refformatted file {expected_file_nc} could not be created. Skypping...')
+            # if not os.path.exists(expected_file_nc):
+            #     reformat.make_reformat_daily_dataset(pinfo, date, date, args.verbose)
+            # filenc = pinfo.get_file_path_orig(None, date)
+            # if filenc is None:
+            #     print(f'[WARNING] Refformatted file {expected_file_nc} could not be created. Skypping...')
+            #     continue
+            # if args.verbose:
+            #     print(f'[INFO] Reformatted file {filenc}')
+            # nhere = create_extract_cmems(filenc, options, sites, path_output)
+
+            path_nc = os.path.dirname(expected_file_nc)
+            if not os.path.exists(path_nc):
+                print(f'[WARNING] Path nc files {path_nc} does not exist. Skypping...')
                 continue
-            if args.verbose:
-                print(f'[INFO] Reformatted file {filenc}')
-            nhere = create_extract_cmems(filenc, options, sites, path_output)
+            nhere = create_extract_cmems_multiple(path_nc,date,options,sites,path_output)
+
             ncreated = ncreated + nhere
-            if args.verbose:
-                print(f'[INFO] Removing file {filenc}')
-            os.remove(filenc)
+            # if args.verbose:
+            #     print(f'[INFO] Removing file {filenc}')
+            # os.remove(filenc)
 
         except:
             print('ERROR FILE')
@@ -936,6 +1016,85 @@ def create_extract_cmems(filepath, options, sites, path_output):
 
     return ncreated
 
+
+def create_extract_cmems_multiple(ncpath,date, options, sites, path_output):
+    if args.verbose:
+        print(f'[INFO] NC Path: {ncpath}')
+    strdate = date.strftime('%Y%j')
+    band_list = ['400','412_5','442_5','490','510','560','620','665','673_75','681_25','708_75','753_75','778_75']
+    ncfiles = []
+    for b in band_list:
+        name = f'O{strdate}-{b}-med-fr.nc'
+        fname = os.path.join(ncpath,name)
+        ncfiles.append(fname)
+
+    nc_sat = Dataset(ncfiles[0], 'r')
+
+    # Retriving lat and long arrays
+    if args.verbose:
+        print('[INFO] Retrieving lat/long data...')
+    var_lat, var_lon = get_lat_long_var_names(options)
+    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
+
+    # Retrieving global atribbutes
+    if args.verbose:
+        print('[INFO] Retrieving global attributes...')
+    global_at = get_global_atrib(nc_sat, options)
+
+    nc_sat.close()
+
+    ncreated = 0
+    # Working for each site, checking if there is in the image
+    for site in sites:
+        if args.verbose:
+            print(f'[INFO]    Working for site: {site}')
+        insitu_lat = sites[site]['latitude']
+        insitu_lon = sites[site]['longitude']
+        contain_flag = 0
+        if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
+            if lat.ndim == 1 and lon.ndim == 1:
+                r = np.argmin(np.abs(lat - insitu_lat))
+                c = np.argmin(np.abs(lon - insitu_lon))
+            else:
+                r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+            size_box = get_box_size(options)
+            start_idx_x = (c - int(size_box / 2))  # lon
+            stop_idx_x = (c + int(size_box / 2) + 1)  # lon
+            start_idx_y = (r - int(size_box / 2))  # lat
+            stop_idx_y = (r + int(size_box / 2) + 1)  # lat
+
+            if lat.ndim == 1 and lon.ndim == 1:
+                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                        lon.shape[0]:
+                    contain_flag = 1
+            else:
+                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                        lat.shape[1]:
+                    contain_flag = 1
+        if contain_flag == 1:
+            #CMEMS2_O2021357 - rrs - med - fr_nc_extract_Venise.nc
+            # filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
+            # pdu = filepath.split('/')[-1]
+            pdu = ncpath
+            filename = f'CMEMS2_O{strdate}-rrs-med-fr_nc_extract_{site}.nc'
+
+            path_output_site = os.path.join(path_output, site)
+            if not os.path.exists(path_output_site):
+                os.mkdir(path_output_site)
+            ofname = os.path.join(path_output_site, filename)
+            global_at['station_name'] = site
+            global_at['in_situ_lat'] = insitu_lat
+            global_at['in_situ_lon'] = insitu_lon
+            res = create_extract_multiple(ofname,pdu,options,ncfiles,global_at,lat,lon,r,c)
+            if res:
+                ncreated = ncreated + 1
+                print(f'[INFO]    Extract file created: {ofname}')
+
+        else:
+            if args.verbose:
+                print(f'[WARNING] Site {site} out of the image')
+
+    return ncreated
 
 def main():
     print('[INFO]Creating satellite extracts')
