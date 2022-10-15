@@ -1024,7 +1024,7 @@ def create_extract_cmems_multiple(ncpath,date, options, sites, path_output):
     band_list = ['400','412_5','442_5','490','510','560','620','665','673_75','681_25','708_75','753_75','778_75']
     ncfiles = []
     for b in band_list:
-        name = f'O{strdate}-{b}-med-fr.nc'
+        name = f'O{strdate}-rrs{b}-med-fr.nc'
         fname = os.path.join(ncpath,name)
         print(fname,os.path.exists(fname))
         ncfiles.append(fname)
