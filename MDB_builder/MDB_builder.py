@@ -181,6 +181,20 @@ def create_insitu_list_daily(path_to_insitu_list, date_str):
     return path_to_list
 
 
+def create_insitu_list_daily_meda(path_to_insitu_list, sat_date):
+    # create list in situ per date YYYYMMDD
+    pattern = sat_date.strftime('%Y/%m/%d')
+    YYYYMMDD_str = sat_date.strftime('%Y%m%d')
+    path_to_list = f'{path_to_insitu_list[:-4]}_{YYYYMMDD_str}.txt'
+    cmd = f'cat {path_to_insitu_list}|grep {pattern}|sort|uniq> {path_to_list}'
+    prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+    out, err = prog.communicate()
+    if err:
+        print(err)
+
+    return path_to_list
+
+
 def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_window, ins_sensor):
     # print(f'Satellite time {datetime_str}')
     date_format = '%Y%m%dT%H%M%S'
@@ -582,7 +596,8 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
             ins_path = line[:-1]
             ins_filename = ins_path.split('/')[-1]
             nc_ins = Dataset(ins_path, 'r')
-            ins_date = datetime.strptime(ins_filename.split('_')[3],'%y%m%d').replace(hour=0,minute=0,seconds=0,microsecond=0)
+            ins_date = datetime.strptime(ins_filename.split('_')[3], '%y%m%d').replace(hour=0, minute=0, seconds=0,
+                                                                                       microsecond=0)
 
             ins_hours = nc_ins.variables['timetag'][:]
             for ihour in range(len(ins_hours)):
@@ -596,7 +611,7 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
                     insitu_filename[0, insitu_idx] = os.path.basename(line[:-1])
                     insitu_filepath[0, insitu_idx] = line[:-1]
                     time_difference[0, insitu_idx] = float(time_diff) * 60 * 60  # in seconds
-                    insitu_RrsArray  = np.array(nc_ins.variables['rrs'][ihour,:])
+                    insitu_RrsArray = np.array(nc_ins.variables['rrs'][ihour, :])
                     insitu_Rrs[0, :, insitu_idx] = [insitu_RrsArray]
                     insitu_idx += 1
             nc_ins.close()
@@ -1175,9 +1190,9 @@ def main():
                             filename = f'{prefilename}_{datetime_creation}_{postfilename}'
                             ofile = os.path.join(path_out, filename)
                             print(f'[INFO] Creating file from extract (MEDA): {extract_path}')
-                            path_to_list_daily = create_insitu_list_daily(path_to_insitu_list, datetime_str)
+                            path_to_list_daily = create_insitu_list_daily_meda(path_to_insitu_list, satellite_datetime)
                             if add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_window,
-                                          ins_sensor):
+                                               ins_sensor):
                                 print(f'[INFO] file created: {ofile}')
                                 file_list.append(ofile)  # for ncrcat later
 
