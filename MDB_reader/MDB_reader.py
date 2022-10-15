@@ -101,7 +101,9 @@ def do_make_test():
 
 
 def main():
-    do_make_test()
+    #do_results_trasimeno()
+
+    # do_make_test()
     # fmdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
     # do_check_mdb_times_impl(fmdb)
     # do_check_mdb_times()
@@ -114,7 +116,7 @@ def main():
     # do_final_results_CNR('MED', 'OLCI-L3', 11)
     # do_final_results_CNR('MED', 'OLCI-L3', 2)
 
-    # do_results_hypernets(1)
+    do_results_hypernets(1)
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # #name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc' #LEVEL 2
@@ -234,8 +236,8 @@ def do_results_hypernets(step):
                     path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 2, 'HYPERNETS')
                     print(f'MDB: {fmdb}')
                     if os.path.exists(fmdb):
-                        # make_validation_single_MDB(path_mdb, name_mdb)
-                        save_sat_images(path_mdb, name_mdb)
+                        make_validation_single_MDB(path_mdb, name_mdb)
+                        #save_sat_images(path_mdb, name_mdb)
     # PREPARE VALIDATION COMBINING A AND B
     if step == 2:
         for ac in acnames:
@@ -435,6 +437,21 @@ def do_final_results_l3():
     # make_mu_info(path_base, acnames, 'AB')
     # make_mu_info_bytower(path_base, 'POLYMER', 2016, 2021)
 
+def do_results_trasimeno():
+    print('RESULTS TRASIMENO')
+    path_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/ResTO_WispWeb/MDBs'
+    platforms = ['A', 'B']
+    sites = ['TAIT']
+    acnames = ['STANDARD']
+
+    # SINGLE VALIDATIONS FOR PLATFORM/AC/SITE
+    for ac in acnames:
+         for platform in platforms:
+             for site in sites:
+                 path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 2, 'RESTO')
+                 print(f'MDB: {fmdb}')
+                 if os.path.exists(fmdb):
+                     make_validation_single_MDB(path_mdb, name_mdb)
 
 def do_final_results():
     print('FINAL RESULTS')
@@ -525,6 +542,7 @@ def get_file_mdb(path_base, platform, site, acname, level, insitusensor):
         res = 'WFR'
     name_mdb = f'MDB_S3{platform}_OLCI_{res}_{acname}_L{level}_{insitusensor}_{site}.nc'
     fmdb = os.path.join(path_mdb, name_mdb)
+
     return path_mdb, name_mdb, fmdb
 
 
@@ -1425,7 +1443,7 @@ def make_validation_single_MDB(path_base, name_mdb):
             wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
         reader.mfile.set_hour_sat_time(11, 0)
 
-    if name_mdb.find('OLCI_WFR_STANDARD_L2_HYPERNETS'):
+    if name_mdb.find('OLCI_WFR_STANDARD_L2_HYPERNETS')>0 or name_mdb.find('RESTO'):
         wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8, 865]
     print('======================================================================================')
     print(wllist)
@@ -1436,7 +1454,7 @@ def make_validation_single_MDB(path_base, name_mdb):
 
     # IN SITU QUALITY CONTROL
 
-    ##PARA AERONET
+    ##AERONET
     # reader.mfile.qc_insitu.check_indices_by_mu = True
     # reader.mfile.qc_insitu.set_thershold(0, None, 0, 800)
     # reader.mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
@@ -1447,17 +1465,46 @@ def make_validation_single_MDB(path_base, name_mdb):
     #     reader.mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##CCI
     # reader.mfile.qc_insitu.apply_band_shift = True
 
-    ##PARA HYPERNETS
+    ##HYPERNETS
     reader.mfile.qc_insitu.check_indices_by_mu = False
     reader.mfile.qc_insitu.apply_band_shift = False
     reader.mfile.qc_insitu.set_thershold(None, 0.007, 390, 410)
+
+    ##RESTO
+    # reader.mfile.qc_insitu.check_indices_by_mu = False
+    # reader.mfile.qc_insitu.apply_band_shift = False
+    # reader.mfile.qc_insitu.set_thershold(None,0.025,390,410)
+    # reader.mfile.qc_insitu.set_thershold(None,0.005,750,755)
 
     # SATELLITE QUALITY CONTROL
     reader.mfile.qc_sat.set_eumetsat_defaults(3)
     if 'satellite_pixel_classif_flags' in reader.mfile.nc.variables:
         idepix_flag = reader.mfile.nc.variables['satellite_pixel_classif_flags']
         reader.mfile.qc_sat.set_idepix_as_flag(idepix_flag)
+
+    #print(reader.mfile.qc_sat.info_flag['satellite_WQSF']['flag_list'])
+    #new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'CLOUD_AMBIGUOUS', 'CLOUD_MARGIN', 'INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN', 'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS', 'RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4', 'RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
+
+    # QCTEST1-> TRASIMENO
+    # #QCTEST1 without CLOUD_AMBIGUOUS and CLOUD_MARGIN, ADDING A TH MASK TO REMOVE SOME INVALID SPECTRA
+    # new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN', 'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS','RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4', 'RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
+    # reader.mfile.qc_sat.info_flag['satellite_WQSF']['flag_list'] = new_flag_list
+    # reader.mfile.qc_sat.add_theshold_mask(-1,753,0.020,'greater')
+    # #reader.mfile.qc_sat.add_threhold_mask_range(0,10000,0,'lower')
+    # ##END QCTEST1
+
+    # QCTEST2 without CLOUD_AMBIGUOUS and CLOUD_MARGIN, ADDING A TH MASK TO REMOVE SOME INVALID SPECTRA
+    new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'CLOUD_AMBIGUOUS', 'CLOUD_MARGIN','INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN',
+                         'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS','RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4','RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
+    reader.mfile.qc_sat.info_flag['satellite_WQSF']['flag_list'] = new_flag_list
+    # reader.mfile.qc_sat.add_theshold_mask(-1, 753, 0.003, 'greater')
+    #reader.mfile.qc_sat.add_theshold_mask(-1, 753, 0.001, 'greater')
+    # reader.mfile.qc_sat.add_threhold_mask_range(0,10000,0,'lower')
+    ##END QCTEST1
+    reader.mfile.qc_sat.window_size=3
     reader.mfile.qc_sat.min_valid_pixels = 4
+    #reader.mfile.qc_sat.add_theshold_mask(-1, 442, 0.001, 'greater')
+
     # #mask values lower than 0
     # for iband in range(reader.mfile.qc_sat.nbands):
     #     reader.mfile.qc_sat.add_theshold_mask(iband,-1,-100,'lower')
@@ -1468,6 +1515,7 @@ def make_validation_single_MDB(path_base, name_mdb):
     # reader.mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0, 'lower')
 
     reader.mfile.prepare_df_validation()
+
     mplot = MDBPlot(reader.mfile, None)
     path_out = os.path.join(path_base, f'{name_mdb[:-3]}')
     if not os.path.exists(path_out):

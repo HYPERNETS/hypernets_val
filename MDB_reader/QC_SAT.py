@@ -283,10 +283,10 @@ class QC_SAT:
         self.compute_th_masks(index_mu)
         self.NVP = self.NTP - np.sum(self.flag_mask)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
-        # print(f'[INFO] Index mu: {index_mu}')
-        # print(f'[INFO] Number total of pixels: {self.NTP}')
-        # print(f'[INFO] Water pixels: {self.NTPW}')
-        # print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
+        print(f'[INFO] Index mu: {index_mu}')
+        print(f'[INFO] Number total of pixels: {self.NTP}')
+        print(f'[INFO] Water pixels: {self.NTPW}')
+        print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
 
         min_valid_pixels = self.min_valid_pixels
         if self.use_Bailey_Werdell:
@@ -394,6 +394,11 @@ class QC_SAT:
         }
         self.th_masks.append(th_mask)
 
+    def add_threhold_mask_range(self,wl_min,wl_max,value_th,type_th):
+        for index_sat in range(self.nbands):
+            if wl_min <= self.sat_bands[index_sat] <= wl_max:
+                self.add_theshold_mask(index_sat,-1,value_th,type_th)
+
     def add_band_statistics(self, index_sat, wl_sat, type_stat, with_outliers, value_th, type_th):
         if index_sat == -1:
             index_sat = self.get_index_sat_from_wlvalue(wl_sat)
@@ -476,6 +481,11 @@ class QC_SAT:
             else:
                 flag_mask = flagging.Mask(satellite_flag_band, self.info_flag[flag_band]['flag_list'])
                 flag_mask[np.where(flag_mask != 0)] = 1
+                # for fl in self.info_flag[flag_band]['flag_list']:
+                #     fltal = flagging.Mask(satellite_flag_band, ([fl]))
+                #     ntal = np.count_nonzero(fltal)
+                #     if ntal>0:
+                #         print('----> ',fl,':',ntal)
 
         flag_land = self.info_flag[flag_band]['flag_land']
         flag_inlandwater = self.info_flag[flag_band]['flag_inlandwater']

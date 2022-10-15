@@ -337,6 +337,7 @@ class MDBFile:
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
+
         load_info['spectrum_complete'] = spectrum_complete
 
         if not time_condition:
@@ -358,6 +359,10 @@ class MDBFile:
             return is_mu_valid, load_info
 
         cond_min_pixels, cond_stats, valid_mu, sat_values = self.qc_sat.get_match_up_values(index_mu)
+        #print(cond_min_pixels)
+        #print(cond_stats)
+        #print(valid_mu)
+        #print(sat_values)
         if not valid_mu:
             self.mu_curr_ins_rrs = []
             self.mu_curr_sat_rrs_mean = []
@@ -635,9 +640,10 @@ class MDBFile:
         for index_mu in range(self.n_mu_total):
             if index_mu % 100 == 0:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
-            # print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
+            print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
+            print(info_mu)
             # self.plot_spectra(None)
 
             # if not mu_valid:

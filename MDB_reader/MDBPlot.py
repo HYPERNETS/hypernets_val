@@ -116,10 +116,14 @@ class MDBPlot:
 
             # Density
             xy = np.vstack([xhere, yhere])
-            z = gaussian_kde(xy)(xy)
-            idx = z.argsort()
-            xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
-            plot.plot_data(xhere, yhere, None, 25, z, None, None)
+            try:
+                z = gaussian_kde(xy)(xy)
+                idx = z.argsort()
+                xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
+                plot.plot_data(xhere, yhere, None, 25, z, None, None)
+            except:
+                plot.plot_data(xhere,yhere,None,25,'black',None,None)
+
             plot.set_cmap('jet')
 
             # histo2d visualization
