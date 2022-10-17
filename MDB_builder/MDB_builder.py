@@ -592,7 +592,6 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
         print('debug MDB_builder Line 240: Starting extraction...')
     with open(path_to_list_daily) as file:
         for idx, line in enumerate(file):
-
             ins_path = line[:-1]
             ins_filename = ins_path.split('/')[-1]
             nc_ins = Dataset(ins_path, 'r')
@@ -614,6 +613,7 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
                     insitu_RrsArray = np.array(nc_ins.variables['rrs'][ihour, :])
                     print('--------------------------------------------')
                     print(insitu_RrsArray)
+                    print(insitu_idx)
                     insitu_Rrs[0, :, insitu_idx] = [insitu_RrsArray]
                     insitu_idx += 1
             nc_ins.close()
