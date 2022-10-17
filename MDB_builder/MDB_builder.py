@@ -610,7 +610,8 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
                     insitu_filename[0, insitu_idx] = os.path.basename(line[:-1])
                     insitu_filepath[0, insitu_idx] = line[:-1]
                     time_difference[0, insitu_idx] = float(time_diff) * 60 * 60  # in seconds
-                    insitu_RrsArray = np.array(nc_ins.variables['rrs'][ihour, :])
+                    insitu_RrsArray = np.ma.array(nc_ins.variables['rrs'][ihour, :])
+                    insitu_RrsArray[insitu_RrsArray.mask] = -999
                     print('--------------------------------------------')
                     print(insitu_RrsArray)
                     print(insitu_idx)
