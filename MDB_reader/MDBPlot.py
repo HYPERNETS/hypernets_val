@@ -67,6 +67,9 @@ class MDBPlot:
         self.units = r'sr$^-$$^1$'
         self.log_scale = False
 
+        self.satellite = 'S3'
+        self.platform = 'AB'
+
     def set_units(self, type):
         if type == 'chla':
             self.units = r'mg m$^-$$^3$'
@@ -281,16 +284,33 @@ class MDBPlot:
             plt.savefig(file_out, dpi=300)
 
     def plot_spectra_plot(self, title, legend, file_out):
+        #print('-------------------------------->', )
         plt.close()
         plt.figure()
         if not legend is None:
             df = pd.DataFrame(np.transpose(self.ydata), columns=legend, index=self.xdata)
             df.plot(lw=2, marker='.', markersize=10, xticks=self.xdata)
         else:
-            df = pd.DataFrame(np.transpose(self.ydata), index=self.xdata)
+            # df = pd.DataFrame(np.transpose(self.ydata), index=self.xdata)
+            # df.plot(lw=1, color='black', marker='.', markersize=10, legend=False, xticks=range(len(self.xdata)),
+            #         mec='gray')
 
-            df.plot(lw=1, color='black', marker='.', markersize=10, legend=False, xticks=range(len(self.xdata)),
-                    mec='gray')
+            ##new method
+            df_param = pd.DataFrame(index=range(len(self.xdata)),columns=['Platform','Wavelength',self.ylabel])
+
+            df_param['Wavelength'] = pd.Series(self.xdata,dtype=np.float)
+            df_param['Platform'] = f'{self.satellite}{self.platform}'
+            ydatahere = np.transpose(self.ydata)
+
+            for idx in range(len(ydatahere)):
+                ypoint = ydatahere.iloc[idx].iat[0]
+                df_param.at[idx,self.ylabel] = ypoint
+
+            dashes = [''] #* len(ydatahere)
+            markers = ['o'] #* len(ydatahere)
+            sns.set_theme()
+            sns.relplot(kind='line', data=df_param, x="Wavelength", y=self.ylabel, markers=markers,dashes=dashes,style="Platform",legend=False)
+
 
         plt.xlabel(self.xlabel, fontsize=12)
         plt.ylabel(self.ylabel, fontsize=12)
@@ -583,6 +603,32 @@ class MDBPlot:
                 self.plot_spectra_mu(mu, None, path_out)
 
     def plot_spectra_param(self, param, path_out):
+        if self.df_valid_stats is None:
+            self.compute_all_statistics()
+
+        file_out = None
+
+        params = list(self.df_valid_stats.loc[:, 'Param'])
+
+        if param in params or (param == 'r2' and 'r_value' in params):
+            self.xdata = self.df_valid_stats.columns[2:len(self.df_valid_stats.columns)]
+            if param == 'r2':
+                self.ydata = self.df_valid_stats.loc[self.df_valid_stats['Param'] == 'r_value', self.xdata]
+                self.ydata = self.ydata ** 2
+                self.ylabel = f'r\N{SUPERSCRIPT TWO}'
+            else:
+                self.ydata = self.df_valid_stats.loc[self.df_valid_stats['Param'] == param, self.xdata]
+                self.ylabel = param
+            self.xlabel = defaults.xlabel_wl_default
+
+            if self.mfile is not None:
+                self.title = self.mfile.get_title()
+            if not path_out is None:
+                file_name = f'{self.get_file_name_param(param)}.{self.format_image}'
+                file_out = os.path.join(path_out, file_name)
+            self.plot_spectra_plot(True, None, file_out)
+
+    def plot_spectra_param_v2(self, param, path_out):
         if self.df_valid_stats is None:
             self.compute_all_statistics()
 

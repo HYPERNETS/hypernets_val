@@ -1,4 +1,5 @@
 import datetime
+import shutil
 
 import netCDF4
 
@@ -87,21 +88,34 @@ def do_make_test():
         nchere = Dataset(fhere)
 
         var_here = np.array(nchere.variables['Oa08_reflectance'])
-        var_here_valid = var_here[var_here<65000]
+        var_here_valid = var_here[var_here < 65000]
         if len(var_here_valid) == 0:
             continue
 
         histo, bins = np.histogram(var_here_valid, bins=100, density=True)
         bins = bins[0:-1]
         h = plt.figure()
-        plt.plot(bins,histo)
+        plt.plot(bins, histo)
         fout = os.path.join(input_dir, 'HISTOBand_8', name + '.jpg')
         plt.savefig(fout)
         plt.close(h)
 
 
 def main():
-    #do_results_trasimeno()
+    # updated results of veit-hypernets l2
+
+    ##TRASIMENO LEVEL 2
+    do_results_trasimeno()
+
+    ##LAMPEDUSA-MEDA LEVEL 3
+    #do_results_L3('LAIT,3)
+
+    ##VENISE-HYPERNETS LEVEL 3
+    #do_results_L3('VEIT',3)
+
+    ##VENISE-HYPERNETS LEVEL 2
+    #do_veit_l2_hypernets()
+
 
     # do_make_test()
     # fmdb = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs/MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc'
@@ -116,7 +130,7 @@ def main():
     # do_final_results_CNR('MED', 'OLCI-L3', 11)
     # do_final_results_CNR('MED', 'OLCI-L3', 2)
 
-    do_results_hypernets(1)
+    # do_results_hypernets(1)
 
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/CHLA/MDBs'
     # #name_mdb = 'MDB_S3A_B_OLCI_POLYMER_INSITU_20160401_20220531.nc' #LEVEL 2
@@ -237,7 +251,7 @@ def do_results_hypernets(step):
                     print(f'MDB: {fmdb}')
                     if os.path.exists(fmdb):
                         make_validation_single_MDB(path_mdb, name_mdb)
-                        #save_sat_images(path_mdb, name_mdb)
+                        # save_sat_images(path_mdb, name_mdb)
     # PREPARE VALIDATION COMBINING A AND B
     if step == 2:
         for ac in acnames:
@@ -437,21 +451,120 @@ def do_final_results_l3():
     # make_mu_info(path_base, acnames, 'AB')
     # make_mu_info_bytower(path_base, 'POLYMER', 2016, 2021)
 
+
 def do_results_trasimeno():
     print('RESULTS TRASIMENO')
     path_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/ResTO_WispWeb/MDBs'
+
     platforms = ['A', 'B']
     sites = ['TAIT']
     acnames = ['STANDARD']
 
     # SINGLE VALIDATIONS FOR PLATFORM/AC/SITE
     for ac in acnames:
-         for platform in platforms:
-             for site in sites:
-                 path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 2, 'RESTO')
-                 print(f'MDB: {fmdb}')
-                 if os.path.exists(fmdb):
-                     make_validation_single_MDB(path_mdb, name_mdb)
+        for platform in platforms:
+            for site in sites:
+                path_mdb, name_mdb, fmdb = get_file_mdb(path_base, platform, site, ac, 2, 'RESTO')
+                print(f'MDB: {fmdb}')
+                if os.path.exists(fmdb):
+                    make_validation_single_MDB(path_mdb, name_mdb, 'RESTO','TRASIMENO')
+
+    ##Concatenate dataframes A + B
+    dir_base = os.path.join(path_base,'STANDARD')
+    dir_ab = os.path.join(dir_base, 'MDB_S3AB')
+    if not os.path.exists(dir_ab):
+        os.mkdir(dir_ab)
+    dir_s3a = os.path.join(dir_base, 'MDB_S3A_OLCI_WFR_STANDARD_L2_RESTO_TAIT')
+    dir_s3b = os.path.join(dir_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_RESTO_TAIT')
+    shutil.copy(os.path.join(dir_s3a,'Data.csv'),os.path.join(dir_ab, 'DataS3A.csv'))
+    shutil.copy(os.path.join(dir_s3a, 'DataValid.csv'), os.path.join(dir_ab, 'DataValidS3A.csv'))
+    shutil.copy(os.path.join(dir_s3b, 'Data.csv'), os.path.join(dir_ab, 'DataS3B.csv'))
+    shutil.copy(os.path.join(dir_s3b, 'DataValid.csv'), os.path.join(dir_ab, 'DataValidS3B.csv'))
+
+    df_all_a = pd.read_csv(os.path.join(dir_ab, 'DataS3A.csv'), sep=';')
+    df_all_b = pd.read_csv(os.path.join(dir_ab, 'DataS3B.csv'), sep=';')
+    df_valid_a = pd.read_csv(os.path.join(dir_ab, 'DataValidS3A.csv'), sep=';')
+    df_valid_b = pd.read_csv(os.path.join(dir_ab, 'DataValidS3B.csv'), sep=';')
+    df_all_a['Platform'] = 'A'
+    df_all_b['Platform'] = 'B'
+    df_valid_a['Platform'] = 'A'
+    df_valid_b['Platform'] = 'B'
+    df_all = pd.concat([df_all_a, df_all_b], ignore_index=True)
+    df_all.to_csv(os.path.join(dir_ab, 'DataAll.csv'), sep=';')
+    df_valid = pd.concat([df_valid_a, df_valid_b], ignore_index=True)
+    df_valid.to_csv(os.path.join(dir_ab, 'DataValid.csv'), sep=';')
+
+    ##Scaterplot A + B
+    do_example(os.path.join(dir_ab, 'DataValid.csv'), os.path.join(dir_ab, 'ScatterPlotAB.jpg'))
+
+    ## Param graphics
+    #path_a = os.path.join(path_base, 'MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
+    #path_b = os.path.join(path_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
+    path_a = dir_s3a
+    path_b = dir_s3b
+    make_graphics_param_ab(path_a, path_b, dir_ab)
+
+    ## Scatterplots
+    make_validation_from_dfvalid_impl(os.path.join(dir_ab, 'DataValid.csv'), 'STANDARD', 'AB', None)
+
+
+
+def do_results_L3(tag_site,step):
+    print(f'RESULTS L3 {tag_site}')
+    if tag_site=='LAIT':
+        path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/LAIT_MATCHUPS/MDBs'
+        sites = [tag_site]
+        bands = [412, 443, 490, 510, 555, 665]
+    if tag_site=='VEIT':
+        path_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_202210/MDBs/L3'
+        sites = [tag_site]
+        bands = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
+    res = '300m'
+    sensor = 'OLCI-L3'
+
+
+    # single validation
+    if step == 1 or step==3:
+        for site in sites:
+            if tag_site=='LAIT':
+                name_mdb = f'MDB___{res}_{sensor}_L2_MEDA_{site}.nc'
+                tag_insitu = 'MEDA'
+            if tag_site=='VEIT':
+                name_mdb = f'MDB_S3AB_OLCI_WFR_{sensor}_L2_HYPERNETS_{site}.nc'
+                tag_insitu = 'HYPERNETS'
+            fmdb = os.path.join(path_base, name_mdb)
+            print(fmdb)
+            if os.path.exists(fmdb):
+                make_validation_single_MDB(path_base, name_mdb,tag_insitu, tag_site)
+
+    if step == 2 or step==3:
+        if tag_site=='LAIT':
+            path_here = os.path.join(path_base, 'MDB___300m_OLCI-L3_L2_MEDA_LAIT')
+        if tag_site=='VEIT':
+            path_here = os.path.join(path_base, 'MDB_S3AB_OLCI_WFR_OLCI-L3_L2_HYPERNETS_VEIT')
+        make_atm_params(path_here, bands, sensor, tag_site)
+
+        params = {
+            'N': 0,
+            'SLOPE': 11,
+            'OFFSET': 12,
+            'XAVG': 13,
+            'YAVG': 14,
+            'DETER(r2)': 10,
+            'RMSE': 6,
+            'CPRMSE': 15,
+            'BIAS': 9,
+            'PCC(r)': 3,
+            'RPD': 7,
+            'APD': 8,
+            'MAE': 16
+        }
+        acs = ['OLCI-L3']
+        get_table_stats_l3(-1, acs, tag_site, params)
+        for wl in bands:
+            get_table_stats_l3(wl, acs, tag_site, params)
+        get_table_stats_complete_l3(bands, acs, tag_site, params)
+
 
 def do_final_results():
     print('FINAL RESULTS')
@@ -725,37 +838,53 @@ def get_sat_time_fromcci_fname(fname):
     return sat_time
 
 
-def do_lps():
-    dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_UPDATED/MDBs_20052022'
+def do_veit_l2_hypernets():
+    dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_VEIT_202210/MDBs/L2'
     dir_ab = os.path.join(dir_base, 'MDB_S3AB')
 
     # Single validation (scaterplot for each platform)
     file_s3a = os.path.join(dir_base, 'MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT.nc')
     file_s3b = os.path.join(dir_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT.nc')
-    # make_validation_single_MDB(dir_base,file_s3a)
-    # make_validation_single_MDB(dir_base, file_s3b)
+    make_validation_single_MDB(dir_base, file_s3a,'HYPERNETS','VEIT')
+    make_validation_single_MDB(dir_base, file_s3b,'HYPERNETS', 'VEIT')
 
-    ##Concatenate dataframes A + B
-    df_all_a = pd.read_csv(os.path.join(dir_ab, 'DataS3A.csv'), sep=';')
-    df_all_b = pd.read_csv(os.path.join(dir_ab, 'DataS3B.csv'), sep=';')
-    df_valid_a = pd.read_csv(os.path.join(dir_ab, 'DataValidS3A.csv'), sep=';')
-    df_valid_b = pd.read_csv(os.path.join(dir_ab, 'DataValidS3B.csv'), sep=';')
-    df_all = pd.concat([df_all_a, df_all_b], ignore_index=True)
-    df_all.to_csv(os.path.join(dir_ab, 'DataAll.csv'), sep=';')
-    df_valid = pd.concat([df_valid_a, df_valid_b], ignore_index=True)
-    df_valid.to_csv(os.path.join(dir_ab, 'DataValid.csv'), sep=';')
+    # ##Concatenate dataframes A + B
+    # if not os.path.exists(dir_ab):
+    #     os.mkdir(dir_ab)
+    # dir_s3a = os.path.join(dir_base, 'MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
+    # dir_s3b = os.path.join(dir_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
+    # shutil.copy(os.path.join(dir_s3a,'Data.csv'),os.path.join(dir_ab, 'DataS3A.csv'))
+    # shutil.copy(os.path.join(dir_s3a, 'DataValid.csv'), os.path.join(dir_ab, 'DataValidS3A.csv'))
+    # shutil.copy(os.path.join(dir_s3b, 'Data.csv'), os.path.join(dir_ab, 'DataS3B.csv'))
+    # shutil.copy(os.path.join(dir_s3b, 'DataValid.csv'), os.path.join(dir_ab, 'DataValidS3B.csv'))
+    #
+    # df_all_a = pd.read_csv(os.path.join(dir_ab, 'DataS3A.csv'), sep=';')
+    # df_all_b = pd.read_csv(os.path.join(dir_ab, 'DataS3B.csv'), sep=';')
+    # df_valid_a = pd.read_csv(os.path.join(dir_ab, 'DataValidS3A.csv'), sep=';')
+    # df_valid_b = pd.read_csv(os.path.join(dir_ab, 'DataValidS3B.csv'), sep=';')
+    # df_all_a['Platform'] = 'A'
+    # df_all_b['Platform'] = 'B'
+    # df_valid_a['Platform'] = 'A'
+    # df_valid_b['Platform'] = 'B'
+    # df_all = pd.concat([df_all_a, df_all_b], ignore_index=True)
+    # df_all.to_csv(os.path.join(dir_ab, 'DataAll.csv'), sep=';')
+    # df_valid = pd.concat([df_valid_a, df_valid_b], ignore_index=True)
+    # df_valid.to_csv(os.path.join(dir_ab, 'DataValid.csv'), sep=';')
+    #
+    # ##Scaterplot A + B
+    # do_example(os.path.join(dir_ab, 'DataValid.csv'), os.path.join(dir_ab, 'ScatterPlotAB.jpg'))
+    #
+    # ## Param graphics
+    # path_a = os.path.join(dir_base, 'MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
+    # path_b = os.path.join(dir_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
+    # make_graphics_param_ab(path_a, path_b, dir_ab)
 
-    ##Scaterplot A + B
-    do_example(os.path.join(dir_ab, 'DataValid.csv'), os.path.join(dir_ab, 'ScatterPlotAB.jpg'))
+    ## Scatterplots
+    #make_validation_from_dfvalid_impl(os.path.join(dir_ab, 'DataValid.csv'), 'STANDARD', 'AB', None)
 
-    ## Param graphics
-    path_a = os.path.join(dir_base, 'MDB_S3A_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
-    path_b = os.path.join(dir_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_HYPERNETS_VEIT')
-    make_graphics_param_ab(path_a, path_b, dir_ab)
-
-    filein = os.path.join(dir_ab, 'MUByMonth.csv')
-    fileout = os.path.join(dir_ab, 'MUByMonth.jpg')
-    make_bargraphics_matchups(filein, fileout)
+    # filein = os.path.join(dir_ab, 'MUByMonth.csv')
+    # fileout = os.path.join(dir_ab, 'MUByMonth.jpg')
+    # make_bargraphics_matchups(filein, fileout)
 
 
 def do_chla(path_base, name_mdb):
@@ -1171,6 +1300,40 @@ def get_table_stats_insitu(path_base, acs):
     table.to_csv(file_out, sep=';')
 
 
+def get_table_stats_l3(wlref, acs, tag_site, params):
+    if tag_site=='LAIT':
+        path_base = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{tag_site}_MATCHUPS/MDBs'
+    if tag_site=='VEIT':
+        path_base = f'/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_{tag_site}_202210/MDBs/L3'
+    path_out = os.path.join(path_base, 'TABLE_PARAM')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+    table = pd.DataFrame(columns=acs, index=params.keys())
+
+    ac = acs[0]
+    if tag_site=='LAIT':
+        path_ac = os.path.join(path_base, f'MDB___300m_OLCI-L3_L2_MEDA_{tag_site}', 'Params.csv')
+    if tag_site=='VEIT':
+        path_ac = os.path.join(path_base, f'MDB_S3AB_OLCI_WFR_OLCI-L3_L2_HYPERNETS_{tag_site}', 'Params.csv')
+    table_ac = pd.read_csv(path_ac, sep=';')
+    index = -1
+    if wlref == -1:
+        index = 2
+        name_out = f'ParamAll_{ac}_{tag_site}.csv'
+    else:
+        wllist = list(table_ac.columns[3:].astype(dtype=np.float64))
+        index_wl, wl_aca = get_index_wl_list(wlref, wllist)
+        if index_wl >= 0:
+            index = index_wl + 3
+            name_out = f'Param{wlref}_{ac}_{tag_site}.csv'
+    if index >= 0:
+        for param in params.keys():
+            irow_ac = params[param]
+            table.loc[param, ac] = table_ac.loc[irow_ac].iat[index]
+        file_out = os.path.join(path_out, name_out)
+        table.to_csv(file_out, sep=';')
+
+
 def get_table_stats_cnr(wlref, acs, region, params):
     # region: MED or BLK
 
@@ -1233,6 +1396,61 @@ def get_table_stats(wlref, platform, acs, params):
 
             file_out = os.path.join(path_out, name_out)
             table.to_csv(file_out, sep=';')
+
+
+def get_table_stats_complete_l3(bands, acs, tag_site, params):
+    if tag_site=='LAIT':
+        path_base = f'/mnt/c/DATA_LUIS/OCTAC_WORK/{tag_site}_MATCHUPS/MDBs'
+    if tag_site=='VEIT':
+        path_base = f'/mnt/c/DATA_LUIS/HYPERNETS_WORK/OLCI_{tag_site}_202210/MDBs/L3'
+
+    path_out = os.path.join(path_base, 'TABLE_PARAM')
+    if not os.path.exists(path_out):
+        os.mkdir(path_out)
+
+    nrows = len(params) * len(acs)
+    col_names = ['Param', 'AC', 'All']
+    for wl in bands:
+        col_names.append(str(wl))
+    table = pd.DataFrame(columns=col_names, index=range(nrows))
+
+    idx = 0
+    idxs = {}
+    for param in params.keys():
+        for ac in acs:
+            table.loc[idx, 'Param'] = param
+            table.loc[idx, 'AC'] = ac
+            if param not in idxs.keys():
+                idxs[param] = {
+                    ac: idx
+                }
+            else:
+                idxs[param][ac] = idx
+            idx = idx + 1
+
+    for ac in acs:
+        if tag_site == 'LAIT':
+            path_ac = os.path.join(path_base, f'MDB___300m_OLCI-L3_L2_MEDA_{tag_site}', 'Params.csv')
+        if tag_site == 'VEIT':
+            path_ac = os.path.join(path_base, f'MDB_S3AB_OLCI_WFR_OLCI-L3_L2_HYPERNETS_{tag_site}', 'Params.csv')
+        table_ac = pd.read_csv(path_ac, sep=';')
+        for param in params.keys():
+            idx = idxs[param][ac]
+            irow_ac = params[param]
+            icol_ac = 2
+            table.loc[idx, 'All'] = table_ac.loc[irow_ac].iat[icol_ac]
+            wllist = list(table_ac.columns[3:].astype(dtype=np.float64))
+            for wl in bands:
+                wls = str(wl)
+                icol_ac = -1
+                index_wl, wl_aca = get_index_wl_list(wl, wllist)
+                if index_wl >= 0:
+                    icol_ac = index_wl + 3
+                if icol_ac >= 0:
+                    table.loc[idx, wls] = table_ac.loc[irow_ac].iat[icol_ac]
+
+    file_out = os.path.join(path_out, f'TableComplete_{tag_site}.csv')
+    table.to_csv(file_out, sep=';')
 
 
 def get_table_stats_complete_cnr(bands, acs, region, params):
@@ -1415,7 +1633,7 @@ def save_sat_images(path_base, name_mdb):
     # mdb_file.save_flag_images(path_img)
 
 
-def make_validation_single_MDB(path_base, name_mdb):
+def make_validation_single_MDB(path_base, name_mdb, tag_insitu,tag_site):
     # path_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/EXAMPLES/TRIMMED/CCI/MDBs'
     # name_mdb = 'MDB___1KM_CCI_L2_AERONET_Gustav_Dalen_Tower.nc'
     # name_mdb = 'MDB___1KM_CCI_L2_AERONET_Helsinki_Lighthouse.nc'
@@ -1433,20 +1651,22 @@ def make_validation_single_MDB(path_base, name_mdb):
         wllist = [412, 443, 490, 510, 555, 670]
         reader.mfile.set_hour_sat_time(11, 0)
     if name_mdb.find('OLCI-L3') > 0:
-        # print('--------------------------------------------------------------------------------->', name_mdb)
-        # wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8]
-        # wllist = [400,412.5, 442.5, 490, 510, 560, 620 ,665]
-        # wllist = [412.5, 442.5, 490, 560, 665]
-        wllist = [412.5, 442.5, 490, 560, 665]
-        if name_mdb.find('Gloria') > 0 or name_mdb.find('Galata') > 0 or name_mdb.find(
-                'Section-7') > 0 or name_mdb.find('Casablanca') > 0:
-            wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
+        wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665]
+        if (name_mdb.find('Venise')>0 or name_mdb.find('VEIT')>0) and name_mdb.find('AERONET')>0:
+            wllist = [412.5, 442.5, 490, 560, 665]
         reader.mfile.set_hour_sat_time(11, 0)
 
-    if name_mdb.find('OLCI_WFR_STANDARD_L2_HYPERNETS')>0 or name_mdb.find('RESTO'):
-        wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8, 865]
+    if name_mdb.find('OLCI_WFR_STANDARD_L2_HYPERNETS') > 0 or name_mdb.find('RESTO')>0:
+        wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8]
+        #wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8, 865]
+
+    if name_mdb.find('MEDA') > 0:
+        wllist = [412, 443, 490, 510, 555, 665]
+
     print('======================================================================================')
+    print(name_mdb)
     print(wllist)
+    print(reader.mfile.sat_times[0])
 
     reader.mfile.set_wl_ref(wllist)
     reader.mfile.qc_insitu.set_wllist_using_wlref(reader.mfile.wlref)
@@ -1455,26 +1675,42 @@ def make_validation_single_MDB(path_base, name_mdb):
     # IN SITU QUALITY CONTROL
 
     ##AERONET
-    # reader.mfile.qc_insitu.check_indices_by_mu = True
-    # reader.mfile.qc_insitu.set_thershold(0, None, 0, 800)
-    # reader.mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
-    # reader.mfile.qc_insitu.set_thershold(None, 0.01, 410, 415)
-    # reader.mfile.qc_insitu.set_thershold(None, 0.005, 750, 800)
-    # if name_mdb.find('CCI') > 0:
-    #     reader.mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##CCI
-    #     reader.mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##CCI
-    # reader.mfile.qc_insitu.apply_band_shift = True
+    if tag_insitu == 'AERONET':
+        reader.mfile.qc_insitu.check_indices_by_mu = True
+        reader.mfile.qc_insitu.set_thershold(0, None, 0, 800)
+        reader.mfile.qc_insitu.set_thershold(None, 0.005, 615, 625)
+        reader.mfile.qc_insitu.set_thershold(None, 0.01, 410, 415)
+        reader.mfile.qc_insitu.set_thershold(None, 0.005, 750, 800)
+        if name_mdb.find('CCI') > 0:
+            reader.mfile.qc_insitu.set_thershold(None, 0.003, 650, 670)  ##CCI
+            reader.mfile.qc_insitu.set_thershold(None, 0.004, 440, 450)  ##CCI
+        reader.mfile.qc_insitu.apply_band_shift = True
 
     ##HYPERNETS
-    reader.mfile.qc_insitu.check_indices_by_mu = False
-    reader.mfile.qc_insitu.apply_band_shift = False
-    reader.mfile.qc_insitu.set_thershold(None, 0.007, 390, 410)
+    if tag_insitu == 'HYPERNETS':
+        reader.mfile.qc_insitu.check_indices_by_mu = False
+        reader.mfile.qc_insitu.apply_band_shift = False
+        reader.mfile.qc_insitu.set_thershold(None, 0.007, 390, 410)
+        reader.mfile.qc_insitu.set_thershold(None, 0.015, 480, 500)
+        reader.mfile.qc_insitu.set_thershold(None, 0.0005, 750, 760)
+        reader.mfile.qc_insitu.set_thershold(None, 0.0025, 663, 668)
+        #negative values
+        reader.mfile.qc_insitu.set_thershold(0,None,100,1000)
 
     ##RESTO
-    # reader.mfile.qc_insitu.check_indices_by_mu = False
-    # reader.mfile.qc_insitu.apply_band_shift = False
-    # reader.mfile.qc_insitu.set_thershold(None,0.025,390,410)
-    # reader.mfile.qc_insitu.set_thershold(None,0.005,750,755)
+    if tag_insitu == 'RESTO':
+        reader.mfile.qc_insitu.check_indices_by_mu = False
+        reader.mfile.qc_insitu.apply_band_shift = False
+        reader.mfile.qc_insitu.set_thershold(None, 0.025, 390, 410)
+        reader.mfile.qc_insitu.set_thershold(None, 0.005, 750, 755)
+        reader.mfile.qc_insitu.set_thershold(None, 0.040, 505, 515)
+        # negative values
+        reader.mfile.qc_insitu.set_thershold(0, None, 100, 1000)
+
+    # MEDA LAMPEDUSA
+    if tag_insitu == 'MEDA':
+        reader.mfile.qc_insitu.check_indices_by_mu = False
+        reader.mfile.qc_insitu.apply_band_shift = False
 
     # SATELLITE QUALITY CONTROL
     reader.mfile.qc_sat.set_eumetsat_defaults(3)
@@ -1482,28 +1718,37 @@ def make_validation_single_MDB(path_base, name_mdb):
         idepix_flag = reader.mfile.nc.variables['satellite_pixel_classif_flags']
         reader.mfile.qc_sat.set_idepix_as_flag(idepix_flag)
 
-    #print(reader.mfile.qc_sat.info_flag['satellite_WQSF']['flag_list'])
-    #new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'CLOUD_AMBIGUOUS', 'CLOUD_MARGIN', 'INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN', 'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS', 'RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4', 'RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
+    # LAMPEDUSA
+    if tag_site == 'LAIT' or tag_site == 'VEIT':
+        print('esta aqui')
+        reader.mfile.qc_sat.add_theshold_mask(-1, 665, -100, 'lower')
 
-    # QCTEST1-> TRASIMENO
-    # #QCTEST1 without CLOUD_AMBIGUOUS and CLOUD_MARGIN, ADDING A TH MASK TO REMOVE SOME INVALID SPECTRA
-    # new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN', 'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS','RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4', 'RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
-    # reader.mfile.qc_sat.info_flag['satellite_WQSF']['flag_list'] = new_flag_list
-    # reader.mfile.qc_sat.add_theshold_mask(-1,753,0.020,'greater')
-    # #reader.mfile.qc_sat.add_threhold_mask_range(0,10000,0,'lower')
-    # ##END QCTEST1
+    # new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'CLOUD_AMBIGUOUS', 'CLOUD_MARGIN', 'INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN', 'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS', 'RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4', 'RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
 
-    # QCTEST2 without CLOUD_AMBIGUOUS and CLOUD_MARGIN, ADDING A TH MASK TO REMOVE SOME INVALID SPECTRA
-    new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'CLOUD_AMBIGUOUS', 'CLOUD_MARGIN','INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN',
-                         'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS','RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4','RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
-    reader.mfile.qc_sat.info_flag['satellite_WQSF']['flag_list'] = new_flag_list
-    # reader.mfile.qc_sat.add_theshold_mask(-1, 753, 0.003, 'greater')
-    #reader.mfile.qc_sat.add_theshold_mask(-1, 753, 0.001, 'greater')
-    # reader.mfile.qc_sat.add_threhold_mask_range(0,10000,0,'lower')
-    ##END QCTEST1
-    reader.mfile.qc_sat.window_size=3
-    reader.mfile.qc_sat.min_valid_pixels = 4
-    #reader.mfile.qc_sat.add_theshold_mask(-1, 442, 0.001, 'greater')
+    if tag_site == 'TRASIMENO':
+        print('------------------------------------------------------------------------------------>qc sat here')
+        # QC TRASIMENO
+        # QCTEST1 without CLOUD_AMBIGUOUS and CLOUD_MARGIN, ADDING A TH MASK TO REMOVE SOME INVALID SPECTRA
+        new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN',
+                         'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS', 'RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4',
+                         'RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
+        reader.mfile.qc_sat.info_flag['satellite_WQSF']['flag_list'] = new_flag_list
+        reader.mfile.qc_sat.add_theshold_mask(-1, 753, 0.020, 'greater')
+        reader.mfile.qc_sat.add_threhold_mask_range(0, 10000, 0, 'lower')
+        reader.mfile.qc_sat.min_valid_pixels = 4
+
+    if tag_site == 'GAIT':
+        # QCTEST2 without CLOUD_AMBIGUOUS and CLOUD_MARGIN, ADDING A TH MASK TO REMOVE SOME INVALID SPECTRA: GAIT
+        # new_flag_list = ['LAND', 'COASTLINE', 'CLOUD', 'CLOUD_AMBIGUOUS', 'CLOUD_MARGIN','INVALID', 'COSMETIC', 'SATURATED', 'SUSPECT', 'HISOLZEN',
+        #                      'HIGHGLINT', 'SNOW_ICE', 'AC_FAIL', 'WHITECAPS','RWNEG_O2', 'RWNEG_O3', 'RWNEG_O4','RWNEG_O5', 'RWNEG_O6', 'RWNEG_O7', 'RWNEG_O8']
+        reader.mfile.qc_sat.info_flag['satellite_WQSF']['flag_list'] = new_flag_list
+        reader.mfile.qc_sat.add_theshold_mask(-1, 753, 0.003, 'greater')
+        reader.mfile.qc_sat.add_theshold_mask(-1, 753, 0.001, 'greater')
+        reader.mfile.qc_sat.add_threhold_mask_range(0, 10000, 0, 'lower')
+
+    # reader.mfile.qc_sat.min_valid_pixels = 4
+
+    # reader.mfile.qc_sat.add_theshold_mask(-1, 442, 0.001, 'greater')
 
     # #mask values lower than 0
     # for iband in range(reader.mfile.qc_sat.nbands):
@@ -1514,9 +1759,26 @@ def make_validation_single_MDB(path_base, name_mdb):
     # reader.mfile.qc_sat.add_band_statistics(-1, 400, 'avg', True, 0, 'lower')
     # reader.mfile.qc_sat.add_band_statistics(-1, 665, 'avg', True, 0, 'lower')
 
+    # LAMPEDUSA
+    if tag_site == 'LAIT':
+        reader.mfile.PI_DIVIDED = False
+        reader.mfile.info['satellite'] = 'OLCI-L3'
+        reader.mfile.info['res'] = '300m'
+        reader.mfile.info['insitu_sensor'] = 'MEDA'
+    if name_mdb.find('OLCI-L3') and tag_site=='VEIT':
+        reader.mfile.info['satellite'] = 'OLCI-L3'
+        reader.mfile.info['res'] = '300m'
+        #reader.mfile.info['insitu_sensor'] = 'MEDA'
+
     reader.mfile.prepare_df_validation()
 
     mplot = MDBPlot(reader.mfile, None)
+    if name_mdb.find('S3AB') > 0:
+        mplot.platform = 'AB'
+    elif name_mdb.find('S3A')>0:
+        mplot.platform = 'A'
+    elif name_mdb.find('S3B')>0:
+        mplot.platform = 'B'
     path_out = os.path.join(path_base, f'{name_mdb[:-3]}')
     if not os.path.exists(path_out):
         os.mkdir(path_out)
@@ -1542,10 +1804,16 @@ def make_validation_from_dfvalid(ac, platform, region):
     if not os.path.exists(file_path):
         print(f'File: {file_path} does not exist')
         return
+    make_validation_from_dfvalid_impl(file_path,ac,platform,region)
+
+def make_validation_from_dfvalid_impl(file_path,ac,platform,region):
+    path_base = os.path.dirname(file_path)
     dfval = pd.read_csv(file_path, sep=';')
     wldata = dfval[dfval['Valid']]['Wavelenght']
     wllist = list(wldata.unique())
     mplot = MDBPlot(None, dfval)
+    mplot.platform = platform
+
     if ac == 'CCIv6' or ac == 'MULTI' or ac == 'OLCI-L3':
         if region is not None:
             title = f'{ac} {region}'
@@ -1562,7 +1830,7 @@ def make_validation_from_dfvalid(ac, platform, region):
     path_out = os.path.join(path_base, 'MU_PLOTS')
     if not os.path.exists(path_out):
         os.mkdir(path_out)
-    mplot.plot_all_spectra_mu(path_out)
+    #mplot.plot_all_spectra_mu(path_out)
 
 
 def make_variations_qc_single_MDB():
@@ -1641,6 +1909,8 @@ def make_graphics_param_ab(path_a, path_b, path_out):
         df_param.loc['S3B'] = param_values_b
         df_param.to_csv(os.path.join(path_out, params_file[idx] + '.csv'), sep=';')
         df_param_new = get_df_from_pivot_df(df_param, 'platform', 'wavelength', param)
+
+        print(df_param_new)
 
         h = plt.figure()
         sns.set_theme()

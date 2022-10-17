@@ -97,8 +97,16 @@ class QC_INSITU:
                 self.thersholds[wls]['max_th']['value'] = valuemax
 
     def check_validity_spectrum(self, rrs_values, index_mu):
+
+
+
         if rrs_values is None:
             return False
+
+        if np.sum(np.isnan(rrs_values))>0:
+            return False
+
+
         if rrs_values.count() != len(rrs_values):
             return False
         if self.thersholds is None:

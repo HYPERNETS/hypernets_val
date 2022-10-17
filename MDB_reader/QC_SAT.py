@@ -251,6 +251,8 @@ class QC_SAT:
             indexes_bands = []
             for wl in self.wl_ref:
                 index = self.get_index_sat_from_wlvalue(wl)
+                if index==-1:
+                    print(f'[WARNING] No valid satellite band for wl: {wl}')
                 wl_orig.append(self.sat_bands[index])
                 indexes_bands.append(index)
 

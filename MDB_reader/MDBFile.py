@@ -91,6 +91,9 @@ class MDBFile:
             if self.info['satellite_aco_processor'] == 'CLIMATE CHANGE INITIATIVE - EUROPEAN SPACE AGENCY':
                 self.info['satellite_aco_processor'] = 'CCI'
 
+            self.info['res'] = 'WFR'
+            self.info['insitu_sensor'] = 'HYPSTAR'
+
             self.wlref = self.satellite_bands
             self.wlref_sat_indices = list(range(len(self.satellite_bands)))
             # self.set_wl_ref_insitu_indices()
@@ -137,6 +140,8 @@ class MDBFile:
 
         # variables controlling display images
         self.rgb_bands = [665, 560, 490]
+
+        self.PI_DIVIDED = False
 
     def check_structure(self):
         check_var = True
@@ -337,6 +342,8 @@ class MDBFile:
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
+        if rrs_ins_values is not None and self.PI_DIVIDED:
+            rrs_ins_values = rrs_ins_values/np.pi
 
         load_info['spectrum_complete'] = spectrum_complete
 
@@ -643,7 +650,7 @@ class MDBFile:
             print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
-            print(info_mu)
+            #print(info_mu)
             # self.plot_spectra(None)
 
             # if not mu_valid:
@@ -803,8 +810,10 @@ class MDBFile:
     def get_file_name_base(self):
         sat = self.info['satellite']
         platform = self.info['platform']
-        res = 'WFR'
-        insitu_sensor = 'HYPSTAR'
+        #res = 'WFR'
+        res = self.info['res']
+        #insitu_sensor = 'HYPSTAR'
+        insitu_sensor = self.info['insitu_sensor']
 
         insitu_site = self.info['insitu_site_name']
         ofname = f'{sat}{platform}_{res}_{insitu_sensor}_{insitu_site}'

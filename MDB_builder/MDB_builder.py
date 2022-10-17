@@ -216,7 +216,7 @@ def add_insitu(extract_path, ofile, path_to_list_daily, datetime_str, time_windo
         print('debug MDB_builder Line 202: Creating in situ dimensions')
 
     new_MDB.createDimension('insitu_id', 30)
-    new_MDB.createDimension('insitu_original_bands', 1603)
+    new_MDB.createDimension('insitu_original_bands', 1605)
 
     # create variable
     if args.debug:
@@ -612,6 +612,8 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
                     insitu_filepath[0, insitu_idx] = line[:-1]
                     time_difference[0, insitu_idx] = float(time_diff) * 60 * 60  # in seconds
                     insitu_RrsArray = np.array(nc_ins.variables['rrs'][ihour, :])
+                    print('--------------------------------------------')
+                    print(insitu_RrsArray)
                     insitu_Rrs[0, :, insitu_idx] = [insitu_RrsArray]
                     insitu_idx += 1
             nc_ins.close()
@@ -785,13 +787,16 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
                 print(f'[ERROR]{err}')
         list_files_tmp.append(ncout_file)
         cmd = [f"ncrcat -O -h"] + list_files_tmp
+
         cmd = " ".join(cmd)
+        print(cmd)
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:
             print(f'[ERROR]{err}')
 
         # [os.remove(f) for f in list_files_tmp[:-1]]
+
         if not args.nodelfiles:
             [os.remove(f) for f in list_files]
 
@@ -852,25 +857,33 @@ def check():
     #     sat_time = datetime.fromtimestamp(float(dinput.variables['satellite_time'][0]))
     #     print(name, sat_time, '=================================================================')
     # return True
-    base = '/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/EXTRACTS/OLCI'
-    pathextracts = os.path.join(base, 'Casablanca_Platform')
-    for name in os.listdir(base):
-        # if  name.endswith('extract_Casablanca_Platform.nc'):
-        #     print(name)
-        if not name.endswith('AERONET_Casablanca_Platform.nc'):
-            continue
-        ltal = name.split('_')
-        datestr = ltal[3]
-        datehere = datetime.strptime(datestr, '%Y%m%dT%H%M%S')
-        daten = datehere.strftime('%Y%j')
-        namen = f'CMEMS2_O{daten}-rrs-med-fr_nc_extract_Casablanca_Platform.nc'
-        fextract = os.path.join(pathextracts, namen)
-        fextractout = os.path.join(base, namen)
-        # print(fextract,fextractout)
-        os.replace(fextract, fextractout)
-        print(namen)
-    return True
 
+    # base = '/mnt/c/DATA_LUIS/OCTAC_WORK/MED_MATCHUPS/EXTRACTS/OLCI'
+    # pathextracts = os.path.join(base, 'Casablanca_Platform')
+    # for name in os.listdir(base):
+    #     # if  name.endswith('extract_Casablanca_Platform.nc'):
+    #     #     print(name)
+    #     if not name.endswith('AERONET_Casablanca_Platform.nc'):
+    #         continue
+    #     ltal = name.split('_')
+    #     datestr = ltal[3]
+    #     datehere = datetime.strptime(datestr, '%Y%m%dT%H%M%S')
+    #     daten = datehere.strftime('%Y%j')
+    #     namen = f'CMEMS2_O{daten}-rrs-med-fr_nc_extract_Casablanca_Platform.nc'
+    #     fextract = os.path.join(pathextracts, namen)
+    #     fextractout = os.path.join(base, namen)
+    #     # print(fextract,fextractout)
+    #     os.replace(fextract, fextractout)
+    #     print(namen)
+    # return True
+
+    path_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/ResTO_WispWeb/MDBs/STANDARD'
+    input_files = []
+    input_files.append(os.path.join(path_base,'MDB_S3B_OLCI_WFR_STANDARD_L2_RESTO_TAIT_2018.nc'))
+    input_files.append(os.path.join(path_base, 'MDB_S3B_OLCI_WFR_STANDARD_L2_RESTO_TAIT_2019.nc'))
+    path_out = os.path.join(path_base,'MDB_S3B_OLCI_WFR_STANDARD_L2_RESTO_TAIT.nc')
+    concatenate_nc_impl(input_files,path_base,path_out)
+    return True
 
 # #############################
 # %%
@@ -960,6 +973,8 @@ def main():
     # wild card expression for searching extracts
     if sat_sensor.upper() == 'OLCI' and atm_corr == 'STANDARD':
         wce = f'"{sat_satellite}{sat_platform}*OL_2_{res}*{station_name}*"'  # wild card expression
+    elif atm_corr == 'OLCI-L3':
+        wce = f'"CMEMS2_O*nc"'
     else:
         wce = f'"{sat_satellite}{sat_platform}*nc"'
 
