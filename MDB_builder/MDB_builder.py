@@ -586,6 +586,9 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
     time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
     time_difference.units = "seconds"
 
+
+
+
     insitu_idx = 0
     # extract in situ data
     if args.debug:
@@ -595,6 +598,8 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
             ins_path = line[:-1]
             ins_filename = ins_path.split('/')[-1]
             nc_ins = Dataset(ins_path, 'r')
+            nw = np.array(nc_ins.variables['bands'][:])
+            insitu_original_bands[:] = nw
             ins_date = datetime.strptime(ins_filename.split('_')[3], '%y%m%d').replace(hour=0, minute=0, second=0,
                                                                                        microsecond=0)
 
@@ -612,9 +617,9 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
                     time_difference[0, insitu_idx] = float(time_diff) * 60 * 60  # in seconds
                     insitu_RrsArray = np.ma.array(nc_ins.variables['rrs'][ihour, :])
                     insitu_RrsArray[insitu_RrsArray.mask] = -999
-                    print('--------------------------------------------')
-                    print(insitu_RrsArray)
-                    print(insitu_idx)
+                    # print('--------------------------------------------')
+                    # print(insitu_RrsArray)
+                    # print(insitu_idx)
                     insitu_Rrs[0, :, insitu_idx] = [insitu_RrsArray]
                     insitu_idx += 1
             nc_ins.close()
