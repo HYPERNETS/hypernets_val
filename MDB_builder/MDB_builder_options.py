@@ -1,5 +1,6 @@
 import os
 from datetime import datetime as dt
+from MDB_builder.INSITU_hypernets import INSITU_HYPERNETS_DAY
 
 
 class MDBBuilderOptions:
@@ -94,7 +95,7 @@ class MDBBuilderOptions:
                 f'[ERROR] In situ path source [file_path]/[ins_source_dir] is not defined in the configuration file')
             self.VALID = False
             return
-        if not os.path.isdir(self.insitu_path_source_path):
+        if not os.path.isdir(self.insitu_path_source):
             try:
                 os.mkdir(self.insitu_path_source)
             except OSError:
@@ -181,6 +182,13 @@ class MDBBuilderOptions:
                 hour=23, minute=59, second=59)
 
         ##checking dates with available in situ dates
-        if self.insitu_type is not None:
-            if self.insitu_type=='HYPERNETS':
-                print('dates')
+        if self.insitu_type is not None and self.param_insitu is not None and 'station_name' in self.param_insitu:
+            station_name = self.param_insitu['station_name']
+            if self.insitu_type == 'HYPERNETS':
+                hday = INSITU_HYPERNETS_DAY(None)
+                sday, eday = hday.get_start_and_end_dates(station_name)
+                if sday is not None and eday is not None:
+                    if sday > self.start_date:
+                        self.start_date = sday.replace(hour=0, minute=0, second=0, microsecond=0)
+                    if eday < self.end_date:
+                        self.end_date = eday.replace(hour=23, minute=59, second=59)

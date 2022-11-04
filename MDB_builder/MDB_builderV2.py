@@ -50,6 +50,13 @@ def main():
     ##sat extracts options
     mo.get_param_sat_extracts(options)
 
+    ##dates
+    mo.get_dates()
+
+    if args.verbose:
+        print(f'[INFO] Start date for MDB_builder:{mo.start_date}')
+        print(f'[INFO] End date for MDB_builder: {mo.end_date}')
+
 
 # %%
 if __name__ == '__main__':
