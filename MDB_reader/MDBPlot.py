@@ -15,7 +15,7 @@ from PlotScatter import PlotScatter
 from datetime import datetime as dt
 import seaborn as sns
 from scipy.stats import gaussian_kde
-from pylr2 import regress2
+#from pylr2 import regress2
 from sklearn.metrics import r2_score
 
 
@@ -385,9 +385,9 @@ class MDBPlot:
         num = sat_minus_avg2 - ref_minus_avg2 + num3
         dem = 2 * sat_ref
 
-        results = regress2(ref_obs, sat_obs, _method_type_2="major axis")
-        self.valid_stats['slope_typeII'] = results['slope']
-        self.valid_stats['offset_typeII'] = results['intercept']
+        # results = regress2(ref_obs, sat_obs, _method_type_2="major axis")
+        # self.valid_stats['slope_typeII'] = results['slope']
+        # self.valid_stats['offset_typeII'] = results['intercept']
 
         self.valid_stats['rmse_val'] = cfs.rmse(sat_obs, ref_obs)
 
