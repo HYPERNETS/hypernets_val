@@ -1,4 +1,4 @@
-import os,sys
+import os, sys
 import argparse
 import configparser
 from MDB_builder_options import MDBBuilderOptions
@@ -28,14 +28,12 @@ sys.path.append(code_home)
 import COMMON.common_functions as cfs
 
 
-
-
 def main():
     print('[INFO] Creating MDB files!')
     if os.path.isfile(args.config_file):
         options = configparser.ConfigParser()
         options.read(args.config_file)
-        mo = MDBBuilderOptions(options,args.verbose)
+        mo = MDBBuilderOptions(options, args.verbose)
     else:
         print('[ERROR] Configuration file does not exist')
         return

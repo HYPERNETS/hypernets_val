@@ -1,4 +1,5 @@
 import os
+from datetime import datetime as dt
 
 
 class MDBBuilderOptions:
@@ -15,12 +16,19 @@ class MDBBuilderOptions:
         self.satellite_path_source = None
         # insitu_type
         self.insitu_type = None
+        # insitu path source
+        self.insitu_path_source = None
+
+        # dates
+        self.start_date = dt.now().replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        self.end_date = dt.now().replace(hour=23, minute=59, second=59)
+
         # param insitu
         self.param_insitu = None
         # param sat extract
         self.param_sat = None
 
-    def set_compulsory_options(self,cfs):
+    def set_compulsory_options(self, cfs):
         if self.VALID:
             self.get_path_out()
         if self.VALID:
@@ -29,6 +37,8 @@ class MDBBuilderOptions:
             self.get_insitu_type()
         if self.VALID:
             self.get_param_insitu_site(cfs)
+        if self.VALID:
+            self.get_insitu_path_source()
         return self.VALID
 
     def get_path_out(self):
@@ -76,7 +86,23 @@ class MDBBuilderOptions:
                 f'[ERROR] insitu type [Time_and_sites_selection]/[insitu_type] is not defined in the configuration file')
             self.VALID = False
 
-    def get_param_insitu_site(self,cfs):
+    def get_insitu_path_source(self):
+        if self.options['file_path']['ins_source_dir']:
+            self.insitu_path_source = self.options['file_path']['ins_source_dir']
+        else:
+            print(
+                f'[ERROR] In situ path source [file_path]/[ins_source_dir] is not defined in the configuration file')
+            self.VALID = False
+            return
+        if not os.path.isdir(self.insitu_path_source_path):
+            try:
+                os.mkdir(self.insitu_path_source)
+            except OSError:
+                print(f'[ERROR] Insitu path source {self.insitu_path_source} doest not exist and could not be created')
+                self.VALID = False
+                return
+
+    def get_param_insitu_site(self, cfs):
         if self.options.has_option('Time_and_sites_selection', 'sites'):
             station_name = self.options['Time_and_sites_selection']['sites']
         else:
@@ -140,3 +166,21 @@ class MDBBuilderOptions:
             'prefix': prefix
         }
 
+    def get_dates(self):
+        if self.options['Time_and_sites_selection']['time_start']:
+            self.start_date = dt.strptime(self.options['Time_and_sites_selection']['time_start'], '%Y-%m-%d').replace(
+                hour=0, minute=0, second=0, microsecond=0)
+        else:
+            if 'sensor' in self.param_sat:
+                if self.param_sat['sensor'] == 'OLCI':
+                    self.start_date = dt(2016, 4, 15).replace(hour=0, minute=0, second=0, microsecond=0)
+                if self.param_sat['sensor'] == 'MULTI':
+                    self.start_date = dt(1997, 9, 1).replace(hour=0, minute=0, second=0, microsecond=0)
+        if self.options['Time_and_sites_selection']['time_stop']:
+            self.end_date = dt.strptime(self.options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d').replace(
+                hour=23, minute=59, second=59)
+
+        ##checking dates with available in situ dates
+        if self.insitu_type is not None:
+            if self.insitu_type=='HYPERNETS':
+                print('dates')

@@ -2828,16 +2828,22 @@ def test():
     # b = reader.mfile.qc_sat.do_check_statistics()
     # print(b)
 
-    import subprocess
+    # import subprocess
+    # station = 'VEIT'
+    # date_here = dt(2022,11,18)
+    # date_here_str = date_here.strftime('%Y/%m/%d')
+    # cmd = f'ssh -X -Y -p 9022 hypstar@enhydra.naturalsciences.be ls processed_data/{station}/{date_here_str}'
+    # print(cmd)
+    # prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+    # out, err = prog.communicate()
+    # lsequences = out.decode('utf-8').split('\n')
+    # print(lsequences,type(lsequences))
     station = 'VEIT'
-    date_here = dt(2022,11,18)
-    date_here_str = date_here.strftime('%Y/%m/%d')
-    cmd = f'ssh -X -Y -p 9022 hypstar@enhydra.naturalsciences.be ls processed_data/{station}/{date_here_str}'
-    print(cmd)
-    prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE,stdout=subprocess.PIPE)
-    out, err = prog.communicate()
-    lsequences = out.decode('utf-8').split('\n')
-    print(lsequences,type(lsequences))
+    from MDB_builder.INSITU_hypernets import INSITU_HYPERNETS_DAY
+
+    hday = INSITU_HYPERNETS_DAY(None,None)
+    sday, eday = hday.get_start_and_end_dates('VEIT')
+    print(sday,eday)
 
 
 if __name__ == '__main__':
