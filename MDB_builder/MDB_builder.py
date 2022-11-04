@@ -918,7 +918,6 @@ def main():
         os.mkdir(path_out)
     if args.verbose:
         print(f'[INFO] Path to output: {path_out}')
-
     list_mdbfiles_pathout = []
     for name in os.listdir(path_out):
         list_mdbfiles_pathout.append(name)
