@@ -4,6 +4,7 @@ from netCDF4 import Dataset
 class INSITUBASE:
 
     def __init__(self,mdb_options):
+        print('LLEGA AQUI START IN SITU BASE')
         self.mdb_options = mdb_options
         self.new_mdb = None
 

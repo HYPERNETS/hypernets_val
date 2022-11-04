@@ -6,7 +6,7 @@ from datetime import datetime as dt
 class INSITU_HYPERNETS_DAY(INSITUBASE):
 
     def __init__(self, mdb_options):
-        self.__init__(mdb_options)
+        #self.__init__(mdb_options)
 
         self.url_base = 'hypstar@enhydra.naturalsciences.be'
         self.ssh_base = 'ssh -X -Y -p 9022'
