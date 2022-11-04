@@ -2841,7 +2841,7 @@ def test():
     station = 'VEIT'
     from MDB_builder.INSITU_hypernets import INSITU_HYPERNETS_DAY
 
-    hday = INSITU_HYPERNETS_DAY(None,None)
+    hday = INSITU_HYPERNETS_DAY(None)
     sday, eday = hday.get_start_and_end_dates('VEIT')
     print(sday,eday)
 

@@ -5,7 +5,7 @@ from datetime import datetime as dt
 
 class INSITU_HYPERNETS_DAY(INSITUBASE):
 
-    def __init__(self, mdb_options, date_here):
+    def __init__(self, mdb_options):
         self.__init__(mdb_options)
 
         self.url_base = 'hypstar@enhydra.naturalsciences.be'
