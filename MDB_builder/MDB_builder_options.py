@@ -1,6 +1,6 @@
 import os
 from datetime import datetime as dt
-from MDB_builder.INSITU_hypernets import INSITU_HYPERNETS_DAY
+from INSITU_hypernets import INSITU_HYPERNETS_DAY
 
 
 class MDBBuilderOptions:
