@@ -156,7 +156,9 @@ def launch_create_extract_station(filepath, options, insitu_lat, insitu_lon):
                     lat.shape[1]:
                 contain_flag = 1
     if contain_flag == 1:
-        filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
+        #filename = filepath.split('/')[-1].replace('.', '_') + '_extract.nc'
+        filename = filepath.split('/')[-1][:-3]
+        filename = f'{filename}_{r}_{c}_extract.nc'
         pdu = filepath.split('/')[-1]
 
         ofname = os.path.join(path_output, filename)
