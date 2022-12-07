@@ -108,7 +108,6 @@ class SatExtract:
         ncols = (window[3] - window[2])
 
 
-
         # latitude
         satellite_latitude = self.EXTRACT.createVariable('satellite_latitude', 'f8',
                                                          ('satellite_id', 'rows', 'columns'), fill_value=-999,
@@ -116,7 +115,8 @@ class SatExtract:
 
         if lat.ndim == 1:
             for r in range(nrows):
-                satellite_latitude[0, r, :] = [lat[start_idx_x:stop_idx_x]]
+                #satellite_latitude[0, r, :] = [lat[start_idx_x:stop_idx_x]]
+                satellite_latitude[0, r, :] = [lat[start_idx_y:stop_idx_y]]
         else:
             satellite_latitude[0, :, :] = [lat[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
         satellite_latitude.short_name = 'latitude'
@@ -127,7 +127,8 @@ class SatExtract:
                                                           zlib=True, complevel=6)
         if lon.ndim == 1:
             for c in range(ncols):
-                satellite_longitude[0, :, c] = [lon[start_idx_y:stop_idx_y]]
+                #satellite_longitude[0, :, c] = [lon[start_idx_y:stop_idx_y]]
+                satellite_longitude[0, :, c] = [lon[start_idx_x:stop_idx_x]]
         else:
             satellite_longitude[0, :, :] = [lon[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
         satellite_longitude.short_name = 'longitude'
