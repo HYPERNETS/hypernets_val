@@ -101,8 +101,24 @@ def do_make_test():
         plt.close(h)
 
 
+def do_artic():
+    path_mdb = '/mnt/c/data_luis/octac_work/arc_test/match-ups/MDB_PML_OLCI_2019.nc'
+    path_out = '/mnt/c/data_luis/octac_work/arc_test/match-ups/MDB_PML_OLCI_2019_reflectance.csv'
+    wllist = [400, 412, 443, 490, 510, 560, 620, 665,674,681,709]
+    mfile = MDBInSituFile(path_mdb)
+    mfile.set_wl_ref(wllist)
+    # reader.mfile.qc_sat.wl_ref = wllist
+    mfile.qc_sat.set_eumetsat_defaults(3)
+
+    mfile.prepare_df_extracts()
+    mfile.df_validation.to_csv(path_out,sep=';')
+
+
+
 def main():
-    test()
+    #test()
+    do_artic()
+
     ##TRASIMENO LEVEL 2
     # do_results_trasimeno()
 

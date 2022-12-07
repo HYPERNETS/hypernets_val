@@ -57,20 +57,6 @@ class MDBFile:
 
             for st in self.variables['satellite_time']:
                 self.sat_times.append(datetime.fromtimestamp(float(st)))
-            # for idx in range(len(self.nc.variables['satellite_PDU'])):
-            #     pdu = self.nc.variables['satellite_PDU'][idx]
-            #     time_pdu = self.get_sat_time_from_fname(pdu)
-            #     # self.sat_times.append(self.get_sat_time_from_fname(pdu))
-            #     st = self.variables['satellite_time'][idx]
-            #     # dt_1 = datetime(1970, 1, 1) + timedelta(seconds=int(st))
-            #     # dt_2 = datetime(1970, 1, 1) + timedelta(seconds=float(st))
-            #     dt_3 = datetime.fromtimestamp(float(st))
-            #     # print(time_pdu,dt_1,dt_2,dt_3)
-            #     self.sat_times.append(dt_3)
-
-            # for st in self.variables['satellite_time']:
-            #     #self.sat_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
-            #     self.sat_times.append(datetime.fromtimestamp(float(st)))
             self.start_date = self.sat_times[0]
             self.end_date = self.sat_times[-1]
             self.insitu_bands = self.nc.variables['insitu_original_bands'][:]  # insitu_bands(insitu_bands)

@@ -14,7 +14,6 @@ class QC_SAT:
         self.nmu = self.satellite_rrs.shape[0]
         self.nbands = self.satellite_rrs.shape[1]
 
-
         self.stat_value = 'avg'
 
         self.window_size = 3
@@ -122,7 +121,6 @@ class QC_SAT:
             '885': 1.00089,
             '1020': 0.94064
         }
-
 
     def set_window_size(self, wsize):
         self.window_size = wsize
@@ -251,7 +249,7 @@ class QC_SAT:
             indexes_bands = []
             for wl in self.wl_ref:
                 index = self.get_index_sat_from_wlvalue(wl)
-                if index==-1:
+                if index == -1:
                     print(f'[WARNING] No valid satellite band for wl: {wl}')
                 wl_orig.append(self.sat_bands[index])
                 indexes_bands.append(index)
@@ -266,7 +264,6 @@ class QC_SAT:
             self.compute_statistics(index_mu)
 
             cond_stats = self.do_check_statistics()
-
 
             if cond_stats:
                 valid_mu = True
@@ -329,7 +326,6 @@ class QC_SAT:
         for idx in range(len(self.th_masks)):
             th_mask = self.th_masks[idx]
             rrs_here = self.satellite_rrs[index_mu, th_mask['index_sat'], r_s:r_e, c_s:c_e]
-
 
             # if index_mu==54:
             #     print('***************************************************')
@@ -396,10 +392,10 @@ class QC_SAT:
         }
         self.th_masks.append(th_mask)
 
-    def add_threhold_mask_range(self,wl_min,wl_max,value_th,type_th):
+    def add_threhold_mask_range(self, wl_min, wl_max, value_th, type_th):
         for index_sat in range(self.nbands):
             if wl_min <= self.sat_bands[index_sat] <= wl_max:
-                self.add_theshold_mask(index_sat,-1,value_th,type_th)
+                self.add_theshold_mask(index_sat, -1, value_th, type_th)
 
     def add_band_statistics(self, index_sat, wl_sat, type_stat, with_outliers, value_th, type_th):
         if index_sat == -1:
@@ -575,8 +571,9 @@ class QC_SAT:
 
         self.add_band_statistics(-1, 560, 'CV', True, 20, 'greater')
 
-    def set_idepix_as_flag(self,satellite_idepix_flag):
-        flag_list = ['IDEPIX_LAND','IDEPIX_COASTLINE','IDEPIX_INVALID','IDEPIX_CLOUD','IDEPIX_CLOUD_BUFFER','IDEPIX_CLOUD_SHADOW','IDEPIX_SNOW_ICE']
+    def set_idepix_as_flag(self, satellite_idepix_flag):
+        flag_list = ['IDEPIX_LAND', 'IDEPIX_COASTLINE', 'IDEPIX_INVALID', 'IDEPIX_CLOUD', 'IDEPIX_CLOUD_BUFFER',
+                     'IDEPIX_CLOUD_SHADOW', 'IDEPIX_SNOW_ICE']
         flag_land = 'IDEPIX_LAND'
         flag_inlandwater = None
         self.info_flag = {}

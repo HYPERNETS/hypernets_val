@@ -49,6 +49,7 @@ class MDBInSituFile:
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
             self.VALID = self.check_structure()
+            self.VALID = True
         # except:
         except Exception as e:
             self.VALID = False
@@ -65,9 +66,13 @@ class MDBInSituFile:
                 #self.sat_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
                 sat_time_here = datetime.fromtimestamp(float(st))
                 self.sat_times.append(sat_time_here)
+            # self.pdus = []
+            # for st in self.variables['satellite_PDU']:
+            #     self.pdus.append(st)
             self.insitu_times = []
-            for st in self.variables['insitu_time']:
-                self.insitu_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
+            if 'insitu_time' in self.variables:
+                for st in self.variables['insitu_time']:
+                    self.insitu_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
             self.start_date = self.sat_times[0]
             self.end_date = self.sat_times[-1]
             self.satellite_bands = self.nc.variables['satellite_bands'][:]
@@ -94,8 +99,10 @@ class MDBInSituFile:
                 self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                      self.info['satellite_aco_processor'])
             else:
-                self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
-                                     self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
+                if self.flag_band_name in self.variables:
+                    self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
+                else:
+                    self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,None, self.info['satellite_aco_processor'])
 
             # Variables to make validation...
             self.insitu_varnames = []
@@ -278,6 +285,40 @@ class MDBInSituFile:
 
         self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
 
+        print(f'[INFO]# total match-ups: {self.n_mu_total} Valid: {nmu_valid})')
+        return nmu_valid
+
+    def prepare_df_extracts(self):
+        print('[INFO] Preparing DF extracts...')
+        ntot = self.n_mu_total
+        for wl in self.wlref:
+            wls = '{0:3.0f}'.format(wl)
+            self.col_names.append(f'{wls}')
+        self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
+        nmu_valid = 0
+
+        for index_mu in range(self.n_mu_total):
+            if index_mu % 100 == 0:
+                print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
+            cond_min_pixels, cond_stats, valid_mu, values = self.qc_sat.get_match_up_values(index_mu)
+            if valid_mu:
+                nmu_valid = nmu_valid + 1
+            self.mu_sat_time = self.sat_times[index_mu]
+            row = {
+                'Index_MU': [index_mu],
+                'Sat_Time': [self.mu_sat_time.strftime('%Y-%m-%d %H:%M')],
+                'Ins_Time': ['NA'],
+                'Time_Diff': [0],
+                'Valid': [valid_mu],  # [self.mu_valid_bands[sat_band_index]]
+            }
+            for idx in range(len(self.wlref)):
+                wl = self.wlref[idx]
+                wls = '{0:3.0f}'.format(wl)
+                rrsvalue = values[idx]
+                row[wls] = [rrsvalue]
+            self.df_validation.iloc[index_mu] = pd.DataFrame.from_dict(row)
+
+        self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
         print(f'[INFO]# total match-ups: {self.n_mu_total} Valid: {nmu_valid})')
         return nmu_valid
 

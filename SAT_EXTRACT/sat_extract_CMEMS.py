@@ -102,7 +102,7 @@ def launch_create_extract_skie(filepath, skie_file, options):
         global_at['in_situ_lon'] = f'in situ points at pixel row={r},col={c}'
 
         b = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, skie_file,
-                           extracts[extract]['irows'])
+                           extracts[extract]['irows'],None)
         if b:
             ncreated = ncreated + 1
 
@@ -111,7 +111,7 @@ def launch_create_extract_skie(filepath, skie_file, options):
     return ncreated
 
 
-def launch_create_extract_station(filepath, options, insitu_lat, insitu_lon):
+def launch_create_extract_station(filepath, options, insitu_lat, insitu_lon, insitu_time):
     created = False
     path_output = get_output_path(options)
     if path_output is None:
@@ -165,7 +165,7 @@ def launch_create_extract_station(filepath, options, insitu_lat, insitu_lon):
         # global_at['station_name'] =
         global_at['in_situ_lat'] = insitu_lat
         global_at['in_situ_lon'] = insitu_lon
-        res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
+        res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None,insitu_time)
         if res:
             created = True
             print(f'[INFO] Extract file created: {ofname}')
@@ -248,7 +248,7 @@ def launch_create_extract(filepath, options):
             global_at['station_name'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
-            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
+            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None,None)
             if res:
                 ncreated = ncreated + 1
                 print(f'[INFO] Extract file created: {ofname}')
@@ -262,7 +262,7 @@ def launch_create_extract(filepath, options):
 # def check_contain_flag():
 
 
-def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, skie_file, irows):
+def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, skie_file, irows,sat_time_exact):
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
     stop_idx_x = (c + int(size_box / 2) + 1)
@@ -282,8 +282,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
         wl_atrib = options['satellite_options']['wl_atrib']
     reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib)
 
-    print(reflectance_bands)
-    print(n_bands)
+    # print(reflectance_bands)
+    # print(n_bands)
 
     if n_bands == 0:
         print('[ERROR] reflectance bands are not defined')
@@ -311,17 +311,20 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     newEXTRACT.create_lat_long_variables(lat, long, window)
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
-    if 'start_date' in nc_sat.ncattrs():
-        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
-        sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        newEXTRACT.create_satellite_time_variable(sat_time)
+    if not sat_time_exact is None:
+        newEXTRACT.create_satellite_time_variable(sat_time_exact)
     else:
-        sat_time = get_sat_time_from_fname(pdu)
-        if sat_time is not None:
+        if 'start_date' in nc_sat.ncattrs():
+            sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
+            sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
             newEXTRACT.create_satellite_time_variable(sat_time)
         else:
-            print(f'[ERROR] Satellite time is not defined...')
-            newEXTRACT.close_file()
+            sat_time = get_sat_time_from_fname(pdu)
+            if sat_time is not None:
+                newEXTRACT.create_satellite_time_variable(sat_time)
+            else:
+                print(f'[ERROR] Satellite time is not defined...')
+                newEXTRACT.close_file()
             return False
 
 
@@ -1084,7 +1087,7 @@ def create_extract_cmems(filepath, options, sites, path_output):
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
 
-            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
+            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None, None)
             if res:
                 ncreated = ncreated + 1
                 print(f'[INFO]    Extract file created: {ofname}')
@@ -1238,7 +1241,7 @@ def main():
                 continue
             fproduct = get_cmems_product_day(path_source, org, datehere, dataset)
             if fproduct is not None:
-                created = launch_create_extract_station(fproduct, options, lathere, lonhere)
+                created = launch_create_extract_station(fproduct, options, lathere, lonhere, datehere)
                 if created:
                     ncreated = ncreated + 1
             # print(datehere, lathere, lonhere,fproduct)
