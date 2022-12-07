@@ -636,6 +636,9 @@ def add_insitu_meda(extract_path, ofile, path_to_list_daily, datetime_str, time_
 
 def get_simple_fileextracts_list(path_extract, wce, datetime_start, datetime_stop):
     list_files = []
+    print(wce)
+    print(datetime_start)
+    print(datetime_stop)
     for f in os.listdir(path_extract):
         path_file = os.path.join(path_extract, f)
         include = False

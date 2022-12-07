@@ -270,11 +270,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     stop_idx_y = (r + int(size_box / 2) + 1)
 
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
-    print('=====================')
-    print(size_box)
-    print(window)
-    print('lat variables',lat.shape)
-    print('lon varaible:',long.shape)
+
 
     search_pattern = 'rrs_'
     wl_atrib = None
@@ -311,9 +307,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     else:
         newEXTRACT.create_dimensions(size_box, n_bands)
 
-    print('PRIMA LAT LON')
+
     newEXTRACT.create_lat_long_variables(lat, long, window)
-    print('DOPO LAT LON')
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
     if 'start_date' in nc_sat.ncattrs():
@@ -329,22 +324,19 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
             newEXTRACT.close_file()
             return False
 
-    print('DOPO TIME')
+
 
     # pdu variable
     newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
-    print('DOPO PDU')
+
 
     # Rrs and wavelenghts
-    print('CREATER RRS')
     satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
     rbands = list(reflectance_bands.keys())
     wavelenghts = []
     for index in range(len(rbands)):
         rband = rbands[index]
-        print('Band: ',rband)
         rbandvar = nc_sat.variables[rband]
-        print('347:,',rbandvar.ndim)
         if rbandvar.ndim == 3:
             # bandarray = ma.array(rbandvar[:, :, :])
             # satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
