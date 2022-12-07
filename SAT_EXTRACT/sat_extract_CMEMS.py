@@ -287,7 +287,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib)
 
     print(reflectance_bands)
-    print(nbands)
+    print(n_bands)
 
     if n_bands == 0:
         print('[ERROR] reflectance bands are not defined')
