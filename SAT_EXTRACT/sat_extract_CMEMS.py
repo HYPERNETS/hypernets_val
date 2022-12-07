@@ -270,6 +270,9 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     stop_idx_y = (r + int(size_box / 2) + 1)
 
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
+    print('=====================')
+    print(size_box)
+    print(window)
 
     search_pattern = 'rrs_'
     wl_atrib = None
