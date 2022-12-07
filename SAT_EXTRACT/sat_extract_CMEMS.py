@@ -349,7 +349,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
             # bandarray = ma.array(rbandvar[:, :, :])
             # satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
             bandarray = ma.array(rbandvar[0,start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])
-            satellite_Rrs[0, index, :, :] = bandarray[:,:,:]
+            satellite_Rrs[0, index, :, :] = bandarray[:,:]
         elif rbandvar.ndim == 2:
             bandarray = ma.array(rbandvar[:, :])
             satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
