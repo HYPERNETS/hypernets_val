@@ -5,6 +5,8 @@ Created on Thu Sep 19 12:00:01 2019
 common functions
 @author: javier.concha
 """
+import pandas as pd
+
 """
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,7 +25,7 @@ import numpy as np
 import os
 from netCDF4 import Dataset
 import datetime
-
+import configparser
 
 # %%
 def get_lat_lon_ins(station_name):
@@ -144,6 +146,11 @@ def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
     return r, c
 
 
+def config_reader(FILEconfig):
+    options = configparser.ConfigParser()
+    options.read(FILEconfig)
+    return options
+
 def get_sites_from_file(file_sites, site_list, region_list, path_out):
     in_situ_sites = {}
     if not os.path.exists(file_sites):
@@ -169,6 +176,26 @@ def get_sites_from_file(file_sites, site_list, region_list, path_out):
         }
     return in_situ_sites
 
+# fcsv separated by ;
+#0:site; 1: lat; 2 long
+def get_sites_from_file_csv(file_sites, path_out):
+    in_situ_sites = {}
+    if not os.path.exists(file_sites):
+        return in_situ_sites
+    try:
+        dataset = pd.read_csv(file_sites,sep=';')
+    except:
+        return in_situ_sites
+    for idx, row in dataset.iterrows():
+        site = row[0]
+        lat_here = float(row[1])
+        lon_here = float(row[2])
+        in_situ_sites[site] = {
+            'latitude': lat_here,
+            'longitude': lon_here,
+            'path_out': path_out
+        }
+    return in_situ_sites
 
 def get_sites_from_list(list_sites, path_out):
     in_situ_sites = {}
