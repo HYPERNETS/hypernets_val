@@ -273,6 +273,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     print('=====================')
     print(size_box)
     print(window)
+    print('lat variables',lat.shape)
+    print('lon varaible:',long.shape)
 
     search_pattern = 'rrs_'
     wl_atrib = None
