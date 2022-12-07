@@ -120,7 +120,7 @@ def launch_create_extract_station(filepath, options, insitu_lat, insitu_lon):
 
     # Start dataset
     if args.verbose:
-        print('[INFO] Starting dataset...')
+        print(f'[INFO] Starting dataset. File: {filepath}')
     nc_sat = Dataset(filepath, 'r')
 
     # Retriving lat and long arrays
@@ -599,7 +599,10 @@ def get_global_atrib(nc_sat, options):
             atrib_name = atrib.strip()
             if atrib_name in equiv.keys():
                 atrib_name = equiv[atrib_name]
-            at[atrib_name] = nc_sat.getncattr(atrib.strip())
+            if atrib_name in nc_sat.ncattrs():
+                at[atrib_name] = nc_sat.getncattr(atrib_name)
+            else:
+                print(f'[WARNING] Attribute {atrib_name} is not available in dataset. Skyping...')
 
     compulsory_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
     for key in compulsory_keys:
@@ -1179,7 +1182,7 @@ def get_cmems_product_day(path_source, org, datehere, dataset):
 
 
 def main():
-    print('[INFO]Creating satellite extracts')
+    print('[INFO] Creating satellite extracts')
 
     if not args.config_file:
         return
