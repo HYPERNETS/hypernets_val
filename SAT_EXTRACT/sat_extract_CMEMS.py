@@ -304,7 +304,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
 
     newEXTRACT.set_global_attributes(global_at)
 
-    if skie_file is not None:
+    if skie_file is not None and skie_file!='STATION':
         newEXTRACT.create_dimensions_incluidinginsitu(size_box, n_bands, skie_file.get_n_bands(), 30)
     else:
         newEXTRACT.create_dimensions(size_box, n_bands)
