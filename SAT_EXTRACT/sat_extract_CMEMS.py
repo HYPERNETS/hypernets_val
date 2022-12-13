@@ -363,16 +363,16 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
             insitu_lat_here = irows[0]
             insitu_lon_here = irows[1]
             insitu_time_here = irows[2]
-            insitu_time = newEXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,complevel=6)
+            insitu_time = newEXTRACT.EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,complevel=6)
             insitu_time.units = "Seconds since 1970-1-1"
             insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
             insitu_time[0] = insitu_time_here
-            insitu_lat = newEXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
+            insitu_lat = newEXTRACT.EXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
                                                      fill_value=-999,
                                                      zlib=True, complevel=6)
             insitu_lat.short_name = "latitude"
             insitu_lat.units = "degrees"
-            insitu_lon = newEXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
+            insitu_lon = newEXTRACT.EXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
                                                      fill_value=-999,
                                                      zlib=True, complevel=6)
             insitu_lon.short_name = "longitude"
