@@ -32,7 +32,7 @@ class Class_Flags_OLCI(object):
                 res.append(self.maskNames[count])
                 mask[count] = 1
             count += 1
-        return (res, mask)
+        return res, mask
 
     def __init__(self, flagMasks, flagMeanings):
         self.maskValues = flagMasks

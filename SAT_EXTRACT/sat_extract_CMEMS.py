@@ -165,7 +165,9 @@ def launch_create_extract_station(filepath, options, insitu_lat, insitu_lon, ins
         # global_at['station_name'] =
         global_at['in_situ_lat'] = insitu_lat
         global_at['in_situ_lon'] = insitu_lon
-        res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None,insitu_time)
+        insitu_time = insitu_time.timestamp()
+        irows = [insitu_lat,insitu_lon,insitu_time]
+        res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, 'STATION', irows)
         if res:
             created = True
             print(f'[INFO] Extract file created: {ofname}')
@@ -248,7 +250,7 @@ def launch_create_extract(filepath, options):
             global_at['station_name'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
-            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None,None)
+            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
             if res:
                 ncreated = ncreated + 1
                 print(f'[INFO] Extract file created: {ofname}')
@@ -262,7 +264,7 @@ def launch_create_extract(filepath, options):
 # def check_contain_flag():
 
 
-def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, skie_file, irows,sat_time_exact):
+def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, skie_file, irows):
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
     stop_idx_x = (c + int(size_box / 2) + 1)
@@ -311,20 +313,18 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     newEXTRACT.create_lat_long_variables(lat, long, window)
 
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
-    if not sat_time_exact is None:
-        newEXTRACT.create_satellite_time_variable(sat_time_exact)
+
+    if 'start_date' in nc_sat.ncattrs():
+        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
+        sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        newEXTRACT.create_satellite_time_variable(sat_time)
     else:
-        if 'start_date' in nc_sat.ncattrs():
-            sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
-            sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        sat_time = get_sat_time_from_fname(pdu)
+        if sat_time is not None:
             newEXTRACT.create_satellite_time_variable(sat_time)
         else:
-            sat_time = get_sat_time_from_fname(pdu)
-            if sat_time is not None:
-                newEXTRACT.create_satellite_time_variable(sat_time)
-            else:
-                print(f'[ERROR] Satellite time is not defined...')
-                newEXTRACT.close_file()
+            print(f'[ERROR] Satellite time is not defined...')
+            newEXTRACT.close_file()
             return False
 
 
@@ -359,29 +359,51 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     #                                 flag_band.flag_meanings, window)
 
     if skie_file is not None:
-        insitu_origbands_var = newEXTRACT.create_insitu_original_bands_variable()
-        insitu_origbands_var[:] = skie_file.wavelengths
-        insitutime_var = newEXTRACT.create_insitu_time_variable()
-        insitu_exactwl_var = newEXTRACT.create_insitu_exact_wavelengths_variable()
-        insitu_timedif_var = newEXTRACT.create_insitu_time_difference_variable()
-        insitu_rrs_var = newEXTRACT.create_insitu_rrs_variable()
-        insitu_lat, insitu_lon = newEXTRACT.create_insitu_lat_long_variables()
-        index_var = 0
-        for irow in irows:
-            insitu_time_here = skie_file.get_time_at_subdb(irow, 'DT')
-            insitutime_var[0, index_var] = insitu_time_here.timestamp()
-            insitu_exactwl_var[0, :, index_var] = skie_file.wavelengths
-            insitu_rrs_var[0, :, index_var] = np.array(skie_file.get_spectra_at_subdb(irow))
-            if args.atm_correction == 'FUB':
-                sat_time_here = get_sat_time_from_fname(pdu)
-            else:
-                sat_time_here = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
-            time_diff = float(abs((insitu_time_here - sat_time_here).total_seconds()))
-            insitu_timedif_var[0, index_var] = time_diff
-            latp, lonp = skie_file.get_lat_lon_at_subdb(irow)
-            insitu_lat[0, index_var] = latp
-            insitu_lon[0, index_var] = lonp
-            index_var = index_var + 1
+        if skie_file=='STATION':
+            insitu_lat_here = irows[0]
+            insitu_lon_here = irows[1]
+            insitu_time_here = irows[2]
+            insitu_time = newEXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,complevel=6)
+            insitu_time.units = "Seconds since 1970-1-1"
+            insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
+            insitu_time[0] = insitu_time_here
+            insitu_lat = newEXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
+                                                     fill_value=-999,
+                                                     zlib=True, complevel=6)
+            insitu_lat.short_name = "latitude"
+            insitu_lat.units = "degrees"
+            insitu_lon = newEXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
+                                                     fill_value=-999,
+                                                     zlib=True, complevel=6)
+            insitu_lon.short_name = "longitude"
+            insitu_lon.units = "degrees"
+            insitu_lat[0] = insitu_lat_here
+            insitu_lon[0] = insitu_lon_here
+
+        else:
+            insitu_origbands_var = newEXTRACT.create_insitu_original_bands_variable()
+            insitu_origbands_var[:] = skie_file.wavelengths
+            insitutime_var = newEXTRACT.create_insitu_time_variable()
+            insitu_exactwl_var = newEXTRACT.create_insitu_exact_wavelengths_variable()
+            insitu_timedif_var = newEXTRACT.create_insitu_time_difference_variable()
+            insitu_rrs_var = newEXTRACT.create_insitu_rrs_variable()
+            insitu_lat, insitu_lon = newEXTRACT.create_insitu_lat_long_variables()
+            index_var = 0
+            for irow in irows:
+                insitu_time_here = skie_file.get_time_at_subdb(irow, 'DT')
+                insitutime_var[0, index_var] = insitu_time_here.timestamp()
+                insitu_exactwl_var[0, :, index_var] = skie_file.wavelengths
+                insitu_rrs_var[0, :, index_var] = np.array(skie_file.get_spectra_at_subdb(irow))
+                if args.atm_correction == 'FUB':
+                    sat_time_here = get_sat_time_from_fname(pdu)
+                else:
+                    sat_time_here = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
+                time_diff = float(abs((insitu_time_here - sat_time_here).total_seconds()))
+                insitu_timedif_var[0, index_var] = time_diff
+                latp, lonp = skie_file.get_lat_lon_at_subdb(irow)
+                insitu_lat[0, index_var] = latp
+                insitu_lon[0, index_var] = lonp
+                index_var = index_var + 1
 
     newEXTRACT.close_file()
 
@@ -1087,7 +1109,7 @@ def create_extract_cmems(filepath, options, sites, path_output):
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
 
-            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None, None)
+            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
             if res:
                 ncreated = ncreated + 1
                 print(f'[INFO]    Extract file created: {ofname}')
