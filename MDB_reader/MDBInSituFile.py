@@ -70,9 +70,19 @@ class MDBInSituFile:
             # for st in self.variables['satellite_PDU']:
             #     self.pdus.append(st)
             self.insitu_times = []
+            self.insitu_lats = []
+            self.insitu_lons = []
             if 'insitu_time' in self.variables:
                 for st in self.variables['insitu_time']:
-                    self.insitu_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
+                    self.insitu_times.append(datetime(1970, 1, 1) + timedelta(seconds=float(st)))
+            if 'insitu_latitude' in self.variables:
+                for st in self.variables['insitu_latitude']:
+                    self.insitu_lats.append(float(st))
+            if 'insitu_longitude' in self.variables:
+                for st in self.variables['insitu_longitude']:
+                    self.insitu_lons.append(float(st))
+
+
             self.start_date = self.sat_times[0]
             self.end_date = self.sat_times[-1]
             self.satellite_bands = self.nc.variables['satellite_bands'][:]
@@ -106,7 +116,7 @@ class MDBInSituFile:
 
             # Variables to make validation...
             self.insitu_varnames = []
-            self.col_names = ['Index_MU', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Valid']
+            self.col_names = ['Index_MU', 'Sat_Time', 'Ins_Time', 'Ins_Lat','Ins_Lon','Time_Diff', 'Valid']
             for var in self.nc.variables:
                 if var.startswith('insitu_'):
                     name = var.split('_')[1]
@@ -304,11 +314,18 @@ class MDBInSituFile:
             if valid_mu:
                 nmu_valid = nmu_valid + 1
             self.mu_sat_time = self.sat_times[index_mu]
+            self.mu_sat_time = self.mu_sat_time.replace(hour=12,minute=0,second=0)
+            insitu_time = self.insitu_times[index_mu]
+            time_dif = abs((self.mu_sat_time-insitu_time).total_seconds())/3600
+            ins_lat = self.insitu_lats[index_mu]
+            ins_lon = self.insitu_lons[index_mu]
             row = {
                 'Index_MU': [index_mu],
                 'Sat_Time': [self.mu_sat_time.strftime('%Y-%m-%d %H:%M')],
-                'Ins_Time': ['NA'],
-                'Time_Diff': [0],
+                'Ins_Time': [insitu_time.strftime('%Y-%m-%d %H:%M')],
+                'Ins_Lat': [ins_lat],
+                'Ins_Lon': [ins_lon],
+                'Time_Diff': [time_dif],
                 'Valid': [valid_mu],  # [self.mu_valid_bands[sat_band_index]]
             }
             for idx in range(len(self.wlref)):

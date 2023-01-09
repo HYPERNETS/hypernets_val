@@ -12,6 +12,8 @@ Run as:
 python MDB_builder.py -c path_to_config_file
 
 """
+import zipfile
+
 """
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,7 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import sys
 import subprocess
-
+import pandas as pd
 from netCDF4 import Dataset
 import numpy as np
 import numpy.ma as ma
@@ -45,6 +47,7 @@ sys.path.append(code_home)
 
 import BRDF.brdf_olci as brdf
 import COMMON.common_functions as cfs
+from COMMON.check_geo import CHECK_GEO
 from SAT_EXTRACT.sat_extract import SatExtract
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'  # to avoid error "QXcbConnection: Could not connect to display"
@@ -417,6 +420,50 @@ def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
     return contain_flag
 
 
+def get_olci_products_day(path_source, unzip_path, org, wce, lathere, lonhere, datehere):
+    path_search = path_source
+    if wce is not None:
+        wce = wce.replace('*', '')
+    if org is not None:
+        if org == 'YYYYmmdd':
+            path_search = os.path.join(path_source, datehere.strftime('%Y%m%d'))
+        if org == 'YYYYjjj':
+            path_search = os.path.join(path_source, datehere.strftime('%Y'), datehere.strftime('%j'))
+
+    fproducts = []
+    iszipped = []
+    cgeo = CHECK_GEO()
+
+    for name in os.listdir(path_search):
+        if wce is not None:
+            if name.find(wce) < 0:
+                continue
+        prod_path = os.path.join(path_search, name)
+        do_zip_here = False
+        contain_flag = 0
+        if name.endswith('.SEN3'):
+            path_prod_u = prod_path
+            cgeo.start_polygon_from_prod_manifest_file(path_prod_u)
+            contain_flag = cgeo.check_point_lat_lon(lathere, lonhere)
+        elif zipfile.is_zipfile(prod_path):
+            cgeo.start_polygon_image_from_zip_manifest_file(prod_path)
+            contain_flag = cgeo.check_point_lat_lon(lathere, lonhere)
+            if contain_flag == 1:
+                do_zip_here = True
+                path_prod_u = prod_path.split('/')[-1][0:-4]
+                path_prod_u = os.path.join(unzip_path, path_prod_u)
+        if do_zip_here:
+            with zipfile.ZipFile(prod_path, 'r') as zprod:
+                if args.verbose:
+                    print(f'[INFO] Unziping {name} to {unzip_path}')
+                zprod.extractall(path=unzip_path)
+        if contain_flag == 1:
+            fproducts.append(path_prod_u)
+            iszipped.append(do_zip_here)
+
+    return fproducts, iszipped
+
+
 def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_brdf):
     for site in in_situ_sites:
         try:
@@ -427,7 +474,8 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
                 os.mkdir(path_output)
             if args.verbose:
                 print(f'Creating extract for site: {site}')
-            extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,make_brdf)
+            extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
+                                          make_brdf)
             if not extract_path is None:
                 print(f'file created: {extract_path}')
         except Exception as e:
@@ -964,7 +1012,6 @@ def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop
 
 
 def check_product(filepath, time_start, time_stop):
-
     if not os.path.isdir(filepath):
         print(f'[WARNING] {filepath} is not a valid dataset. Skipping...')
         return False
@@ -981,7 +1028,6 @@ def check_product(filepath, time_start, time_stop):
 
     # checkTime = False
     # time_sat = get_sat_time(filepath)
-
 
     # if 'start_time' in nc_sat.ncattrs():
     #     time_sat = dt.strptime(nc_sat.start_time, '%Y-%m-%d %H:%M:%S')
@@ -1015,6 +1061,40 @@ def main():
     # else:
     #     print(args.config_file + ' does not exist. Please provide a valid config file path')
     #     sys.exit()
+
+    # create extract and save it in internal folder
+    size_box = 25
+    if args.config_file:
+        if options.has_option('satellite_options', 'extract_size'):
+            size_box = int(options['satellite_options']['extract_size'])
+
+    # create list of sat granules
+    if not args.config_file:
+        if args.resolution == 'WRR':
+            res = 'WRR'
+        else:
+            res = 'WFR'
+    else:
+        res = 'WFR'
+        if options.has_option('satellite_options', 'resolution'):
+            res = options['satellite_options']['resolution']
+
+    # path to output
+    if args.output:
+        path_out = args.output
+    elif args.config_file:
+        if options['file_path']['output_dir']:
+            path_out = options['file_path']['output_dir']
+
+    if args.verbose:
+        print(f'Path to output: {path_out}')
+    if not os.path.isdir(path_out):
+        os.mkdir(path_out)
+
+    make_brdf = False
+    if args.config_file:
+        if options.has_option('satellite_options', 'brdf'):
+            make_brdf = True if options['satellite_options']['brdf'] == 'T' else False
 
     if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
         path_skie = options['file_path']['path_skie']
@@ -1062,6 +1142,61 @@ def main():
             print(f'COMPLETED. {ncreated} sat extract files were created')
         return
 
+    if options.has_section('CSV_SELECTION') and options.has_option('CSV_SELECTION', 'path_csv') and options.has_option(
+            'CSV_SELECTION', 'dataset'):
+        path_csv = options['CSV_SELECTION']['path_csv']
+        if not os.path.exists(path_csv):
+            print(f'[ERROR] Path csv {path_csv} was not found')
+            return
+        try:
+            df = pd.read_csv(path_csv, ';')
+        except:
+            print(f'[ERROR] File {path_csv} is not a valid csv separated by ;')
+            return
+        col_date = 'date'
+        col_lat = 'lat'
+        col_lon = 'lon'
+        format_date = '%Y-%m-%dT%H:%M'
+        if options.has_option('CSV_SELECTION', 'col_date'):
+            col_date = options['CSV_SELECTION']['col_date']
+        if options.has_option('CSV_SELECTION', 'col_lat'):
+            col_lat = options['CSV_SELECTION']['col_lat']
+        if options.has_option('CSV_SELECTION', 'col_lon'):
+            col_lon = options['CSV_SELECTION']['col_lon']
+        if options.has_option('CSV_SELECTION', 'format_date'):
+            format_date = options['CSV_SELECTION']['format_date']
+        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+        tmp_path = path_source
+        if args.config_file:
+            if options.has_option('file_path', 'tmp_dir') and options['file_path']['tmp_dir']:
+                tmp_path = options['file_path']['tmp_dir']
+        ncreated = 0
+        for idx, row in df.iterrows():
+            try:
+                datestr = row[col_date].strip()
+                datehere = datetime.strptime(datestr, format_date)
+                lathere = float(row[col_lat])
+                lonhere = float(row[col_lon])
+            except:
+                print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
+                continue
+            fproducts, iszipped = get_olci_products_day(path_source, tmp_path, org, wce, lathere, lonhere, datehere)
+            nproducts = len(fproducts)
+            if nproducts == 0:
+                if args.verbse:
+                    print(f'[WARNING] No products found for {datehere}')
+                continue
+            for id in range(len(fproducts)):
+                path_product = fproducts[id]
+                res_str = path_product.split('/')[-1].split('_')[3]
+                ids = f'{idx}_{id}'
+                ofname = create_extract(size_box, ids, path_product, path_out, lathere, lonhere, res_str, make_brdf)
+                if ofname is not None:
+                    ncreated = ncreated + 1
+        print('------------------------------')
+        print(f'COMPLETED. {ncreated} sat extract files were created')
+        return
+
     # path to satellite source
     if args.path_to_sat:
         satellite_path_source = args.path_to_sat
@@ -1092,29 +1227,6 @@ def main():
             out, err = prog.communicate()
             if err:
                 print(err)
-
-    # create list of sat granules
-    if not args.config_file:
-        if args.resolution == 'WRR':
-            res = 'WRR'
-        else:
-            res = 'WFR'
-    else:
-        res = 'WFR'
-        if options.has_option('satellite_options', 'resolution'):
-            res = options['satellite_options']['resolution']
-
-    # path to output
-    if args.output:
-        path_out = args.output
-    elif args.config_file:
-        if options['file_path']['output_dir']:
-            path_out = options['file_path']['output_dir']
-
-    if args.verbose:
-        print(f'Path to output: {path_out}')
-    if not os.path.isdir(path_out):
-        os.mkdir(path_out)
 
     # in situ sites
     in_situ_sites = {}
@@ -1202,20 +1314,9 @@ def main():
     # if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
     #     os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
-    # create extract and save it in internal folder
-    size_box = 25
-    if args.config_file:
-        if options.has_option('satellite_options', 'extract_size'):
-            size_box = int(options['satellite_options']['extract_size'])
-
     if args.verbose:
         print(f'Start date: {datetime_start}')
         print(f'End date: {datetime_end}')
-
-    make_brdf = False
-    if args.config_file:
-        if options.has_option('satellite_options', 'brdf'):
-            make_brdf = True if options['satellite_options']['brdf'] == 'T' else False
 
     day_ref = -1
     with open(path_to_satellite_list, 'r') as file:
