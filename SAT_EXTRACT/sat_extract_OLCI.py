@@ -1142,8 +1142,7 @@ def main():
             print(f'COMPLETED. {ncreated} sat extract files were created')
         return
 
-    if options.has_section('CSV_SELECTION') and options.has_option('CSV_SELECTION', 'path_csv') and options.has_option(
-            'CSV_SELECTION', 'dataset'):
+    if options.has_section('CSV_SELECTION') and options.has_option('CSV_SELECTION', 'path_csv'):
         path_csv = options['CSV_SELECTION']['path_csv']
         if not os.path.exists(path_csv):
             print(f'[ERROR] Path csv {path_csv} was not found')
