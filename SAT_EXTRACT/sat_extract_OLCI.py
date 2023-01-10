@@ -919,17 +919,17 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 insitu_lat_here = insitu_info[0]
                 insitu_lon_here = insitu_info[1]
                 insitu_time_here = insitu_info[2]
-                insitu_time = new_EXTRACT.EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,
+                insitu_time = new_EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,
                                                                 complevel=6)
                 insitu_time.units = "Seconds since 1970-1-1"
                 insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
                 insitu_time[0] = insitu_time_here
-                insitu_lat = new_EXTRACT.EXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
+                insitu_lat = new_EXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
                                                                fill_value=-999,
                                                                zlib=True, complevel=6)
                 insitu_lat.short_name = "latitude"
                 insitu_lat.units = "degrees"
-                insitu_lon = new_EXTRACT.EXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
+                insitu_lon = new_EXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
                                                                fill_value=-999,
                                                                zlib=True, complevel=6)
                 insitu_lon.short_name = "longitude"
