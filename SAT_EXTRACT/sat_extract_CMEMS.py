@@ -265,6 +265,7 @@ def launch_create_extract(filepath, options):
 
 
 def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, skie_file, irows):
+
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
     stop_idx_x = (c + int(size_box / 2) + 1)

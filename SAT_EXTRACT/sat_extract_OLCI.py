@@ -475,7 +475,7 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
             if args.verbose:
                 print(f'Creating extract for site: {site}')
             extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
-                                          make_brdf)
+                                          make_brdf,None)
             if not extract_path is None:
                 print(f'file created: {extract_path}')
         except Exception as e:
@@ -484,7 +484,7 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
                 pass
 
 
-def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf):
+def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf,insitu_info):
     if args.verbose:
         print(f'Creating extract for {station_name} from {path_source}')
     ofname = None
@@ -914,6 +914,29 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_WQSF.flag_masks = WQSF_flag_masks
             satellite_WQSF.flag_meanings = WQSF_flag_meanings
 
+            #in situ info
+            if insitu_info is not None:
+                insitu_lat_here = insitu_info[0]
+                insitu_lon_here = insitu_info[1]
+                insitu_time_here = insitu_info[2]
+                insitu_time = new_EXTRACT.EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,
+                                                                complevel=6)
+                insitu_time.units = "Seconds since 1970-1-1"
+                insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
+                insitu_time[0] = insitu_time_here
+                insitu_lat = new_EXTRACT.EXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
+                                                               fill_value=-999,
+                                                               zlib=True, complevel=6)
+                insitu_lat.short_name = "latitude"
+                insitu_lat.units = "degrees"
+                insitu_lon = new_EXTRACT.EXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
+                                                               fill_value=-999,
+                                                               zlib=True, complevel=6)
+                insitu_lon.short_name = "longitude"
+                insitu_lon.units = "degrees"
+                insitu_lat[0] = insitu_lat_here
+                insitu_lon[0] = insitu_lon_here
+
             new_EXTRACT.close()
         else:
             if args.verbose:
@@ -1185,11 +1208,13 @@ def main():
                 if args.verbse:
                     print(f'[WARNING] No products found for {datehere}')
                 continue
+            insitu_time = datehere.timestamp()
+            insitu_info = [lathere, lonhere, insitu_time]
             for id in range(len(fproducts)):
                 path_product = fproducts[id]
                 res_str = path_product.split('/')[-1].split('_')[3]
                 ids = f'{idx}_{id}'
-                ofname = create_extract(size_box, ids, path_product, path_out, lathere, lonhere, res_str, make_brdf)
+                ofname = create_extract(size_box, ids, path_product, path_out, lathere, lonhere, res_str, make_brdf,insitu_info)
                 if ofname is not None:
                     ncreated = ncreated + 1
         print('------------------------------')

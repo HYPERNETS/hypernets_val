@@ -102,8 +102,12 @@ def do_make_test():
 
 
 def do_artic():
-    path_mdb = '/mnt/c/data_luis/octac_work/arc_test/match-ups/MDB_PML_OLCI_2019.nc'
-    path_out = '/mnt/c/data_luis/octac_work/arc_test/match-ups/MDB_PML_OLCI_2019_reflectance.csv'
+    # path_mdb = '/mnt/c/data_luis/octac_work/arc_test/match-ups/MDB_PML_OLCI_2019.nc'
+    # path_out = '/mnt/c/data_luis/octac_work/arc_test/match-ups/MDB_PML_OLCI_2019_reflectance.csv'
+
+    path_mdb = '/mnt/c/data_luis/octac_work/arc_test/match-ups/MDB_OLCI_WFR_INSITU_20000101_20230109.nc'
+    path_out = '/mnt/c/data_luis/octac_work/arc_test/match-ups/MDB_OLCI_WFR_2019_reflectance.csv'
+
     wllist = [400, 412, 443, 490, 510, 560, 620, 665,674,681,709]
     mfile = MDBInSituFile(path_mdb)
     mfile.set_wl_ref(wllist)
