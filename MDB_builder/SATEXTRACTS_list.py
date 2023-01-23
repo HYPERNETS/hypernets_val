@@ -20,7 +20,7 @@ class SAT_EXTRACTS_LIST:
 
 
         #print(self.boptions.param_sat)
-
+        nadded = 0
         for name in os.listdir(sat_extract_dir):
             if not name.endswith('.nc'):
                 continue
@@ -67,7 +67,9 @@ class SAT_EXTRACTS_LIST:
                 'ac':ac,
                 'resolution':resolution,
             }
+            nadded = nadded +1
 
+        print(f'Number of extract files added to the list: {nadded} ')
         return sat_list
 
     def check_time(self,dataset,start_date,end_date):
