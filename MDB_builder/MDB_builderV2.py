@@ -2,6 +2,7 @@ import os, sys
 import argparse
 import configparser
 from MDB_builder_options import MDBBuilderOptions
+from SATEXTRACTS_list import SAT_EXTRACTS_LIST
 
 parser = argparse.ArgumentParser(
     description="Create Match-up DataBase files (MDB) files from satellite extracts and in situ L2 files.")
@@ -58,6 +59,8 @@ def main():
         print(f'[INFO] End date for MDB_builder: {mo.end_date}')
 
     ##retrieving sat extract list
+    slist = SAT_EXTRACTS_LIST(mo,args.verbose)
+    extract_list = slist.get_list_as_dict()
 
 
 # %%
