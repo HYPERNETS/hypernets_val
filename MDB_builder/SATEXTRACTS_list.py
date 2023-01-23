@@ -138,7 +138,7 @@ class SAT_EXTRACTS_LIST:
             if platform_here.upper()==platform_name.upper():
                 return platform_name
             else:
-                print(f'[WARNING] Extract platform {platform_here} was not selected in the config file. Skipping extract...')
+                print(f'[WARNING] Extract platform {platform_here} was not selected in the config file {platform_name}. Skipping extract...')
                 return None
 
 
