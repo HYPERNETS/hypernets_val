@@ -83,16 +83,15 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.start_add_insitu(extract_path,ofile)
         self.add_new_variables()
     def add_new_variables(self):
-        print('NEW MDB NO DEBERIA SER NONE', self.new_MDB)
         for var_name in self.insitu_extract_variables:
-            type = self.insitu_extract_variables[var_name, 'type']
+            type = self.insitu_extract_variables[var_name]['type']
             var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_id'), zlib=True, complevel=6)
             for at in self.insitu_extract_variables[var_name]:
                 if at == 'type' or at == 'name_orig':
                     continue
                 var.setncattr(at, self.insitu_extract_variables[var_name][at])
         for var_name in self.insitu_spectral_variables:
-            type = self.insitu_extract_variables[var_name, 'type']
+            type = self.insitu_extract_variables[var_name]['type']
             var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_original_bands', 'insitu_id'),
                                               zlib=True, complevel=6)
             for at in self.insitu_extract_variables[var_name]:
