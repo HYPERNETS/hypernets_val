@@ -13,7 +13,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
 
-        self.CHECK_SSH = self.check_ssh()
+        self.CHECK_SSH = True
 
     def add_insitu(self,extract_path,ofile):
         self.start_add_insitu(extract_path,ofile)
