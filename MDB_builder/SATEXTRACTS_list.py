@@ -8,7 +8,7 @@ class SAT_EXTRACTS_LIST:
         self.verbose = verbose
 
     def get_list_as_dict(self):
-        start_date = self.boptions.stat_date
+        start_date = self.boptions.start_date
         end_date = self.boptions.end_date
         site = self.boptions.param_insitu
 
@@ -63,7 +63,7 @@ class SAT_EXTRACTS_LIST:
                 'ac':ac,
                 'resolution':resolution
             }
-            
+
         return sat_list
 
     def check_time(self,dataset,start_date,end_date):
