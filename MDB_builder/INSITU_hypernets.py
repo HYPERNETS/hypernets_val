@@ -38,25 +38,23 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         sat_time_min = sat_time - timedelta(hours=3)
         sat_time_max = sat_time + timedelta(hours=3)
 
-        list_files = []
+        list_files_fin = []
 
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
         sequence_list = self.get_list_sequence_folders(cmd)
 
         if len(sequence_list) > 0:
             for sequence in sequence_list:
-                print(sequence)
+
                 insitu_time = dt.strptime(sequence[3:], '%Y%m%dT%H%M%S')
                 if sat_time_min <= insitu_time <= sat_time_max:
                     cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/{sequence}/*.nc'
                     list_files = self.get_list_files(cmd)
                     for file in list_files:
-                        print(file,type(file))
                         if file.find(level) > 0:
-                            #print(file)
-                            list_files.append(file)
+                            list_files_fin.append(file)
 
-        return list_files
+        return list_files_fin
 
     def check_ssh(self):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
