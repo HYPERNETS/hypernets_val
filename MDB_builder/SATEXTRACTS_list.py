@@ -40,7 +40,8 @@ class SAT_EXTRACTS_LIST:
             if site_here is None:
                 dataset.close()
                 continue
-            platform = self.check_platform(dataset,self.boptions.param_sat['platform'])
+            platform_name = self.boptions.param_sat['satellite']+self.boptions.param_sat['platform']
+            platform = self.check_platform(dataset,platform_name)
             if platform is None:
                 dataset.close()
                 continue
