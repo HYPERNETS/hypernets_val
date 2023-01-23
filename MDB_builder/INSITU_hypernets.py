@@ -35,10 +35,12 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         month_str = sat_time.strftime('%m')
         day_str = sat_time.strftime('%d')
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
+        print('"""""""""""->'+cmd)
         sequence_list = self.get_list_folder_dates(cmd)
         sat_time_min = sat_time - timedelta(hours=3)
         sat_time_max = sat_time + timedelta(hours=3)
         for sequence in sequence_list:
+            print(sequence)
             insitu_time = dt.strptime(sequence[3:],'%Y%m%dT%H%M%S')
             if insitu_time>=sat_time_min and insitu_time<=sat_time_max:
                 cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/{sequence}/*.nc'

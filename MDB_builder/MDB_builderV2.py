@@ -68,6 +68,7 @@ def main():
     ihd = INSITU_HYPERNETS_DAY(mo)
     for extract in extract_list:
         date_here_str = extract_list[extract]['time']
+        print(date_here_str)
         date_here = dt.strptime(date_here_str,'%Y%m%dT%H%M%S')
         ihd.get_sequence_folders_day(extract_list[extract]['site'],date_here)
 
