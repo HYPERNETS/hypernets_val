@@ -80,7 +80,7 @@ def main():
             ninsitu = len(insitu_files)
             print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
             ofile = mo.get_mdb_extract_path(extract,ins_sensor)
-            ihd.start_add_insitu(extract_list[extract]['path'],ofile)
+            ihd.create_mdb_insitu_extract(extract_list[extract]['path'],ofile)
 
 
 
