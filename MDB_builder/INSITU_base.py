@@ -21,7 +21,7 @@ class INSITUBASE:
 
         self.new_MDB.close()
 
-    def copy_nc(ifile, ofile):
+    def copy_nc(self,ifile, ofile):
         with Dataset(ifile) as src:
             dst = Dataset(ofile, 'w', format='NETCDF4')
             # copy global attributes all at once via dictionary
