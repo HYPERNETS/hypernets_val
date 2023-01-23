@@ -69,7 +69,7 @@ def main():
     for extract in extract_list:
         date_here_str = extract_list[extract]['time']
         date_here = dt.strptime(date_here_str,'%Y%m%dT%H%M%S')
-        list_files = ihd.get_files_day_ssh(extract_list[extract]['site'],date_here)
+        list_files = ihd.get_files_day_ssh(date_here)
         if len(list_files)>0:
             ihd.transfer_files_ssh(list_files)
 
