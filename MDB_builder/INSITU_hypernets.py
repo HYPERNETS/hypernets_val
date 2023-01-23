@@ -1,5 +1,5 @@
 from INSITU_base import INSITUBASE
-import subprocess,os
+import subprocess, os
 from datetime import datetime as dt
 from datetime import timedelta
 
@@ -16,42 +16,46 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         self.CHECK_SSH = self.check_ssh()
 
-
     def add_insitu(self, extract_path, ofile):
         self.start_add_insitu(extract_path, ofile)
         print('NEW MDB NO DEBERIA SER NONE', self.new_mdb)
 
-    def get_files(self,sat_time):
+    def get_files(self, sat_time):
         pathbase = self.mdb_options.insitu_path_source
         year_str = sat_time.strftime('%Y')
         month_str = sat_time.strftime('%m')
         day_str = sat_time.strftime('%d')
-        path_day = os.path.join(pathbase,year_str,month_str,day_str)
+        path_day = os.path.join(pathbase, year_str, month_str, day_str)
         if not os.path.exists(path_day):
             return None
 
-    def get_files_day_ssh(self,sitename,sat_time):
+    def get_files_day_ssh(self, sitename, sat_time):
+
+        level = 'L2A'
         year_str = sat_time.strftime('%Y')
         month_str = sat_time.strftime('%m')
         day_str = sat_time.strftime('%d')
-
-        cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
-
-        sequence_list = self.get_list_sequence_folders(cmd)
-        print(len(sequence_list))
         sat_time_min = sat_time - timedelta(hours=3)
         sat_time_max = sat_time + timedelta(hours=3)
-        for sequence in sequence_list:
-            print(sequence)
-            insitu_time = dt.strptime(sequence[3:],'%Y%m%dT%H%M%S')
-            if sat_time_min <= insitu_time <= sat_time_max:
-                cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/{sequence}/*.nc'
-                list_files = self.get_list_files(cmd)
-                for file in list_files:
-                    print(file)
 
+        list_files = []
 
+        cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
+        sequence_list = self.get_list_sequence_folders(cmd)
 
+        if len(sequence_list) > 0:
+            for sequence in sequence_list:
+                #print(sequence)
+                insitu_time = dt.strptime(sequence[3:], '%Y%m%dT%H%M%S')
+                if sat_time_min <= insitu_time <= sat_time_max:
+                    cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/{sequence}/*.nc'
+                    list_files = self.get_list_files(cmd)
+                    for file in list_files:
+                        if file.find(level) > 0:
+                            #print(file)
+                            list_files.append(file)
+
+        return list_files
 
     def check_ssh(self):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
@@ -104,7 +108,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 pass
         return listd
 
-    def get_list_sequence_folders(self,cmd):
+    def get_list_sequence_folders(self, cmd):
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         out, err = prog.communicate()
         list = out.decode('utf-8').split('\n')
@@ -117,7 +121,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 pass
         return listd
 
-    def get_list_files(self,cmd):
+    def get_list_files(self, cmd):
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         out, err = prog.communicate()
         list = out.decode('utf-8').split('\n')
