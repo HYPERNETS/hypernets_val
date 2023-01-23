@@ -22,7 +22,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.start_add_insitu(extract_path, ofile)
         print('NEW MDB NO DEBERIA SER NONE', self.new_mdb)
 
-    def get_files(self,site, sat_time):
+    def get_files(self, sat_time):
+        site = self.mdb_options.param_insitu['station_name']
         pathbase = self.mdb_options.insitu_path_source
         if pathbase.split('/')[-1]!=site:
             pathbase = os.path.join(pathbase,site)
@@ -33,7 +34,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if not os.path.exists(path_day):
             return None
 
-    def create_path_day(self,site,time):
+    def create_path_day(self,time):
+        site = self.mdb_options.param_insitu['station_name']
         pathbase = self.mdb_options.insitu_path_source
         if pathbase.split('/')[-1] == site:
             path_site = pathbase
@@ -57,8 +59,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
 
 
-    def get_files_day_ssh(self, sitename, sat_time):
-
+    def get_files_day_ssh(self, sat_time):
+        sitename = self.mdb_options.param_insitu['station_name']
         level = 'L2A'
         year_str = sat_time.strftime('%Y')
         month_str = sat_time.strftime('%m')
@@ -86,9 +88,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         return list_files_d
 
     def transfer_files_ssh(self,list_files_d):
+        site = self.mdb_options.param_insitu['station_name']
         for insitu_time_str in list_files_d:
             insitu_time = dt.strptime(insitu_time_str, '%Y%m%dT%H%M%S')
-            path_day = self.create_path_day(insitu_time)
+            path_day = self.create_path_day(site,insitu_time)
             input_path = list_files_d[insitu_time_str]
             name = input_path.split('/')[-1]
             output_path = os.path.join(path_day,name)
