@@ -21,10 +21,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
     def check_ssh(self):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
-        print(cmd)
         try:
-            output = subprocess.check_output(cmd, shell = True,stderr=subprocess.STDOUT, timeout=10)
-            print(output)
+            subprocess.check_output(cmd, shell = True,stderr=subprocess.STDOUT, timeout=10)
             return True
         except:
             print(f'[ERROR] Access to {self.url_base} via ssh is not allowed')
@@ -42,6 +40,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 list_month = self.get_list_folder_dates(cmd)
                 if len(list_month)>0:
                     for m in list_month:
+                        print(f'[INFO] Checking dates via SSH. Year: {y} Month: {m}')
                         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{y}/{m}'
                         list_days = self.get_list_folder_dates(cmd)
                         if len(list_days)>0:
