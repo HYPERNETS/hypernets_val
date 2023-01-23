@@ -49,11 +49,11 @@ class SAT_EXTRACTS_LIST:
             if ac is None:
                 dataset.close()
                 continue
-            sensor = self.check_sensor(dataset,self.boptions['sensor'])
+            sensor = self.check_sensor(dataset,self.boptions.param_sat['sensor'])
             if sensor is None:
                 dataset.close()
                 continue
-            resolution = self.check_resolution(name,dataset,self.boptions['resolution'])
+            resolution = self.check_resolution(name,dataset,self.boptions.param_sat['resolution'])
             if resolution is None:
                 dataset.close()
                 continue
