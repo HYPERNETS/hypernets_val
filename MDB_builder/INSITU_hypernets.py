@@ -19,6 +19,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.CHECK_SSH = self.check_ssh()
 
     def add_insitu(self, extract_path, ofile):
+
         self.start_add_insitu(extract_path, ofile)
         print('NEW MDB NO DEBERIA SER NONE', self.new_mdb)
 
@@ -27,8 +28,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         level = 'L2A'
 
         pathbase = self.mdb_options.insitu_path_source
-        if pathbase.split('/')[-1]!=site:
-            pathbase = os.path.join(pathbase,site)
+        if pathbase.split('/')[-1] != site:
+            pathbase = os.path.join(pathbase, site)
         year_str = sat_time.strftime('%Y')
         month_str = sat_time.strftime('%m')
         day_str = sat_time.strftime('%d')
@@ -38,29 +39,28 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         list_files = []
         for name in os.listdir(path_day):
-            if name.endswith('.nc') and name.find(level)>0:
-                list_files.append(os.path.join(path_day,name))
-        if len(list_files)==0:
+            if name.endswith('.nc') and name.find(level) > 0:
+                list_files.append(os.path.join(path_day, name))
+        if len(list_files) == 0:
             return None
 
         return list_files
 
-
-    def create_path_day(self,time):
+    def create_path_day(self, time):
         site = self.mdb_options.param_insitu['station_name']
         pathbase = self.mdb_options.insitu_path_source
         if pathbase.split('/')[-1] == site:
             path_site = pathbase
         else:
-            path_site = os.path.join(pathbase,site)
+            path_site = os.path.join(pathbase, site)
             if not os.path.exists(path_site):
                 os.mkdir(path_site)
         year_str = time.strftime('%Y')
-        path_year = os.path.join(path_site,year_str)
+        path_year = os.path.join(path_site, year_str)
         if not os.path.exists(path_year):
             os.mkdir(path_year)
         month_str = time.strftime('%m')
-        path_month = os.path.join(path_year,month_str)
+        path_month = os.path.join(path_year, month_str)
         if not os.path.exists(path_month):
             os.mkdir(path_month)
         day_str = time.strftime('%d')
@@ -69,9 +69,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             os.mkdir(path_day)
         return path_day
 
-
-
-    def get_files_day_ssh(self, sat_time):
+    def get_files_day_ssh(self, sat_time, dotransfer):
         sitename = self.mdb_options.param_insitu['station_name']
         level = 'L2A'
         year_str = sat_time.strftime('%Y')
@@ -96,17 +94,19 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                     for file in list_files:
                         if file.find(level) > 0:
                             list_files_d[insitu_time_str] = file
+            if len(list_files_d) > 0 and dotransfer:
+                self.transfer_files_ssh(list_files)
 
         return list_files_d
 
-    def transfer_files_ssh(self,list_files_d):
-        #site = self.mdb_options.param_insitu['station_name']
+    def transfer_files_ssh(self, list_files_d):
+        # site = self.mdb_options.param_insitu['station_name']
         for insitu_time_str in list_files_d:
             insitu_time = dt.strptime(insitu_time_str, '%Y%m%dT%H%M%S')
             path_day = self.create_path_day(insitu_time)
             input_path = list_files_d[insitu_time_str]
             name = input_path.split('/')[-1]
-            output_path = os.path.join(path_day,name)
+            output_path = os.path.join(path_day, name)
             print(f'[INFO] Transfering file: {input_path} to {output_path}')
             cmd = f'{self.rsync_base}{input_path} {output_path}'
             prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)

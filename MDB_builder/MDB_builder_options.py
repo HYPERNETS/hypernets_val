@@ -167,6 +167,26 @@ class MDBBuilderOptions:
             'prefix': prefix
         }
 
+    def get_mdb_extract_path(self,path_extract,ins_sensor):
+        filename = f'MDB_{ins_sensor}_{path_extract}'
+        outputpath = os.path.join(self.path_out,'MDB_EXTRACTS')
+        if not os.path.exists(outputpath):
+            os.mkdir(outputpath)
+        filepath = os.path.join(outputpath,filename)
+        return filepath
+
+    def get_mdb_path(self,sat_extract_info,ins_sensor):
+        datetime_str = sat_extract_info['time']
+        sensor_str = sat_extract_info['sensor']
+        station_name = sat_extract_info['site']
+        resolution = sat_extract_info['resolution']
+        platform = sat_extract_info['satellite']+sat_extract_info['platform']
+        from datetime import datetime as dt
+        datetime_creation = dt.now().strftime('%Y%m%dT%H%M%S')
+        filename = f'MDB_{platform}_{sensor_str}_{resolution}_{datetime_str}_{datetime_creation}_{ins_sensor}_{station_name}_extract.nc'
+        filepath = os.path.join(self.path_out,filename)
+        return filename
+
     def get_dates(self):
         if self.options['Time_and_sites_selection']['time_start']:
             self.start_date = dt.strptime(self.options['Time_and_sites_selection']['time_start'], '%Y-%m-%d').replace(

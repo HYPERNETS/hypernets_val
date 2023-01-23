@@ -66,18 +66,23 @@ def main():
 
     ##checking in situ files
     ihd = INSITU_HYPERNETS_DAY(mo)
+    ins_sensor = 'HYPSTAR'
     for extract in extract_list:
+        print(f'[INFO] Working with extract file: {extract} --------------------------------------------------------------')
         date_here_str = extract_list[extract]['time']
         date_here = dt.strptime(date_here_str,'%Y%m%dT%H%M%S')
         insitu_files = ihd.get_insitu_files(date_here)
         if insitu_files is None:
-            list_files = ihd.get_files_day_ssh(date_here)
-            if len(list_files)>0:
-                ihd.transfer_files_ssh(list_files)
-                insitu_files = ihd.get_insitu_files(date_here)
+            ihd.get_files_day_ssh(date_here,True)
+            insitu_files = ihd.get_insitu_files(date_here)
 
         if not insitu_files is None:
-            print('estamos aqui')
+            ninsitu = len(insitu_files)
+            print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
+            ofile = mo.get_mdb_extract_path(extract,ins_sensor)
+            ihd.start_add_insitu(extract_list[extract]['path'],ofile)
+
+
 
 
 

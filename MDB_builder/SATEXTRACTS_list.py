@@ -65,7 +65,7 @@ class SAT_EXTRACTS_LIST:
                 'sensor':sensor,
                 'platform':platform,
                 'ac':ac,
-                'resolution':resolution,
+                'resolution':resolution
             }
             nadded = nadded +1
 
