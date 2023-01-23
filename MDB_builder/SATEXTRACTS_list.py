@@ -19,7 +19,7 @@ class SAT_EXTRACTS_LIST:
         sat_list = {}
 
 
-        print(self.boptions.param_sat)
+        #print(self.boptions.param_sat)
 
         for name in os.listdir(sat_extract_dir):
             if not name.endswith('.nc'):
@@ -40,7 +40,7 @@ class SAT_EXTRACTS_LIST:
             if site_here is None:
                 dataset.close()
                 continue
-            platform = self.check_platform(dataset,self.boptions.param_sat['sat_platform'])
+            platform = self.check_platform(dataset,self.boptions.param_sat['platform'])
             if platform is None:
                 dataset.close()
                 continue
