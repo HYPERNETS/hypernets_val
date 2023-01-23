@@ -45,12 +45,13 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         if len(sequence_list) > 0:
             for sequence in sequence_list:
-                #print(sequence)
+                print(sequence)
                 insitu_time = dt.strptime(sequence[3:], '%Y%m%dT%H%M%S')
                 if sat_time_min <= insitu_time <= sat_time_max:
                     cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/{sequence}/*.nc'
                     list_files = self.get_list_files(cmd)
                     for file in list_files:
+                        print(file,type(file))
                         if file.find(level) > 0:
                             #print(file)
                             list_files.append(file)

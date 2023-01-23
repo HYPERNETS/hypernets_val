@@ -63,7 +63,7 @@ def main():
     ##retrieving sat extract list
     slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
-    print(extract_list)
+
     ##checking in situ files
     ihd = INSITU_HYPERNETS_DAY(mo)
     for extract in extract_list:
