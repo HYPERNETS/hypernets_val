@@ -4,6 +4,7 @@ from datetime import datetime as dt
 from datetime import timedelta
 
 
+
 class INSITU_HYPERNETS_DAY(INSITUBASE):
 
     def __init__(self, mdb_options):
@@ -79,9 +80,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
     # def add_insitu(self, extract_path, ofile):
     #     self.start_add_insitu(extract_path, ofile)
 
-    def create_mdb_insitu_extract(self,extract_path,ofile):
-        self.start_add_insitu(extract_path,ofile)
+    def create_mdb_insitu_extract(self, extract_path, ofile):
+        self.start_add_insitu(extract_path, ofile)
         self.add_new_variables()
+
     def add_new_variables(self):
         for var_name in self.insitu_extract_variables:
             type = self.insitu_extract_variables[var_name]['type']
@@ -91,15 +93,33 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                     continue
                 var.setncattr(at, self.insitu_extract_variables[var_name][at])
         for var_name in self.insitu_spectral_variables:
-            type = self.insitu_extract_variables[var_name]['type']
+            type = self.insitu_spectral_variables[var_name]['type']
             var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_original_bands', 'insitu_id'),
                                               zlib=True, complevel=6)
-            for at in self.insitu_extract_variables[var_name]:
+            for at in self.insitu_spectral_variables[var_name]:
                 if at == 'type' or at == 'name_orig':
                     continue
-                var.setncattr(at, self.insitu_extract_variables[var_name][at])
+                var.setncattr(at, self.insitu_spectral_variables[var_name][at])
+        # self.new_MDB.close()
+        print('[INFO] Added new variables')
+
+    def set_data(self,inputpath,insitu_idx,sat_time):
+        from netCDF4 import Dataset
+        nc_ins = Dataset(inputpath)
+        file_name = inputpath.split('/')[-1]
+        insitu_time_f = float(nc_ins.variables['acquisition_time'][0])
+        insitu_time = dt.fromtimestamp(insitu_time_f)
+        time_diff = float(abs((sat_time-insitu_time).total_seconds())/3600)
+        print(inputpath,insitu_time,time_diff)
+        self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
+        self.new_MDB.variables['time_difference'][0, insitu_idx] = insitu_time_f
+        self.new_MDB.variables['insitu_filename'][0, insitu_idx] = file_name
+        if insitu_idx==0:
+            self.new_MDB.variables['insitu_original_bands'][:] = [nc_ins.variables['wavelength'][:]]
+
+    def close_mdb(self):
         self.new_MDB.close()
-        print('DONE')
+
 
     def get_insitu_files(self, sat_time):
         site = self.mdb_options.param_insitu['station_name']

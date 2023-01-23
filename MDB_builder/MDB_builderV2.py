@@ -81,6 +81,10 @@ def main():
             print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
             ofile = mo.get_mdb_extract_path(extract,ins_sensor)
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'],ofile)
+            for idx in ninsitu:
+                insitu_file = insitu_files[idx]
+                ihd.set_data(insitu_file,idx,date_here)
+            ihd.close_mdb()
 
 
 
