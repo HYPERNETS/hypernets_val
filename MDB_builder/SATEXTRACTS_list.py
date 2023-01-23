@@ -19,7 +19,7 @@ class SAT_EXTRACTS_LIST:
         sat_list = {}
 
 
-        print(self.boptioins.param_sat)
+        print(self.boptions.param_sat)
 
         for name in os.listdir(sat_extract_dir):
             if not name.endswith('.nc'):
