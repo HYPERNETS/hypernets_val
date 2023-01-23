@@ -14,7 +14,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.base_folder = '/home/hypstar/'
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
-        self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.urlbase}:{self.base_folder}'
+        self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'
 
         self.CHECK_SSH = self.check_ssh()
 
