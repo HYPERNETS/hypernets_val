@@ -8,7 +8,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
     def __init__(self, mdb_options):
         self.mdb_options = mdb_options
-        self.new_mdb = None
+        self.new_MDB = None
 
         self.url_base = 'hypstar@enhydra.naturalsciences.be'
         self.base_folder = '/home/hypstar/'
@@ -18,10 +18,86 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         self.CHECK_SSH = self.check_ssh()
 
+        self.insitu_extract_variables = {
+            'insitu_quality_flag':{
+                'name_orig':'quality_flag',
+                'type': 'u4',
+                'standard_name':'quality_flag',
+                'long_name':'A variable with the standard name of quality_flag contains an indication of assessed '
+                            'quality information of another data variable. The linkage between the data variable and '
+                            'the variable or variables with the standard_name of quality_flag is achieved using the '
+                            'ancillary_variables attribute.',
+                'flag_meanings':'saturation nonlinearity bad_pointing placeholder1 lon_default lat_default outliers '
+                                'L0_thresholds L0_discontinuity dark_outliers vza_irradiance clear_sky_irradiance '
+                                'angles_missing lu_eq_missing fresnel_angle_missing fresnel_default '
+                                'temp_variability_ed temp_variability_lu min_nbred min_nbrlu min_nbrlsky '
+                                'def_wind_flag simil_fail',
+                'flag_mask':'1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, '
+                            '131072, 262144, 524288, 1048576, 2097152, 4194304 '
+            },
+            'insitu_azimuth_angle':{
+                'name_orig':'viewing_azimuth_angle',
+                'type': 'f4',
+                'standard_name':'sensor_azimuth_angle',
+                'long_name':'sensor_azimuth_angle is the horizontal angle between the line of sight from the '
+                            'observation point to the sensor and a reference direction at the observation point, '
+                            'which is often due north. The angle is measured clockwise positive, starting from the '
+                            'reference direction. A comment attribute should be added to a data variable with this '
+                            'standard name to specify the reference direction.',
+                'units':'degrees',
+                'reference': 'True North',
+                'preferred_symbol': 'vaa',
+            },
+            'insitu_zenith_angle':{
+                'name_orig': 'viewing_zenith_angle',
+                'type':'f4',
+                'standard_name': 'sensor_zenith_angle',
+                'long_name': 'sensor_zenith_angle is the angle between the line of sight to the sensor and the local '
+                             'zenith at the observation target. This angle is measured starting from directly '
+                             'overhead and its range is from zero (directly overhead the observation target) to 180 '
+                             'degrees (directly below the observation target). Local zenith is a line perpendicular '
+                             'to the Earth\'s surface at a given location. \'Observation target\' means a location on '
+                             'the Earth defined by the sensor performing the observations.',
+                'units': 'degrees',
+                'preferred_symbol': 'vza',
+
+            }
+
+        }
+        self.insitu_spectral_variables = {
+            'insitu_rrs_nosc':{
+                'name_orig':'reflectance_nosc',
+                'type': 'f4',
+                'preferred_symbol':'rhow_nosc',
+                'standard_name': 'water_leaving_reflectance_nosc',
+                'long_name':'Reflectance of the water column at the surface without correction for the NIR similarity spectrum (see Ruddick et al., 2006)',
+                'units':'-'
+
+            }
+        }
+
     def add_insitu(self, extract_path, ofile):
 
         self.start_add_insitu(extract_path, ofile)
-        print('NEW MDB NO DEBERIA SER NONE', self.new_mdb)
+        print('NEW MDB NO DEBERIA SER NONE', self.new_MDB)
+        for var_name in self.insitu_extract_variables:
+            type = self.insitu_extract_variables[var_name,'type']
+            var = self.new_MDB.createVariable(var_name,type,('satellite_id', 'insitu_id'), zlib=True,complevel=6)
+            for at in self.insitu_extract_variables[var_name]:
+                if at=='type' or at=='name_orig':
+                    continue
+                var.setncattr(at,self.insitu_extract_variables[var_name][at])
+        for var_name in self.insitu_spectral_variables:
+            type = self.insitu_extract_variables[var_name, 'type']
+            var = self.new_MDB.createVariable(var_name, type, ('satellite_id','insitu_original_bands', 'insitu_id'), zlib=True, complevel=6)
+            for at in self.insitu_extract_variables[var_name]:
+                if at == 'type' or at == 'name_orig':
+                    continue
+                var.setncattr(at, self.insitu_extract_variables[var_name][at])
+        self.new_MDB.close()
+        print('DONE')
+
+
 
     def get_insitu_files(self, sat_time):
         site = self.mdb_options.param_insitu['station_name']
