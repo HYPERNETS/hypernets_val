@@ -91,7 +91,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         site = self.mdb_options.param_insitu['station_name']
         for insitu_time_str in list_files_d:
             insitu_time = dt.strptime(insitu_time_str, '%Y%m%dT%H%M%S')
-            path_day = self.create_path_day(site,insitu_time)
+            path_day = self.create_path_day(insitu_time)
             input_path = list_files_d[insitu_time_str]
             name = input_path.split('/')[-1]
             output_path = os.path.join(path_day,name)
