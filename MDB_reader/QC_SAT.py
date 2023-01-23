@@ -232,6 +232,9 @@ class QC_SAT:
 
         return CHECK
 
+
+
+
     def get_match_up_values(self, index_mu):
         self.prepare_new_match_up()
         cond_min_pixels = self.compute_masks_and_check_roi(index_mu)

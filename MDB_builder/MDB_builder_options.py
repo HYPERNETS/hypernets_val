@@ -129,9 +129,9 @@ class MDBBuilderOptions:
         prefix = None
         if self.options.has_option('satellite_options', 'sensor'):
             sat_sensor = self.options['satellite_options']['sensor']
-        if self.options.has_section('satellite_options', 'satellite'):
+        if self.options.has_option('satellite_options', 'satellite'):
             sat_satellite = self.options['satellite_options']['satellite']
-        if self.options.has_section('satellite_options', 'platform'):
+        if self.options.has_option('satellite_options', 'platform'):
             sat_platform = self.options['satellite_options']['platform']
         if self.options.has_option('satellite_options', 'resolution'):
             sat_res = self.options['satellite_options']['resolution']
@@ -140,8 +140,8 @@ class MDBBuilderOptions:
         if self.options.has_option('satellite_options', 'prefix'):
             prefix = self.options['satellite_options']['prefix']
         else:
-            if sat_satellite.upper() == 'S3' and (
-                    sat_platform.upper().startswith('A') or sat_platform.upper().startswith('B')):
+            if (sat_satellite.upper() == 'S3' or sat_satellite.upper() == 'SENTINEL-3') and \
+                    (sat_platform.upper().startswith('A') or sat_platform.upper().startswith('B')):
                 prefix = f'{sat_satellite}{sat_platform}'  # wild card expression
             elif atm_corr == 'OLCI-L3':
                 prefix = f'CMEMS2_O'
@@ -186,9 +186,10 @@ class MDBBuilderOptions:
             station_name = self.param_insitu['station_name']
             if self.insitu_type == 'HYPERNETS':
                 hday = INSITU_HYPERNETS_DAY(None)
-                sday, eday = hday.get_start_and_end_dates(station_name)
-                if sday is not None and eday is not None:
-                    if sday > self.start_date:
-                        self.start_date = sday.replace(hour=0, minute=0, second=0, microsecond=0)
-                    if eday < self.end_date:
-                        self.end_date = eday.replace(hour=23, minute=59, second=59)
+                if hday.CHECK_SSH:
+                    sday, eday = hday.get_start_and_end_dates(station_name)
+                    if sday is not None and eday is not None:
+                        if sday > self.start_date:
+                            self.start_date = sday.replace(hour=0, minute=0, second=0, microsecond=0)
+                        if eday < self.end_date:
+                            self.end_date = eday.replace(hour=23, minute=59, second=59)

@@ -900,6 +900,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 satellite_chl_oc4me.description = 'Satellite Chlorophyll-a concentration from OC4ME.'
 
             # AOT
+            if args.verbose:
+                print('Adding AOT...')
             satellite_AOT_0865p50_box = new_EXTRACT.createVariable('satellite_AOT_0865p50', 'f4',
                                                                    ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                                    zlib=True, complevel=6)
@@ -907,6 +909,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
 
             # WQSF: Quality Flags
+            if args.verbose:
+                print('Adding WQSF flags...')
             satellite_WQSF = new_EXTRACT.createVariable('satellite_WQSF', 'f4', ('satellite_id', 'rows', 'columns'),
                                                         fill_value=-999, zlib=True, complevel=6)
             satellite_WQSF[0, :, :] = [ma.array(WQSF[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])]
@@ -916,6 +920,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
 
             #in situ info
             if insitu_info is not None:
+                if args.verbose:
+                    print('Adding in situ info...')
                 insitu_lat_here = insitu_info[0]
                 insitu_lon_here = insitu_info[1]
                 insitu_time_here = insitu_info[2]
@@ -1212,10 +1218,16 @@ def main():
             insitu_info = [lathere, lonhere, insitu_time]
             for id in range(len(fproducts)):
                 path_product = fproducts[id]
+                if args.verbose:
+                    print('---------------------------------------------------')
+                    print(f'DATE: {datehere}')
+                    print(f'GRANULE: {path_product}')
                 res_str = path_product.split('/')[-1].split('_')[3]
                 ids = f'{idx}_{id}'
                 ofname = create_extract(size_box, ids, path_product, path_out, lathere, lonhere, res_str, make_brdf,insitu_info)
                 if ofname is not None:
+                    if args.verbose:
+                        print(f'Sat extract {ofname} was created')
                     ncreated = ncreated + 1
         print('------------------------------')
         print(f'COMPLETED. {ncreated} sat extract files were created')

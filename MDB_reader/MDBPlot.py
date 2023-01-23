@@ -15,7 +15,7 @@ from PlotScatter import PlotScatter
 from datetime import datetime as dt
 import seaborn as sns
 from scipy.stats import gaussian_kde
-#from pylr2 import regress2
+# from pylr2 import regress2
 from sklearn.metrics import r2_score
 
 
@@ -125,7 +125,7 @@ class MDBPlot:
                 xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
                 plot.plot_data(xhere, yhere, None, 25, z, None, None)
             except:
-                plot.plot_data(xhere,yhere,None,25,'black',None,None)
+                plot.plot_data(xhere, yhere, None, 25, 'black', None, None)
 
             plot.set_cmap('jet')
 
@@ -284,7 +284,7 @@ class MDBPlot:
             plt.savefig(file_out, dpi=300)
 
     def plot_spectra_plot(self, title, legend, file_out):
-        #print('-------------------------------->', )
+        # print('-------------------------------->', )
         plt.close()
         plt.figure()
         if not legend is None:
@@ -296,21 +296,21 @@ class MDBPlot:
             #         mec='gray')
 
             ##new method
-            df_param = pd.DataFrame(index=range(len(self.xdata)),columns=['Platform','Wavelength',self.ylabel])
+            df_param = pd.DataFrame(index=range(len(self.xdata)), columns=['Platform', 'Wavelength', self.ylabel])
 
-            df_param['Wavelength'] = pd.Series(self.xdata,dtype=np.float)
+            df_param['Wavelength'] = pd.Series(self.xdata, dtype=np.float)
             df_param['Platform'] = f'{self.satellite}{self.platform}'
             ydatahere = np.transpose(self.ydata)
 
             for idx in range(len(ydatahere)):
                 ypoint = ydatahere.iloc[idx].iat[0]
-                df_param.at[idx,self.ylabel] = ypoint
+                df_param.at[idx, self.ylabel] = ypoint
 
-            dashes = [''] #* len(ydatahere)
-            markers = ['o'] #* len(ydatahere)
+            dashes = ['']  # * len(ydatahere)
+            markers = ['o']  # * len(ydatahere)
             sns.set_theme()
-            sns.relplot(kind='line', data=df_param, x="Wavelength", y=self.ylabel, markers=markers,dashes=dashes,style="Platform",legend=False)
-
+            sns.relplot(kind='line', data=df_param, x="Wavelength", y=self.ylabel, markers=markers, dashes=dashes,
+                        style="Platform", legend=False)
 
         plt.xlabel(self.xlabel, fontsize=12)
         plt.ylabel(self.ylabel, fontsize=12)
@@ -575,7 +575,7 @@ class MDBPlot:
 
         self.title = title
 
-        fout = os.path.join(path_out,f'{name}.jpg')
+        fout = os.path.join(path_out, f'{name}.jpg')
 
         mu_sat_time = dfmu.iloc[0].at['Sat_Time']
         mu_insitu_time = dfmu.iloc[0].at['Ins_Time']
@@ -583,9 +583,9 @@ class MDBPlot:
         legend = [f"S3{platform}-{mu_sat_time}",
                   f"Hypstar-{mu_insitu_time}"]
 
-        self.plot_spectra_plot(title,legend,fout)
+        self.plot_spectra_plot(title, legend, fout)
 
-    def plot_all_spectra_mu(self,path_out):
+    def plot_all_spectra_mu(self, path_out):
         dfval = self.get_df_val()
         if dfval is None:
             return
@@ -779,8 +779,8 @@ class MDBPlot:
         self.mfile.df_validation.to_csv(file_data, sep=';')
         file_data_valid = os.path.join(path_out, 'DataValid.csv')
         self.mfile.df_validation_valid.to_csv(file_data_valid, sep=';')
-        file_mu = os.path.join(path_out,'MUData.csv')
-        self.mfile.df_mu.to_csv(file_mu,sep=';')
+        file_mu = os.path.join(path_out, 'MUData.csv')
+        self.mfile.df_mu.to_csv(file_mu, sep=';')
         self.plot_all_scatter_plot(path_out)
         self.plot_wavelenght_scatter_plots(path_out, None)
         self.compute_all_statistics(None)

@@ -64,7 +64,7 @@ class MDBInSituFile:
             self.sat_times = []
             for st in self.variables['satellite_time']:
                 #self.sat_times.append(datetime(1970, 1, 1) + timedelta(seconds=int(st)))
-                sat_time_here = datetime.fromtimestamp(float(st))
+                sat_time_here = datetime.utcfromtimestamp(float(st))
                 self.sat_times.append(sat_time_here)
             # self.pdus = []
             # for st in self.variables['satellite_PDU']:
@@ -72,6 +72,7 @@ class MDBInSituFile:
             self.insitu_times = []
             self.insitu_lats = []
             self.insitu_lons = []
+            self.pdus = []
             if 'insitu_time' in self.variables:
                 for st in self.variables['insitu_time']:
                     self.insitu_times.append(datetime(1970, 1, 1) + timedelta(seconds=float(st)))
@@ -81,6 +82,10 @@ class MDBInSituFile:
             if 'insitu_longitude' in self.variables:
                 for st in self.variables['insitu_longitude']:
                     self.insitu_lons.append(float(st))
+            if 'satellite_PDU' in self.variables:
+                for st in self.variables['satellite_PDU']:
+                    #print('--------------------------------------------->',st)
+                    self.pdus.append(st)
 
 
             self.start_date = self.sat_times[0]
@@ -237,6 +242,27 @@ class MDBInSituFile:
         is_mu_valid = True
         return is_mu_valid, status
 
+    def get_angle_values(self,index_mu):
+        oza = -999
+        oaa = -999
+        sza = -999
+        saa = -999
+        if 'OZA' in self.variables:
+            oza_window = np.array(self.variables['OZA'][index_mu])
+            oza = np.mean(oza_window)
+        if 'OAA' in self.variables:
+            oaa_window = np.array(self.variables['OAA'][index_mu])
+            oaa = np.mean(oaa_window)
+        if 'SAA' in self.variables:
+            saa_window = np.array(self.variables['SAA'][index_mu])
+            saa = np.mean(saa_window)
+        if 'SZA' in self.variables:
+            sza_window = np.array(self.variables['SZA'][index_mu])
+            sza = np.mean(sza_window)
+
+        return oza,oaa,sza,saa
+
+
     def prepare_df_validation(self):
         print('[INFO] Preparing DF for validation...')
         ntot = self.n_mu_total
@@ -304,6 +330,10 @@ class MDBInSituFile:
         for wl in self.wlref:
             wls = '{0:3.0f}'.format(wl)
             self.col_names.append(f'{wls}')
+        self.col_names.append('Image')
+        angle_names = ['OZA','OAA','SZA','SAA']
+        for angle_name in angle_names:
+            self.col_names.append(angle_name)
         self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
         nmu_valid = 0
 
@@ -314,11 +344,12 @@ class MDBInSituFile:
             if valid_mu:
                 nmu_valid = nmu_valid + 1
             self.mu_sat_time = self.sat_times[index_mu]
-            self.mu_sat_time = self.mu_sat_time.replace(hour=12,minute=0,second=0)
+            #self.mu_sat_time = self.mu_sat_time.replace(hour=12,minute=0,second=0)
             insitu_time = self.insitu_times[index_mu]
             time_dif = abs((self.mu_sat_time-insitu_time).total_seconds())/3600
             ins_lat = self.insitu_lats[index_mu]
             ins_lon = self.insitu_lons[index_mu]
+            pdu_here = self.pdus[index_mu]
             row = {
                 'Index_MU': [index_mu],
                 'Sat_Time': [self.mu_sat_time.strftime('%Y-%m-%d %H:%M')],
@@ -333,6 +364,14 @@ class MDBInSituFile:
                 wls = '{0:3.0f}'.format(wl)
                 rrsvalue = values[idx]
                 row[wls] = [rrsvalue]
+            row['Image'] = [pdu_here]
+            oza, oaa, sza, saa = self.get_angle_values(index_mu)
+            row['OZA'] = [oza]
+            row['OAA'] = [oaa]
+            row['SZA'] = [sza]
+            row['SAA'] = [saa]
+
+
             self.df_validation.iloc[index_mu] = pd.DataFrame.from_dict(row)
 
         self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]

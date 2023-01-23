@@ -48,7 +48,7 @@ def main():
         ##make_simple_builder(options, satellite_path_source, path_out)
 
     ##sat extracts options
-    mo.get_param_sat_extracts(options)
+    mo.get_param_sat_extracts()
 
     ##dates
     mo.get_dates()
@@ -56,6 +56,8 @@ def main():
     if args.verbose:
         print(f'[INFO] Start date for MDB_builder:{mo.start_date}')
         print(f'[INFO] End date for MDB_builder: {mo.end_date}')
+
+    ##retrieving sat extract list
 
 
 # %%

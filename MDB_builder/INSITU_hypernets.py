@@ -13,6 +13,22 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
 
+        self.CHECK_SSH = self.check_ssh()
+
+    def add_insitu(self,extract_path,ofile):
+        self.start_add_insitu(extract_path,ofile)
+        print('NEW MDB NO DEBERIA SER NONE',self.new_mdb)
+
+    def check_ssh(self):
+        cmd = f'{self.ssh_base} {self.url_base} ls'
+        try:
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=10)
+            return True
+        except:
+            print(f'[ERROR] Access to {self.url_base} via ssh is not allowed')
+            return False
+
+
     def get_start_and_end_dates(self,sitename):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}'
         list_year = self.get_list_folder_dates(cmd)
