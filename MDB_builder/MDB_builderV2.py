@@ -3,6 +3,8 @@ import argparse
 import configparser
 from MDB_builder_options import MDBBuilderOptions
 from SATEXTRACTS_list import SAT_EXTRACTS_LIST
+from INSITU_hypernets import INSITU_HYPERNETS_DAY
+from datetime import datetime as dt
 
 parser = argparse.ArgumentParser(
     description="Create Match-up DataBase files (MDB) files from satellite extracts and in situ L2 files.")
@@ -59,8 +61,16 @@ def main():
         print(f'[INFO] End date for MDB_builder: {mo.end_date}')
 
     ##retrieving sat extract list
-    slist = SAT_EXTRACTS_LIST(mo,args.verbose)
+    slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
+
+    ##checking in situ files
+    ihd = INSITU_HYPERNETS_DAY(mo)
+    for extract in extract_list:
+        date_here_str = extract_list[extract]['time']
+        date_here = dt.strptime('%Y%m%dT%H%M%S')
+        ihd.get_sequence_folders_day(extract_list[extract]['site'],date_here)
+
 
 
 # %%

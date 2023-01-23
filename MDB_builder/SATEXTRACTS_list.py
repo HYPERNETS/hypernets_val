@@ -65,7 +65,7 @@ class SAT_EXTRACTS_LIST:
                 'sensor':sensor,
                 'platform':platform,
                 'ac':ac,
-                'resolution':resolution
+                'resolution':resolution,
             }
 
         return sat_list
@@ -79,7 +79,7 @@ class SAT_EXTRACTS_LIST:
 
     def check_resolution(self,fname,dataset,res_name):
         res_here = None
-        if 'resolution' in dataset.ncattrs:
+        if 'resolution' in dataset.ncattrs():
             res_here = dataset.resolution
         if res_here is None:
             if fname.find(res_name)>0:
@@ -97,7 +97,7 @@ class SAT_EXTRACTS_LIST:
 
     def check_sensor(self,dataset,sensor_name):
         sensor_here = None
-        if 'sensor' in dataset.ncattrs:
+        if 'sensor' in dataset.ncattrs():
             sensor_here = dataset.sensor
         if sensor_here is None:
             print(f'[WARNING] Sensor set to {sensor_name} despite of not being defined in the extract file')

@@ -1,6 +1,7 @@
 from INSITU_base import INSITUBASE
-import subprocess
+import subprocess,os
 from datetime import datetime as dt
+from datetime import timedelta
 
 
 class INSITU_HYPERNETS_DAY(INSITUBASE):
@@ -15,50 +16,78 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         self.CHECK_SSH = self.check_ssh()
 
-    def add_insitu(self,extract_path,ofile):
-        self.start_add_insitu(extract_path,ofile)
-        print('NEW MDB NO DEBERIA SER NONE',self.new_mdb)
+
+    def add_insitu(self, extract_path, ofile):
+        self.start_add_insitu(extract_path, ofile)
+        print('NEW MDB NO DEBERIA SER NONE', self.new_mdb)
+
+    def get_files(self,sat_time):
+        pathbase = self.mdb_options.insitu_path_source
+        year_str = sat_time.strftime('%Y')
+        month_str = sat_time.strftime('%m')
+        day_str = sat_time.strftime('%d')
+        path_day = os.path.join(pathbase,year_str,month_str,day_str)
+        if not os.path.exists(path_day):
+            return None
+
+    def get_sequence_folders_day(self,sitename,sat_time):
+        year_str = sat_time.strftime('%Y')
+        month_str = sat_time.strftime('%m')
+        day_str = sat_time.strftime('%d')
+        cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
+        sequence_list = self.get_list_folder_dates(cmd)
+        sat_time_min = sat_time - timedelta(hours=3)
+        sat_time_max = sat_time + timedelta(hours=3)
+        for sequence in sequence_list:
+            insitu_time = dt.strptime(sequence[3:],'%Y%m%dT%H%M%S')
+            if insitu_time>=sat_time_min and insitu_time<=sat_time_max:
+                cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/{sequence}/*.nc'
+                list_files = self.get_list_folder_dates(cmd)
+                for file in list_files:
+                    print(file)
+
+
+
 
     def check_ssh(self):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
         try:
-            subprocess.check_output(cmd, shell = True,stderr=subprocess.STDOUT, timeout=10)
+            subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=10)
             return True
         except:
             print(f'[ERROR] Access to {self.url_base} via ssh is not allowed')
             return False
 
-
-    def get_start_and_end_dates(self,sitename):
+    def get_start_and_end_dates(self, sitename):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}'
         list_year = self.get_list_folder_dates(cmd)
         start_date = None
         end_date = None
-        if len(list_year)>0:
+        if len(list_year) > 0:
             for y in list_year:
                 cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{y}'
                 list_month = self.get_list_folder_dates(cmd)
-                if len(list_month)>0:
+                if len(list_month) > 0:
                     for m in list_month:
                         print(f'[INFO] Checking dates via SSH. Year: {y} Month: {m}')
                         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{y}/{m}'
                         list_days = self.get_list_folder_dates(cmd)
-                        if len(list_days)>0:
+                        if len(list_days) > 0:
                             for d in list_days:
                                 datehere_str = f'{y}{m}{d}'
-                                datehere = dt.strptime(datehere_str,'%Y%m%d')
+                                datehere = dt.strptime(datehere_str, '%Y%m%d')
                                 if start_date is None:
                                     start_date = datehere
                                     end_date = datehere
                                 else:
-                                    if datehere<start_date:
+                                    if datehere < start_date:
                                         start_date = datehere
-                                    if datehere>end_date:
+                                    if datehere > end_date:
                                         end_date = datehere
 
-        return start_date,end_date
+        return start_date, end_date
 
-    def get_list_folder_dates(self,cmd):
+    def get_list_folder_dates(self, cmd):
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         out, err = prog.communicate()
         list = out.decode('utf-8').split('\n')
