@@ -11,8 +11,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.new_mdb = None
 
         self.url_base = 'hypstar@enhydra.naturalsciences.be'
+        self.base_folder = '/home/hypstar/'
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
+        self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.urlbase}:{self.base_folder}'
 
         self.CHECK_SSH = self.check_ssh()
 
@@ -20,8 +22,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.start_add_insitu(extract_path, ofile)
         print('NEW MDB NO DEBERIA SER NONE', self.new_mdb)
 
-    def get_files(self, sat_time):
+    def get_files(self,site, sat_time):
         pathbase = self.mdb_options.insitu_path_source
+        if pathbase.split('/')[-1]!=site:
+            pathbase = os.path.join(pathbase,site)
         year_str = sat_time.strftime('%Y')
         month_str = sat_time.strftime('%m')
         day_str = sat_time.strftime('%d')
@@ -29,10 +33,16 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if not os.path.exists(path_day):
             return None
 
-    def create_path_day(self,time):
+    def create_path_day(self,site,time):
         pathbase = self.mdb_options.insitu_path_source
+        if pathbase.split('/')[-1] == site:
+            path_site = pathbase
+        else:
+            path_site = os.path.join(pathbase,site)
+            if not os.path.exists(path_site):
+                os.mkdir(path_site)
         year_str = time.strftime('%Y')
-        path_year = os.path.join(pathbase,year_str)
+        path_year = os.path.join(path_site,year_str)
         if not os.path.exists(path_year):
             os.mkdir(path_year)
         month_str = time.strftime('%m')
@@ -63,6 +73,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         if len(sequence_list) > 0:
             for sequence in sequence_list:
+                print(f'[INFO] Date: {year_str}-{month_str}-{day_str} Checking sequence folder: {sequence}')
                 insitu_time_str = sequence[3:]
                 insitu_time = dt.strptime(insitu_time_str, '%Y%m%dT%H%M%S')
                 if sat_time_min <= insitu_time <= sat_time_max:
@@ -81,8 +92,13 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             input_path = list_files_d[insitu_time_str]
             name = input_path.split('/')[-1]
             output_path = os.path.join(path_day,name)
-            print(f'{input_path}->{output_path}')
-
+            print(f'[INFO] Transfering file: {input_path} to {output_path}')
+            cmd = f'{self.rsync_base}{input_path} {output_path}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)
+        print(f'Transfering files completed')
 
     def check_ssh(self):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
