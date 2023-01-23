@@ -13,16 +13,18 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
 
-        self.CHECK_SSH = True
+        self.CHECK_SSH = self.check_ssh()
 
     def add_insitu(self,extract_path,ofile):
         self.start_add_insitu(extract_path,ofile)
         print('NEW MDB NO DEBERIA SER NONE',self.new_mdb)
 
     def check_ssh(self):
-        cmd = f'{self.ssh_base} {self.url_base} ls'
+        cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
+        print(cmd)
         try:
-            subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=10)
+            output = subprocess.check_output(cmd, shell = True,stderr=subprocess.STDOUT, timeout=10)
+            print(output)
             return True
         except:
             print(f'[ERROR] Access to {self.url_base} via ssh is not allowed')
