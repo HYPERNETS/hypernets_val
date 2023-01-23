@@ -32,7 +32,7 @@ class SAT_EXTRACTS_LIST:
             if self.verbose:
                 print(f'[INFO] Checking extract file: {name}')
             dataset = Dataset(fextract)
-            time_here = self.check_time(dataset,start_date,end_date)
+            time_here = self.check_time(name,dataset,start_date,end_date)
             if time_here is None:
                 dataset.close()
                 continue
@@ -72,8 +72,11 @@ class SAT_EXTRACTS_LIST:
         print(f'Number of extract files added to the list: {nadded} ')
         return sat_list
 
-    def check_time(self,dataset,start_date,end_date):
+    def check_time(self,fname,dataset,start_date,end_date):
         datetime_here = dt.fromtimestamp(float(dataset.variables['satellite_time'][0]))
+        datetime_here_name = dt.strptime(fname.split('_')[7],'%Y%m%dT%H%M%S')
+        if datetime_here_name>datetime_here:
+            datetime_here = datetime_here_name
         if start_date <= datetime_here <= end_date:
             return datetime_here
         else:
