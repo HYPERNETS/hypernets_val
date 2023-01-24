@@ -87,11 +87,12 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
     def add_new_variables(self):
         for var_name in self.insitu_extract_variables:
             type = self.insitu_extract_variables[var_name]['type']
-            var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_id'), zlib=True, complevel=6)
+            var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_id'), zlib=True, complevel=6,fill_value=None)
             for at in self.insitu_extract_variables[var_name]:
                 if at == 'type' or at == 'name_orig':
                     continue
                 var.setncattr(at, self.insitu_extract_variables[var_name][at])
+
         for var_name in self.insitu_spectral_variables:
             type = self.insitu_spectral_variables[var_name]['type']
             var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_original_bands', 'insitu_id'),
@@ -100,6 +101,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 if at == 'type' or at == 'name_orig':
                     continue
                 var.setncattr(at, self.insitu_spectral_variables[var_name][at])
+            var[:] = -999
         # self.new_MDB.close()
         print('[INFO] Added new variables')
 
