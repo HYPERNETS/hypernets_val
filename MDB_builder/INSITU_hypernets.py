@@ -7,8 +7,9 @@ from datetime import timedelta
 
 class INSITU_HYPERNETS_DAY(INSITUBASE):
 
-    def __init__(self, mdb_options):
+    def __init__(self, mdb_options,verbose):
         self.mdb_options = mdb_options
+        self.verbose = verbose
         self.new_MDB = None
 
         self.url_base = 'hypstar@enhydra.naturalsciences.be'
@@ -107,7 +108,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 var.setncattr(at, self.insitu_spectral_variables[var_name][at])
             var[:] = -999
         # self.new_MDB.close()
-        print('[INFO] Added new variables')
+        if self.verbose:
+            print('[INFO] Added new variables')
 
     def set_data(self,inputpath,insitu_idx,sat_time):
         from netCDF4 import Dataset
@@ -118,7 +120,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         insitu_time_f = float(nc_ins.variables['acquisition_time'][0])
         insitu_time = dt.fromtimestamp(insitu_time_f)
         time_diff = float(abs((sat_time-insitu_time).total_seconds()))
-        print(inputpath,insitu_time,sat_time,time_diff/3600)
+        #print(inputpath,insitu_time,sat_time,time_diff/3600)
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['time_difference'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['insitu_filename'][0, insitu_idx] = file_name
@@ -135,12 +137,12 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         for var_name in self.insitu_spectral_variables:
             var_ins = self.insitu_spectral_variables[var_name]['name_orig']
             var_array = ma.array(nc_ins.variables[var_ins][:])#[x for x in nc_ins.variables[var_ins][:]]
-            print('--->',var_array.shape)
+            #print('--->',var_array.shape)
             if var_name.find('Rrs')>0:
                 var_array = var_array / np.pi
             else:
                 var_array = var_array
-            print('--->', var_array.shape)
+            #print('--->', var_array.shape)
             self.new_MDB.variables[var_name][0, :, insitu_idx] = [var_array]
 
         nc_ins.close()
@@ -211,7 +213,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         if len(sequence_list) > 0:
             for sequence in sequence_list:
-                print(f'[INFO] Date: {year_str}-{month_str}-{day_str} Checking sequence folder: {sequence}')
+                if self.verbose:
+                    print(f'[INFO] Date: {year_str}-{month_str}-{day_str} Checking sequence folder: {sequence}')
                 insitu_time_str = sequence[3:]
                 insitu_time = dt.strptime(insitu_time_str, '%Y%m%dT%H%M%S')
                 if sat_time_min <= insitu_time <= sat_time_max:
@@ -233,13 +236,15 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             input_path = list_files_d[insitu_time_str]
             name = input_path.split('/')[-1]
             output_path = os.path.join(path_day, name)
-            print(f'[INFO] Transfering file: {input_path} to {output_path}')
+            if self.verbose:
+                print(f'[INFO] Transfering file: {input_path} to {output_path}')
             cmd = f'{self.rsync_base}{input_path} {output_path}'
             prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
                 print(err)
-        print(f'Transfering files completed')
+        if self.verbose:
+            print(f'Transfering files completed')
 
     def check_ssh(self):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
@@ -261,7 +266,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 list_month = self.get_list_folder_dates(cmd)
                 if len(list_month) > 0:
                     for m in list_month:
-                        print(f'[INFO] Checking dates via SSH. Year: {y} Month: {m}')
+                        if self.verbose:
+                            print(f'[INFO] Checking dates via SSH. Year: {y} Month: {m}')
                         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{y}/{m}'
                         list_days = self.get_list_folder_dates(cmd)
                         if len(list_days) > 0:

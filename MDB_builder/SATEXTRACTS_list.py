@@ -68,8 +68,9 @@ class SAT_EXTRACTS_LIST:
                 'resolution':resolution
             }
             nadded = nadded +1
-
-        print(f'Number of extract files added to the list: {nadded} ')
+        if self.verbose:
+            print(f'[INFO]Number of extract files added to the list: {nadded} ')
+            print('-----------------------------------------------------------')
         return sat_list
 
     def check_time(self,fname,dataset,start_date,end_date):

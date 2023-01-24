@@ -65,10 +65,11 @@ def main():
     extract_list = slist.get_list_as_dict()
 
     ##checking in situ files
-    ihd = INSITU_HYPERNETS_DAY(mo)
+    ihd = INSITU_HYPERNETS_DAY(mo,args.verbose)
     ins_sensor = 'HYPSTAR'
     for extract in extract_list:
-        print(f'[INFO] Working with extract file: {extract} --------------------------------------------------------------')
+        if args.verbose:
+            print(f'[INFO] Working with extract file: {extract} --------------------------------------------------------------')
         date_here_str = extract_list[extract]['time']
         date_here = dt.strptime(date_here_str,'%Y%m%dT%H%M%S')
         insitu_files = ihd.get_insitu_files(date_here)
@@ -78,12 +79,13 @@ def main():
 
         if not insitu_files is None:
             ninsitu = len(insitu_files)
-            print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
+            if args.verbose:
+                print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
             ofile = mo.get_mdb_extract_path(extract,ins_sensor)
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'],ofile)
             for idx in range(ninsitu):
                 insitu_file = insitu_files[idx]
-                print(insitu_file)
+                #print(insitu_file)
                 ihd.set_data(insitu_file,idx,date_here)
             ihd.close_mdb()
 
