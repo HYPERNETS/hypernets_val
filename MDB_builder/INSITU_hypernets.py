@@ -224,11 +224,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                             list_files_d[insitu_time_str] = file
 
         if len(sequence_list) == 0:
-            cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/.nc'
+            cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/*.nc'
             list_files = self.get_list_files(cmd)
             if len(list_files) > 0:
                 for file in list_files:
-                    print(file)
                     insitu_time_str_basic = file.split('/')[-1].split('_')[5]
                     print(insitu_time_str_basic)
                     insitu_time = dt.strptime(insitu_time_str_basic, '%Y%m%dT%H%M').replace(second=0, microsecond=0)
