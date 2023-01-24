@@ -4,10 +4,9 @@ from datetime import datetime as dt
 from datetime import timedelta
 
 
-
 class INSITU_HYPERNETS_DAY(INSITUBASE):
 
-    def __init__(self, mdb_options,verbose):
+    def __init__(self, mdb_options, verbose):
         self.mdb_options = mdb_options
         self.verbose = verbose
         self.new_MDB = None
@@ -89,14 +88,15 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         for var_name in self.insitu_extract_variables:
             type = self.insitu_extract_variables[var_name]['type']
             fill_value_here = None
-            if type=='u4':
+            if type == 'u4':
                 fill_value_here = -999
-            var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_id'), zlib=True, complevel=6,fill_value=fill_value_here)
+            var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_id'), zlib=True, complevel=6,
+                                              fill_value=fill_value_here)
             for at in self.insitu_extract_variables[var_name]:
                 if at == 'type' or at == 'name_orig':
                     continue
                 var.setncattr(at, self.insitu_extract_variables[var_name][at])
-            if type=='u4':
+            if type == 'u4':
                 var[:] = -999
         for var_name in self.insitu_spectral_variables:
             type = self.insitu_spectral_variables[var_name]['type']
@@ -111,7 +111,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if self.verbose:
             print('[INFO] Added new variables')
 
-    def set_data(self,inputpath,insitu_idx,sat_time):
+    def set_data(self, inputpath, insitu_idx, sat_time):
         from netCDF4 import Dataset
         import numpy as np
         import numpy.ma as ma
@@ -119,12 +119,12 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         file_name = inputpath.split('/')[-1]
         insitu_time_f = float(nc_ins.variables['acquisition_time'][0])
         insitu_time = dt.fromtimestamp(insitu_time_f)
-        time_diff = float(abs((sat_time-insitu_time).total_seconds()))
-        #print(inputpath,insitu_time,sat_time,time_diff/3600)
+        time_diff = float(abs((sat_time - insitu_time).total_seconds()))
+        # print(inputpath,insitu_time,sat_time,time_diff/3600)
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['time_difference'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['insitu_filename'][0, insitu_idx] = file_name
-        if insitu_idx==0:
+        if insitu_idx == 0:
             self.new_MDB.variables['insitu_original_bands'][:] = [nc_ins.variables['wavelength'][:]]
         insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]]
         insitu_RrsArray = ma.array(insitu_rhow_vec).transpose() / np.pi
@@ -136,20 +136,19 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         for var_name in self.insitu_spectral_variables:
             var_ins = self.insitu_spectral_variables[var_name]['name_orig']
-            var_array = ma.array(nc_ins.variables[var_ins][:])#[x for x in nc_ins.variables[var_ins][:]]
-            #print('--->',var_array.shape)
-            if var_name.find('Rrs')>0:
+            var_array = ma.array(nc_ins.variables[var_ins][:])  # [x for x in nc_ins.variables[var_ins][:]]
+            # print('--->',var_array.shape)
+            if var_name.find('Rrs') > 0:
                 var_array = var_array / np.pi
             else:
                 var_array = var_array
-            #print('--->', var_array.shape)
+            # print('--->', var_array.shape)
             self.new_MDB.variables[var_name][0, :, insitu_idx] = [var_array]
 
         nc_ins.close()
 
     def close_mdb(self):
         self.new_MDB.close()
-
 
     def get_insitu_files(self, sat_time):
         site = self.mdb_options.param_insitu['station_name']
@@ -223,8 +222,20 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                     for file in list_files:
                         if file.find(level) > 0:
                             list_files_d[insitu_time_str] = file
-            if len(list_files_d) > 0 and dotransfer:
-                self.transfer_files_ssh(list_files)
+
+        if len(sequence_list) == 0:
+            cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}/.nc'
+            list_files = self.get_list_files(cmd)
+            if len(list_files) > 0:
+                for file in list_files:
+                    insitu_time_str_basic = file.split('_')[5]
+                    insitu_time = dt.strptime(insitu_time_str_basic, '%Y%m%dT%H%M').replace(second=0, microsecond=0)
+                    insitu_time_str = insitu_time.strftime('%Y%m%dT%H%M%S')
+                    if sat_time_min <= insitu_time <= sat_time_max and file.find(level) > 0:
+                        list_files_d[insitu_time_str] = file
+
+        if len(list_files_d) > 0 and dotransfer:
+            self.transfer_files_ssh(list_files)
 
         return list_files_d
 
