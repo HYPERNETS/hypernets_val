@@ -197,6 +197,9 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         return path_day
 
     def get_files_day_ssh(self, sat_time, dotransfer):
+        if self.verbose:
+            print(f'[INFO] =====================================================================')
+            print(f'[INFO] Getting Hypstar in situ files for date: {sat_time} via SSH...')
         sitename = self.mdb_options.param_insitu['station_name']
         level = 'L2A'
         year_str = sat_time.strftime('%Y')
@@ -229,11 +232,17 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             if len(list_files) > 0:
                 for file in list_files:
                     if file.find(level) > 0:
+                        if self.verbose:
+                            print(f'[INFO] Date: {year_str}-{month_str}-{day_str} Checking file: {file}')
                         insitu_time_str_basic = file.split('/')[-1].split('_')[5]
                         insitu_time = dt.strptime(insitu_time_str_basic, '%Y%m%dT%H%M').replace(second=0, microsecond=0)
                         insitu_time_str = insitu_time.strftime('%Y%m%dT%H%M%S')
                         if sat_time_min <= insitu_time <= sat_time_max:
                             list_files_d[insitu_time_str] = file
+
+        if self.verbose:
+            print(f'[INFO] {len(list_files_d)} were found for {sat_time} via SSH')
+            print(f'[INFO] =====================================================================')
 
         if len(list_files_d) > 0 and dotransfer:
             self.transfer_files_ssh(list_files_d)
@@ -241,7 +250,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         return list_files_d
 
     def transfer_files_ssh(self, list_files_d):
-        # site = self.mdb_options.param_insitu['station_name']
+        if self.verbose:
+            print(f'[INFO] =====================================================================')
+            print(f'[INFO] Starting transfer of {len(list_files_d)} via SSH...')
+
         for insitu_time_str in list_files_d:
             insitu_time = dt.strptime(insitu_time_str, '%Y%m%dT%H%M%S')
             path_day = self.create_path_day(insitu_time)
@@ -256,7 +268,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             if err:
                 print(err)
         if self.verbose:
-            print(f'Transfering files completed')
+            print(f'[INFO] Transfering files completed')
+            print(f'[INFO] =====================================================================')
 
     def check_ssh(self):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
