@@ -129,10 +129,12 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         for var_name in self.insitu_spectral_variables:
             var_ins = self.insitu_spectral_variables[var_name]['name_orig']
             var_array = ma.array(nc_ins.variables[var_ins][:])#[x for x in nc_ins.variables[var_ins][:]]
+            print('--->',var_array.shape)
             if var_name.find('Rrs')>0:
-                var_array = var_array.transpose() / np.pi
+                var_array = var_array / np.pi
             else:
-                var_array = var_array.transpose()
+                var_array = var_array
+            print('--->', var_array.shape)
             self.new_MDB.variables[var_name][0, :, insitu_idx] = [var_array]
 
         nc_ins.close()
