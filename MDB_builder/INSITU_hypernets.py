@@ -229,19 +229,14 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             if len(list_files) > 0:
                 for file in list_files:
                     if file.find(level) > 0:
-                        print(file)
                         insitu_time_str_basic = file.split('/')[-1].split('_')[5]
-                        print(file,insitu_time_str_basic)
                         insitu_time = dt.strptime(insitu_time_str_basic, '%Y%m%dT%H%M').replace(second=0, microsecond=0)
                         insitu_time_str = insitu_time.strftime('%Y%m%dT%H%M%S')
                         if sat_time_min <= insitu_time <= sat_time_max:
                             list_files_d[insitu_time_str] = file
 
-        print('**********************************')
-        print(list_files_d)
-
         if len(list_files_d) > 0 and dotransfer:
-            self.transfer_files_ssh(list_files)
+            self.transfer_files_ssh(list_files_d)
 
         return list_files_d
 
