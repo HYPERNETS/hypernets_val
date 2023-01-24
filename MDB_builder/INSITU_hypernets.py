@@ -66,7 +66,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         }
         self.insitu_spectral_variables = {
-            'insitu_rrs_nosc': {
+            'insitu_Rrs_nosc': {
                 'name_orig': 'reflectance_nosc',
                 'type': 'f4',
                 'preferred_symbol': 'rhow_nosc',
@@ -105,17 +105,37 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
     def set_data(self,inputpath,insitu_idx,sat_time):
         from netCDF4 import Dataset
+        import numpy as np
+        import numpy.ma as ma
         nc_ins = Dataset(inputpath)
         file_name = inputpath.split('/')[-1]
         insitu_time_f = float(nc_ins.variables['acquisition_time'][0])
         insitu_time = dt.fromtimestamp(insitu_time_f)
-        time_diff = float(abs((sat_time-insitu_time).total_seconds())/3600)
-        print(inputpath,insitu_time,time_diff)
+        time_diff = float(abs((sat_time-insitu_time).total_seconds()))
+        print(inputpath,insitu_time,sat_time,time_diff/3600)
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['time_difference'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['insitu_filename'][0, insitu_idx] = file_name
         if insitu_idx==0:
             self.new_MDB.variables['insitu_original_bands'][:] = [nc_ins.variables['wavelength'][:]]
+        insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]]
+        insitu_RrsArray = ma.array(insitu_rhow_vec).transpose() / np.pi
+        self.new_MDB.variables['insitu_Rrs'][0, :, insitu_idx] = [insitu_RrsArray]
+
+        for var_name in self.insitu_extract_variables:
+            var_ins = self.insitu_extract_variables[var_name]['name_orig']
+            self.new_MDB.variables[var_name][0, insitu_idx] = [nc_ins.variables[var_ins][0]]
+
+        for var_name in self.insitu_spectral_variables:
+            var_ins = self.insitu_spectral_variables[var_name]['name_orig']
+            var_array = ma.array(nc_ins.variables[var_ins][:])#[x for x in nc_ins.variables[var_ins][:]]
+            if var_name.find('Rrs')>0:
+                var_array = var_array.transpose() / np.pi
+            else:
+                var_array = var_array.transpose()
+            self.new_MDB.variables[var_name][0, :, insitu_idx] = [var_array]
+
+        nc_ins.close()
 
     def close_mdb(self):
         self.new_MDB.close()
