@@ -2,6 +2,7 @@ import os
 from netCDF4 import Dataset
 from datetime import datetime as dt
 
+
 class SAT_EXTRACTS_LIST:
     def __init__(self, boptions, verbose):
         self.boptions = boptions
@@ -12,14 +13,12 @@ class SAT_EXTRACTS_LIST:
         end_date = self.boptions.end_date
         site = self.boptions.param_insitu
 
-
         prefix = self.boptions.param_sat['prefix']
         sat_extract_dir = self.boptions.satellite_path_source
 
         sat_list = {}
 
-
-        #print(self.boptions.param_sat)
+        # print(self.boptions.param_sat)
         nadded = 0
         for name in os.listdir(sat_extract_dir):
             if not name.endswith('.nc'):
@@ -27,12 +26,11 @@ class SAT_EXTRACTS_LIST:
             if prefix is not None and not name.startswith(prefix):
                 continue
 
-
             fextract = os.path.join(sat_extract_dir, name)
             if self.verbose:
                 print(f'[INFO] Checking extract file: {name}')
             dataset = Dataset(fextract)
-            time_here = self.check_time(name,dataset,start_date,end_date)
+            time_here = self.check_time(name, dataset, start_date, end_date)
             if time_here is None:
                 dataset.close()
                 continue
@@ -40,55 +38,55 @@ class SAT_EXTRACTS_LIST:
             if site_here is None:
                 dataset.close()
                 continue
-            platform_name = self.boptions.param_sat['satellite']+self.boptions.param_sat['platform']
-            platform = self.check_platform(dataset,platform_name)
+            platform_name = self.boptions.param_sat['satellite'] + self.boptions.param_sat['platform']
+            platform = self.check_platform(dataset, platform_name)
             if platform is None:
                 dataset.close()
                 continue
-            ac = self.check_atm_correction(dataset,self.boptions.param_sat['ac'])
+            ac = self.check_atm_correction(dataset, self.boptions.param_sat['ac'])
             if ac is None:
                 dataset.close()
                 continue
-            sensor = self.check_sensor(dataset,self.boptions.param_sat['sensor'])
+            sensor = self.check_sensor(dataset, self.boptions.param_sat['sensor'])
             if sensor is None:
                 dataset.close()
                 continue
-            resolution = self.check_resolution(name,dataset,self.boptions.param_sat['resolution'])
+            resolution = self.check_resolution(name, dataset, self.boptions.param_sat['resolution'])
             if resolution is None:
                 dataset.close()
                 continue
 
             sat_list[name] = {
-                'path':fextract,
+                'path': fextract,
                 'time': time_here.strftime('%Y%m%dT%H%M%S'),
                 'site': site_here,
-                'sensor':sensor,
-                'platform':platform,
-                'ac':ac,
-                'resolution':resolution
+                'sensor': sensor,
+                'platform': platform,
+                'ac': ac,
+                'resolution': resolution
             }
-            nadded = nadded +1
+            nadded = nadded + 1
         if self.verbose:
             print(f'[INFO]Number of extract files added to the list: {nadded} ')
             print('-----------------------------------------------------------')
         return sat_list
 
-    def check_time(self,fname,dataset,start_date,end_date):
+    def check_time(self, fname, dataset, start_date, end_date):
         datetime_here = dt.fromtimestamp(float(dataset.variables['satellite_time'][0]))
-        datetime_here_name = dt.strptime(fname.split('_')[7],'%Y%m%dT%H%M%S')
-        if datetime_here_name>datetime_here:
+        datetime_here_name = dt.strptime(fname.split('_')[7], '%Y%m%dT%H%M%S')
+        if datetime_here_name > datetime_here:
             datetime_here = datetime_here_name
         if start_date <= datetime_here <= end_date:
             return datetime_here
         else:
             return None
 
-    def check_resolution(self,fname,dataset,res_name):
+    def check_resolution(self, fname, dataset, res_name):
         res_here = None
         if 'resolution' in dataset.ncattrs():
             res_here = dataset.resolution
         if res_here is None:
-            if fname.find(res_name)>0:
+            if fname.find(res_name) > 0:
                 return res_name
             else:
                 print(f'[WARNING] Resulution set to {res_name} despite of not being defined in the extract file')
@@ -101,7 +99,7 @@ class SAT_EXTRACTS_LIST:
                     f'[WARNING] Extract resolution {res_here} was not selected in the config file. Skipping extract...')
                 return None
 
-    def check_sensor(self,dataset,sensor_name):
+    def check_sensor(self, dataset, sensor_name):
         sensor_here = None
         if 'sensor' in dataset.ncattrs():
             sensor_here = dataset.sensor
@@ -116,7 +114,7 @@ class SAT_EXTRACTS_LIST:
                     f'[WARNING] Extract sensor {sensor_here} was not selected in the config file. Skipping extract...')
                 return None
 
-    def check_atm_correction(self,dataset,ac_name):
+    def check_atm_correction(self, dataset, ac_name):
         ac_here = None
         if 'satellite_aco_processor' in dataset.ncattrs():
             ac_here = dataset.satellite_aco_processor
@@ -133,7 +131,7 @@ class SAT_EXTRACTS_LIST:
                     f'[WARNING] Extract atmospheric processor {ac_here} was not selected in the config file. Skipping extract...')
                 return None
 
-    def check_platform(self,dataset,platform_name):
+    def check_platform(self, dataset, platform_name):
         platform_here = None
         if 'satellite' in dataset.ncattrs() and 'platform' in dataset.ncattrs():
             platform_here = f'{dataset.satellite}{dataset.platform}'
@@ -142,12 +140,12 @@ class SAT_EXTRACTS_LIST:
             print(f'[WARNING] Platform set to {platform_name} despite of not being defined in the extract file')
             return platform_name
         else:
-            if platform_here.upper()==platform_name.upper():
+            if platform_here.upper() == platform_name.upper():
                 return platform_name
             else:
-                print(f'[WARNING] Extract platform {platform_here} was not selected in the config file {platform_name}. Skipping extract...')
+                print(
+                    f'[WARNING] Extract platform {platform_here} was not selected in the config file {platform_name}. Skipping extract...')
                 return None
-
 
     def check_site(self, fname, dataset, site_name):
         site_here = None
@@ -160,12 +158,11 @@ class SAT_EXTRACTS_LIST:
                 print(f'[WARNING] Site name set to {site_name} despite of not being defined in the extract file')
                 return site_name
         else:
-            if site_here.upper()==site_name.upper():
+            if site_here.upper() == site_name.upper():
                 return site_name
             else:
                 print(f'[WARNING] Extract site {site_here} was not selected in the config file. Skipping extract...')
                 return None
-
 
         # self.param_sat = {
         #     'satellite': sat_satellite.upper(),

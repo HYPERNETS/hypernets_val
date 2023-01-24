@@ -205,6 +205,7 @@ class MDBBuilderOptions:
         if self.insitu_type is not None and self.param_insitu is not None and 'station_name' in self.param_insitu:
             station_name = self.param_insitu['station_name']
             if self.insitu_type == 'HYPERNETS':
+
                 hday = INSITU_HYPERNETS_DAY(None,self.verbose)
                 if hday.CHECK_SSH:
                     sday, eday = hday.get_start_and_end_dates(station_name)

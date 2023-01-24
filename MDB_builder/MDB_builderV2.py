@@ -54,22 +54,36 @@ def main():
     mo.get_param_sat_extracts()
 
     ##dates
+    if args.verbose:
+        print(f'[INFO] Checking available dates-----------------------------------------------START')
     mo.get_dates()
-
     if args.verbose:
         print(f'[INFO] Start date for MDB_builder:{mo.start_date}')
         print(f'[INFO] End date for MDB_builder: {mo.end_date}')
+        print(f'[INFO] Checking available dates------------------------------------------------STOP')
 
     ##retrieving sat extract list
+    if args.verbose:
+        print(f'[INFO] Obtaining extract list-------------------------------------------------START')
     slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
+    if args.verbose:
+        print(f'[INFO] Obtaining extract list-------------------------------------------------STOP')
 
     ##checking in situ files
+    if args.verbose:
+        print(f'[INFO] Generating MDB extract files-------------------------------------------------START')
     ihd = INSITU_HYPERNETS_DAY(mo,args.verbose)
     ins_sensor = 'HYPSTAR'
+    mdb_extract_files = []
     for extract in extract_list:
         if args.verbose:
-            print(f'[INFO] Working with extract file: {extract} --------------------------------------------------------------')
+            print(f'[INFO] Working with extract file: {extract} *******************')
+        ofile = mo.get_mdb_extract_path(extract, ins_sensor)
+        if os.path.exists(ofile):
+            mdb_extract_files.append(ofile)
+            print(f'[WARNING] MDB extract file already exits. Skipping...')
+            continue
         date_here_str = extract_list[extract]['time']
         date_here = dt.strptime(date_here_str,'%Y%m%dT%H%M%S')
         insitu_files = ihd.get_insitu_files(date_here)
@@ -81,7 +95,6 @@ def main():
             ninsitu = len(insitu_files)
             if args.verbose:
                 print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
-            ofile = mo.get_mdb_extract_path(extract,ins_sensor)
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'],ofile)
             for idx in range(ninsitu):
                 insitu_file = insitu_files[idx]
@@ -89,7 +102,14 @@ def main():
                 ihd.set_data(insitu_file,idx,date_here)
             ihd.close_mdb()
 
-
+            if os.path.exists(ofile):
+                mdb_extract_files.append(ofile)
+                if args.verbose:
+                    print(f'[INFO] MDB extract file was created')
+    nextract_files = len(mdb_extract_files)
+    if args.verbose:
+        print(f'[INFO] {nextract_files} were created/added')
+        print(f'[INFO] Generating MDB extract files-------------------------------------------------START')
 
 
 
