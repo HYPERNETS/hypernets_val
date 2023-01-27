@@ -58,24 +58,24 @@ def main():
 
     ##dates
     if args.verbose:
-        print(f'[INFO] Checking available dates-----------------------------------------------START')
+        print(f'[INFO] Checking available dates--------------------------------------------------------------START')
     mo.get_dates()
     if args.verbose:
         print(f'[INFO] Start date for MDB_builder:{mo.start_date}')
         print(f'[INFO] End date for MDB_builder: {mo.end_date}')
-        print(f'[INFO] Checking available dates------------------------------------------------STOP')
+        print(f'[INFO] Checking available dates--------------------------------------------------------------STOP')
 
     ##retrieving sat extract list
     if args.verbose:
-        print(f'[INFO] Obtaining extract list-------------------------------------------------START')
+        print(f'[INFO] Obtaining extract list----------------------------------------------------------------START')
     slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
     if args.verbose:
-        print(f'[INFO] Obtaining extract list-------------------------------------------------STOP')
+        print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
 
     ##checking in situ files
     if args.verbose:
-        print(f'[INFO] Generating MDB extract files-------------------------------------------------START')
+        print(f'[INFO] Generating MDB extract files----------------------------------------------------------START')
     ihd = INSITU_HYPERNETS_DAY(mo, args.verbose)
     ins_sensor = 'HYPSTAR'
     mdb_extract_files = []
@@ -113,17 +113,17 @@ def main():
     nextract_files = len(mdb_extract_files)
     if args.verbose:
         print(f'[INFO] {nextract_files} were created/added')
-        print(f'[INFO] Generating MDB extract files-------------------------------------------------STOP')
+        print(f'[INFO] Generating MDB extract files----------------------------------------------------------STOP')
     if nextract_files == 0:
         print(f'[INFO] Completed. No MDB file was created')
         return
 
     if args.verbose:
-        print(f'[INFO] Generating final MDB file------------------------------------------------------START')
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
     path_mdb = mo.get_mdb_path()
     concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
     if args.verbose:
-        print(f'[INFO] Generating final MDB file------------------------------------------------------STOP')
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):

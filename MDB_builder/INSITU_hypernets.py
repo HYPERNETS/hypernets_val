@@ -126,7 +126,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         else:
             insitu_time = dt.utcfromtimestamp(insitu_time_f)
 
-        print('Times: ',sat_time,insitu_time)
+
 
         if insitu_time is None:
             print(f'[ERROR] In situ time was not defined for in situ file: {file_name}')
@@ -134,8 +134,9 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             return
 
         time_diff = float(abs((sat_time - insitu_time).total_seconds()))
-        time_diff2 = float(abs(insitu_time.timestamp()-sat_time.timestamp()))
-        print('TIME DIFF: ',time_diff,time_diff2)
+        if self.verbose:
+            time_diffh = time_diff/3600
+            print(f'Sat. Time: {sat_time} Ins. Time: {insitu_time} Time diff.: {time_diffh} hours')
 
         # print(inputpath,insitu_time,sat_time,time_diff/3600)
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
@@ -277,7 +278,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                             list_files_d[insitu_time_str] = file
 
         if self.verbose:
-            print(f'[INFO] {len(list_files_d)} were found for {sat_time} via SSH')
+            print(f'[INFO] {len(list_files_d)} files were found for {sat_time} via SSH')
             print(f'[INFO] =====================================================================')
 
         if len(list_files_d) > 0 and dotransfer:
@@ -288,7 +289,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
     def transfer_files_ssh(self, list_files_d):
         if self.verbose:
             print(f'[INFO] =====================================================================')
-            print(f'[INFO] Starting transfer of {len(list_files_d)} via SSH...')
+            print(f'[INFO] Starting transfer of {len(list_files_d)} files via SSH...')
 
         for insitu_time_str in list_files_d:
             insitu_time = dt.strptime(insitu_time_str, '%Y%m%dT%H%M%S')

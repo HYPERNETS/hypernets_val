@@ -67,8 +67,7 @@ class SAT_EXTRACTS_LIST:
             }
             nadded = nadded + 1
         if self.verbose:
-            print(f'[INFO]Number of extract files added to the list: {nadded} ')
-            print('-----------------------------------------------------------')
+            print(f'[INFO] Number of extract files added to the list: {nadded} ')
         return sat_list
 
     def check_time(self, fname, dataset, start_date, end_date):
