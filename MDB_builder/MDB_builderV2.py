@@ -1,4 +1,4 @@
-import os, sys
+import os
 import argparse
 import configparser
 from MDB_builder_options import MDBBuilderOptions
@@ -24,11 +24,14 @@ parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", act
 
 args = parser.parse_args()
 
-code_home = os.path.abspath('../')
+import MDB_builder_options
+import sys
+code_home = os.path.dirname(os.path.dirname(MDB_builder_options.__file__))
+# code_home = os.path.abspath('../')
 sys.path.append(code_home)
 
 # import BRDF.brdf_olci as brdf
-import COMMON.common_functions as cfs
+from COMMON import common_functions as cfs
 
 
 def main():

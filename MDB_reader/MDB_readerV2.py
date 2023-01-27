@@ -4,6 +4,7 @@ from MDBFile import MDBFile
 
 import argparse
 from MDB_builder.INSITU_base import INSITUBASE
+import COMMON.common_functions as cfs
 
 parser = argparse.ArgumentParser(
     description="Match-ups extraction from MDB files.")
