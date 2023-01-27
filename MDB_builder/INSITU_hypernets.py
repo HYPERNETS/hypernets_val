@@ -136,7 +136,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         time_diff = float(abs((sat_time - insitu_time).total_seconds()))
         if self.verbose:
             time_diffh = time_diff/3600
-            print(f'Sat. Time: {sat_time} Ins. Time: {insitu_time} Time diff.: {time_diffh:.2f} hours')
+            print(f'[INFO] Sat. Time: {sat_time} Ins. Time: {insitu_time} Time diff.: {time_diffh:.2f} hours')
 
         # print(inputpath,insitu_time,sat_time,time_diff/3600)
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
