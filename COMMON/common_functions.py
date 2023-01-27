@@ -71,7 +71,7 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'Berre' or station_name == 'BEFR':  # Adriatic Sea
         Latitude = 43.4484
         Longitude = 5.1012
-    elif station_name == 'RdP-EsNM':
+    elif station_name == 'RdP-EsNM' or station_name == 'LPAR':
         Latitude = -34.818
         Longitude = -57.8959
     elif station_name == 'Casablanca_Platform':
@@ -92,7 +92,7 @@ def get_lat_lon_ins(station_name):
     else:
         Latitude = None
         Longitude = None
-        print('ERROR: station not found: ' + station_name)
+        #print('ERROR: station not found: ' + station_name)
     return Latitude, Longitude
 
 

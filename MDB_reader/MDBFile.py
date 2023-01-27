@@ -35,7 +35,7 @@ class MDBFile:
         self.file_path = file_path
         self.VALID = True
         file_name = file_path.split('/')[-1]
-        print(f'[INFO]Starting MDBFile: {file_name}')
+        print(f'[INFO] Starting MDBFile: {file_name}')
         try:
             self.nc = Dataset(file_path)
             self.variables = self.nc.variables
@@ -45,14 +45,14 @@ class MDBFile:
         # except:
         except Exception as e:
             self.VALID = False
-            print(f'Exception starting MDB File: {e}')
+            print(f'[ERROR] Exception starting MDB File: {e}')
 
         if not self.VALID:
-            print(f'MDB File: {file_path} is not valid')
+            print(f'[ERROR] MDB File: {file_path} is not valid')
 
         if self.VALID:
             self.n_mu_total = len(self.dimensions['satellite_id'])
-            print('[INFO ]Total mu: ', self.n_mu_total)
+            print('[INFO] Total mu: ', self.n_mu_total)
             self.sat_times = []
 
             for st in self.variables['satellite_time']:
@@ -258,12 +258,9 @@ class MDBFile:
         for idx in range(len(times_here)):
             itime = times_here[idx]
             if not np.ma.is_masked(itime):
-                # insitu_time_here = datetime(1970, 1, 1) + timedelta(seconds=int(itime))
                 insitu_time_here = datetime.fromtimestamp(float(itime))
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
-
-        # time_difference = time_difference_prev
 
         if 'insitu_exact_wavelenghts' in self.variables:
             exact_wl = self.variables['insitu_exact_wavelenghts'][index_mu]
@@ -275,11 +272,11 @@ class MDBFile:
 
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            mu_insitu_time = datetime.fromtimestamp(int(ins_time))
+            mu_insitu_time = datetime.fromtimestamp(float(ins_time))
         else:  ##aunque los datos sean invalidos (time dif>max time dif), obtenemos el mu_insitu_time como referencia
             ins_time_index = np.argmin(np.abs(time_difference))
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            mu_insitu_time = datetime.fromtimestamp(int(ins_time))
+            mu_insitu_time = datetime.fromtimestamp(float(ins_time))
 
         return ins_time_index, mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_values
 
@@ -324,12 +321,11 @@ class MDBFile:
         # if self.info['satellite_aco_processor'] == 'CCI':
         #     self.mu_sat_time = self.mu_sat_time.replace(hour=11)
 
-        # self.ins_time_index, self.mu_insitu_time, time_condition = self.retrieve_ins_info_mu(index_mu)
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
         if rrs_ins_values is not None and self.PI_DIVIDED:
-            rrs_ins_values = rrs_ins_values/np.pi
+            rrs_ins_values = rrs_ins_values / np.pi
 
         load_info['spectrum_complete'] = spectrum_complete
 
@@ -352,10 +348,7 @@ class MDBFile:
             return is_mu_valid, load_info
 
         cond_min_pixels, cond_stats, valid_mu, sat_values = self.qc_sat.get_match_up_values(index_mu)
-        #print(cond_min_pixels)
-        #print(cond_stats)
-        #print(valid_mu)
-        #print(sat_values)
+
         if not valid_mu:
             self.mu_curr_ins_rrs = []
             self.mu_curr_sat_rrs_mean = []
@@ -367,11 +360,7 @@ class MDBFile:
         self.mu_curr_ins_rrs = []
         self.mu_curr_sat_rrs_mean = []
         for iref in range(len(self.wlref_sat_indices)):
-            # sat_band_index = self.wlref_sat_indices[iref]
-            check_ins_value = True
-            if rrs_ins_values.mask[iref]:
-                check_ins_value = False
-            if check_ins_value:
+            if not np.ma.is_masked(rrs_ins_values[iref]):
                 self.mu_curr_sat_rrs_mean.append(sat_values[iref])
                 self.mu_curr_ins_rrs.append(rrs_ins_values[iref])
                 mu_valid_bands[iref] = True
@@ -539,7 +528,7 @@ class MDBFile:
             mask[np.where(mask_rwneg != 0)] = 3
 
             # land
-            flag_land = ['LAND','COASTLINE']
+            flag_land = ['LAND', 'COASTLINE']
             mask_land = flagging.Mask(satellite_flag_band, flag_land)
             mask[np.where(mask_land != 0)] = 4
 
@@ -551,7 +540,7 @@ class MDBFile:
             extent = [0, 25, 0, 25]
             cmap_here = ListedColormap(['b', 'w', 'red', 'orange', 'maroon'])
 
-            plt.imshow(mask, interpolation=None, extent=extent,cmap = cmap_here, vmin=0, vmax=5)
+            plt.imshow(mask, interpolation=None, extent=extent, cmap=cmap_here, vmin=0, vmax=5)
 
             plt.hlines(11, 11, 14, colors=['r'])
             plt.hlines(14, 11, 14, colors=['r'])
@@ -617,7 +606,6 @@ class MDBFile:
             max_value = np.max(array)
         array_out = (array - min_value) / (max_value - min_value)
 
-
         return array_out
 
     def prepare_df_validation(self):
@@ -633,10 +621,10 @@ class MDBFile:
         for index_mu in range(self.n_mu_total):
             if index_mu % 100 == 0:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
-            print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
+            # print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
-            #print(info_mu)
+            # print(info_mu)
             # self.plot_spectra(None)
 
             # if not mu_valid:
@@ -730,8 +718,6 @@ class MDBFile:
     def prepare_df_mu(self):
         self.df_mu = pd.DataFrame(columns=self.col_names_mu, index=list(range(len(self.mu_dates))))
 
-        # self.col_names_mu = ['Index_MU', 'Sat_Time', 'InsTime', 'Time_Diff', 'satellite', 'platform', 'sensor', 'site',
-        #                     'ac', 'mu_valid', 'spectrum_complete', 'n_good_bands', 'status']
         index_tot = 0
         for mukey in self.mu_dates:
             row = self.mu_dates[mukey]
@@ -796,9 +782,9 @@ class MDBFile:
     def get_file_name_base(self):
         sat = self.info['satellite']
         platform = self.info['platform']
-        #res = 'WFR'
+        # res = 'WFR'
         res = self.info['res']
-        #insitu_sensor = 'HYPSTAR'
+        # insitu_sensor = 'HYPSTAR'
         insitu_sensor = self.info['insitu_sensor']
 
         insitu_site = self.info['insitu_site_name']

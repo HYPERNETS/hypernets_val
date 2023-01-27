@@ -17,6 +17,10 @@ class MDBBuilderOptions:
         self.satellite_path_source = None
         # insitu_type
         self.insitu_type = None
+        # insitu_sensors
+        self.insitu_sensors = {
+            'HYPERNETS':'HYPSTAR'
+        }
         # insitu path source
         self.insitu_path_source = None
 
@@ -28,6 +32,8 @@ class MDBBuilderOptions:
         self.param_insitu = None
         # param sat extract
         self.param_sat = None
+        #in situ options
+        self.insitu_options = None
 
     def set_compulsory_options(self, cfs):
         if self.VALID:
@@ -104,20 +110,30 @@ class MDBBuilderOptions:
                 return
 
     def get_param_insitu_site(self, cfs):
-        if self.options.has_option('Time_and_sites_selection', 'sites'):
-            station_name = self.options['Time_and_sites_selection']['sites']
+        if self.options.has_option('Time_and_sites_selection', 'site'):
+            station_name = self.options['Time_and_sites_selection']['site']
         else:
-            print(f'[ERROR]In situ site is not defined in configuration file: Time_and_sites_selection/sites')
+            print(f'[ERROR]In situ site is not defined in configuration file: Time_and_sites_selection/site')
             self.VALID = False
             return
-        in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
+        in_situ_lat = None
+        in_situ_lon = None
+        if self.options.has_option('Time_and_sites_selection', 'site_lat') and self.options.has_option(
+                'Time_and_sites_selection', 'site_long'):
+            try:
+                in_situ_lat = float(self.options['Time_and_sites_selection']['site_lat'])
+                in_situ_lon = float(self.options['Time_and_sites_selection']['site_lat'])
+            except:
+                pass
+        if in_situ_lat is None and in_situ_lon is None:
+            in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
         if self.verbose:
             print(f'[INFO] Station name: {station_name} with lat: {in_situ_lat}, long: {in_situ_lon}')
 
         self.param_insitu = {
             'station_name': station_name,
-            'in_situ_lat': in_situ_lat,
-            'in_situ_lon': in_situ_lon
+            'insitu_lat': in_situ_lat,
+            'insitu_lon': in_situ_lon
         }
 
     def get_param_sat_extracts(self):
@@ -167,25 +183,60 @@ class MDBBuilderOptions:
             'prefix': prefix
         }
 
-    def get_mdb_extract_path(self,path_extract,ins_sensor):
+    def get_insitu_options(self):
+        self.insitu_options = {
+            'level': 'L2A',
+            'apply_rsync': True
+        }
+        if self.options.has_option('insitu_options','level'):
+            self.insitu_options['level'] = self.options['insitu_options']['level']
+        if self.options.has_option('insitu_options', 'apply_rsync'):
+            val = self.options['insitu_options']['apply_rsync']
+            if val.strip()=='0' or val.strip().upper()=='FALSE':
+                self.insitu_options['apply_rsync'] = False
+
+    def get_mdb_extract_path(self, path_extract, ins_sensor):
         filename = f'MDB_{ins_sensor}_{path_extract}'
-        outputpath = os.path.join(self.path_out,'MDB_EXTRACTS')
+        outputpath = os.path.join(self.path_out, 'MDB_EXTRACTS')
         if not os.path.exists(outputpath):
             os.mkdir(outputpath)
-        filepath = os.path.join(outputpath,filename)
+        filepath = os.path.join(outputpath, filename)
         return filepath
 
-    def get_mdb_path(self,sat_extract_info,ins_sensor):
-        datetime_str = sat_extract_info['time']
-        sensor_str = sat_extract_info['sensor']
-        station_name = sat_extract_info['site']
-        resolution = sat_extract_info['resolution']
-        platform = sat_extract_info['satellite']+sat_extract_info['platform']
+    def get_sat_extracts_info(self):
         from datetime import datetime as dt
-        datetime_creation = dt.now().strftime('%Y%m%dT%H%M%S')
-        filename = f'MDB_{platform}_{sensor_str}_{resolution}_{datetime_str}_{datetime_creation}_{ins_sensor}_{station_name}_extract.nc'
-        filepath = os.path.join(self.path_out,filename)
-        return filename
+        sat_extract_info = {}
+        sat_extract_info['time_min'] = self.start_date.strftime('%Y%m%dT%H%M%S')
+        sat_extract_info['time_max'] = self.end_date.strftime('%Y%m%dT%H%M%S')
+        sat_extract_info['time_creation'] = dt.now().strftime('%Y%m%dT%H%M%S')
+        sat_extract_info['insitu_site_name'] = self.param_insitu['station_name']
+        sat_extract_info['insitu_lat'] = self.param_insitu['insitu_lat']
+        sat_extract_info['insitu_lon'] = self.param_insitu['insitu_lon']
+        sat_extract_info['sensor'] = self.param_sat['sensor']
+        sat_extract_info['satellite'] = self.param_sat['satellite']
+        sat_extract_info['platform'] = self.param_sat['platform']
+        sat_extract_info['resolution'] = self.param_sat['resolution']
+        sat_extract_info['ac'] = self.param_sat['ac']
+        sensor_str = 'UNKNONW'
+        if self.insitu_type in self.insitu_sensors:
+            sensor_str = self.insitu_sensors[self.insitu_type]
+        sat_extract_info['ins_sensor'] = sensor_str
+
+        return sat_extract_info
+
+    def get_mdb_path(self):
+        sat_extract_info = self.get_sat_extracts_info()
+        datetime_min = sat_extract_info['time_min']
+        datetime_max = sat_extract_info['time_max']
+        sensor_str = sat_extract_info['sensor']
+        station_name = sat_extract_info['insitu_site_name']
+        resolution = sat_extract_info['resolution']
+        platform = sat_extract_info['satellite'] + sat_extract_info['platform']
+        ins_sensor = sat_extract_info['ins_sensor']
+        #datetime_creation = sat_extract_info['time_creation']
+        filename = f'MDB_{platform}_{sensor_str}_{resolution}_{datetime_min}_{datetime_max}_{ins_sensor}_{station_name}.nc'
+        filepath = os.path.join(self.path_out, filename)
+        return filepath
 
     def get_dates(self):
         if self.options['Time_and_sites_selection']['time_start']:
@@ -203,12 +254,19 @@ class MDBBuilderOptions:
 
         ##checking dates with available in situ dates
         if self.insitu_type is not None and self.param_insitu is not None and 'station_name' in self.param_insitu:
+            check_rsync = False
+            if self.insitu_options is not None:
+                if 'apply_rsync' in self.insitu_options:
+                    check_rsync = self.insitu_options['apply_rsync']
+            if not check_rsync:
+                return
+
             station_name = self.param_insitu['station_name']
             if self.insitu_type == 'HYPERNETS':
 
-                hday = INSITU_HYPERNETS_DAY(None,self.verbose)
+                hday = INSITU_HYPERNETS_DAY(None, self.verbose)
                 if hday.CHECK_SSH:
-                    sday, eday = hday.get_start_and_end_dates(station_name)
+                    sday, eday = hday.get_start_and_end_dates(station_name,self.start_date,self.end_date)
                     if sday is not None and eday is not None:
                         if sday > self.start_date:
                             self.start_date = sday.replace(hour=0, minute=0, second=0, microsecond=0)

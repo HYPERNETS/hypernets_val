@@ -72,10 +72,13 @@ class SAT_EXTRACTS_LIST:
         return sat_list
 
     def check_time(self, fname, dataset, start_date, end_date):
-        datetime_here = dt.fromtimestamp(float(dataset.variables['satellite_time'][0]))
-        datetime_here_name = dt.strptime(fname.split('_')[7], '%Y%m%dT%H%M%S')
-        if datetime_here_name > datetime_here:
-            datetime_here = datetime_here_name
+        datetime_here = dt.utcfromtimestamp(float(dataset.variables['satellite_time'][0]))
+        try:
+            datetime_here_name = dt.strptime(fname.split('_')[7], '%Y%m%dT%H%M%S')
+            if datetime_here_name > datetime_here:
+                datetime_here = datetime_here_name
+        except:
+            pass
         if start_date <= datetime_here <= end_date:
             return datetime_here
         else:
@@ -118,11 +121,18 @@ class SAT_EXTRACTS_LIST:
         ac_here = None
         if 'satellite_aco_processor' in dataset.ncattrs():
             ac_here = dataset.satellite_aco_processor
-            if ac_here.startswith('Atmospheric Correction'):
-                ac_here = 'STANDARD'
+            if ac_here.startswith('Atmospheric Correction processor:'):
+                if ac_here.upper().find(ac_name.upper()) > 0:
+                    ac_here = ac_name.upper()
+                else:
+                    ac_here = 'STANDARD'
+                # ac_here = ac_here.split(':')[1].strip().upper()
+                # if ac_here.startswith('X'):
+                #     ac_here = 'STANDARD'
+
         if ac_here is None:
-            print(f'[WARNING] Atmospheric correction set to {ac_name} despite of not being defined in the extract file')
-            return ac_name
+            print(f'[WARNING] Atmospheric correction set to {ac_name.upper()} despite of not being defined in the extract file')
+            return ac_name.upper()
         else:
             if ac_here.upper() == ac_name.upper():
                 return ac_name
@@ -149,8 +159,8 @@ class SAT_EXTRACTS_LIST:
 
     def check_site(self, fname, dataset, site_name):
         site_here = None
-        if 'site' in dataset.ncattrs():
-            site_here = dataset.site
+        if 'insitu_site_name' in dataset.ncattrs():
+            site_here = dataset.insitu_site_name
         if site_here is None:
             if fname.upper().find(site_name.upper()) > 0:
                 return site_name

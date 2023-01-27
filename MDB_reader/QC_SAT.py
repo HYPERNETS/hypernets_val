@@ -232,9 +232,6 @@ class QC_SAT:
 
         return CHECK
 
-
-
-
     def get_match_up_values(self, index_mu):
         self.prepare_new_match_up()
         cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
@@ -285,10 +282,10 @@ class QC_SAT:
         self.compute_th_masks(index_mu)
         self.NVP = self.NTP - np.sum(self.flag_mask)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
-        print(f'[INFO] Index mu: {index_mu}')
-        print(f'[INFO] Number total of pixels: {self.NTP}')
-        print(f'[INFO] Water pixels: {self.NTPW}')
-        print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
+        # print(f'[INFO] Index mu: {index_mu}')
+        # print(f'[INFO] Number total of pixels: {self.NTP}')
+        # print(f'[INFO] Water pixels: {self.NTPW}')
+        # print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
 
         min_valid_pixels = self.min_valid_pixels
         if self.use_Bailey_Werdell:

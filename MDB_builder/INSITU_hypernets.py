@@ -111,22 +111,39 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if self.verbose:
             print('[INFO] Added new variables')
 
-    def set_data(self, inputpath, insitu_idx, sat_time):
+    def set_data(self, inputpath, insitu_idx, sat_time, extract_info):
         from netCDF4 import Dataset
         import numpy as np
         import numpy.ma as ma
         nc_ins = Dataset(inputpath)
         file_name = inputpath.split('/')[-1]
         insitu_time_f = float(nc_ins.variables['acquisition_time'][0])
-        insitu_time = dt.fromtimestamp(insitu_time_f)
+        if np.isnan(insitu_time_f):
+            try:
+                insitu_time = dt.strptime(file_name.split('_')[5], '%Y%m%dT%H%M')
+            except:
+                insitu_time = None
+        else:
+            insitu_time = dt.utcfromtimestamp(insitu_time_f)
+
+        print('Times: ',sat_time,insitu_time)
+
+        if insitu_time is None:
+            print(f'[ERROR] In situ time was not defined for in situ file: {file_name}')
+            nc_ins.close()
+            return
+
         time_diff = float(abs((sat_time - insitu_time).total_seconds()))
+        time_diff2 = float(abs(insitu_time.timestamp()-sat_time.timestamp()))
+        print('TIME DIFF: ',time_diff,time_diff2)
+
         # print(inputpath,insitu_time,sat_time,time_diff/3600)
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
-        self.new_MDB.variables['time_difference'][0, insitu_idx] = insitu_time_f
+        self.new_MDB.variables['time_difference'][0, insitu_idx] = time_diff
         self.new_MDB.variables['insitu_filename'][0, insitu_idx] = file_name
         if insitu_idx == 0:
-            self.new_MDB.variables['insitu_original_bands'][:] = [nc_ins.variables['wavelength'][:]]
-        insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]]
+            self.new_MDB.variables['insitu_original_bands'][:] = [nc_ins.variables['wavelength'][0:1600]]
+        insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][0:1600]]
         insitu_RrsArray = ma.array(insitu_rhow_vec).transpose() / np.pi
         self.new_MDB.variables['insitu_Rrs'][0, :, insitu_idx] = [insitu_RrsArray]
 
@@ -136,7 +153,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         for var_name in self.insitu_spectral_variables:
             var_ins = self.insitu_spectral_variables[var_name]['name_orig']
-            var_array = ma.array(nc_ins.variables[var_ins][:])  # [x for x in nc_ins.variables[var_ins][:]]
+            var_array = ma.array(nc_ins.variables[var_ins][0:1600])  # [x for x in nc_ins.variables[var_ins][:]]
             # print('--->',var_array.shape)
             if var_name.find('Rrs') > 0:
                 var_array = var_array / np.pi
@@ -144,15 +161,34 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 var_array = var_array
             # print('--->', var_array.shape)
             self.new_MDB.variables[var_name][0, :, insitu_idx] = [var_array]
-
         nc_ins.close()
+
+        if insitu_idx == 0:
+            self.check_attributes(extract_info)
+
+    def check_attributes(self, extract_info):
+        if 'insitu_site_name' not in self.new_MDB.ncattrs():
+            self.new_MDB.insitu_site_name = extract_info['insitu_site_name']
+        if 'insitu_lat' not in self.new_MDB.ncattrs():
+            self.new_MDB.insitu_site_name = extract_info['insitu_lat']
+        if 'insitu_lon' not in self.new_MDB.ncattrs():
+            self.new_MDB.insitu_site_name = extract_info['insitu_lon']
+        if 'sensor' not in self.new_MDB.ncattrs():
+            self.new_MDB.sensor = extract_info['sensor']
+        if 'satellite' not in self.new_MDB.ncattrs():
+            self.new_MDB.satellite = extract_info['satellite']
+        if 'platform' not in self.new_MDB.ncattrs():
+            self.new_MDB.platform = extract_info['platform']
+        if 'resolution' not in self.new_MDB.ncattrs():
+            self.new_MDB.resolution = extract_info['resolution']
+        self.new_MDB.satellite_aco_processor = extract_info['ac']
 
     def close_mdb(self):
         self.new_MDB.close()
 
     def get_insitu_files(self, sat_time):
         site = self.mdb_options.param_insitu['station_name']
-        level = 'L2A'
+        level = self.mdb_options.insitu_options['level']
 
         pathbase = self.mdb_options.insitu_path_source
         if pathbase.split('/')[-1] != site:
@@ -201,7 +237,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             print(f'[INFO] =====================================================================')
             print(f'[INFO] Getting Hypstar in situ files for date: {sat_time} via SSH...')
         sitename = self.mdb_options.param_insitu['station_name']
-        level = 'L2A'
+        level = self.mdb_options.insitu_options['level']
         year_str = sat_time.strftime('%Y')
         month_str = sat_time.strftime('%m')
         day_str = sat_time.strftime('%d')
@@ -280,17 +316,25 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             print(f'[ERROR] Access to {self.url_base} via ssh is not allowed')
             return False
 
-    def get_start_and_end_dates(self, sitename):
+    def get_start_and_end_dates(self, sitename, start_date_ref, end_date_ref):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}'
         list_year = self.get_list_folder_dates(cmd)
         start_date = None
         end_date = None
+        year_ini = start_date_ref.year
+        month_ini = start_date_ref.month
+        year_end = end_date_ref.year
+        month_end = end_date_ref.month
         if len(list_year) > 0:
             for y in list_year:
+                if int(y) < year_ini or int(y) > year_end:
+                    continue
                 cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{y}'
                 list_month = self.get_list_folder_dates(cmd)
                 if len(list_month) > 0:
                     for m in list_month:
+                        if int(m) < month_ini or int(m) > month_end:
+                            continue
                         if self.verbose:
                             print(f'[INFO] Checking dates via SSH. Year: {y} Month: {m}')
                         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{y}/{m}'

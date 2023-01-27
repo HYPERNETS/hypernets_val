@@ -31,10 +31,10 @@ class QC_INSITU:
 
         self.thersholds = None
 
-        self.apply_band_shift = True
+        self.apply_band_shift = False
 
-        self.check_indices_by_mu = True
-        self.only_complete_spectra = False
+        self.check_indices_by_mu = False
+        self.only_complete_spectra = True
 
     ##Method to make the subset of the spectra
     def set_wllist_min_max(self, wlmin, wlmax):
@@ -98,19 +98,18 @@ class QC_INSITU:
 
     def check_validity_spectrum(self, rrs_values, index_mu):
 
-
-
         if rrs_values is None:
             return False
 
-        if np.sum(np.isnan(rrs_values))>0:
+        if np.sum(np.isnan(rrs_values)) > 0:
             return False
 
-
-        if rrs_values.count() != len(rrs_values):
+        if self.only_complete_spectra and (rrs_values.count() != len(rrs_values)):
             return False
+
         if self.thersholds is None:
             return True
+
         check = True
         for idx in range(len(self.wl_list)):
             wl = self.wl_list[idx]
@@ -184,55 +183,84 @@ class QC_INSITU:
 
         return np.array(stat_spectra)
 
+    # def get_finalspectrum_mu_deprecated(self, index_mu, dif_time_array, exact_wl_array, wl_ref):
+    # print('check here')
+    # dif_time_good = dif_time_array[~dif_time_array.mask]
+    # ngood_alt = len(dif_time_good)
+    # indices = np.argsort(dif_time_array)
+    # indices_t = np.argsort(dif_time_good)
+    # print(indices)
+    # print(indices_t)
+    # dif_with = np.max(indices[0:ngood_alt]-indices_t)
+    # print('dif indices',dif_with)
+    # print('ngood_alt',ngood_alt,'id min time: ',indices_t[0])
+
+    # print('qc in situ 194')
+    # for idx in range(len(dif_time_array)):
+    #     t = dif_time_array[idx]
+    #     if not ma.is_masked(t):
+    #         ngood = ngood + 1
+    #         if t < time_dif:
+    #             time_dif = t
+    #             id_min_time = idx
+    #             time_condition = True
+    # print('qc in situ 203-> ', ngood, 'id min time:', id_min_time)
+    # rrs_values = None
+    # valid_values = False
+    # if time_condition:
+    #     print('qc in situ 207 ngood->', ngood)
+    #     rrs_values, indices, valid_bands = self.get_good_spectrum_for_mu(index_mu, id_min_time, ngood)
+    #     print('qc in situ 209')
+    #     print(rrs_values)
+    #     print(indices)
+    #     print(valid_bands)
+    #     print('**************************')
+    #     if self.check_validity_spectrum(rrs_values, index_mu):
+    #
+    #         # print(spectrum_complete, valid_bands)
+    #         # print('-------------> ',len(rrs_values))
+    #         valid_values = True
+    #         if self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
+    #             if len(exact_wl_array.shape) == 1:
+    #                 exact_wl = exact_wl_array[indices]
+    #             else:
+    #                 exact_wl = exact_wl_array[indices, id_min_time]
+    #             rrs_values = bsc_qaa.bsc_qaa(rrs_values, exact_wl, wl_ref)
+    #         # print('*************> ', len(rrs_values))
+    #         spectrum_complete = sum(valid_bands) == len(self.wl_list)
+    #         if not spectrum_complete:
+    #             rrs_values[np.array(valid_bands) == False] = ma.masked
     def get_finalspectrum_mu(self, index_mu, dif_time_array, exact_wl_array, wl_ref):
-        time_dif = self.time_max
-        id_min_time = -1
+
         time_condition = False
         spectrum_complete = False
-        ngood = 0
-
-        for idx in range(len(dif_time_array)):
-            t = dif_time_array[idx]
-            if not ma.is_masked(t):
-                ngood = ngood + 1
-                if t < time_dif:
-                    time_dif = t
-                    id_min_time = idx
-                    time_condition = True
-
-        rrs_values = None
         valid_values = False
-        if time_condition:
+        id_min_time = -1
+        rrs_values = None
 
-            rrs_values, indices, valid_bands = self.get_good_spectrum_for_mu(index_mu, id_min_time, ngood)
+        dif_time_good = dif_time_array[~dif_time_array.mask]
+        ngood = len(dif_time_good)
+        if ngood == 0:
+            return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
 
-
-
-            # if wl_ref is not None:
-            #     for wlr in wl_ref:
-            #         index_wlr = self.set_wllist_using_wlref()
-            # print(self.wl_list)
-            # print(indices)
-            # print(valid_bands)
-            # wl_insitu_here = self.wl_list[indices]
-            # print(wl_insitu_here)
-            # print(wl_ref)
-
-            if self.check_validity_spectrum(rrs_values, index_mu):
-
-                # print(spectrum_complete, valid_bands)
-                # print('-------------> ',len(rrs_values))
-                valid_values = True
-                if self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
+        indices_good = np.argsort(dif_time_good)
+        for idx in indices_good:
+            id_min_time = idx
+            time_dif = dif_time_array[idx]
+            time_condition = time_dif < self.time_max
+            if time_condition:
+                rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
+                valid_values = self.check_validity_spectrum(rrs_values, index_mu)
+                spectrum_complete = sum(valid_bands) == len(self.wl_list)
+                if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
                     if len(exact_wl_array.shape) == 1:
                         exact_wl = exact_wl_array[indices]
                     else:
                         exact_wl = exact_wl_array[indices, id_min_time]
                     rrs_values = bsc_qaa.bsc_qaa(rrs_values, exact_wl, wl_ref)
-                # print('*************> ', len(rrs_values))
-                spectrum_complete = sum(valid_bands) == len(self.wl_list)
-                if not spectrum_complete:
-                    rrs_values[np.array(valid_bands) == False] = ma.masked
+                if valid_values:
+                    #print(f'[INFO] Selected in situ spectra with time dif: {time_dif}')
+                    break
 
         return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
 
@@ -270,8 +298,25 @@ class QC_INSITU:
         self.band_stats = band_stats
         return self.band_stats
 
+    def get_spectrum_for_mu_and_index_insitu(self, index_mu, index_insitu):
+        if index_mu < 0 or index_mu >= self.nmu:
+            return None, None, None
+
+        spectra = ma.array(self.insitu_rrs[index_mu, :, index_insitu])
+
+        if self.check_indices_by_mu:
+            indices, valid_bands = self.get_insitu_indices_mu(index_mu)
+            rrs_values = spectra[indices]
+        else:
+            indices = self.wl_indices
+            rrs_values = spectra[indices]
+            valid_bands = np.invert(ma.getmaskarray(rrs_values)).tolist()
+
+        return rrs_values, indices, valid_bands
+
     # ngood is only for checking (assing -1 for not using it)
     def get_good_spectrum_for_mu(self, index_mu, id_min_time, ngood):
+
 
         spectra, indices, valid_bands = self.get_all_good_spectra_for_mu(index_mu)
 
