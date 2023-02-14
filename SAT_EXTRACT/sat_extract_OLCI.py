@@ -86,11 +86,11 @@ def config_reader(FILEconfig):
 
 
 # user defined functions
-def create_list_products(path_source, path_out, wce, res_str, type_product, dt_start, dt_end, org):
+def create_list_products(path_source, path_out, wce, res_str, date_list, org):
     if args.nolist:
         return None
 
-    path_to_list = f'{path_out}/file_{type_product}_{res_str}_list.txt'
+    path_to_list = f'{path_out}/file_satellite_{res_str}_list.txt'
 
     if os.path.exists(path_to_list):
         print('Deleting previous file list...')
@@ -107,9 +107,8 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
         if err:
             print(err)
 
-    if org == 'yyyy_jjj':
-        dt = dt_start
-        while dt <= dt_end:
+    if org == 'yyyy/jjj':
+        for dt in date_list:
             print('Date: ', dt)
             year = dt.strftime('%Y')
             jday = dt.strftime('%j')
@@ -119,10 +118,80 @@ def create_list_products(path_source, path_out, wce, res_str, type_product, dt_s
             out, err = prog.communicate()
             if err:
                 print(err)
-            dt = dt + timedelta(hours=24)
+
+    if args.verbose:
+        print(f'Satellite List: {path_to_list}')
 
     return path_to_list
 
+def get_date_list_from_start_end_date(dt_start,dt_end):
+    date_list = []
+    dt = dt_start
+    while dt <= dt_end:
+        date_list.append(dt)
+        dt = dt + timedelta(hours=24)
+    return date_list
+
+def get_date_list_from_file(file_list,dt_start,dt_end):
+    if not os.path.exists(file_list):
+        return None
+    date_list = []
+    f1 = open(file_list,'r')
+    for line in f1:
+        dateherestr = line.strip()
+        try:
+            datehere = datetime.strptime(dateherestr,'%Y-%m-%d')
+            if datehere>=dt_start and datehere<=dt_end:
+                date_list.append(datehere)
+        except:
+             pass
+    f1.close()
+    if len(date_list)==0:
+        return None
+    return date_list
+
+def get_params_time(options):
+    date_list = None
+    if args.config_file:
+        datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+        datetime_end = datetime.today()
+        if options.has_option('Time_and_sites_selection', 'time_start'):
+            try:
+                datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+            except:
+                print(f'WARNING: time_start format is not valid. Usind dafult value: 2000-01-01')
+
+        if options.has_option('Time_and_sites_selection', 'time_end'):
+            try:
+                datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'],
+                                                 '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
+            except:
+                print(f'WARNING: time_end format is not valid. Usind dafult value: today')
+
+        if options.has_option('Time_and_sites_selection', 'time_list_file'):
+            time_list_file = options['Time_and_sites_selection']['time_list_file']
+            if time_list_file:
+                date_list = get_date_list_from_file(time_list_file,datetime_start,datetime_end)
+
+    else:
+        if args.startdate:
+            datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
+        else:
+            datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+        if args.enddate:
+            datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
+        else:
+            datetime_end = datetime.today()
+
+    if date_list is None:
+        date_list = get_date_list_from_start_end_date(datetime_start,datetime_end)
+    ndates = len(date_list)
+    if args.verbose:
+        print(f'Start date: {datetime_start}')
+        print(f'End date: {datetime_end}')
+        print(f'N Dates: {ndates}')
+
+    return datetime_start,datetime_end,date_list
 
 def get_val_from_tie_point_grid(yPoint, xPoint, ySubsampling, xSubsampling, dataset):
     grid_height = dataset.shape[0]
@@ -475,7 +544,7 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
             if args.verbose:
                 print(f'Creating extract for site: {site}')
             extract_path = create_extract(size_box, site, path_source, path_output, in_situ_lat, in_situ_lon, res_str,
-                                          make_brdf,None)
+                                          make_brdf, None)
             if not extract_path is None:
                 print(f'file created: {extract_path}')
         except Exception as e:
@@ -484,7 +553,8 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
                 pass
 
 
-def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf,insitu_info):
+def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf,
+                   insitu_info):
     if args.verbose:
         print(f'Creating extract for {station_name} from {path_source}')
     ofname = None
@@ -918,7 +988,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_WQSF.flag_masks = WQSF_flag_masks
             satellite_WQSF.flag_meanings = WQSF_flag_meanings
 
-            #in situ info
+            # in situ info
             if insitu_info is not None:
                 if args.verbose:
                     print('Adding in situ info...')
@@ -926,18 +996,18 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 insitu_lon_here = insitu_info[1]
                 insitu_time_here = insitu_info[2]
                 insitu_time = new_EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,
-                                                                complevel=6)
+                                                         complevel=6)
                 insitu_time.units = "Seconds since 1970-1-1"
                 insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
                 insitu_time[0] = insitu_time_here
                 insitu_lat = new_EXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
-                                                               fill_value=-999,
-                                                               zlib=True, complevel=6)
+                                                        fill_value=-999,
+                                                        zlib=True, complevel=6)
                 insitu_lat.short_name = "latitude"
                 insitu_lat.units = "degrees"
                 insitu_lon = new_EXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
-                                                               fill_value=-999,
-                                                               zlib=True, complevel=6)
+                                                        fill_value=-999,
+                                                        zlib=True, complevel=6)
                 insitu_lon.short_name = "longitude"
                 insitu_lon.units = "degrees"
                 insitu_lat[0] = insitu_lat_here
@@ -1075,6 +1145,188 @@ def check_product(filepath, time_start, time_stop):
 
     return check_res
 
+def get_basic_options_from_file_config(options):
+    #size box
+    size_box = 25
+    if options.has_option('satellite_options', 'extract_size'):
+        size_box = int(options['satellite_options']['extract_size'])
+    #resolution
+    res = 'WFR'
+    if options.has_option('satellite_options', 'resolution'):
+        res = options['satellite_options']['resolution']
+    #path_out
+    path_out = None
+    if options['file_path']['output_dir']:
+        path_out = options['file_path']['output_dir']
+    else:
+        if args.output:
+            path_out = args.output
+    if path_out is None:
+        print(f'[ERROR] compulsory option path_out was not defined in the config file or argument output')
+        return None
+    if not os.path.isdir(path_out):
+        path_out = create_dir(path_out)
+        if path_out is None:
+            print(f'[ERROR] path_out: {path_out} does not exist and could not be created')
+            return None
+    #makd_brdb
+    make_brdf = False
+    if options.has_option('satellite_options', 'brdf'):
+       if options['satellite_options']['brdf'].upper() == 'T' or options['satellite_options']['brdf'].upper()=='TRUE':
+           make_brdf = True
+    #satellite_path_source
+    satellite_path_source = None
+    if options.has_option('file_path', 'sat_source_dir'):
+        satellite_path_source = options['file_path']['sat_source_dir']
+    else:
+        if args.path_to_sat:
+            satellite_path_source = args.path_to_sat
+    if satellite_path_source is None:
+        print('[ERROR] compulsory option satellite_path_source was not defined in the config file or argument path_to_sat')
+        return None
+    if not os.path.exists(satellite_path_source):
+        print(f'ERROR path: {satellite_path_source} does not exit')
+        return None
+    #tmp_path
+    tmp_path = None
+    if options.has_option('file_path', 'tmp_dir'):
+        tmp_path = options['file_path']['tmp_dir']
+        if os.path.exists(tmp_path) and os.path.isdir(tmp_path):
+            tmp_path_del = os.path.join(tmp_path, '*')
+            cmd = f'rm -r {tmp_path_del}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)
+        if not os.path.exists(tmp_path) or not os.path.isdir(tmp_path):
+            tmp_path = create_dir(tmp_path)
+
+    if tmp_path is None:
+        tmp_path = satellite_path_source
+        print(f'[WARNING] tmp_path was not defined or does not exist. tmp path set to sat_path: {satellite_path_source}')
+    #org
+    org = None
+    if options.has_option('file_path', 'sat_source_dir_organization'):
+        org = options['file_path']['sat_source_dir_organization']
+
+    #make_download
+    make_download = False
+    if options.has_option('satellite_options', 'download'):
+       if options['satellite_options']['download'].upper() == 'T' or options['satellite_options']['download'].upper()=='TRUE':
+           make_download = True
+
+    basic_options = {
+        'satellite_path_source':satellite_path_source,
+        'path_out': path_out,
+        'tmp_path':tmp_path,
+        'size_box':size_box,
+        'make_brdf': make_brdf,
+        'org': org,
+        'resolution': res,
+        'make_download': make_download
+    }
+    return basic_options
+
+def get_basic_options_from_arguments():
+    ##parameters with default values
+    size_box = 25
+    make_brdf = False
+    make_download = False
+    org = None
+
+    res = 'WFR'
+    if args.resolution == 'WRR':
+        res = 'WRR'
+
+    path_out = None
+    if args.output:
+        path_out = args.output
+    if path_out is None:
+        print(f'[ERROR] compulsory option path_out was not defined in the config file or argument output')
+        return None
+    if not os.path.isdir(path_out):
+        path_out = create_dir(path_out)
+        if path_out is None:
+            print(f'[ERROR] path_out: {path_out} does not exist and could not be created')
+            return None
+
+    satellite_path_source = None
+    if args.path_to_sat:
+        satellite_path_source = args.path_to_sat
+    if satellite_path_source is None:
+        print('[ERROR] compulsory option satellite_path_source was not defined in the config file or argument path_to_sat')
+        return None
+    if not os.path.exists(satellite_path_source):
+        print(f'ERROR path: {satellite_path_source} does not exit')
+        return None
+
+    tmp_path = satellite_path_source
+
+    basic_options = {
+        'satellite_path_source': satellite_path_source,
+        'path_out': path_out,
+        'tmp_path': tmp_path,
+        'size_box': size_box,
+        'make_brdf': make_brdf,
+        'org': org,
+        'resolution': res,
+        'make_download': make_download
+    }
+    return basic_options
+
+def create_dir(path):
+    try:
+        os.mkdir(path)
+        return path
+    except:
+        return None
+
+def get_insitu_sites(options,path_out):
+    in_situ_sites = {}
+    if args.sitename:
+        station_name = args.sitename
+        in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
+        path_out_site = path_out
+        if path_out.find(station_name) == -1:
+            path_out_site = os.path.join(path_out, station_name)
+        in_situ_sites[station_name] = {
+            'latitude': in_situ_lat,
+            'longitude': in_situ_lon,
+            'path_out': path_out_site
+        }
+    elif args.config_file:
+        if not options.has_option('Time_and_sites_selection', 'sites'):
+            print(
+                f'Error: Section Time_and_sites_selection, Option sites is not available in the config file: {args.config_file}')
+            return None
+        site_list_option = options['Time_and_sites_selection']['sites'].strip()
+        if not site_list_option:
+            print(
+                f'Error: Section Time_and_sites_selection, Option sites is not available in the config file: {args.config_file}')
+            return None
+        site_list = site_list_option.split(',')
+        site_list = [s.strip() for s in site_list]
+        if not options.has_option('Time_and_sites_selection', 'sites_file'):
+            in_situ_sites = cfs.get_sites_from_list(site_list, path_out)
+        else:
+            site_file_option = options['Time_and_sites_selection']['sites_file'].strip()
+            if not site_list_option:
+                in_situ_sites = cfs.get_sites_from_list(site_list, path_out)
+            else:
+                region_list = None
+                if options.has_option('Time_and_sites_selection', 'sites_region'):
+                    region_list_option = options['Time_and_sites_selection']['sites_region'].strip()
+                    if region_list_option:
+                        region_list = region_list_option.split(',')
+                        region_list = [r.strip() for r in region_list]
+                in_situ_sites = cfs.get_sites_from_file(site_file_option, site_list,region_list, path_out)
+
+    if args.verbose:
+        for site in in_situ_sites:
+            lath = in_situ_sites[site]['latitude']
+            lonh = in_situ_sites[site]['longitude']
+            print(f'station_name: {site} with lat: {lath}, lon: {lonh}')
+    return in_situ_sites
 
 #############################
 # %%
@@ -1083,47 +1335,29 @@ def main():
 
     if args.debug:
         print('Entering Debugging Mode:')
-    # load config file
+
+    # Getting basic_options from config_file or arguments
+    basic_options = None
     if args.config_file:
         if os.path.isfile(args.config_file):
             options = config_reader(args.config_file)
-    # else:
-    #     print(args.config_file + ' does not exist. Please provide a valid config file path')
-    #     sys.exit()
-
-    # create extract and save it in internal folder
-    size_box = 25
-    if args.config_file:
-        if options.has_option('satellite_options', 'extract_size'):
-            size_box = int(options['satellite_options']['extract_size'])
-
-    # create list of sat granules
-    if not args.config_file:
-        if args.resolution == 'WRR':
-            res = 'WRR'
-        else:
-            res = 'WFR'
-    else:
-        res = 'WFR'
-        if options.has_option('satellite_options', 'resolution'):
-            res = options['satellite_options']['resolution']
-
-    # path to output
-    if args.output:
-        path_out = args.output
-    elif args.config_file:
-        if options['file_path']['output_dir']:
-            path_out = options['file_path']['output_dir']
-
+            basic_options = get_basic_options_from_file_config(options)
+    if basic_options is None:
+        basic_options = get_basic_options_from_arguments()
+    if basic_options is None:
+        return
     if args.verbose:
-        print(f'Path to output: {path_out}')
-    if not os.path.isdir(path_out):
-        os.mkdir(path_out)
+        for option in basic_options:
+            print(f'[INFO] {option}:{basic_options[option]}')
 
-    make_brdf = False
-    if args.config_file:
-        if options.has_option('satellite_options', 'brdf'):
-            make_brdf = True if options['satellite_options']['brdf'] == 'T' else False
+    size_box = basic_options['size_box']
+    res = basic_options['resolution']
+    path_out = basic_options['path_out']
+    make_brdf = basic_options['make_brdf']
+    satellite_path_source = basic_options['satellite_path_source']
+    tmp_path = basic_options['tmp_path']
+    org  = basic_options['org']
+    wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
 
     if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
         path_skie = options['file_path']['path_skie']
@@ -1224,7 +1458,8 @@ def main():
                     print(f'GRANULE: {path_product}')
                 res_str = path_product.split('/')[-1].split('_')[3]
                 ids = f'{idx}_{id}'
-                ofname = create_extract(size_box, ids, path_product, path_out, lathere, lonhere, res_str, make_brdf,insitu_info)
+                ofname = create_extract(size_box, ids, path_product, path_out, lathere, lonhere, res_str, make_brdf,
+                                        insitu_info)
                 if ofname is not None:
                     if args.verbose:
                         print(f'Sat extract {ofname} was created')
@@ -1233,119 +1468,18 @@ def main():
         print(f'COMPLETED. {ncreated} sat extract files were created')
         return
 
-    # path to satellite source
-    if args.path_to_sat:
-        satellite_path_source = args.path_to_sat
-    elif args.config_file:
-        if not options.has_option('file_path', 'sat_source_dir'):
-            print(
-                f'Error: Section file_path, Option sat_source_dir is not available in the config file: {args.config_file}')
-            return
-        if options['file_path']['sat_source_dir']:
-            satellite_path_source = options['file_path']['sat_source_dir']
-
-    if not os.path.exists(satellite_path_source):
-        print(f'ERROR path: {satellite_path_source} does not exit')
-        return
-
-    if args.verbose:
-        print(f'Path to satellite sources: {satellite_path_source}')
-
-    # temporay path
-    tmp_path = None
-    if args.config_file:
-        if options.has_option('file_path', 'tmp_dir') and options['file_path']['tmp_dir']:
-            tmp_path = options['file_path']['tmp_dir']
-            tmp_path_del = os.path.join(tmp_path, '*')
-            cmd = f'rm -r {tmp_path_del}'
-            print(cmd)
-            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
-            out, err = prog.communicate()
-            if err:
-                print(err)
-
     # in situ sites
-    in_situ_sites = {}
-    if args.sitename:
-        station_name = args.sitename
-        in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
-        path_out_site = path_out
-        if path_out.find(station_name) == -1:
-            path_out_site = os.path.join(path_out, station_name)
-        in_situ_sites[station_name] = {
-            'latitude': in_situ_lat,
-            'longitude': in_situ_lon,
-            'path_out': path_out_site
-        }
-    elif args.config_file:
-        if not options.has_option('Time_and_sites_selection', 'sites'):
-            print(
-                f'Error: Section Time_and_sites_selection, Option sites is not available in the config file: {args.config_file}')
-            return
+    in_situ_sites = get_insitu_sites(options,path_out)
 
-        if not options.has_option('Time_and_sites_selection', 'sites_file') or \
-                (options.has_option('Time_and_sites_selection', 'sites_file') and not
-                options['Time_and_sites_selection']['sites_file']):
-            site_list = options['Time_and_sites_selection']['sites'].split(',')
-            site_list = [s.strip() for s in site_list]
-            in_situ_sites = cfs.get_sites_from_list(site_list, path_out)
-        else:
-            site_list = None
-            region_list = None
-            if options['Time_and_sites_selection']['sites']:
-                site_list = options['Time_and_sites_selection']['sites'].split(',')
-                site_list = [s.strip() for s in site_list]
-            if not options['Time_and_sites_selection']['sites'] and \
-                    (options.has_option('Time_and_sites_selection', 'sites_region') and
-                     options['Time_and_sites_selection']['sites_region']):
-                region_list = options['Time_and_sites_selection']['sites_region'].split(',')
-                region_list = [r.strip() for r in region_list]
-            in_situ_sites = cfs.get_sites_from_file(options['Time_and_sites_selection']['sites_file'], site_list,
-                                                    region_list, path_out)
+    #time options
+    datetime_start, datetime_end, date_list = get_params_time(options)
 
-    if args.verbose:
-        for site in in_situ_sites:
-            lath = in_situ_sites[site]['latitude']
-            lonh = in_situ_sites[site]['longitude']
-            print(f'station_name: {site} with lat: {lath}, lon: {lonh}')
+    #make_download
 
-    if args.config_file:
-        datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
-        datetime_end = datetime.today()
-        if options.has_option('Time_and_sites_selection', 'time_start'):
-            try:
-                datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
-            except:
-                print(f'WARNING: time_start format is not valid. Usind dafult value: 2000-01-01')
+    #satellite list
+    path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, date_list, org)
 
-        if options.has_option('Time_and_sites_selection', 'time_end'):
-            try:
-                datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'],
-                                                 '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
-            except:
-                print(f'WARNING: time_end format is not valid. Usind dafult value: today')
-    else:
-        if args.startdate:
-            datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
-        else:
-            datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
-        if args.enddate:
-            datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
-        else:
-            datetime_end = datetime.today()
 
-    wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
-
-    org = None
-    if options.has_option('file_path', 'sat_source_dir_organization') and \
-            options['file_path']['sat_source_dir_organization']:
-        org = options['file_path']['sat_source_dir_organization']
-
-    path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, 'satellite',
-                                                  datetime_start, datetime_end, org)
-
-    if args.verbose:
-        print(f'Satellite List: {path_to_satellite_list}')
 
     # if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
     #     os.remove(f'{path_out}/OL_2_{res}_list.txt')

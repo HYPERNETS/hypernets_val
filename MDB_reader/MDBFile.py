@@ -8,9 +8,10 @@ from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
 
-code_home = os.path.abspath('../')
-sys.path.append(code_home)
+# code_home = os.path.abspath('../')
+# sys.path.append(code_home)
 import COMMON.Class_Flags_OLCI as flag
+from COMMON import common_functions as cfs
 
 from QC_INSITU import QC_INSITU
 from QC_SAT import QC_SAT
@@ -54,7 +55,6 @@ class MDBFile:
             self.n_mu_total = len(self.dimensions['satellite_id'])
             print('[INFO] Total mu: ', self.n_mu_total)
             self.sat_times = []
-
             for st in self.variables['satellite_time']:
                 self.sat_times.append(datetime.fromtimestamp(float(st)))
             self.start_date = self.sat_times[0]
@@ -70,7 +70,6 @@ class MDBFile:
                     self.info[at] = self.nc.getncattr(at).upper()
                 else:
                     self.info[at] = self.nc.getncattr(at)
-
             if self.info['satellite_aco_processor'] == 'ATMOSPHERIC CORRECTION PROCESSOR: XXX':
                 self.info['satellite_aco_processor'] = 'STANDARD'
 
@@ -128,6 +127,102 @@ class MDBFile:
         self.rgb_bands = [665, 560, 490]
 
         self.PI_DIVIDED = False
+
+    def check_repeated(self):
+        sat_times_unique = np.unique(np.array(self.sat_times))
+        if len(self.sat_times) != len(sat_times_unique):
+            print(f'[WARNING] There are repeated satellite times.')
+            return False
+        return True
+
+    def remove_repeated(self):
+        sat_times_unique = np.unique(np.array(self.sat_times))
+        sat_times = np.array(self.sat_times)
+        sat_times.sort()
+        sat_times_unique.sort()
+        nrepeated = len(sat_times) - len(sat_times_unique)
+        print(f'[INFO] # repeated satellite ids: {nrepeated}')
+        idx_included = [True]*self.n_mu_total
+        n_excluded = 0
+        idu = 0
+        print(f'[INFO] Searching repeated ids...')
+        for idx in range(self.n_mu_total):
+            if sat_times[idx]==sat_times_unique[idu]:
+                idu = idu + 1
+                continue
+            else:
+                idx_included[idx] = False
+                n_excluded = n_excluded + 1
+                print(f'[INFO] Repeated satellite id: {idx} with time: {sat_times[idx]}')
+                if n_excluded==nrepeated:
+                    break
+        indices = np.where(np.array(idx_included,dtype=np.bool))
+
+        print(f'[INFO] Creating temporary file without repeated ids...')
+        file_temp = os.path.join(os.path.dirname(self.file_path),'Temp.nc')
+        if os.path.exists(file_temp):
+            os.remove(file_temp)
+
+        ncout = Dataset(file_temp,'w',format = 'NETCDF4')
+
+        # copy global attributes all at once via dictionary
+        ncout.setncatts(self.nc.__dict__)
+
+        # copy dimensions (satellite_id is defined as unlimited, so we do not need to change it)
+        for name, dimension in self.nc.dimensions.items():
+            ncout.createDimension(
+                name, (len(dimension) if not dimension.isunlimited() else None))
+
+        for name, variable in self.nc.variables.items():
+            fill_value = None
+            if '_FillValue' in variable.ncattrs():
+                fill_value = variable._FillValue
+            ncout.createVariable(name, variable.datatype, variable.dimensions, zlib=True, fill_value = fill_value, shuffle=True,complevel=6)
+            ncout[name].setncatts(self.nc[name].__dict__)
+
+            if 'satellite_id' in variable.dimensions:
+                var_new_array = np.array(variable[indices])
+                for idx in range(len(indices[0])):
+                    if name=='satellite_PDU':
+                        ncout.variables[name][idx] = str(var_new_array[idx])
+                    else:
+                        ncout.variables[name][idx] = var_new_array[idx]
+            else:
+                ncout[name][:] = self.nc[name][:]
+        ncout.close()
+
+        self.nc.close()
+        print(f'[INFO] Final file: {self.file_path}')
+        os.rename(file_temp,self.file_path)
+        print(f'[INFO] Completed')
+
+    def create_file_with_flag_bands(self,file_out):
+
+        ncout = Dataset(file_out,'w',format='NETCDF4')
+
+        # copy global attributes all at once via dictionary
+        ncout.setncatts(self.nc.__dict__)
+
+        # copy dimensions (
+        for name, dimension in self.nc.dimensions.items():
+            ncout.createDimension(
+                name, (len(dimension) if not dimension.isunlimited() else None))
+        # copy variables
+        for name, variable in self.nc.variables.items():
+            fill_value = None
+            if '_FillValue' in variable.ncattrs():
+                fill_value = variable._FillValue
+            ncout.createVariable(name, variable.datatype, variable.dimensions, zlib=True, fill_value=fill_value,
+                                 shuffle=True, complevel=6)
+            ncout[name].setncatts(self.nc[name].__dict__)
+            ncout[name][:] = self.nc[name][:]
+        ncout.close()
+
+        # adding flag variables
+        name_flag_names = ['flag_platform','flag_sensor','flag_ac','flag_insitu']
+
+        self.nc.close()
+
 
     def check_structure(self):
         check_var = True
@@ -608,6 +703,8 @@ class MDBFile:
 
         return array_out
 
+
+
     def prepare_df_validation(self):
         print('[INFO] Preparing DF for validation...')
         nbands = len(self.wlref)
@@ -621,7 +718,7 @@ class MDBFile:
         for index_mu in range(self.n_mu_total):
             if index_mu % 100 == 0:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
-            # print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
+
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
             # print(info_mu)
@@ -670,6 +767,7 @@ class MDBFile:
                     self.mu_dates[mukey]['ac'] = 'STANDARD'
             else:
                 print('[WARNING] A single MDB file should not contain more than one match-up in a specific time/date')
+                #print(f'REPEATED MU KEY: {mukey}')
 
             index_valid = 0
             n_good_bands = 0

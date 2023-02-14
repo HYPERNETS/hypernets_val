@@ -36,7 +36,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 'flag_mask': '1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, '
                              '131072, 262144, 524288, 1048576, 2097152, 4194304 '
             },
-            'insitu_azimuth_angle': {
+            'insitu_viewing_azimuth_angle': {
                 'name_orig': 'viewing_azimuth_angle',
                 'type': 'f4',
                 'standard_name': 'sensor_azimuth_angle',
@@ -47,9 +47,9 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                              'standard name to specify the reference direction.',
                 'units': 'degrees',
                 'reference': 'True North',
-                'preferred_symbol': 'vaa',
+                'preferred_symbol': 'vaa'
             },
-            'insitu_zenith_angle': {
+            'insitu_viewing_zenith_angle': {
                 'name_orig': 'viewing_zenith_angle',
                 'type': 'f4',
                 'standard_name': 'sensor_zenith_angle',
@@ -60,8 +60,26 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                              'to the Earth\'s surface at a given location. \'Observation target\' means a location on '
                              'the Earth defined by the sensor performing the observations.',
                 'units': 'degrees',
-                'preferred_symbol': 'vza',
-
+                'preferred_symbol': 'vza'
+            },
+            'insitu_solar_azimuth_angle': {
+                'name_orig': 'solar_azimuth_angle',
+                'type': 'f4',
+                'standard_name': 'solar_azimuth_angle',
+                'long_name': 'Solar azimuth angle is the horizontal angle between the line of sight to the sun and a '
+                             'reference direction which is often due north. The angle is measured clockwise.',
+                'units': 'degrees',
+                'reference': 'True North',
+                'preferred_symbol': 'saa'
+            },
+            'insitu_solar_zenith_angle': {
+                'name_orig': 'solar_zenith_angle',
+                'type': 'f4',
+                'standard_name': 'solar_zenith_angle',
+                'long_name': 'Solar zenith angle is the the angle between the line of sight to the sun and the local '
+                             'vertical.',
+                'units': 'degrees',
+                'preferred_symbol': 'sza'
             }
 
         }
