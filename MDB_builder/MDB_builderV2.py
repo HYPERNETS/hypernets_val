@@ -38,9 +38,9 @@ def main():
     print('[INFO] Creating MDB files!')
 
     #Option to a list dates
-    if args.site and args.output and args.listdates:
+    if args.sitename and args.output and args.listdates:
         ihd = INSITU_HYPERNETS_DAY(None, args.verbose)
-        ihd.save_list_dates_to_file(args.output,args.site,None,None)
+        ihd.save_list_dates_to_file(args.output,args.sitename,None,None)
         return
 
     if os.path.isfile(args.config_file):
