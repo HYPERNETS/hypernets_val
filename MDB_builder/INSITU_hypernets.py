@@ -335,6 +335,45 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             print(f'[ERROR] Access to {self.url_base} via ssh is not allowed')
             return False
 
+    def get_list_dates(self, sitename, start_date_ref, end_date_ref):
+        list_dates = []
+        cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}'
+        list_year = self.get_list_folder_dates(cmd)
+        if len(list_year) > 0:
+            for y in list_year:
+                cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{y}'
+                list_month = self.get_list_folder_dates(cmd)
+                if len(list_month) > 0:
+                    for m in list_month:
+                        if self.verbose:
+                            print(f'[INFO] Checking dates via SSH. Year: {y} Month: {m}')
+                        cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{y}/{m}'
+                        list_days = self.get_list_folder_dates(cmd)
+                        if len(list_days) > 0:
+                            for d in list_days:
+                                datehere_str = f'{y}{m}{d}'
+                                datehere = dt.strptime(datehere_str, '%Y%m%d')
+                                add_date = True
+                                if start_date_ref is not None and datehere<start_date_ref:
+                                    add_date = False
+                                if end_date_ref is not None and datehere>end_date_ref:
+                                    add_date = False
+                                if add_date:
+                                    list_dates.append(datehere)
+        return list_dates
+
+    def save_list_dates_to_file(self,fout,sitename,start_date_ref, end_date_ref):
+        list_dates = self.get_list_dates(sitename,start_date_ref,end_date_ref)
+        if len(list_dates)==0:
+            print(f'[WARNING] Data were not found for site: {sitename}')
+            return
+        f1 = open(fout,'w')
+        for date in list_dates:
+            date_str = date.strftime('%Y-%m-%d')
+            f1.write(date_str)
+            f1.write('\n')
+        f1.close()
+
     def get_start_and_end_dates(self, sitename, start_date_ref, end_date_ref):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}'
         list_year = self.get_list_folder_dates(cmd)

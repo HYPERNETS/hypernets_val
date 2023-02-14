@@ -11,15 +11,15 @@ parser = argparse.ArgumentParser(
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 # parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 # parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
-# parser.add_argument('-site', "--sitename", help="Site name.", choices=['VEIT', 'BEFR', 'BSBE'])
+parser.add_argument('-site', "--sitename", help="Site name. Only with --listdates")
 # parser.add_argument('-ins', "--insitu", help="Satellite sensor name.", choices=['PANTHYR', 'HYPERNETS'])  # ,'HYPSTAR'])
 # parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.")
 # parser.add_argument('-sat', "--satellite", help="Satellite sensor name.", choices=['OLCI', 'MSI'])
 parser.add_argument('-c', "--config_file", help="Config File.", required=True)
 # parser.add_argument('-ps', "--path_to_sat", help="Path to satellite extracts.")
-# parser.add_argument('-o', "--output", help="Path to output")
+parser.add_argument('-o', "--output", help="Output file. Only with --listdates")
 # parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
-parser.add_argument('-nl', "--nolist", help="Do not create satellite and in situ lists.", action="store_true")
+parser.add_argument('-ld', "--listdates", help="Option to obtain a date list for a specific HYPERNETS site (-site option).", action="store_true")
 parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 
 args = parser.parse_args()
@@ -36,6 +36,13 @@ from COMMON import common_functions as cfs
 
 def main():
     print('[INFO] Creating MDB files!')
+
+    #Option to a list dates
+    if args.site and args.output and args.listdates:
+        ihd = INSITU_HYPERNETS_DAY(None, args.verbose)
+        ihd.save_list_dates_to_file(args.output,args.site,None,None)
+        return
+
     if os.path.isfile(args.config_file):
         options = configparser.ConfigParser()
         options.read(args.config_file)
@@ -127,6 +134,8 @@ def main():
     concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
+
+
 
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):

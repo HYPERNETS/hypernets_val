@@ -124,7 +124,8 @@ def create_list_products(path_source, path_out, wce, res_str, date_list, org):
 
     return path_to_list
 
-def get_date_list_from_start_end_date(dt_start,dt_end):
+
+def get_date_list_from_start_end_date(dt_start, dt_end):
     date_list = []
     dt = dt_start
     while dt <= dt_end:
@@ -132,23 +133,25 @@ def get_date_list_from_start_end_date(dt_start,dt_end):
         dt = dt + timedelta(hours=24)
     return date_list
 
-def get_date_list_from_file(file_list,dt_start,dt_end):
+
+def get_date_list_from_file(file_list, dt_start, dt_end):
     if not os.path.exists(file_list):
         return None
     date_list = []
-    f1 = open(file_list,'r')
+    f1 = open(file_list, 'r')
     for line in f1:
         dateherestr = line.strip()
         try:
-            datehere = datetime.strptime(dateherestr,'%Y-%m-%d')
-            if datehere>=dt_start and datehere<=dt_end:
+            datehere = datetime.strptime(dateherestr, '%Y-%m-%d')
+            if datehere >= dt_start and datehere <= dt_end:
                 date_list.append(datehere)
         except:
-             pass
+            pass
     f1.close()
-    if len(date_list)==0:
+    if len(date_list) == 0:
         return None
     return date_list
+
 
 def get_params_time(options):
     date_list = None
@@ -171,7 +174,7 @@ def get_params_time(options):
         if options.has_option('Time_and_sites_selection', 'time_list_file'):
             time_list_file = options['Time_and_sites_selection']['time_list_file']
             if time_list_file:
-                date_list = get_date_list_from_file(time_list_file,datetime_start,datetime_end)
+                date_list = get_date_list_from_file(time_list_file, datetime_start, datetime_end)
 
     else:
         if args.startdate:
@@ -184,14 +187,15 @@ def get_params_time(options):
             datetime_end = datetime.today()
 
     if date_list is None:
-        date_list = get_date_list_from_start_end_date(datetime_start,datetime_end)
+        date_list = get_date_list_from_start_end_date(datetime_start, datetime_end)
     ndates = len(date_list)
     if args.verbose:
         print(f'Start date: {datetime_start}')
         print(f'End date: {datetime_end}')
         print(f'N Dates: {ndates}')
 
-    return datetime_start,datetime_end,date_list
+    return datetime_start, datetime_end, date_list
+
 
 def get_val_from_tie_point_grid(yPoint, xPoint, ySubsampling, xSubsampling, dataset):
     grid_height = dataset.shape[0]
@@ -1145,16 +1149,17 @@ def check_product(filepath, time_start, time_stop):
 
     return check_res
 
+
 def get_basic_options_from_file_config(options):
-    #size box
+    # size box
     size_box = 25
     if options.has_option('satellite_options', 'extract_size'):
         size_box = int(options['satellite_options']['extract_size'])
-    #resolution
+    # resolution
     res = 'WFR'
     if options.has_option('satellite_options', 'resolution'):
         res = options['satellite_options']['resolution']
-    #path_out
+    # path_out
     path_out = None
     if options['file_path']['output_dir']:
         path_out = options['file_path']['output_dir']
@@ -1169,12 +1174,13 @@ def get_basic_options_from_file_config(options):
         if path_out is None:
             print(f'[ERROR] path_out: {path_out} does not exist and could not be created')
             return None
-    #makd_brdb
+    # makd_brdb
     make_brdf = False
     if options.has_option('satellite_options', 'brdf'):
-       if options['satellite_options']['brdf'].upper() == 'T' or options['satellite_options']['brdf'].upper()=='TRUE':
-           make_brdf = True
-    #satellite_path_source
+        if options['satellite_options']['brdf'].upper() == 'T' or options['satellite_options'][
+            'brdf'].upper() == 'TRUE':
+            make_brdf = True
+    # satellite_path_source
     satellite_path_source = None
     if options.has_option('file_path', 'sat_source_dir'):
         satellite_path_source = options['file_path']['sat_source_dir']
@@ -1182,12 +1188,13 @@ def get_basic_options_from_file_config(options):
         if args.path_to_sat:
             satellite_path_source = args.path_to_sat
     if satellite_path_source is None:
-        print('[ERROR] compulsory option satellite_path_source was not defined in the config file or argument path_to_sat')
+        print(
+            '[ERROR] compulsory option satellite_path_source was not defined in the config file or argument path_to_sat')
         return None
     if not os.path.exists(satellite_path_source):
         print(f'ERROR path: {satellite_path_source} does not exit')
         return None
-    #tmp_path
+    # tmp_path
     tmp_path = None
     if options.has_option('file_path', 'tmp_dir'):
         tmp_path = options['file_path']['tmp_dir']
@@ -1203,29 +1210,32 @@ def get_basic_options_from_file_config(options):
 
     if tmp_path is None:
         tmp_path = satellite_path_source
-        print(f'[WARNING] tmp_path was not defined or does not exist. tmp path set to sat_path: {satellite_path_source}')
-    #org
+        print(
+            f'[WARNING] tmp_path was not defined or does not exist. tmp path set to sat_path: {satellite_path_source}')
+    # org
     org = None
     if options.has_option('file_path', 'sat_source_dir_organization'):
         org = options['file_path']['sat_source_dir_organization']
 
-    #make_download
+    # make_download
     make_download = False
     if options.has_option('satellite_options', 'download'):
-       if options['satellite_options']['download'].upper() == 'T' or options['satellite_options']['download'].upper()=='TRUE':
-           make_download = True
+        if options['satellite_options']['download'].upper() == 'T' or options['satellite_options'][
+            'download'].upper() == 'TRUE':
+            make_download = True
 
     basic_options = {
-        'satellite_path_source':satellite_path_source,
+        'satellite_path_source': satellite_path_source,
         'path_out': path_out,
-        'tmp_path':tmp_path,
-        'size_box':size_box,
+        'tmp_path': tmp_path,
+        'size_box': size_box,
         'make_brdf': make_brdf,
         'org': org,
         'resolution': res,
         'make_download': make_download
     }
     return basic_options
+
 
 def get_basic_options_from_arguments():
     ##parameters with default values
@@ -1254,7 +1264,8 @@ def get_basic_options_from_arguments():
     if args.path_to_sat:
         satellite_path_source = args.path_to_sat
     if satellite_path_source is None:
-        print('[ERROR] compulsory option satellite_path_source was not defined in the config file or argument path_to_sat')
+        print(
+            '[ERROR] compulsory option satellite_path_source was not defined in the config file or argument path_to_sat')
         return None
     if not os.path.exists(satellite_path_source):
         print(f'ERROR path: {satellite_path_source} does not exit')
@@ -1274,6 +1285,7 @@ def get_basic_options_from_arguments():
     }
     return basic_options
 
+
 def create_dir(path):
     try:
         os.mkdir(path)
@@ -1281,7 +1293,8 @@ def create_dir(path):
     except:
         return None
 
-def get_insitu_sites(options,path_out):
+
+def get_insitu_sites(options, path_out):
     in_situ_sites = {}
     if args.sitename:
         station_name = args.sitename
@@ -1319,7 +1332,7 @@ def get_insitu_sites(options,path_out):
                     if region_list_option:
                         region_list = region_list_option.split(',')
                         region_list = [r.strip() for r in region_list]
-                in_situ_sites = cfs.get_sites_from_file(site_file_option, site_list,region_list, path_out)
+                in_situ_sites = cfs.get_sites_from_file(site_file_option, site_list, region_list, path_out)
 
     if args.verbose:
         for site in in_situ_sites:
@@ -1328,6 +1341,7 @@ def get_insitu_sites(options,path_out):
             print(f'station_name: {site} with lat: {lath}, lon: {lonh}')
     return in_situ_sites
 
+
 #############################
 # %%
 def main():
@@ -1335,6 +1349,7 @@ def main():
 
     if args.debug:
         print('Entering Debugging Mode:')
+
 
     # Getting basic_options from config_file or arguments
     basic_options = None
@@ -1356,7 +1371,7 @@ def main():
     make_brdf = basic_options['make_brdf']
     satellite_path_source = basic_options['satellite_path_source']
     tmp_path = basic_options['tmp_path']
-    org  = basic_options['org']
+    org = basic_options['org']
     wce = f'"*OL_2_{res}*SEN3*"'  # wild card expression
 
     if options.has_option('file_path', 'path_skie') and options.has_option('file_path', 'path_skie_code'):
@@ -1469,17 +1484,15 @@ def main():
         return
 
     # in situ sites
-    in_situ_sites = get_insitu_sites(options,path_out)
+    in_situ_sites = get_insitu_sites(options, path_out)
 
-    #time options
+    # time options
     datetime_start, datetime_end, date_list = get_params_time(options)
 
-    #make_download
+    # make_download
 
-    #satellite list
+    # satellite list
     path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, date_list, org)
-
-
 
     # if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
     #     os.remove(f'{path_out}/OL_2_{res}_list.txt')
