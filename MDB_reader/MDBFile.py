@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
+
 code_home = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(code_home)
 import COMMON.Class_Flags_OLCI as flag
@@ -141,28 +142,28 @@ class MDBFile:
         sat_times_unique.sort()
         nrepeated = len(sat_times) - len(sat_times_unique)
         print(f'[INFO] # repeated satellite ids: {nrepeated}')
-        idx_included = [True]*self.n_mu_total
+        idx_included = [True] * self.n_mu_total
         n_excluded = 0
         idu = 0
         print(f'[INFO] Searching repeated ids...')
         for idx in range(self.n_mu_total):
-            if sat_times[idx]==sat_times_unique[idu]:
+            if sat_times[idx] == sat_times_unique[idu]:
                 idu = idu + 1
                 continue
             else:
                 idx_included[idx] = False
                 n_excluded = n_excluded + 1
                 print(f'[INFO] Repeated satellite id: {idx} with time: {sat_times[idx]}')
-                if n_excluded==nrepeated:
+                if n_excluded == nrepeated:
                     break
-        indices = np.where(np.array(idx_included,dtype=np.bool))
+        indices = np.where(np.array(idx_included, dtype=np.bool))
 
         print(f'[INFO] Creating temporary file without repeated ids...')
-        file_temp = os.path.join(os.path.dirname(self.file_path),'Temp.nc')
+        file_temp = os.path.join(os.path.dirname(self.file_path), 'Temp.nc')
         if os.path.exists(file_temp):
             os.remove(file_temp)
 
-        ncout = Dataset(file_temp,'w',format = 'NETCDF4')
+        ncout = Dataset(file_temp, 'w', format='NETCDF4')
 
         # copy global attributes all at once via dictionary
         ncout.setncatts(self.nc.__dict__)
@@ -176,13 +177,14 @@ class MDBFile:
             fill_value = None
             if '_FillValue' in variable.ncattrs():
                 fill_value = variable._FillValue
-            ncout.createVariable(name, variable.datatype, variable.dimensions, zlib=True, fill_value = fill_value, shuffle=True,complevel=6)
+            ncout.createVariable(name, variable.datatype, variable.dimensions, zlib=True, fill_value=fill_value,
+                                 shuffle=True, complevel=6)
             ncout[name].setncatts(self.nc[name].__dict__)
 
             if 'satellite_id' in variable.dimensions:
                 var_new_array = np.array(variable[indices])
                 for idx in range(len(indices[0])):
-                    if name=='satellite_PDU':
+                    if name == 'satellite_PDU':
                         ncout.variables[name][idx] = str(var_new_array[idx])
                     else:
                         ncout.variables[name][idx] = var_new_array[idx]
@@ -192,12 +194,12 @@ class MDBFile:
 
         self.nc.close()
         print(f'[INFO] Final file: {self.file_path}')
-        os.rename(file_temp,self.file_path)
+        os.rename(file_temp, self.file_path)
         print(f'[INFO] Completed')
 
-    def create_file_with_flag_bands(self,file_out):
+    def create_file_with_flag_bands(self, file_out):
 
-        ncout = Dataset(file_out,'w',format='NETCDF4')
+        ncout = Dataset(file_out, 'w', format='NETCDF4')
 
         # copy global attributes all at once via dictionary
         ncout.setncatts(self.nc.__dict__)
@@ -218,10 +220,9 @@ class MDBFile:
         ncout.close()
 
         # adding flag variables
-        name_flag_names = ['flag_platform','flag_sensor','flag_ac','flag_insitu']
+        name_flag_names = ['flag_platform', 'flag_sensor', 'flag_ac', 'flag_insitu']
 
         self.nc.close()
-
 
     def check_structure(self):
         check_var = True
@@ -357,7 +358,6 @@ class MDBFile:
                 time_difference[idx] = time_diff_here
             else:
                 time_difference[idx] = np.ma.masked
-
 
         if 'insitu_exact_wavelenghts' in self.variables:
             exact_wl = self.variables['insitu_exact_wavelenghts'][index_mu]
@@ -705,8 +705,6 @@ class MDBFile:
 
         return array_out
 
-
-
     def prepare_df_validation(self):
         print('[INFO] Preparing DF for validation...')
         nbands = len(self.wlref)
@@ -714,7 +712,6 @@ class MDBFile:
         self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
         # ['Index','Index_MU','Index_Band','Sat_Time','Ins_Time','Time_Diff','Wavelenght','Ins_Rrs','Sat_Rrs','Valid']
         index_tot = 0
-        # index_valid_tot = 0
         nmu_valid = 0
         nmu_valid_complete = 0
         for index_mu in range(self.n_mu_total):
@@ -723,29 +720,11 @@ class MDBFile:
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
-            # print(info_mu)
-            # self.plot_spectra(None)
-
-            # if not mu_valid:
-            #     status = info_mu['status']
-            #     print(f'[WARNING] MU: {index_mu} no valid: {status}')
-
-            # invalid = [2,94,136,140,159]
-            # if index_mu in invalid:
-            #     mu_valid = False
-            # if index_mu==94:
-            #     mu_valid = False
-
             if mu_valid:
                 nmu_valid = nmu_valid + 1
 
             spectrum_complete = info_mu['spectrum_complete']
             mu_valid_bands = info_mu['valid_bands']
-            # n_good_bands = len(self.wlref_sat_indices)
-            # if spectrum_complete:
-            #     nmu_valid_complete = nmu_valid_complete + 1
-            # else:
-            #     n_good_bands = sum(mu_valid_bands)
 
             mukey = self.get_mu_key()
             time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
@@ -769,7 +748,7 @@ class MDBFile:
                     self.mu_dates[mukey]['ac'] = 'STANDARD'
             else:
                 print('[WARNING] A single MDB file should not contain more than one match-up in a specific time/date')
-                #print(f'REPEATED MU KEY: {mukey}')
+                # print(f'REPEATED MU KEY: {mukey}')
 
             index_valid = 0
             n_good_bands = 0
