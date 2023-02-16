@@ -351,10 +351,13 @@ class MDBFile:
         sat_time_here = self.sat_times[index_mu]
         for idx in range(len(times_here)):
             itime = times_here[idx]
-            if not np.ma.is_masked(itime):
+            if not np.ma.is_masked(itime) and not np.isnan(itime):
                 insitu_time_here = datetime.fromtimestamp(float(itime))
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
+            else:
+                time_difference[idx] = np.ma.masked
+
 
         if 'insitu_exact_wavelenghts' in self.variables:
             exact_wl = self.variables['insitu_exact_wavelenghts'][index_mu]

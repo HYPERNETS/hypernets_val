@@ -2,6 +2,8 @@ import datetime
 import os.path
 import sys
 import argparse
+import warnings
+warnings.simplefilter('ignore', UserWarning)
 
 from MDBFile import MDBFile
 from MDB_builder.INSITU_base import INSITUBASE
@@ -82,7 +84,6 @@ class MDB_READER():
             if fillValue is not None:
                 array = ma.masked_array(array, mask=array == fillValue)
             #unlimited dimension,
-            #new_var[:] = [array[:]]
             new_var[:] = array[:]
 
         new_variables_sat_mu = {
@@ -111,7 +112,7 @@ class MDB_READER():
         if self.mfile.df_mu is None:
             self.mfile.prepare_df_mu()
 
-        print(self.mfile.df_mu)
+        #print(self.mfile.df_mu)
 
         for new_var_name in new_variables_sat_mu:
             new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],
@@ -128,7 +129,7 @@ class MDB_READER():
                     except:
                         array_t.append(-999.0)
                 array = np.array(array_t)
-            print(new_var_name, '->', array.shape)
+            #print(new_var_name, '->', array.shape)
             fillValue = new_variables_sat_mu[new_var_name]['fillvalue']
             if fillValue is not None:
                 array = ma.masked_array(array, mask=array == fillValue)
@@ -144,6 +145,7 @@ class MDB_READER():
         ##Satellite quality control
         self.mfile.qc_sat.wl_ref = wllist
         self.mfile.qc_sat.set_eumetsat_defaults(3)
+
 
         # In situ quality control
         self.mfile.qc_insitu.set_wllist_using_wlref(wllist)
