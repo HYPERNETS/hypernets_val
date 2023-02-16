@@ -778,6 +778,7 @@ class MDBFile:
                     index_valid = index_valid + 1
 
                 print('Llega aqui-> ',index_tot)
+                print(pd.DataFrame.from_dict(row))
                 self.df_validation.iloc[index_tot] = pd.DataFrame.from_dict(row)
 
                 index_tot = index_tot + 1
