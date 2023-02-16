@@ -777,9 +777,13 @@ class MDBFile:
                     row['Sat_Rrs'] = [self.mu_curr_sat_rrs_mean[index_valid]]
                     index_valid = index_valid + 1
 
-                print('Llega aqui-> ',index_tot)
-                print(pd.DataFrame.from_dict(row))
-                self.df_validation.iloc[index_tot] = pd.DataFrame.from_dict(row)
+                # print('Llega aqui-> ',index_tot,pd.__version__)
+                # print(pd.DataFrame.from_dict(row))
+                # print(self.df_validation.columns.values)
+                row_here = pd.DataFrame.from_dict(row)
+                #print(type(row_here))
+                self.df_validation.iloc[index_tot] = row_here.iloc[0]
+                #print(self.df_validation.index[index_tot])
 
                 index_tot = index_tot + 1
 
