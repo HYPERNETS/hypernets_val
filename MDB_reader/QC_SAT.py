@@ -33,6 +33,7 @@ class QC_SAT:
         self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
         self.NVP = 0  # number of valid pixels (excluding flag pixels), varies with MU
         self.flag_mask = None  # mask based on flagging
+        self.ac_processor = ac_processor
 
         self.info_flag = {}
         if satellite_flag is not None and ac_processor is not None:

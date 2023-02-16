@@ -66,7 +66,9 @@ parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
 parser.add_argument('-o', "--output", help="Path to output")
 parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
-parser.add_argument('-nl', "--nolist", help="Do not create satellite and in situ lists.", action="store_true")
+parser.add_argument('-nl', "--nolist",
+                    help="Do not create initial satellite lists, checking day by day allowing download",
+                    action="store_true")
 
 args = parser.parse_args()
 
@@ -84,6 +86,57 @@ def config_reader(FILEconfig):
     options.read(FILEconfig)
     return options
 
+
+def create_extracts_day_by_day(date_list, path_source,insitu_lat,insitu_lon):
+
+    create_extract_day(date_list[2], path_source,insitu_lat,insitu_lon)
+
+
+def create_extract_day(date, path_source,insitu_lat,insitu_lon):
+    year = date.strftime('%Y')
+    jday = date.strftime('%j')
+    path_year = os.path.join(path_source, year)
+    path_day = os.path.join(path_year, jday)
+
+    edac = check_donwload()
+
+    if not os.path.exists(path_day):
+        if not os.path.exists(path_year):
+            os.mkdir(path_year)
+        os.mkdir(path_day)
+        if edac is not None:
+            launch_download(edac,date,path_day,insitu_lat,insitu_lon)
+
+
+
+def launch_download(edac,date,path_day,insitu_lat,insitu_lon):
+    if args.verbose:
+        print(f'[INFO] Launching download for day: {date}')
+    date_str = date.strftime('%Y-%m-%d')
+    products, product_names, collection_id = edac.search_olci_by_point(date_str, 'FR', 'L2', insitu_lat, insitu_lon
+                                                                       , -1, -1)
+    edac.download_product_from_product_list(products, path_day)
+
+def check_donwload():
+    import sat_extract
+    code_home = os.path.dirname(os.path.dirname(os.path.dirname(sat_extract.__file__)))
+    code_download = os.path.join(code_home,'cnrdownload')
+    if os.path.exists(code_download):
+        sys.path.append(code_download)
+        try:
+            from eumdac_lois import EUMDAC_LOIS
+            edac = EUMDAC_LOIS(True)
+        except:
+            print(f'[WARNING] Error loading package eumdac_lois. Download is not enabled')
+            return None
+
+        if edac.token is None:
+            return None
+        else:
+            return edac
+    else:
+        print(f'[WARNING] Package {code_download} is not available. Download is not enabled')
+        return False
 
 # user defined functions
 def create_list_products(path_source, path_out, wce, res_str, date_list, org):
@@ -139,18 +192,28 @@ def get_date_list_from_file(file_list, dt_start, dt_end):
         return None
     date_list = []
     f1 = open(file_list, 'r')
+    dt_start_real = None
+    dt_end_real = None
     for line in f1:
         dateherestr = line.strip()
         try:
             datehere = datetime.strptime(dateherestr, '%Y-%m-%d')
-            if datehere >= dt_start and datehere <= dt_end:
+            if dt_start <= datehere <= dt_end:
                 date_list.append(datehere)
+                if dt_start_real is None:
+                    dt_start_real = datehere
+                    dt_end_real = datehere
+                else:
+                    if datehere < dt_start_real:
+                        dt_start_real = datehere
+                    if datehere > dt_end_real:
+                        dt_end_real = datehere
         except:
             pass
     f1.close()
     if len(date_list) == 0:
         return None
-    return date_list
+    return date_list, dt_start_real, dt_end_real
 
 
 def get_params_time(options):
@@ -174,7 +237,8 @@ def get_params_time(options):
         if options.has_option('Time_and_sites_selection', 'time_list_file'):
             time_list_file = options['Time_and_sites_selection']['time_list_file']
             if time_list_file:
-                date_list = get_date_list_from_file(time_list_file, datetime_start, datetime_end)
+                date_list, datetime_start, datetime_end = get_date_list_from_file(time_list_file, datetime_start,
+                                                                                  datetime_end)
 
     else:
         if args.startdate:
@@ -1161,7 +1225,7 @@ def get_basic_options_from_file_config(options):
         res = options['satellite_options']['resolution']
     # path_out
     path_out = None
-    if options['file_path']['output_dir']:
+    if options.has_option('file_path', 'output_dir'):
         path_out = options['file_path']['output_dir']
     else:
         if args.output:
@@ -1350,7 +1414,6 @@ def main():
     if args.debug:
         print('Entering Debugging Mode:')
 
-
     # Getting basic_options from config_file or arguments
     basic_options = None
     if args.config_file:
@@ -1485,17 +1548,21 @@ def main():
 
     # in situ sites
     in_situ_sites = get_insitu_sites(options, path_out)
+    print(in_situ_sites)
 
     # time options
     datetime_start, datetime_end, date_list = get_params_time(options)
 
-    # make_download
+    # make_download if needed
+    if args.nolist:
+        for site in in_situ_sites:
+            insitu_lat = in_situ_sites[site]['latitude']
+            insitu_lon = in_situ_sites[site]['longitude']
+            create_extracts_day_by_day(date_list,satellite_path_source,insitu_lat,insitu_lon)
+        return
 
     # satellite list
     path_to_satellite_list = create_list_products(satellite_path_source, path_out, wce, res, date_list, org)
-
-    # if os.path.exists(f'{path_out}/OL_2_{res}_list.txt'):
-    #     os.remove(f'{path_out}/OL_2_{res}_list.txt')
 
     if args.verbose:
         print(f'Start date: {datetime_start}')

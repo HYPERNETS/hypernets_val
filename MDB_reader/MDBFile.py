@@ -7,9 +7,8 @@ from matplotlib import pyplot as plt
 from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
-
-# code_home = os.path.abspath('../')
-# sys.path.append(code_home)
+code_home = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(code_home)
 import COMMON.Class_Flags_OLCI as flag
 from COMMON import common_functions as cfs
 

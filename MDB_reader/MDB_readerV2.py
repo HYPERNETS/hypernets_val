@@ -1,17 +1,15 @@
 import datetime
 import os.path
 import sys
-
-code_home = os.path.dirname(os.path.dirname(__file__))
-sys.path.append(code_home)
-from MDBFile import MDBFile
 import argparse
+
+from MDBFile import MDBFile
 from MDB_builder.INSITU_base import INSITUBASE
 
 parser = argparse.ArgumentParser(
     description="Match-ups extraction from MDB files.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-parser.add_argument("-m", "--mode", help="Mode", choices=["GENERATEMU", "CONCATENATE", "REMOVEREP"], required=True)
+parser.add_argument("-m", "--mode", help="Mode", choices=["GENERATEMU", "CONCATENATE", "REMOVEREP","TEST"], required=True)
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path")
 parser.add_argument('-o', "--output", help="Path to output")
@@ -305,6 +303,16 @@ def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
 
+    if args.mode == 'TEST':
+        fconfig = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/config_qc.ini'
+        import configparser
+        from QC_OPTIONS import QC_OPTIONS
+        from QC_SAT import  QC_SAT
+        options = configparser.ConfigParser()
+        options.read(fconfig)
+        qco = QC_OPTIONS(options)
+        qco.getting_qcsat(None)
+
     ##REMOVE REPETEADED SATELLITE ID FROM SINGLE MDF FILES
     if args.input_path and mode == 'REMOVEREP':
         print('Running option: Remove repeated')
@@ -336,7 +344,20 @@ def main():
             print('[ERROR] To remove repeated satellite ids you could run:')
             print(f'python MDB_readerV2.py -i {input_path} -v -rr')
             return
-        reader.set_defaults_olci_wfr_hypstar()
+        if args.config_file and os.path.exists(args.config_file):
+
+            import configparser
+            from QC_OPTIONS import QC_OPTIONS
+            options = configparser.ConfigParser()
+            options.read(args.config_file)
+            qco = QC_OPTIONS(options)
+            wllist = qco.get_wllist()
+            reader.mfile.set_wl_ref(wllist)
+            reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat)
+            reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu)
+
+        else:
+            reader.set_defaults_olci_wfr_hypstar()
         reader.create_mdb_results_file(output_path)
         return
 
