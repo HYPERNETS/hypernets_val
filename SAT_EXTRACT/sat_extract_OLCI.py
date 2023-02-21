@@ -133,12 +133,13 @@ def check_products_to_download(info_edac, products, info_path):
     return products_to_download
 
 
-def create_extracts_day_by_day(date_list, path_source,site_name, insitu_lat, insitu_lon, wce, unzip_path,path_out,size_box,make_brdf):
+def create_extracts_day_by_day(date_list, path_source, site_name, insitu_lat, insitu_lon, wce, unzip_path, path_out,
+                               size_box, make_brdf):
     ncreated = 0
 
-    for idx in range(4):
+    for idx in range(len(date_list)):
         fproducts, iszipped = get_olci_products_day_download(date_list[idx], path_source, insitu_lat, insitu_lon, wce,
-                                                         unzip_path)
+                                                             unzip_path)
         nproducts = len(fproducts)
         if nproducts == 0:
             if args.verbse:
@@ -153,7 +154,8 @@ def create_extracts_day_by_day(date_list, path_source,site_name, insitu_lat, ins
                 print(f'GRANULE: {path_product}')
             res_str = path_product.split('/')[-1].split('_')[3]
 
-            ofname = create_extract(size_box, site_name, path_product, path_out, insitu_lat, insitu_lon, res_str, make_brdf,None)
+            ofname = create_extract(size_box, site_name, path_product, path_out, insitu_lat, insitu_lon, res_str,
+                                    make_brdf, None)
             if ofname is not None:
                 if args.verbose:
                     print(f'Sat extract {ofname} was created')
@@ -1749,7 +1751,8 @@ def main():
         for site in in_situ_sites:
             insitu_lat = in_situ_sites[site]['latitude']
             insitu_lon = in_situ_sites[site]['longitude']
-            create_extracts_day_by_day(date_list, satellite_path_source, site,insitu_lat, insitu_lon, wce, tmp_path,path_out,size_box,make_brdf)
+            create_extracts_day_by_day(date_list, satellite_path_source, site, insitu_lat, insitu_lon, wce, tmp_path,
+                                       path_out, size_box, make_brdf)
         return
 
     # satellite list
