@@ -133,10 +133,34 @@ def check_products_to_download(info_edac, products, info_path):
     return products_to_download
 
 
-def create_extracts_day_by_day(date_list, path_source, insitu_lat, insitu_lon, wce,unzip_path):
+def create_extracts_day_by_day(date_list, path_source,site_name, insitu_lat, insitu_lon, wce, unzip_path,path_out,size_box,make_brdf):
+    ncreated = 0
 
-    fproducts,iszipped = get_olci_products_day_download(date_list[1], path_source, insitu_lat, insitu_lon, wce,unzip_path)
-    print(fproducts)
+    for idx in range(4):
+        fproducts, iszipped = get_olci_products_day_download(date_list[idx], path_source, insitu_lat, insitu_lon, wce,
+                                                         unzip_path)
+        nproducts = len(fproducts)
+        if nproducts == 0:
+            if args.verbse:
+                print(f'[WARNING] No products found for {date_list[idx]}')
+            continue
+
+        for id in range(len(fproducts)):
+            path_product = fproducts[id]
+            if args.verbose:
+                print('---------------------------------------------------')
+                print(f'DATE: {date_list[idx]}')
+                print(f'GRANULE: {path_product}')
+            res_str = path_product.split('/')[-1].split('_')[3]
+
+            ofname = create_extract(size_box, site_name, path_product, path_out, insitu_lat, insitu_lon, res_str, make_brdf,None)
+            if ofname is not None:
+                if args.verbose:
+                    print(f'Sat extract {ofname} was created')
+                ncreated = ncreated + 1
+
+    print('------------------------------')
+    print(f'COMPLETED. {ncreated} sat extract files were created')
 
 
 def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wce, unzip_path):
@@ -233,8 +257,7 @@ def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wc
             fproducts.append(path_prod_u)
             iszipped.append(do_zip_here)
 
-
-    return fproducts,iszipped
+    return fproducts, iszipped
 
 
 def check_list_products_eumetsat(edac, date, insitu_lat, insitu_lon):
@@ -1726,7 +1749,7 @@ def main():
         for site in in_situ_sites:
             insitu_lat = in_situ_sites[site]['latitude']
             insitu_lon = in_situ_sites[site]['longitude']
-            create_extracts_day_by_day(date_list, satellite_path_source, insitu_lat, insitu_lon, wce,tmp_path)
+            create_extracts_day_by_day(date_list, satellite_path_source, site,insitu_lat, insitu_lon, wce, tmp_path,path_out,size_box,make_brdf)
         return
 
     # satellite list
