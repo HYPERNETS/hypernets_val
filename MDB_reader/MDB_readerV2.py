@@ -4,6 +4,7 @@ import sys
 import argparse
 import warnings
 warnings.simplefilter('ignore', UserWarning)
+warnings.simplefilter('ignore', RuntimeWarning)
 
 from MDBFile import MDBFile
 from MDB_builder.INSITU_base import INSITUBASE
@@ -11,7 +12,7 @@ from MDB_builder.INSITU_base import INSITUBASE
 parser = argparse.ArgumentParser(
     description="Match-ups extraction from MDB files.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-parser.add_argument("-m", "--mode", help="Mode", choices=["GENERATEMU", "CONCATENATE", "REMOVEREP","TEST"], required=True)
+parser.add_argument("-m", "--mode", help="Mode", choices=["GENERATEMU", "CONCATENATE","REMOVEREP","TEST"], required=True)
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path")
 parser.add_argument('-o', "--output", help="Path to output")
@@ -344,7 +345,7 @@ def main():
             return
         if not reader.mfile.check_repeated():
             print('[ERROR] To remove repeated satellite ids you could run:')
-            print(f'python MDB_readerV2.py -i {input_path} -v -rr')
+            print(f'python MDB_readerV2.py -m REMOVEREP -i {input_path} -v')
             return
         if args.config_file and os.path.exists(args.config_file):
 

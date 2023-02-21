@@ -87,40 +87,211 @@ def config_reader(FILEconfig):
     return options
 
 
-def create_extracts_day_by_day(date_list, path_source,insitu_lat,insitu_lon):
+def check_wce(name, wce):
+    check_w = True
+    if wce is None:
+        return check_w
+    wce = wce.replace("\"", "")
+    wces = wce.strip().split('*')
+    for s in wces:
+        if not s:
+            continue
+        if name.find(s) < 0:
+            check_w = False
+    return check_w
 
-    create_extract_day(date_list[2], path_source,insitu_lat,insitu_lon)
+
+def get_dates_and_platform_from_file_name(name):
+    from datetime import datetime as dt
+    platform = 'S3'
+    start_date = dt.now()
+    end_date = dt.now()
+    try:
+        platform = name.split('_')[0]
+        start_date = dt.strptime(name.split('_')[7], '%Y%m%dT%H%M%S')
+        end_date = dt.strptime(name.split('_')[8], '%Y%m%dT%H%M%S')
+    except:
+        pass
+    return platform, start_date, end_date
 
 
-def create_extract_day(date, path_source,insitu_lat,insitu_lon):
+def check_products_to_download(info_edac, products, info_path):
+    products_to_download = []
+    for p in products:
+        pname = str(p)
+        check_info_path = False
+
+        for name in info_path:
+            if info_path[name]['platform'] != info_edac[pname]['platform']:
+                continue
+            if info_path[name]['start_date'] >= info_edac[pname]['start_date'] and info_path[name]['end_date'] <= \
+                    info_edac[pname]['end_date']:
+                check_info_path = True
+        if not check_info_path:
+            products_to_download.append(p)
+
+    return products_to_download
+
+
+def create_extracts_day_by_day(date_list, path_source, insitu_lat, insitu_lon, wce,unzip_path):
+
+    fproducts,iszipped = get_olci_products_day_download(date_list[1], path_source, insitu_lat, insitu_lon, wce,unzip_path)
+    print(fproducts)
+
+
+def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wce, unzip_path):
     year = date.strftime('%Y')
     jday = date.strftime('%j')
     path_year = os.path.join(path_source, year)
     path_day = os.path.join(path_year, jday)
+    info_path = {}
+    if os.path.exists(path_day):
+        for name in os.listdir(path_day):
+            if not check_wce(name, wce):
+                continue
+            prod_path = os.path.join(path_day, name)
+            if name.endswith('.SEN3') or zipfile.is_zipfile(prod_path):
+                if args.verbose:
+                    print(f'[INFO] Adding already available granule {name} to the path list')
+                platform, start_date, end_date = get_dates_and_platform_from_file_name(name)
+                info_path[prod_path] = {
+                    'platform': platform,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                }
 
     edac = check_donwload()
+    if edac is not None:
+        info_edac, products = check_list_products_eumetsat(edac, date, insitu_lat, insitu_lon)
+        if len(info_path) == 0:  ##all the products in info_edac must me donwloaded
+            products_to_download = products
+        else:
+            products_to_download = check_products_to_download(info_edac, products, info_path)
 
-    if not os.path.exists(path_day):
-        if not os.path.exists(path_year):
-            os.mkdir(path_year)
-        os.mkdir(path_day)
-        if edac is not None:
-            launch_download(edac,date,path_day,insitu_lat,insitu_lon)
+        if len(products_to_download) > 0:
+            if args.verbose:
+                print(f'[INFO] {len(products_to_download)} product(s) not found. Starting download...')
+            if not os.path.exists(path_day):
+                if not os.path.exists(path_year):
+                    os.mkdir(path_year)
+                os.mkdir(path_day)
+            path_products, path_unavailable = launch_download(edac, date, path_day, insitu_lat, insitu_lon,
+                                                              products_to_download)
+
+            if path_products is None and info_path is None:
+                print(f'[WARNING] No granules were found or available for downloading for {date}. Skipping day...')
+                return
+            if len(path_products) > 0:
+                for path_product in path_products:
+                    name = path_product.split('/')[-1]
+                    if args.verbose:
+                        print(f'[INFO] Adding downloaded granule {name} to the path list')
+                    platform, start_date, end_date = get_dates_and_platform_from_file_name(name)
+                    info_path[path_product] = {
+                        'platform': platform,
+                        'start_date': start_date,
+                        'end_date': end_date,
+                    }
+
+    if len(info_path) == 0:
+        postmessage = ' '
+        if edac is None:
+            postmessage = 'Download is not enabled. '
+        print(f'[WARNING] No granules were found for {date}.{postmessage} Skipping day...')
+        return
+
+    if args.verbose:
+        print('[INFO] Checking granules...')
+    fproducts = []
+    iszipped = []
+    cgeo = CHECK_GEO()
+    for prod_path in info_path:
+        name = prod_path.split('/')[-1]
+        do_zip_here = False
+        contain_flag = 0
+        if name.endswith('.SEN3'):
+            path_prod_u = prod_path
+            cgeo.start_polygon_from_prod_manifest_file(path_prod_u)
+            contain_flag = cgeo.check_point_lat_lon(insitu_lat, insitu_lon)
+        elif zipfile.is_zipfile(prod_path):
+            cgeo.start_polygon_image_from_zip_manifest_file(prod_path)
+            contain_flag = cgeo.check_point_lat_lon(insitu_lat, insitu_lon)
+            if contain_flag == 1:
+                do_zip_here = True
+                path_prod_t = prod_path.split('/')[-1][0:-4]
+                path_prod_u = os.path.join(unzip_path, path_prod_t)
+                if os.path.exists(path_prod_u):
+                    do_zip_here = False
+        if args.verbose:
+            print(f'[INFO] Checking product {name} contain flag: {contain_flag}')
+        if do_zip_here:
+            with zipfile.ZipFile(prod_path, 'r') as zprod:
+                if args.verbose:
+                    print(f'[INFO] Unziping {name} to {unzip_path}')
+                zprod.extractall(path=unzip_path)
+        if contain_flag == 1:
+            fproducts.append(path_prod_u)
+            iszipped.append(do_zip_here)
 
 
+    return fproducts,iszipped
 
-def launch_download(edac,date,path_day,insitu_lat,insitu_lon):
+
+def check_list_products_eumetsat(edac, date, insitu_lat, insitu_lon):
+    date_str = date.strftime('%Y-%m-%d')
+    products, product_names, collection_id = edac.search_olci_by_point(date_str, 'FR', 'L2', insitu_lat, insitu_lon, -1,
+                                                                       -1)
+    info = {}
+    if products is None:
+        return info, products
+    for name in product_names:
+        platform, start_date, end_date = get_dates_and_platform_from_file_name(name)
+        info[name] = {
+            'platform': platform,
+            'start_date': start_date,
+            'end_date': end_date,
+            'available': False
+        }
+    return info, products
+
+
+def launch_download(edac, date, path_day, insitu_lat, insitu_lon, products):
     if args.verbose:
         print(f'[INFO] Launching download for day: {date}')
-    date_str = date.strftime('%Y-%m-%d')
-    products, product_names, collection_id = edac.search_olci_by_point(date_str, 'FR', 'L2', insitu_lat, insitu_lon
-                                                                       , -1, -1)
-    edac.download_product_from_product_list(products, path_day)
+
+    product_names = None
+    if products is None:
+        date_str = date.strftime('%Y-%m-%d')
+        products, product_names, collection_id = edac.search_olci_by_point(date_str, 'FR', 'L2', insitu_lat, insitu_lon,
+                                                                           -1, -1)
+
+    if products is None:
+        return None
+
+    if products is not None and product_names is None:
+        product_names = [str(p) for p in products]
+    edac.download_product_from_product_list(products, path_day, False)
+
+    path_products = []
+    path_unavailable = []
+    for name in product_names:
+        paths_here = [os.path.join(path_day, name), os.path.join(path_day, f'{name}.zip'),
+                      os.path.join(path_day, f'{name}.tar')]
+        available = False
+        for path_here in paths_here:
+            if os.path.exists(path_here):
+                path_products.append(path_here)
+                available = True
+        if not available:
+            path_unavailable.append(path_here)
+
+    return path_products, path_unavailable
+
 
 def check_donwload():
     import sat_extract
     code_home = os.path.dirname(os.path.dirname(os.path.dirname(sat_extract.__file__)))
-    code_download = os.path.join(code_home,'cnrdownload')
+    code_download = os.path.join(code_home, 'cnrdownload')
     if os.path.exists(code_download):
         sys.path.append(code_download)
         try:
@@ -130,13 +301,11 @@ def check_donwload():
             print(f'[WARNING] Error loading package eumdac_lois. Download is not enabled')
             return None
 
-        if edac.token is None:
-            return None
-        else:
-            return edac
+        return edac
     else:
         print(f'[WARNING] Package {code_download} is not available. Download is not enabled')
-        return False
+        return None
+
 
 # user defined functions
 def create_list_products(path_source, path_out, wce, res_str, date_list, org):
@@ -254,9 +423,9 @@ def get_params_time(options):
         date_list = get_date_list_from_start_end_date(datetime_start, datetime_end)
     ndates = len(date_list)
     if args.verbose:
-        print(f'Start date: {datetime_start}')
-        print(f'End date: {datetime_end}')
-        print(f'N Dates: {ndates}')
+        print(f'[INFO] Start date: {datetime_start}')
+        print(f'[INFO] End date: {datetime_end}')
+        print(f'[INFO] # of dates: {ndates}')
 
     return datetime_start, datetime_end, date_list
 
@@ -1402,7 +1571,7 @@ def get_insitu_sites(options, path_out):
         for site in in_situ_sites:
             lath = in_situ_sites[site]['latitude']
             lonh = in_situ_sites[site]['longitude']
-            print(f'station_name: {site} with lat: {lath}, lon: {lonh}')
+            print(f'[INFO] Station: station_name: {site}  Lat: {lath} Lon: {lonh}')
     return in_situ_sites
 
 
@@ -1548,7 +1717,6 @@ def main():
 
     # in situ sites
     in_situ_sites = get_insitu_sites(options, path_out)
-    print(in_situ_sites)
 
     # time options
     datetime_start, datetime_end, date_list = get_params_time(options)
@@ -1558,7 +1726,7 @@ def main():
         for site in in_situ_sites:
             insitu_lat = in_situ_sites[site]['latitude']
             insitu_lon = in_situ_sites[site]['longitude']
-            create_extracts_day_by_day(date_list,satellite_path_source,insitu_lat,insitu_lon)
+            create_extracts_day_by_day(date_list, satellite_path_source, insitu_lat, insitu_lon, wce,tmp_path)
         return
 
     # satellite list
