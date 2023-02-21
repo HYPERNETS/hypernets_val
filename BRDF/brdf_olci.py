@@ -87,7 +87,7 @@ import numpy as np
 from netCDF4 import Dataset
 from scipy.interpolate import RegularGridInterpolator, interp1d #, griddata
 from multiprocessing import cpu_count
-from joblib import Parallel, delayed
+#from joblib import Parallel, delayed
 
 #number of cores
 n_cores=cpu_count()
@@ -150,12 +150,14 @@ def fresnel_sensor(angle):
     return f0/tf
 
 def fresnel_solar(windspeed,angle):
+
     """
     Compute the effects of the air-sea transmittance for solar path 
     for the windspeed module and the solar zenith angle.
     Windspeed and angle can be single scalars or (same dim) arrays
     Returns the xxx factor on 7 bands (instead of six) to directly compare with foq
     """
+    from joblib import Parallel, delayed
     sigma=sigmac*np.sqrt(windspeed)
     s=np.asarray(angle,dtype=np.float32)    # to handle the same way single float and array
     s[s>80]=80
