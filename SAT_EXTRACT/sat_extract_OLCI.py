@@ -142,8 +142,8 @@ def create_extracts_day_by_day(date_list, path_source, site_name, insitu_lat, in
                                                              unzip_path)
         nproducts = len(fproducts)
         if nproducts == 0:
-            if args.verbse:
-                print(f'[WARNING] No products found for {date_list[idx]}')
+            if args.verbose:
+                print(f'[WARNING] No products found for {date_list[idx]}. Skipping day...')
             continue
 
         for id in range(len(fproducts)):
@@ -166,11 +166,15 @@ def create_extracts_day_by_day(date_list, path_source, site_name, insitu_lat, in
 
 
 def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wce, unzip_path):
+
     year = date.strftime('%Y')
     jday = date.strftime('%j')
     path_year = os.path.join(path_source, year)
     path_day = os.path.join(path_year, jday)
     info_path = {}
+    ##final variables
+    fproducts = []
+    iszipped = []
     if os.path.exists(path_day):
         for name in os.listdir(path_day):
             if not check_wce(name, wce):
@@ -189,10 +193,13 @@ def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wc
     edac = check_donwload()
     if edac is not None:
         info_edac, products = check_list_products_eumetsat(edac, date, insitu_lat, insitu_lon)
-        if len(info_path) == 0:  ##all the products in info_edac must me donwloaded
-            products_to_download = products
+        if len(info_edac)==0:
+            products_to_download = [] ##no products to be downloaded
         else:
-            products_to_download = check_products_to_download(info_edac, products, info_path)
+            if len(info_path) == 0:  ##all the products in info_edac must me donwloaded
+                products_to_download = products
+            else:
+                products_to_download = check_products_to_download(info_edac, products, info_path)
 
         if len(products_to_download) > 0:
             if args.verbose:
@@ -205,8 +212,8 @@ def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wc
                                                               products_to_download)
 
             if path_products is None and info_path is None:
-                print(f'[WARNING] No granules were found or available for downloading for {date}. Skipping day...')
-                return
+                print(f'[WARNING] No granules were found or available for downloading for {date}.')
+                return fproducts, iszipped
             if len(path_products) > 0:
                 for path_product in path_products:
                     name = path_product.split('/')[-1]
@@ -220,16 +227,16 @@ def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wc
                     }
 
     if len(info_path) == 0:
-        postmessage = ' '
         if edac is None:
-            postmessage = 'Download is not enabled. '
-        print(f'[WARNING] No granules were found for {date}.{postmessage} Skipping day...')
-        return
+            postmessage = ' Download is not enabled.'
+        else:
+            postmessage = ' Granules could not be downloaded.'
+        print(f'[WARNING] No granules were found for {date}.{postmessage}')
+        return fproducts, iszipped
 
     if args.verbose:
         print('[INFO] Checking granules...')
-    fproducts = []
-    iszipped = []
+
     cgeo = CHECK_GEO()
     for prod_path in info_path:
         name = prod_path.split('/')[-1]
@@ -266,9 +273,11 @@ def check_list_products_eumetsat(edac, date, insitu_lat, insitu_lon):
     date_str = date.strftime('%Y-%m-%d')
     products, product_names, collection_id = edac.search_olci_by_point(date_str, 'FR', 'L2', insitu_lat, insitu_lon, -1,
                                                                        -1)
+
     info = {}
-    if products is None:
-        return info, products
+    if len(product_names)==0:
+        return info, None
+
     for name in product_names:
         platform, start_date, end_date = get_dates_and_platform_from_file_name(name)
         info[name] = {
