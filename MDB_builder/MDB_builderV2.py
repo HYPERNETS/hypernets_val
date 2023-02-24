@@ -106,6 +106,7 @@ def main():
             insitu_files = ihd.get_insitu_files(date_here)
 
         bad_spectra_times = {}
+        print(mo.insitu_options)
         if mo.insitu_options['insitu_bad_spectra_file_list'] is not None:
             prefix = mo.insitu_options['bad_spectra_prefix']
             time_format = mo.insitu_options['bad_spectra_format_time']
