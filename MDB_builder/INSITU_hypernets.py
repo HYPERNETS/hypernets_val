@@ -86,7 +86,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 'type': 'i1',
                 'standard_name': 'insitu_site_flag',
                 'flag_meanings': 'INVALID',
-                'flag_values': 0
+                'flag_values': '1'
             }
         }
         self.insitu_spectral_variables = {
