@@ -64,6 +64,7 @@ def main():
     mo.get_param_sat_extracts()
 
     ##in situ options
+
     mo.get_insitu_options()
 
     ##dates
@@ -103,6 +104,28 @@ def main():
         if insitu_files is None and mo.insitu_options['apply_rsync'] and ihd.check_ssh():
             ihd.get_files_day_ssh(date_here, True)
             insitu_files = ihd.get_insitu_files(date_here)
+
+        bad_spectra_times = {}
+        if mo.insitu_options['insitu_bad_spectra_file_list'] is not None:
+            prefix = mo.insitu_options['bad_spectra_prefix']
+            time_format = mo.insitu_options['bad_spectra_format_time']
+            f1 = open(mo.insitu_options['insitu_bad_spectra_file_list'])
+            for line in f1:
+                if prefix is not None:
+                    if not line.strip().startswith(prefix):
+                        continue
+                    datestr = line.replace(prefix,'')
+                else:
+                    datestr = line.strip()
+
+                date_py = dt.strptime(datestr,time_format)
+                date_py_str = date_py.strftime('%Y%m%d%H%M')
+                bad_spectra_times[date_py_str] = 1
+            f1.close()
+
+        if len(bad_spectra_times)>0 and args.verbose:
+            for bad_time in bad_spectra_times:
+                print(f'[INFO] Spectrum at {bad_time} is invalid')
 
         if not insitu_files is None:
             ninsitu = len(insitu_files)

@@ -19,7 +19,7 @@ class MDBBuilderOptions:
         self.insitu_type = None
         # insitu_sensors
         self.insitu_sensors = {
-            'HYPERNETS':'HYPSTAR'
+            'HYPERNETS': 'HYPSTAR'
         }
         # insitu path source
         self.insitu_path_source = None
@@ -32,7 +32,7 @@ class MDBBuilderOptions:
         self.param_insitu = None
         # param sat extract
         self.param_sat = None
-        #in situ options
+        # in situ options
         self.insitu_options = None
 
     def set_compulsory_options(self, cfs):
@@ -184,16 +184,62 @@ class MDBBuilderOptions:
         }
 
     def get_insitu_options(self):
+        section = 'insitu_options'
         self.insitu_options = {
-            'level': 'L2A',
-            'apply_rsync': True
+            'level': self.get_value_param(section,'level','L2A','str'),
+            'apply_rsync': self.get_value_param(section,'apply_rsync',True,'boolean'),
+            'insitu_site_flags': self.get_value_param(section,'insitu_site_flag_flags','INVALID','str'),
+            'bad_spectra_file_list': self.get_value_param(section,'insitu_bad_spectra_file_list',None,'file'),
+            'bad_spectra_prefix': self.get_value_param(section,'insitu_bad_spectra_prefix',None,'str'),
+            'bad_spectra_format_time': self.get_value_param(section,'insitu_bad_spectra_format_time','%Y%m%dT%H%M%S','str')
         }
-        if self.options.has_option('insitu_options','level'):
-            self.insitu_options['level'] = self.options['insitu_options']['level']
-        if self.options.has_option('insitu_options', 'apply_rsync'):
-            val = self.options['insitu_options']['apply_rsync']
-            if val.strip()=='0' or val.strip().upper()=='FALSE':
-                self.insitu_options['apply_rsync'] = False
+
+    def get_value(self, section, key):
+        value = None
+        if self.options.has_option(section, key):
+            value = self.options[section][key]
+        return value
+
+    def get_value_param(self, section, key, default, type):
+        value = self.get_value(section, key)
+        if value is None:
+            return default
+        if type == 'str':
+            return value
+        if type == 'file':
+            if not os.path.exists(value.strip()):
+                return default
+            else:
+                return value.strip()
+        if type == 'int':
+            return int(value)
+        if type == 'boolean':
+            if value == '1' or value.upper() == 'TRUE':
+                return True
+            elif value == '0' or value.upper() == 'FALSE':
+                return False
+            else:
+                return True
+        if type == 'rrslist':
+            list_str = value.split(',')
+            list = []
+            for vals in list_str:
+                vals = vals.strip().replace('.', '_')
+                list.append(f'RRS{vals}')
+            return list
+        if type == 'strlist':
+            list_str = value.split(',')
+            list = []
+            for vals in list_str:
+                list.append(vals.strip())
+            return list
+        if type == 'floatlist':
+            list_str = value.split(',')
+            list = []
+            for vals in list_str:
+                vals = vals.strip()
+                list.append(float(vals))
+            return list
 
     def get_mdb_extract_path(self, path_extract, ins_sensor):
         filename = f'MDB_{ins_sensor}_{path_extract}'
@@ -233,7 +279,7 @@ class MDBBuilderOptions:
         resolution = sat_extract_info['resolution']
         platform = sat_extract_info['satellite'] + sat_extract_info['platform']
         ins_sensor = sat_extract_info['ins_sensor']
-        #datetime_creation = sat_extract_info['time_creation']
+        # datetime_creation = sat_extract_info['time_creation']
         filename = f'MDB_{platform}_{sensor_str}_{resolution}_{datetime_min}_{datetime_max}_{ins_sensor}_{station_name}.nc'
         filepath = os.path.join(self.path_out, filename)
         return filepath
@@ -266,7 +312,7 @@ class MDBBuilderOptions:
 
                 hday = INSITU_HYPERNETS_DAY(None, self.verbose)
                 if hday.CHECK_SSH:
-                    sday, eday = hday.get_start_and_end_dates(station_name,self.start_date,self.end_date)
+                    sday, eday = hday.get_start_and_end_dates(station_name, self.start_date, self.end_date)
                     if sday is not None and eday is not None:
                         if sday > self.start_date:
                             self.start_date = sday.replace(hour=0, minute=0, second=0, microsecond=0)
