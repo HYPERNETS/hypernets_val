@@ -36,6 +36,11 @@ class QC_INSITU:
         self.check_indices_by_mu = False
         self.only_complete_spectra = True
 
+        ##checking flags and other bands
+        self.ncdataset = None
+        self.check_flags = {}
+        self.check_th_other_bands = {}
+
     ##Method to make the subset of the spectra
     def set_wllist_min_max(self, wlmin, wlmax):
         self.wl_list = []
@@ -96,7 +101,56 @@ class QC_INSITU:
                 self.thersholds[wls]['max_th']['apply'] = True
                 self.thersholds[wls]['max_th']['value'] = valuemax
 
-    def check_validity_spectrum(self, rrs_values, index_mu):
+    def add_flag_expression(self, flag_band, flag_list, remove_spectra):
+        if self.ncdataset is None:
+            return
+
+        if flag_band not in self.ncdataset.variables:
+            return
+
+        flag_variable = self.ncdataset.variables[flag_band]
+
+        if flag_list == 'ALL':  # APPLY ALL THE FLAGS
+            flag_list = flag_variable.flag_meanings.split()
+        else:
+            flag_list = [x.strip() for x in flag_list.split(',')]
+
+        oflags = None
+        try:
+            from COMMON.Class_Flags_OLCI import Class_Flags_OLCI
+            flag_values = [np.uint32(x.strip()) for x in flag_variable.flag_mask.split(',')]
+            oflags = Class_Flags_OLCI(flag_values, flag_variable.flag_meanings)
+        except:
+            print(f'[WARNING] Flag class could not be defined for variable: {flag_band}')
+            pass
+
+        self.check_flags[flag_band] = {
+            'variable': flag_variable,
+            'flag_list': flag_list,
+            'remove_spectra': remove_spectra,
+            'oflags': oflags
+        }
+
+    def add_other_band_thersholds(self, band_name, type_th, value_min, value_max, isangle):
+        if self.ncdataset is None:
+            return
+
+        if band_name not in self.ncdataset.variables:
+            return
+
+        band_variable = self.ncdataset.variables[band_name]
+
+        self.check_th_other_bands[band_variable] = {
+            'variable': band_variable,
+            'th_type': type_th,
+            'value_min': value_min,
+            'value_max': value_max,
+            'isangle': isangle
+        }
+
+        # print('---->',self.check_th_other_bands)
+
+    def check_validity_spectrum(self, rrs_values, index_mu, insitu_id):
 
         if rrs_values is None:
             return False
@@ -106,22 +160,67 @@ class QC_INSITU:
 
         if self.only_complete_spectra and (rrs_values.count() != len(rrs_values)):
             return False
-
-        if self.thersholds is None:
-            return True
-
         check = True
-        for idx in range(len(self.wl_list)):
-            wl = self.wl_list[idx]
-            val = rrs_values[idx]
-            wls = str(wl)
 
-            if self.thersholds[wls]['min_th']['apply'] and val < self.thersholds[wls]['min_th']['value']:
-                check = False
-                break
-            if self.thersholds[wls]['max_th']['apply'] and val > self.thersholds[wls]['max_th']['value']:
-                check = False
-                break
+        # checking flag
+        if len(self.check_flags) > 0:
+            for flag_name in self.check_flags:
+                flag_var = self.check_flags[flag_name]['variable']
+                oflag = self.check_flags[flag_name]['oflags']
+                if oflag is not None:
+                    flag_value = np.array(flag_var[index_mu, insitu_id])
+                    flag_list = self.check_flags[flag_name]['flag_list']
+                    m = oflag.Mask(flag_value, flag_list)
+                    if self.check_flags[flag_name]['remove_spectra'] and m > 0:
+                        check = False
+                    if not self.check_flags[flag_name]['remove_spectra'] and m == 0:
+                        check = False
+
+        # checking threshold other bands
+        if len(self.check_th_other_bands) > 0:
+            for band_name in self.check_th_other_bands:
+                var_here = self.check_th_other_bands[band_name]['variable']
+                val_here = np.array(var_here[index_mu, insitu_id])
+
+                th_type = self.check_th_other_bands[band_name]['th_type']
+                val_min = self.check_th_other_bands[band_name]['value_min']
+                val_max = self.check_th_other_bands[band_name]['value_max']
+                is_angle = self.check_th_other_bands[band_name]['isangle']
+
+                check_condition = False
+                if val_max > val_min:
+                    check_condition = val_min <= val_here <= val_max
+                elif val_max < val_min and is_angle:
+                    check_condition = val_here >= val_min or val_here <= val_max
+
+                if th_type=='keep' and not check_condition:
+                    check = False
+                    print('value bad: ',val_here)
+                if th_type=='keep' and check_condition:
+                    print('value good: ',val_here)
+                if th_type=='remove' and check_condition:
+                    check = False
+
+                # if self.check_th_other_bands[band_name]['th_type'] == 'greater' and val_here > \
+                #         self.check_th_other_bands[band_name]['th_value']:
+                #     check = False
+                # if self.check_th_other_bands[band_name]['th_type'] == 'lower' and val_here < \
+                #         self.check_th_other_bands[band_name]['th_value']:
+                #     check = False
+
+        # checking thresholds
+        if self.thersholds is not None:
+            for idx in range(len(self.wl_list)):
+                wl = self.wl_list[idx]
+                val = rrs_values[idx]
+                wls = str(wl)
+
+                if self.thersholds[wls]['min_th']['apply'] and val < self.thersholds[wls]['min_th']['value']:
+                    check = False
+                    break
+                if self.thersholds[wls]['max_th']['apply'] and val > self.thersholds[wls]['max_th']['value']:
+                    check = False
+                    break
         return check
 
     def get_insitu_index(self, wl):
@@ -250,7 +349,7 @@ class QC_INSITU:
             time_condition = time_dif < self.time_max
             if time_condition:
                 rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
-                valid_values = self.check_validity_spectrum(rrs_values, index_mu)
+                valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
                 spectrum_complete = sum(valid_bands) == len(self.wl_list)
                 if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
                     if len(exact_wl_array.shape) == 1:
@@ -259,7 +358,7 @@ class QC_INSITU:
                         exact_wl = exact_wl_array[indices, id_min_time]
                     rrs_values = bsc_qaa.bsc_qaa(rrs_values, exact_wl, wl_ref)
                 if valid_values:
-                    #print(f'[INFO] Selected in situ spectra with time dif: {time_dif}')
+                    # print(f'[INFO] Selected in situ spectra with time dif: {time_dif}')
                     break
 
         return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
@@ -316,7 +415,6 @@ class QC_INSITU:
 
     # ngood is only for checking (assing -1 for not using it)
     def get_good_spectrum_for_mu(self, index_mu, id_min_time, ngood):
-
 
         spectra, indices, valid_bands = self.get_all_good_spectra_for_mu(index_mu)
 

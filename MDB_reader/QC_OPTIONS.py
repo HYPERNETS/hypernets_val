@@ -125,6 +125,8 @@ class QC_OPTIONS:
                                                val['th_type'])
             elif option == 'macropixel_filter_band_X':
                 list_vals = options_qcsat[option]['value']
+                for val in list_vals:
+                    qc_sat.add_bands_norrs_statistics(val['band'],val['stat'],val['th_value'],val['th_type'])
 
         return qc_sat
 
@@ -140,6 +142,12 @@ class QC_OPTIONS:
             'apply_band_shift': {'valid': 0, 'value': None, 'type': 'boolean'},
             'filter_th_X': {'valid': 0, 'value': None, 'type': 'dict',
                             'keys': {'wlmin': 'float', 'wlmax': 'float', 'thmin': 'float', 'thmax': 'float'}
+                            },
+            'info_flag_X': {'valid': 0, 'value': None, 'type': 'dict',
+                            'keys': {'name_band':'str','flag_list':'str','remove_spectra':'boolean'}
+                            },
+            'band_th_X': {'valid': 0, 'value': None, 'type': 'dict',
+                            'keys': {'name_band':'str','th_type':'str','th_min':'float','th_max':'float','isangle':'boolean'}
                             }
         }
 
@@ -188,6 +196,16 @@ class QC_OPTIONS:
                     if th_max == -999:
                         th_max = None
                     qc_insitu.set_thershold(th_min, th_max, val['wlmin'], val['wlmax'])
+            elif option == 'info_flag_X':
+                list_vals = options_qc_insitu[option]['value']
+                for val in list_vals:
+                    qc_insitu.add_flag_expression(val['name_band'],val['flag_list'],val['remove_spectra'])
+            elif option == 'band_th_X':
+                list_vals = options_qc_insitu[option]['value']
+                #print('--->',list_vals)
+                for val in list_vals:
+                    qc_insitu.add_other_band_thersholds(val['name_band'],val['th_type'],val['th_min'],val['th_max'],val['isangle'])
+
 
         return qc_insitu
 
@@ -201,6 +219,7 @@ class QC_OPTIONS:
         value = {}
         for kd in keys_dict:
             key_here = f'{key}.{kd}'
+            print(key_here)
             val_here = self.get_value_param(section, key_here, 'N/A', keys_dict[kd])
             if val_here is None:
                 return None
@@ -215,6 +234,7 @@ class QC_OPTIONS:
         index = 0
         while index >= 0:
             option_here = f'{option_base}{index}'
+
             if options['type'] == 'dict':
                 val = self.get_value_param_dict(section, option_here, 'N/A', options['keys'])
             else:

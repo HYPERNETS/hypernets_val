@@ -12,7 +12,7 @@ from MDB_builder.INSITU_base import INSITUBASE
 parser = argparse.ArgumentParser(
     description="Match-ups extraction from MDB files.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-parser.add_argument("-m", "--mode", help="Mode", choices=["GENERATEMU", "CONCATENATE","REMOVEREP","TEST"], required=True)
+parser.add_argument("-m", "--mode", help="Mode", choices=["GENERATEMU", "CONCATENATE","REMOVEREP","PLOT","TEST"], required=True)
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path")
 parser.add_argument('-o', "--output", help="Path to output")
@@ -310,7 +310,7 @@ def main():
         fconfig = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/config_qc.ini'
         import configparser
         from QC_OPTIONS import QC_OPTIONS
-        from QC_SAT import  QC_SAT
+        #from QC_SAT import  QC_SAT
         options = configparser.ConfigParser()
         options.read(fconfig)
         qco = QC_OPTIONS(options)
@@ -348,7 +348,8 @@ def main():
             print(f'python MDB_readerV2.py -m REMOVEREP -i {input_path} -v')
             return
         if args.config_file and os.path.exists(args.config_file):
-
+            if args.verbose:
+                print(f'[INFO] Using file: {args.config_file} to set quality control options...')
             import configparser
             from QC_OPTIONS import QC_OPTIONS
             options = configparser.ConfigParser()
@@ -356,7 +357,9 @@ def main():
             qco = QC_OPTIONS(options)
             wllist = qco.get_wllist()
             reader.mfile.set_wl_ref(wllist)
+            reader.mfile.qc_sat.ncdataset = reader.mfile.nc
             reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat)
+            reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
             reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu)
 
         else:
@@ -392,7 +395,6 @@ def main():
             if not name.endswith('.nc'):
                 continue
             file_in = os.path.join(input_path, name)
-            print(file_in,satellite_id_ref)
             reader = MDB_READER(file_in, True)
             file_out = os.path.join(input_path, f'Temp_{idfile}.nc')
             creating_copy_with_flag_bands(reader, file_out, flag_lists,satellite_id_ref)
@@ -400,6 +402,41 @@ def main():
             list_files.append(file_out)
             idfile = idfile + 1
         concatenate_nc_impl(list_files,input_path,ncout_file)
+
+    ##PLOTTING
+    if args.input_path and args.config_file and mode == 'PLOT':
+        input_path = args.input_path
+        if not os.path.exists(input_path):
+            print(f'[ERROR] {input_path} does not exist')
+            return
+        config_file = args.config_file
+        if not os.path.exists(config_file):
+            print(f'[ERROR] {config_file} does not exist')
+            return
+        if args.output:
+            output_path = args.output
+        else:
+            path_mdb = os.path.dirname(input_path)
+            output_path = os.path.join(path_mdb,'PLOTS')
+        if not os.path.exists(output_path):
+            try:
+                os.mkdir(output_path)
+            except:
+                pass
+        if not os.path.isdir(output_path):
+            print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
+
+        from MDBPlotV2 import MDBPlot
+        mplot = MDBPlot(input_path)
+        import configparser
+        options = configparser.ConfigParser()
+        options.read(config_file)
+        print(mplot.VALID)
+        mplot.plot_from_options(options)
+
+
+
+
 
 
 if __name__ == '__main__':

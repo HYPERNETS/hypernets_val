@@ -80,8 +80,14 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                              'vertical.',
                 'units': 'degrees',
                 'preferred_symbol': 'sza'
+            },
+            'insitu_site_flag': {
+                'name_orig' : None,
+                'type': 'i1',
+                'standard_name': 'insitu_site_flag',
+                'flag_meanings': 'INVALID',
+                'flag_values': 0
             }
-
         }
         self.insitu_spectral_variables = {
             'insitu_Rrs_nosc': {
@@ -116,6 +122,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 var.setncattr(at, self.insitu_extract_variables[var_name][at])
             if type == 'u4':
                 var[:] = -999
+            if self.insitu_extract_variables[var_name]['name_orig'] is None:
+                var[:] = 0
         for var_name in self.insitu_spectral_variables:
             type = self.insitu_spectral_variables[var_name]['type']
             var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_original_bands', 'insitu_id'),
@@ -168,7 +176,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         for var_name in self.insitu_extract_variables:
             var_ins = self.insitu_extract_variables[var_name]['name_orig']
-            self.new_MDB.variables[var_name][0, insitu_idx] = [nc_ins.variables[var_ins][0]]
+            if var_ins is not None:
+                self.new_MDB.variables[var_name][0, insitu_idx] = [nc_ins.variables[var_ins][0]]
 
         for var_name in self.insitu_spectral_variables:
             var_ins = self.insitu_spectral_variables[var_name]['name_orig']

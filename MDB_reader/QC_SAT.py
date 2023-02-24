@@ -51,6 +51,11 @@ class QC_SAT:
         self.th_masks = []
         self.check_statistics = []
 
+        ##values for statistis no rrs
+        self.check_statistics_norrs = []
+        self.statistics_norrs = {}
+        self.ncdataset = None
+
         self.invalid_mask = {}
         for sat_index in range(self.nbands):
             sat_index_str = str(sat_index)
@@ -170,14 +175,8 @@ class QC_SAT:
             sat_index_str = str(sat_index)
             rrs_here = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
             rrs_valid = rrs_here[self.flag_mask == 0]
-            # if sat_index==4:
-            #     print('-------------------------------------')
-            #     rrs_valid[:] = rrs_valid[:]/10
-            #     print(rrs_valid)
             stats = self.compute_statistics_impl(self.statistics[sat_index_str]['without_outliers'], rrs_valid)
             self.statistics[sat_index_str]['without_outliers'] = stats
-            # self.statistics[sat_index_str]['without_outliers']['avg'] = np.mean(rrs_valid)
-            # self.statistics[sat_index_str]['without_outliers']['std'] = np.std(rrs_valid)
 
             if self.apply_outliers:
                 cvalue = self.statistics[sat_index_str]['without_outliers'][self.outliers_info['central_stat']]
@@ -193,6 +192,25 @@ class QC_SAT:
                     rrs_valid = rrs_valid[mask_outliers == 0]
                 stats = self.compute_statistics_impl(self.statistics[sat_index_str]['with_outliers'], rrs_valid)
                 self.statistics[sat_index_str]['with_outliers'] = stats
+
+        for check_stat_here in self.check_statistics_norrs:
+            name_band = check_stat_here['name_band']
+            var_here = check_stat_here['variable']
+            var_here_array = var_here[index_mu, r_s:r_e, c_s:c_e]
+            var_here_valid = var_here_array[~var_here_array.mask]
+
+            if not name_band in self.statistics_norrs:
+                self.statistics_norrs[name_band] = {
+                    'n_values': 0,
+                    'avg': 0,
+                    'std': 0,
+                    'median': 0,
+                    'min': 0,
+                    'max': 0,
+                    'CV': 0
+                }
+            stats = self.compute_statistics_impl(self.statistics_norrs[name_band],var_here_valid)
+            self.statistics_norrs[name_band] = stats
 
         return True
 
@@ -218,6 +236,7 @@ class QC_SAT:
 
     def do_check_statistics(self):
         CHECK = True
+
         for check_stat in self.check_statistics:
             index_sat = str(check_stat['index_sat'])
 
@@ -226,6 +245,14 @@ class QC_SAT:
                 if not check_stat['with_outliers']:
                     outliers_str = 'without_outliers'
                 val_here = self.statistics[index_sat][outliers_str][check_stat['type_stat']]
+                if check_stat['type_th'] == 'greater' and val_here > check_stat['value_th']:
+                    CHECK = False
+                if check_stat['type_th'] == 'lower' and val_here < check_stat['value_th']:
+                    CHECK = False
+        for check_stat in self.check_statistics_norrs:
+            name_band = check_stat['name_band']
+            if name_band in self.statistics_norrs:
+                val_here = self.statistics_norrs[name_band][check_stat['type_stat']]
                 if check_stat['type_th'] == 'greater' and val_here > check_stat['value_th']:
                     CHECK = False
                 if check_stat['type_th'] == 'lower' and val_here < check_stat['value_th']:
@@ -414,6 +441,22 @@ class QC_SAT:
             'type_th': type_th
         }
         self.check_statistics.append(check_val)
+
+    def add_bands_norrs_statistics(self, name_band, type_stat, value_th, type_th):
+        if self.ncdataset is None:
+            print('[WARNING] Statistics for bands no rrs could not be added as dataset was not defined')
+            return
+        if name_band not in self.ncdataset.variables:
+            return
+        var_band = self.ncdataset.variables[name_band]
+        check_val = {
+            'variable': var_band,
+            'name_band': name_band,
+            'type_stat': type_stat,
+            'value_th': value_th,
+            'type_th': type_th
+        }
+        self.check_statistics_norrs.append(check_val)
 
     ##IMPLEMENTATIONS-----------------------------------
     def compute_flag_stats_impl(self, index_mu, flag_band):
