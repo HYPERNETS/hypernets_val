@@ -89,6 +89,9 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'LAIT' or station_name == 'Lampedusa':
         Latitude = 35.4935
         Longitude = 12.4678
+    elif station_name == 'MAFR' or station_name == 'MAGIR':
+        Latitude = 45.54630278
+        Longitude = -1.04017222
     else:
         Latitude = None
         Longitude = None
