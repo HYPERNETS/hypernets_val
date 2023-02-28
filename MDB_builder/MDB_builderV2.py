@@ -116,10 +116,10 @@ def main():
                 if prefix is not None:
                     if not line.strip().startswith(prefix):
                         continue
-                    datestr = line.replace(prefix,'')
+                    datestr = line.replace(prefix,'').strip()
                 else:
                     datestr = line.strip()
-
+                print(line,datestr)
                 date_py = dt.strptime(datestr,time_format)
                 date_py_str = date_py.strftime('%Y%m%d%H%M')
                 bad_spectra_times[date_py_str] = 1
