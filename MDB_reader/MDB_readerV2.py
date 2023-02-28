@@ -428,6 +428,8 @@ def main():
 
         from MDBPlotV2 import MDBPlot
         mplot = MDBPlot(input_path)
+        mplot.output_path = output_path
+
         import configparser
         options = configparser.ConfigParser()
         options.read(config_file)
