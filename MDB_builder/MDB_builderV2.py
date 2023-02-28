@@ -119,7 +119,6 @@ def main():
                     datestr = line.replace(prefix,'').strip()
                 else:
                     datestr = line.strip()
-                print(line,datestr)
                 date_py = dt.strptime(datestr,time_format)
                 date_py_str = date_py.strftime('%Y%m%d%H%M')
                 bad_spectra_times[date_py_str] = 1
@@ -161,6 +160,10 @@ def main():
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
+    if len(bad_spectra_times) > 0 and args.verbose:
+        for bad_time in bad_spectra_times:
+            print(bad_time)
+            print(f'[INFO] Spectrum at {bad_time} is invalid')
 
 
 
