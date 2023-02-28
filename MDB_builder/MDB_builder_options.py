@@ -184,6 +184,7 @@ class MDBBuilderOptions:
         }
 
     def get_insitu_options(self):
+        print('ME LLEGA AQUI--------------------------------------------------------------------------------')
         section = 'insitu_options'
         self.insitu_options = {
             'level': self.get_value_param(section,'level','L2A','str'),

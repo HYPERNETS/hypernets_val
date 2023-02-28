@@ -64,8 +64,9 @@ def main():
     mo.get_param_sat_extracts()
 
     ##in situ options
-
     mo.get_insitu_options()
+
+
 
     ##dates
     if args.verbose:
@@ -106,7 +107,7 @@ def main():
             insitu_files = ihd.get_insitu_files(date_here)
 
         bad_spectra_times = {}
-        print(mo.insitu_options)
+        #print(mo.insitu_options)
         if mo.insitu_options['bad_spectra_file_list'] is not None:
             prefix = mo.insitu_options['bad_spectra_prefix']
             time_format = mo.insitu_options['bad_spectra_format_time']
@@ -126,6 +127,7 @@ def main():
 
         if len(bad_spectra_times)>0 and args.verbose:
             for bad_time in bad_spectra_times:
+                print(bad_time)
                 print(f'[INFO] Spectrum at {bad_time} is invalid')
 
         if not insitu_files is None:
