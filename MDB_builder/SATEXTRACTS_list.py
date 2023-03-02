@@ -34,6 +34,7 @@ class SAT_EXTRACTS_LIST:
                 dataset = Dataset(fextract)
             except:
                 print(f'[WARNING] Extract {name} is not a valid NetCDF file. Skipping...')
+                continue
             time_here = self.check_time(name, dataset, start_date, end_date)
             if time_here is None:
                 dataset.close()
