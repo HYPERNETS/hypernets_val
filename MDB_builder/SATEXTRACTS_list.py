@@ -29,7 +29,11 @@ class SAT_EXTRACTS_LIST:
             fextract = os.path.join(sat_extract_dir, name)
             if self.verbose:
                 print(f'[INFO] Checking extract file: {name}')
-            dataset = Dataset(fextract)
+
+            try:
+                dataset = Dataset(fextract)
+            except:
+                print(f'[WARNING] Extract {name} is not a valid NetCDF file. Skipping...')
             time_here = self.check_time(name, dataset, start_date, end_date)
             if time_here is None:
                 dataset.close()

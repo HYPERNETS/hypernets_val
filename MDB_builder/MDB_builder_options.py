@@ -159,6 +159,9 @@ class MDBBuilderOptions:
             if (sat_satellite.upper() == 'S3' or sat_satellite.upper() == 'SENTINEL-3') and \
                     (sat_platform.upper().startswith('A') or sat_platform.upper().startswith('B')):
                 prefix = f'{sat_satellite}{sat_platform}'  # wild card expression
+            elif (sat_satellite.upper() == 'S2' or sat_satellite.upper() == 'SENTINEL-2') and \
+                    (sat_platform.upper().startswith('A') or sat_platform.upper().startswith('B')):
+                prefix = f'{sat_satellite}{sat_platform}'  # wild card expression
             elif atm_corr == 'OLCI-L3':
                 prefix = f'CMEMS2_O'
 

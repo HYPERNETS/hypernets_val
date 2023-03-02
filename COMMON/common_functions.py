@@ -92,6 +92,12 @@ def get_lat_lon_ins(station_name):
     elif station_name == 'MAFR' or station_name == 'MAGIR':
         Latitude = 45.54630278
         Longitude = -1.04017222
+    elif station_name == 'M1BE':
+        Latitude = 51.362
+        Longitude = 3.12
+    elif station_name == 'BSBE':
+        Latitude = 50.988277
+        Longitude = 2.830315
     else:
         Latitude = None
         Longitude = None

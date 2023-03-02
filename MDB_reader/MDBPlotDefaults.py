@@ -1,3 +1,5 @@
+import math
+
 color_dict = dict({ \
     '400.00': 'LightBlue', \
     '412.50': 'DeepSkyBlue', \
@@ -26,13 +28,20 @@ ylabel_rrs = r'R$_r$$_s$ (sr$^-$$^1$)'
 label_insitu_default = 'In situ Rrs'
 xlabel_wl_default = 'Wavelength (nm)'
 
+
 def get_color_ref(wlvalue):
     dif_ref = 10000
     color_out = None
     for wlp in color_dict:
         wlpv = float(wlp)
-        dif = abs(wlpv-wlvalue)
-        if dif<dif_ref:
+        dif = abs(wlpv - wlvalue)
+        if dif < dif_ref:
             dif_ref = dif
             color_out = color_dict[wlp]
     return color_out
+
+
+def get_color_flag(flagvalue):
+    index = int(math.log2(flagvalue))
+    colors = ['Blue', 'Red', 'Green', 'Black', 'Pink']
+    return colors[index]
