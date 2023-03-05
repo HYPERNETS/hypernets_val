@@ -16,7 +16,7 @@ class INSITUBASE:
         time_window = 2  # del mdb_options
         self.new_MDB.time_diff = f'{time_window * 60 * 60}'  # in seconds
 
-        self.new_MDB.createDimension('insitu_id', 30)
+        self.new_MDB.createDimension('insitu_id', 40)
         self.new_MDB.createDimension('insitu_original_bands', 1600)
 
         ##TIME VARIABLE
