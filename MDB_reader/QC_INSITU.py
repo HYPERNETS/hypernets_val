@@ -193,12 +193,12 @@ class QC_INSITU:
                 elif val_max < val_min and is_angle:
                     check_condition = val_here >= val_min or val_here <= val_max
 
-                if th_type=='keep' and not check_condition:
+                if th_type == 'keep' and not check_condition:
                     check = False
-                    print('value bad: ',val_here)
-                if th_type=='keep' and check_condition:
-                    print('value good: ',val_here)
-                if th_type=='remove' and check_condition:
+                    print('value bad: ', val_here)
+                if th_type == 'keep' and check_condition:
+                    print('value good: ', val_here)
+                if th_type == 'remove' and check_condition:
                     check = False
 
                 # if self.check_th_other_bands[band_name]['th_type'] == 'greater' and val_here > \
@@ -402,6 +402,8 @@ class QC_INSITU:
             return None, None, None
 
         spectra = ma.array(self.insitu_rrs[index_mu, :, index_insitu])
+
+        #implementation of spectral response function here
 
         if self.check_indices_by_mu:
             indices, valid_bands = self.get_insitu_indices_mu(index_mu)

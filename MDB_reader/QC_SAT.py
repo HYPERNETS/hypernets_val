@@ -209,7 +209,7 @@ class QC_SAT:
                     'max': 0,
                     'CV': 0
                 }
-            stats = self.compute_statistics_impl(self.statistics_norrs[name_band],var_here_valid)
+            stats = self.compute_statistics_impl(self.statistics_norrs[name_band], var_here_valid)
             self.statistics_norrs[name_band] = stats
 
         return True
@@ -501,27 +501,44 @@ class QC_SAT:
 
         satellite_flag = self.info_flag[flag_band]['variable']
 
+        # flag_meanings_ string separated by spaces or list
+        flag_meanings = satellite_flag.flag_meanings
+        if isinstance(flag_meanings, list):
+            flag_meanings = ' '.join(flag_meanings)
+
         if satellite_flag is None:
             flag_mask = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
             return flag_mask, land
 
         satellite_flag_band = satellite_flag[index_mu, r_s:r_e, c_s:c_e]
+        # float32 is not allowed
+        if str(satellite_flag.dtype) == 'float32':
+            satellite_flag_band = satellite_flag_band.astype('uint64')
+
+        # flag list, it coulb be a comma separated string
+        flag_list_tobe_applied = self.info_flag[flag_band]['flag_list']
+        if isinstance(flag_list_tobe_applied, str):
+            flag_list_tobe_applied = [x.strip() for x in flag_list_tobe_applied.split(',')]
+
         if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
-            flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, satellite_flag.flag_meanings)
+            flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, flag_meanings)
             flag_mask = flagging.MaskGeneral(satellite_flag_band)
             flag_mask[np.where(flag_mask != 0)] = 1
         elif self.info_flag[flag_band]['ac_processor'] == 'IDEPIX':
-            flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, satellite_flag.flag_meanings)
-            flag_mask = flagging.Mask(satellite_flag_band, self.info_flag[flag_band]['flag_list'])
+            flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, flag_meanings)
+            flag_mask = flagging.Mask(satellite_flag_band,flag_list_tobe_applied)
             flag_mask[np.where(flag_mask != 0)] = 1
         else:
-            flagging = flag.Class_Flags_OLCI(satellite_flag.flag_masks, satellite_flag.flag_meanings)
+
+            ##we must be sure that flag_mask must be uint64
+            flag_masks = satellite_flag.flag_masks.astype('uint64')
+            flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
             if self.info_flag[flag_band]['ac_processor'] == 'C2RCC':  # C2RCC FLAGS
                 valuePE = np.uint64(2147483648)
                 flag_mask = np.ones(satellite_flag_band.shape, dtype=np.uint64)
                 flag_mask[satellite_flag_band == valuePE] = 0
             else:
-                flag_mask = flagging.Mask(satellite_flag_band, self.info_flag[flag_band]['flag_list'])
+                flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
                 flag_mask[np.where(flag_mask != 0)] = 1
                 # for fl in self.info_flag[flag_band]['flag_list']:
                 #     fltal = flagging.Mask(satellite_flag_band, ([fl]))
@@ -530,7 +547,11 @@ class QC_SAT:
                 #         print('----> ',fl,':',ntal)
 
         flag_land = self.info_flag[flag_band]['flag_land']
+        if flag_land.strip().lower()=='none':
+            flag_land = None
         flag_inlandwater = self.info_flag[flag_band]['flag_inlandwater']
+        if flag_inlandwater.strip().lower()=='none':
+            flag_inlandwater = None
 
         if flag_land is not None:
             land = flagging.Mask(satellite_flag_band, ([flag_land]))

@@ -86,6 +86,7 @@ class MDBPlot:
     def plot_from_options_impl(self, options_out):
         if options_out['type'] == 'scatterplot':
             if not options_out['selectByWavelength'] and options_out['selectBy'] is None:
+                print('me llega aqui...')
                 self.set_data_scatterplot(options_out['groupBy'], None,None,None)
                 self.plot_scatter_plot(options_out)
 
@@ -344,10 +345,10 @@ class MDBPlot:
 
     def get_group_options(self, options, section, options_out):
         options_out['groupBy'] = self.get_value_param(options, section, 'groupBy', None, 'str')
+        options_out['groupValues'] = None
         if options_out['groupBy'] is not None:
             var_name = options_out['groupBy']
             if var_name in self.mrfile.nc.variables:
-                options_out['groupValues'] = None
                 options_out['groupType'] = 'float'
                 if var_name.startswith('flag'):
                     flag_values = self.mrfile.nc.variables[var_name].flag_values

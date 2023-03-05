@@ -1,3 +1,6 @@
+import os.path
+
+
 class QC_OPTIONS:
 
     def __init__(self, options):
@@ -19,7 +22,7 @@ class QC_OPTIONS:
 
         return wllist
 
-    def get_qcsat(self, qc_sat):
+    def get_qcsat(self, qc_sat, dataset):
         section = 'QC_SAT'
         options_qcsat = {
             'wllist': {'valid': 0, 'value': None, 'type': 'floatlist'},
@@ -90,23 +93,35 @@ class QC_OPTIONS:
                 continue
             if option == 'wllist':
                 qc_sat.wl_ref = options_qcsat[option]['value']
+                print(f'[INFO] Set wavelength list: {qc_sat.wl_ref}')
             elif option == 'window_size':
                 qc_sat.window_size = options_qcsat[option]['value']
+                print(f'[INFO] Set window size: {qc_sat.window_size}')
             elif option == 'min_valid_pixels':
                 qc_sat.min_valid_pixels = options_qcsat[option]['value']
+                print(f'[INFO] Set min. valid pixels: {qc_sat.min_valid_pixels}')
             elif option == 'use_Bailey_Werdell':
                 qc_sat.use_Bailey_Werdell = options_qcsat[option]['value']
+                print(f'[INFO] Set use Bailey Werdell: {qc_sat.use_Bailey_Werdell}')
             elif option == 'stat_value':
                 qc_sat.stat_value = options_qcsat[option]['value']
+                print(f'[INFO] Set stat. value: {qc_sat.stat_value}')
             elif option == 'apply_outliers':
                 qc_sat.apply_outliers = options_qcsat[option]['value']
+                print(f'[INFO] Set apply outliers: {qc_sat.apply_outliers}')
             elif option == 'outliers_info':
                 qc_sat.outliers_info = options_qcsat[option]['value']
+                print(f'[INFO] Set outliers info: {qc_sat.outliers_info}')
             elif option == 'info_flag_X':
+
                 list_vals = options_qcsat[option]['value']
                 for val in list_vals:
+                    name_var = val['name']
+                    variable = None
+                    if name_var in dataset.variables:
+                        variable = dataset.variables[name_var]
                     qc_sat.info_flag[val['name']] = {
-                        'variable': None,
+                        'variable': variable,
                         'flag_list': val['flag_list'],
                         'flag_land': val['flag_land'],
                         'flag_inlandwater': val['flag_inlandwater'],
@@ -114,6 +129,7 @@ class QC_OPTIONS:
                         'nflagged': 0,
                         'flag_stats': None
                     }
+                    #print(f'[INFO] Flag band: {qc_sat.info_flag}')
             elif option == 'rrs_th_X':
                 list_vals = options_qcsat[option]['value']
                 for val in list_vals:
@@ -219,7 +235,6 @@ class QC_OPTIONS:
         value = {}
         for kd in keys_dict:
             key_here = f'{key}.{kd}'
-            print(key_here)
             val_here = self.get_value_param(section, key_here, 'N/A', keys_dict[kd])
             if val_here is None:
                 return None
@@ -255,6 +270,11 @@ class QC_OPTIONS:
             return default
         if type == 'str':
             return value
+        if type == 'file':
+            if os.path.exists(value):
+                return value
+            else:
+                return default
         if type == 'int':
             try:
                 return int(value)

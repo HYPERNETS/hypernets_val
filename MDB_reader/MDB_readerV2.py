@@ -3,6 +3,7 @@ import os.path
 import sys
 import argparse
 import warnings
+
 warnings.simplefilter('ignore', UserWarning)
 warnings.simplefilter('ignore', RuntimeWarning)
 
@@ -12,7 +13,8 @@ from MDB_builder.INSITU_base import INSITUBASE
 parser = argparse.ArgumentParser(
     description="Match-ups extraction from MDB files.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-parser.add_argument("-m", "--mode", help="Mode", choices=["GENERATEMU", "CONCATENATE","REMOVEREP","PLOT","TEST"], required=True)
+parser.add_argument("-m", "--mode", help="Mode", choices=["GENERATEMU", "CONCATENATE", "REMOVEREP", "PLOT", "TEST"],
+                    required=True)
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path")
 parser.add_argument('-o', "--output", help="Path to output")
@@ -48,10 +50,9 @@ class MDB_READER():
         if self.mfile.df_validation is None:
             self.mfile.prepare_df_validation()
 
-
         ibase = INSITUBASE(None)
         new_MDB = ibase.copy_nc(self.mfile.file_path, fout)
-        new_MDB.createDimension('mu_id',None)
+        new_MDB.createDimension('mu_id', None)
 
         import numpy as np
         import numpy.ma as ma
@@ -84,7 +85,7 @@ class MDB_READER():
             fillValue = new_variables[new_var_name]['fillvalue']
             if fillValue is not None:
                 array = ma.masked_array(array, mask=array == fillValue)
-            #unlimited dimension,
+            # unlimited dimension,
             new_var[:] = array[:]
 
         new_variables_sat_mu = {
@@ -113,7 +114,7 @@ class MDB_READER():
         if self.mfile.df_mu is None:
             self.mfile.prepare_df_mu()
 
-        #print(self.mfile.df_mu)
+        # print(self.mfile.df_mu)
 
         for new_var_name in new_variables_sat_mu:
             new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],
@@ -130,7 +131,7 @@ class MDB_READER():
                     except:
                         array_t.append(-999.0)
                 array = np.array(array_t)
-            #print(new_var_name, '->', array.shape)
+            # print(new_var_name, '->', array.shape)
             fillValue = new_variables_sat_mu[new_var_name]['fillvalue']
             if fillValue is not None:
                 array = ma.masked_array(array, mask=array == fillValue)
@@ -146,7 +147,6 @@ class MDB_READER():
         ##Satellite quality control
         self.mfile.qc_sat.wl_ref = wllist
         self.mfile.qc_sat.set_eumetsat_defaults(3)
-
 
         # In situ quality control
         self.mfile.qc_insitu.set_wllist_using_wlref(wllist)
@@ -223,8 +223,8 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
         # copy variable attributes all at once via dictionary
         ncout[name].setncatts(reader.mfile.nc[name].__dict__)
         # copy variable data
-        if name=='mu_satellite_id' and satellite_id_ref>0:
-            #array = reader.mfile.nc[name][:] + satellite_id_ref
+        if name == 'mu_satellite_id' and satellite_id_ref > 0:
+            # array = reader.mfile.nc[name][:] + satellite_id_ref
             ncout[name][:] = reader.mfile.nc[name][:] + satellite_id_ref
         else:
             ncout[name][:] = reader.mfile.nc[name][:]
@@ -310,7 +310,7 @@ def main():
         fconfig = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/config_qc.ini'
         import configparser
         from QC_OPTIONS import QC_OPTIONS
-        #from QC_SAT import  QC_SAT
+        # from QC_SAT import  QC_SAT
         options = configparser.ConfigParser()
         options.read(fconfig)
         qco = QC_OPTIONS(options)
@@ -358,7 +358,7 @@ def main():
             wllist = qco.get_wllist()
             reader.mfile.set_wl_ref(wllist)
             reader.mfile.qc_sat.ncdataset = reader.mfile.nc
-            reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat)
+            reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat,reader.mfile.nc)
             reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
             reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu)
 
@@ -378,12 +378,11 @@ def main():
         if args.output:
             if os.path.isdir(args.output):
                 output_folder = args.output
-                ncout_file = os.path.join(output_folder,'MDBrc.nc')
-            if os.path.isfile(args.output):
+                ncout_file = os.path.join(output_folder, 'MDBrc.nc')
+            else:
                 ncout_file = args.output
         else:
-            ncout_file = os.path.join(input_path,'MDBrc.nc')
-
+            ncout_file = os.path.join(input_path, 'MDBrc.nc')
 
         ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
         flag_bands = ['flag_satellite', 'flag_sensor', 'flag_ac', 'flag_site']
@@ -397,11 +396,11 @@ def main():
             file_in = os.path.join(input_path, name)
             reader = MDB_READER(file_in, True)
             file_out = os.path.join(input_path, f'Temp_{idfile}.nc')
-            creating_copy_with_flag_bands(reader, file_out, flag_lists,satellite_id_ref)
+            creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref)
             satellite_id_ref = satellite_id_ref + reader.mfile.n_mu_total
             list_files.append(file_out)
             idfile = idfile + 1
-        concatenate_nc_impl(list_files,input_path,ncout_file)
+        concatenate_nc_impl(list_files, input_path, ncout_file)
 
     ##PLOTTING
     if args.input_path and args.config_file and mode == 'PLOT':
@@ -417,7 +416,7 @@ def main():
             output_path = args.output
         else:
             path_mdb = os.path.dirname(input_path)
-            output_path = os.path.join(path_mdb,'PLOTS')
+            output_path = os.path.join(path_mdb, 'PLOTS')
         if not os.path.exists(output_path):
             try:
                 os.mkdir(output_path)
@@ -435,10 +434,6 @@ def main():
         options.read(config_file)
         print(mplot.VALID)
         mplot.plot_from_options(options)
-
-
-
-
 
 
 if __name__ == '__main__':
