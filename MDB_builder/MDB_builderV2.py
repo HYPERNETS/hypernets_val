@@ -136,7 +136,7 @@ def main():
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
             for idx in range(ninsitu):
                 insitu_file = insitu_files[idx]
-                print(insitu_file,idx,date_here,mo.get_sat_extracts_info())
+                #print(insitu_file,idx,date_here,mo.get_sat_extracts_info())
                 ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
 
             ihd.close_mdb()
