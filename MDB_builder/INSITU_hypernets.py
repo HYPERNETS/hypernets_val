@@ -12,6 +12,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.new_MDB = None
 
         # Default: rsync_user: hypstar
+        print(mdb_options)
         rsync_user = mdb_options.insitu_options['rsync_user']
         if rsync_user is None:
             rsync_user = 'hypstar'
