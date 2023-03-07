@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 from datetime import datetime
@@ -53,6 +54,7 @@ class MDBFile:
 
         if self.VALID:
             self.n_mu_total = len(self.dimensions['satellite_id'])
+            self.n_insitu_day = len(self.dimensions['insitu_id'])
             print('[INFO] Total mu: ', self.n_mu_total)
             self.sat_times = []
             for st in self.variables['satellite_time']:
@@ -781,9 +783,9 @@ class MDBFile:
                 # print(pd.DataFrame.from_dict(row))
                 # print(self.df_validation.columns.values)
                 row_here = pd.DataFrame.from_dict(row)
-                #print(type(row_here))
+                # print(type(row_here))
                 self.df_validation.iloc[index_tot] = row_here.iloc[0]
-                #print(self.df_validation.index[index_tot])
+                # print(self.df_validation.index[index_tot])
 
                 index_tot = index_tot + 1
 
@@ -950,6 +952,55 @@ class MDBFile:
             except ValueError:
                 continue
         return sat_time
+
+    def get_all_insitu_valid_spectra(self):
+        import numpy.ma as ma
+        nspectra = self.n_mu_total * self.n_insitu_day
+        noriginal_bands = len(self.dimensions['insitu_original_bands'])
+        spectra = ma.zeros((nspectra, noriginal_bands))
+        var_insitu = self.nc.variables['insitu_Rrs']
+        index_row = 0
+        for index_mu in range(self.n_mu_total):
+            spectra_here = ma.array(var_insitu[index_mu, :, :]).transpose()
+            spectra[index_row:index_row + self.n_insitu_day] = spectra_here[:, :]
+            index_row = index_row + self.n_insitu_day
+
+        valid = np.zeros((nspectra,))
+        index_mu = 0
+        insitu_id = 0
+        for idx in range(nspectra):
+            if insitu_id == self.n_insitu_day:
+                insitu_id = 0
+                index_mu = index_mu + 1
+            valid_here = self.qc_insitu.check_validity_spectrum(spectra[idx, :], index_mu, insitu_id)
+            if valid_here:
+                valid[idx] = 1
+            insitu_id = insitu_id + 1
+        spectra_good = spectra[valid == 1]
+
+        import statistics as st
+        spectra_avg = ma.mean(spectra_good, axis=0)
+        spectra_std = ma.std(spectra_good, axis=0)
+        indices_max = ma.argmax(spectra_good, axis=0)
+        imax = st.mode(indices_max)
+        spectra_max_real = spectra[imax, :]
+        spectra_max = ma.max(spectra_good, axis=0)
+
+        indices_min = ma.argmin(spectra_good, axis=0)
+        imin = st.mode(indices_min)
+        spectra_mim_real = spectra[imin, :]
+        spectra_min = ma.min(spectra_good, axis=0)
+
+        spectra_stats = {
+            'avg': spectra_avg,
+            'std': spectra_std,
+            'spectra_min_real': spectra_mim_real,
+            'spectra_max_real': spectra_max_real,
+            'spectra_min': spectra_min,
+            'spectra_max': spectra_max,
+        }
+
+        return spectra, spectra_stats
 
     def close(self):
         if self.VALID:

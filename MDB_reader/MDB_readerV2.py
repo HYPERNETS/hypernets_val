@@ -432,8 +432,9 @@ def main():
         import configparser
         options = configparser.ConfigParser()
         options.read(config_file)
-        print(mplot.VALID)
-        mplot.plot_from_options(options)
+        #print(mplot.VALID)
+        #mplot.plot_from_options(options)
+        mplot.mrfile.get_all_insitu_valid_spectra()
 
 
 if __name__ == '__main__':

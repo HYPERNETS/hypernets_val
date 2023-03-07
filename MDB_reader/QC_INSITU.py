@@ -201,13 +201,6 @@ class QC_INSITU:
                 if th_type == 'remove' and check_condition:
                     check = False
 
-                # if self.check_th_other_bands[band_name]['th_type'] == 'greater' and val_here > \
-                #         self.check_th_other_bands[band_name]['th_value']:
-                #     check = False
-                # if self.check_th_other_bands[band_name]['th_type'] == 'lower' and val_here < \
-                #         self.check_th_other_bands[band_name]['th_value']:
-                #     check = False
-
         # checking thresholds
         if self.thersholds is not None:
             for idx in range(len(self.wl_list)):

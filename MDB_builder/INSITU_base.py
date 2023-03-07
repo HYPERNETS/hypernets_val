@@ -13,11 +13,14 @@ class INSITUBASE:
     def start_add_insitu(self, extract_path, ofile):
         self.new_MDB = self.copy_nc(extract_path, ofile)
 
-        time_window = 2  # del mdb_options
-        self.new_MDB.time_diff = f'{time_window * 60 * 60}'  # in seconds
+        # time_window = 2  # del mdb_options
+        # self.new_MDB.time_diff = f'{time_window * 60 * 60}'  # in seconds
+        self.new_MDB.time_diff = self.mdb_options.insitu_options['time_max']
 
-        self.new_MDB.createDimension('insitu_id', 40)
-        self.new_MDB.createDimension('insitu_original_bands', 1600)
+        n_insitu_id = self.mdb_options.insitu_options['n_insitu_id']
+        n_insitu_bands = self.mdb_options.insitu_options['n_insitu_bands']
+        self.new_MDB.createDimension('insitu_id', n_insitu_id)
+        self.new_MDB.createDimension('insitu_original_bands',  n_insitu_bands)
 
         ##TIME VARIABLE
         insitu_time = self.new_MDB.createVariable('insitu_time', 'f4', ('satellite_id', 'insitu_id',), zlib=True,

@@ -187,11 +187,14 @@ class MDBBuilderOptions:
         }
 
     def get_insitu_options(self):
-        print('ME LLEGA AQUI--------------------------------------------------------------------------------')
         section = 'insitu_options'
         self.insitu_options = {
             'level': self.get_value_param(section,'level','L2A','str'),
             'apply_rsync': self.get_value_param(section,'apply_rsync',True,'boolean'),
+            'rsync_user': self.get_value_param(section,'rsync_user','hypstar','str'),
+            'n_insitu_id': self.get_value_param(section,'n_insitu_id',40,'int'),
+            'n_insitu_bands': self.get_value_param(section,'n_insitu_bands',1600,'int'),
+            'time_max': self.get_value_param(section,'time_max',180,'int')*60,
             'insitu_site_flags': self.get_value_param(section,'insitu_site_flag_flags','INVALID','str'),
             'bad_spectra_file_list': self.get_value_param(section,'insitu_bad_spectra_file_list',None,'file'),
             'bad_spectra_prefix': self.get_value_param(section,'insitu_bad_spectra_prefix',None,'str'),

@@ -11,10 +11,15 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.verbose = verbose
         self.new_MDB = None
 
-        self.url_base = 'hypstar@enhydra.naturalsciences.be'
+        # Default: rsync_user: hypstar
+        rsync_user = mdb_options.insitu_options['rsync_user']
+        if rsync_user is None:
+            rsync_user = 'hypstar'
+        self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
         self.base_folder = '/home/hypstar/'
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
+
         self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'
 
         self.CHECK_SSH = self.check_ssh()
@@ -82,7 +87,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 'preferred_symbol': 'sza'
             },
             'insitu_site_flag': {
-                'name_orig' : None,
+                'name_orig': None,
                 'type': 'i1',
                 'standard_name': 'insitu_site_flag',
                 'flag_meanings': 'INVALID',
@@ -152,16 +157,22 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         else:
             insitu_time = dt.utcfromtimestamp(insitu_time_f)
 
-
-
         if insitu_time is None:
             print(f'[ERROR] In situ time was not defined for in situ file: {file_name}')
             nc_ins.close()
-            return
+            return False
 
         time_diff = float(abs((sat_time - insitu_time).total_seconds()))
+        time_max = self.mdb_options.insitu_options['time_max']  # time max in seconds
+        time_diffh = time_diff / 3600
+        time_maxh = time_max / 3600
+        if time_diff > time_max:
+            print(
+                f'[WARNING] Time difference {time_diffh:.2f} hours is greater than max. time window ({time_maxh:.2f} hours). Skipping...')
+            nc_ins.close()
+            return False
+
         if self.verbose:
-            time_diffh = time_diff/3600
             print(f'[INFO] Sat. Time: {sat_time} Ins. Time: {insitu_time} Time diff.: {time_diffh:.2f} hours')
 
         # print(inputpath,insitu_time,sat_time,time_diff/3600)
@@ -193,6 +204,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         if insitu_idx == 0:
             self.check_attributes(extract_info)
+
+        return True
 
     def check_attributes(self, extract_info):
         if 'insitu_site_name' not in self.new_MDB.ncattrs():
@@ -363,20 +376,20 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                                 datehere_str = f'{y}{m}{d}'
                                 datehere = dt.strptime(datehere_str, '%Y%m%d')
                                 add_date = True
-                                if start_date_ref is not None and datehere<start_date_ref:
+                                if start_date_ref is not None and datehere < start_date_ref:
                                     add_date = False
-                                if end_date_ref is not None and datehere>end_date_ref:
+                                if end_date_ref is not None and datehere > end_date_ref:
                                     add_date = False
                                 if add_date:
                                     list_dates.append(datehere)
         return list_dates
 
-    def save_list_dates_to_file(self,fout,sitename,start_date_ref, end_date_ref):
-        list_dates = self.get_list_dates(sitename,start_date_ref,end_date_ref)
-        if len(list_dates)==0:
+    def save_list_dates_to_file(self, fout, sitename, start_date_ref, end_date_ref):
+        list_dates = self.get_list_dates(sitename, start_date_ref, end_date_ref)
+        if len(list_dates) == 0:
             print(f'[WARNING] Data were not found for site: {sitename}')
             return
-        f1 = open(fout,'w')
+        f1 = open(fout, 'w')
         for date in list_dates:
             date_str = date.strftime('%Y-%m-%d')
             f1.write(date_str)

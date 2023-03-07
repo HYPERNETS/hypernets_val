@@ -75,6 +75,8 @@ class MDBPlot:
         # self.satellite = 'S3'
         # self.platform = 'AB'
 
+        self.global_stats_ins_spectra = {}
+
     def plot_from_options(self, options):
         plot_list = list(options.sections())
         for plot in plot_list:
@@ -85,48 +87,113 @@ class MDBPlot:
 
     def plot_from_options_impl(self, options_out):
         if options_out['type'] == 'scatterplot':
+            if options_out['selectByWavelength']:  # one scatterplot for wavelenght
+                file_out_base = options_out['file_out']
+                title_base = options_out['title']
+                if options_out['selectBy'] is None:  # scatter plot global by wavelengh
+                    for wl in options_out['wl_values']:
+
+                        self.set_data_scatterplot(options_out['groupBy'], None, None, wl)
+                        options_out['file_out'] = self.get_file_out_name(file_out_base, wl, None)
+                        options_out['title'] = self.get_title(title_base, wl, None, None)
+                        self.plot_scatter_plot(options_out)
+
             if not options_out['selectByWavelength'] and options_out['selectBy'] is None:
-                print('me llega aqui...')
-                self.set_data_scatterplot(options_out['groupBy'], None,None,None)
+                # print('me llega aqui...')
+                self.set_data_scatterplot(options_out['groupBy'], None, None, None)
                 self.plot_scatter_plot(options_out)
 
         if options_out['type'] == 'statstable_wl':
-            params = options_out['params']#self.valid_stats.keys()
-            flags = ['GLOBAL']
-            flag_name = options_out['selectBy']
-            if flag_name is not None and options_out['selectType']=='flag':
-                flag_list = self.get_flag_list(options_out['selectValues'],options_out[flag_name]['flag_values'],options_out[flag_name]['flag_meanings'])
-                flags = flags + flag_list
-            table, indices = self.start_table_wl(flags,params,options_out['wl_values'])
-            #global stats, it's always done
-            self.set_data_scatterplot(None, None, None, None)
-            self.compute_statistics()
-            table = self.assign_stats_table_wl(table,indices,params,'GLOBAL',None)
+            self.create_table_stats_wl(options_out)
+
+        if options_out['type'] == 'statstable':
+            self.create_table_stats(options_out, None)
             for wl in options_out['wl_values']:
-                self.set_data_scatterplot(None,None,None,wl)
-                self.compute_statistics()
-                table = self.assign_stats_table_wl(table, indices, params, 'GLOBAL', wl)
-            #results by flag
-            if flag_name is not None:
-                for idx in range(len(flag_list)):
-                    flag = flag_list[idx]
-                    flag_value = options_out['selectValues'][idx]
-                    self.set_data_scatterplot(None, flag_name, flag_value, None)
-                    self.compute_statistics()
-                    table = self.assign_stats_table_wl(table, indices, params, flag, None)
-                    for wl in options_out['wl_values']:
-                        self.set_data_scatterplot(None, flag_name, flag_value, wl)
-                        self.compute_statistics()
-                        table = self.assign_stats_table_wl(table, indices, params,flag, wl)
+                self.create_table_stats(options_out, wl)
 
-            print(table)
+        if options_out['type'] == 'statswlplot':
+            self.plot_statistics_bywl(options_out)
 
-    #statistics are computed in a previous step
-    def assign_stats_table_wl(self,table,indices,params,flag,wl):
+    def get_wl_str_from_wl(self, wl_value):
+        wl_sat = np.array(self.mrfile.nc.variables['satellite_bands'])
+        index_sat = np.argmin(np.abs(wl_sat - wl_value))
+        wl_sat_value = wl_sat[index_sat]
+        wl_sat_value_str = f'{wl_sat_value:.2f}'
+        if wl_sat_value_str.endswith('.00'):
+            return wl_sat_value_str[:-3]
+        else:
+            return wl_sat_value_str
+
+    def get_file_out_name(self, file_out, wl, flag):
+        if file_out is None:
+            return None
+        if wl is None and flag is None:
+            return file_out
+        if wl is not None:
+            wls = self.get_wl_str_from_wl(wl)
+            wls = wls.replace('.', '_')
+        if wl is not None and flag is None:
+            file_out = file_out[:-4] + '_' + wls + file_out[-4:]
+        if wl is None and flag is not None:
+            file_out = file_out[:-4] + '_' + flag + file_out[-4:]
+        if wl is not None and flag is not None:
+            file_out = file_out[:-4] + '_' + flag + '_' + wls + file_out[-4:]
+        return file_out
+
+    def get_file_out_flag_param(self,file_out,flag,param):
+        if file_out is None:
+            return None
+        if param is None and flag is None:
+            return file_out
+        file_res = file_out[:-4]
+        if flag is not None:
+            file_res = file_res + '_' + flag
+        if param is not None:
+            file_res = file_res + '_' + param
+        file_res = file_res + file_out[-4:]
+        return file_res
+
+    def get_title(self, title, wl, flag,param):
+        if title is None:
+            return None
+        if wl is None and flag is None and param is None:
+            return title
+        if wl is not None:
+            wls = self.get_wl_str_from_wl(wl)
+            title = title.replace('$WL$', wls)
+        if flag is not None:
+            title = title.replace('$FLAG$', wls)
+
+        if param is not None:
+            title = title.replace('$PARAM$',param)
+
+        return title
+
+    def start_table_wl(self, flags, params, wl_values):
+        # wl_list = [f'{x:.2f}'.replace('.', '_') for x in wl_values]
+        wl_list = [self.get_wl_str_from_wl(x) for x in wl_values]
+        nrows = len(flags) * len(params)
+        indices = {}
+        index = 0
+        col_names = ['FLAG', 'PARAM', 'ALL'] + wl_list
+        table = pd.DataFrame(columns=col_names, index=range(nrows))
+        for flag in flags:
+            indices[flag] = {}
+            for param in params:
+                table.iloc[index].at['FLAG'] = flag
+                table.iloc[index].at['PARAM'] = param
+                indices[flag][param] = index
+                index = index + 1
+        return table, indices
+
+        # statistics are computed in a previous step
+
+    def assign_stats_table_wl(self, table, indices, params, flag, wl):
         if wl is None:
             col_name = 'ALL'
         else:
-            col_name = f'{wl:.2f}'.replace('.','_')
+            # col_name = f'{wl:.2f}'.replace('.', '_')
+            col_name = self.get_wl_str_from_wl(wl)
         for param in params:
             if param in self.valid_stats:
                 value = self.valid_stats[param]
@@ -134,21 +201,27 @@ class MDBPlot:
                 table.iloc[index_row].at[col_name] = value
         return table
 
-    def start_table_wl(self,flags,params,wl_values):
-        wl_list = [f'{x:.2f}'.replace('.','_') for x in wl_values]
-        nrows = len(flags)*len(params)
+    def start_table(self, flags, params):
+        col_names = ['PARAM'] + flags
+        nrows = len(params)
         indices = {}
         index = 0
-        col_names = ['FLAG','PARAM','ALL'] + wl_list
-        table = pd.DataFrame(columns=col_names,index=range(nrows))
-        for flag in flags:
-            indices[flag] = {}
-            for param in params:
-                table.iloc[index].at['FLAG'] = flag
-                table.iloc[index].at['PARAM'] = param
-                indices[flag][param] = index
-                index = index +1
-        return table,indices
+        table = pd.DataFrame(columns=col_names, index=range(nrows))
+        for param in params:
+            table.iloc[index].at['PARAM'] = param
+            indices[param] = index
+            index = index + 1
+        return table, indices
+
+        # statistics are computed in a previous step
+
+    def assign_table(self, table, indices, params, col_name):
+        for param in params:
+            if param in self.valid_stats:
+                value = self.valid_stats[param]
+                index_row = indices[param]
+                table.iloc[index_row].at[col_name] = value
+        return table
 
     def set_data_scatterplot(self, groupBy, selectBy, valSelect, wl_value):
         rrs_ins = np.array(self.mrfile.nc.variables['mu_ins_rrs'])
@@ -160,13 +233,13 @@ class MDBPlot:
 
         if wl_value is not None:
             wl_array = np.array(self.mrfile.nc.variables['mu_wavelength'])
-            valid_all[wl_array!=wl_value] = 0
+            valid_all[wl_array != wl_value] = 0
 
         if selectBy is not None and valSelect is not None:
             select_array = np.array(self.mrfile.nc.variables[selectBy])
-            if len(select_array)==len(mu_valid):
+            if len(select_array) == len(mu_valid):
                 select_array = self.get_array_all_from_arraymu(id_all, select_array)
-            valid_all[select_array!=valSelect] = 0
+            valid_all[select_array != valSelect] = 0
 
         self.xdata = rrs_ins[valid_all == 1]
         self.ydata = rrs_sat[valid_all == 1]
@@ -177,7 +250,7 @@ class MDBPlot:
                 group_array = self.get_array_all_from_arraymu(id_all, group_array)
             self.groupdata = group_array[valid_all == 1]
 
-        print('setting group data', groupBy)
+        # print('setting group data', groupBy)
 
     def get_array_all_from_arraymu(self, id_all_array, mu_array):
         array_out = np.zeros(id_all_array.shape, dtype=mu_array.dtype)
@@ -202,7 +275,8 @@ class MDBPlot:
                         str_legend.append(f'{g:.2f}')
                 if options['groupType'] == 'flag':
                     flag_name = options['groupBy']
-                    str_legend = self.get_flag_list(groupValues,options[flag_name]['flag_values'],options[flag_name]['flag_meanings'])
+                    str_legend = self.get_flag_list(groupValues, options[flag_name]['flag_values'],
+                                                    options[flag_name]['flag_meanings'])
 
         from PlotScatter import PlotScatter
         from scipy.stats import gaussian_kde
@@ -324,22 +398,186 @@ class MDBPlot:
             plot.save_fig(options['file_out'])
             plot.close_plot()
 
+    def plot_statistics_bywl(self, options_out):
+        params = options_out['params']  # self.valid_stats.keys()
+        flags = ['GLOBAL']
+        flag_list = []
+        flag_name = options_out['selectBy']
+        if flag_name is not None and options_out['selectType'] == 'flag':
+            flag_list = self.get_flag_list(options_out['selectValues'], options_out[flag_name]['flag_values'],
+                                           options_out[flag_name]['flag_meanings'])
+            flags = flags + flag_list
+        wl_list = options_out['wl_values']
+        params = options_out['params']
+        xdata_plot = [float(self.get_wl_str_from_wl(x)) for x in wl_list]
+        wl_col = [self.get_wl_str_from_wl(x) for x in wl_list]
+
+        table, indices = self.start_table_wl(flags, params, options_out['wl_values'])
+        legend = []
+        if len(flag_list)==0:
+            for wl in options_out['wl_values']:
+                self.set_data_scatterplot(None, None, None, wl)
+                self.compute_statistics()
+                table = self.assign_stats_table_wl(table, indices, params, 'GLOBAL', wl)
+        else:
+            for idx in range(len(flag_list)):
+                flag = flag_list[idx]
+                legend.append(flag)
+                flag_value = options_out['selectValues'][idx]
+                for wl in options_out['wl_values']:
+                    self.set_data_scatterplot(None, flag_name, flag_value, wl)
+                    self.compute_statistics()
+                    table = self.assign_stats_table_wl(table, indices, params, flag, wl)
+
+
+        from PlotSpectra import PlotSpectra
+
+        # GLOBAL
+        for param in params:
+            plot = PlotSpectra()
+            plot.close_plot()
+            plot.start_plot()
+            if len(flag_list)==0: ##solo global
+                irow = indices['GLOBAL'][param]
+                ydata_plot = np.array(table[wl_col].iloc[irow])
+                self.plot_spectra_line_impl(plot,xdata_plot,ydata_plot,0,options_out)
+                file_out = self.get_file_out_flag_param(options_out['file_out'], 'GLOBAL', param)
+            else:
+                for idx in range(len(flag_list)):
+                    flag = flag_list[idx]
+                    irow = indices[flag][param]
+                    ydata_plot = np.array(table[wl_col].iloc[irow])
+                    self.plot_spectra_line_impl(plot,xdata_plot,ydata_plot,idx,options_out)
+                file_out = self.get_file_out_flag_param(options_out['file_out'], flag_name, param)
+
+
+            plot.set_xaxis_title(options_out['xlabel'])
+            plot.set_yaxis_title(param)
+            plot.set_xticks(xdata_plot,wl_col,90,8)
+            plot.set_grid()
+            plot.set_title(self.get_title(options_out['title'],None,None,param))
+            if len(legend)>0:
+                plot.set_legend(legend)
+            plot.set_tigth_layout()
+
+            if file_out is not None:
+                plot.save_fig(file_out)
+            plot.close_plot()
+
+    def plot_spectra_line_impl(self,plot,xdata_plot,ydata_plot,index,options_out):
+        plot.xdata = xdata_plot
+        line_color = options_out['line_color']
+        lc = line_color[0]
+        if 0 <= index < len(line_color):
+            lc = line_color[index]
+
+        line_type = options_out['line_type']
+        lt = line_type[0]
+        if 0 <= index < len(line_type):
+            lt = line_type[index]
+
+        line_width = options_out['line_width']
+        lw = line_width[0]
+        if 0 <= index < len(line_width):
+            lw = line_width[index]
+
+        marker = options_out['marker']
+        m = marker[0]
+        if 0 <= index < len(marker):
+            m = marker[index]
+
+        markersize = options_out['marker_size']
+        ms = markersize[0]
+        if 0 <= index < len(markersize):
+            ms = markersize[index]
+
+
+
+        plot.plot_single_line(ydata_plot, lc, lt, lw, m,ms)
+
+
+    def create_table_stats_wl(self, options_out):
+        params = options_out['params']  # self.valid_stats.keys()
+        flags = ['GLOBAL']
+        flag_name = options_out['selectBy']
+        if flag_name is not None and options_out['selectType'] == 'flag':
+            flag_list = self.get_flag_list(options_out['selectValues'], options_out[flag_name]['flag_values'],
+                                           options_out[flag_name]['flag_meanings'])
+            flags = flags + flag_list
+        table, indices = self.start_table_wl(flags, params, options_out['wl_values'])
+        # global stats, it's always done
+        self.set_data_scatterplot(None, None, None, None)
+        self.compute_statistics()
+        table = self.assign_stats_table_wl(table, indices, params, 'GLOBAL', None)
+        for wl in options_out['wl_values']:
+            self.set_data_scatterplot(None, None, None, wl)
+            self.compute_statistics()
+            table = self.assign_stats_table_wl(table, indices, params, 'GLOBAL', wl)
+        # results by flag
+        if flag_name is not None:
+            for idx in range(len(flag_list)):
+                flag = flag_list[idx]
+                flag_value = options_out['selectValues'][idx]
+                self.set_data_scatterplot(None, flag_name, flag_value, None)
+                self.compute_statistics()
+                table = self.assign_stats_table_wl(table, indices, params, flag, None)
+                for wl in options_out['wl_values']:
+                    self.set_data_scatterplot(None, flag_name, flag_value, wl)
+                    self.compute_statistics()
+                    table = self.assign_stats_table_wl(table, indices, params, flag, wl)
+        if not options_out['file_out'] is None:
+            table.to_csv(options_out['file_out'], sep=';')
+
+    def create_table_stats(self, options_out, wl):
+        params = options_out['params']  # self.valid_stats.keys()
+        flags = ['GLOBAL']
+        flag_name = options_out['selectBy']
+        flag_list = []
+        if flag_name is not None and options_out['selectType'] == 'flag':
+            flag_list = self.get_flag_list(options_out['selectValues'], options_out[flag_name]['flag_values'],
+                                           options_out[flag_name]['flag_meanings'])
+            flags = flags + flag_list
+        table, indices = self.start_table(flags, params)
+        # global stats, it's always done
+        self.set_data_scatterplot(None, None, None, wl)
+        self.compute_statistics()
+        table = self.assign_table(table, indices, params, 'GLOBAL')
+        # stats by flag
+        if len(flag_list) > 0:
+            for idx in range(len(flag_list)):
+                flag = flag_list[idx]
+                flag_value = options_out['selectValues'][idx]
+                self.set_data_scatterplot(None, flag_name, flag_value, wl)
+                self.compute_statistics()
+                table = self.assign_table(table, indices, params, flag)
+
+        if not options_out['file_out'] is None:
+            file_out = options_out['file_out']
+            if wl is not None:
+                wls = self.get_wl_str_from_wl(wl)
+                wls = wls.replace('.', '_')
+                file_out = file_out[:-4] + '_' + wls + '.csv'
+            table.to_csv(file_out, sep=';')
+
     def get_options(self, options, section):
+        print(section)
         options_out = {'apply': self.get_value_param(options, section, 'apply', False, 'boolean')}
         if not options_out['apply']:
             return options_out
-
         options_out['type'] = self.get_value_param(options, section, 'type', None, 'str')
         if options_out['type'] is None:
             return options_out
+        options_out['name'] = section
         if options_out['type'] == 'scatterplot':
-            options_out['name'] = section
             options_out = self.get_group_options(options, section, options_out)
             options_out = self.get_select_options(options, section, options_out)
             options_out = self.get_options_scatterplot(options, section, options_out)
-        if options_out['type'] == 'statstable_wl':
+        if options_out['type'].startswith('statstable'):
             options_out = self.get_select_options(options, section, options_out)
-            options_out = self.get_options_statstable_wl(options,section,options_out)
+            options_out = self.get_options_statstable(options, section, options_out)
+        if options_out['type'] == 'statswlplot':
+            options_out = self.get_select_options(options,section,options_out)
+            options_out = self.get_options_statswlplot(options,section,options_out)
 
         return options_out
 
@@ -358,7 +596,8 @@ class MDBPlot:
                         'flag_values': flag_values,
                         'flag_meanings': flag_meanings
                     }
-                    options_out['groupValues'] = self.get_value_param(options, section, 'groupValues', flag_values,'intlist')
+                    options_out['groupValues'] = self.get_value_param(options, section, 'groupValues', flag_values,
+                                                                      'intlist')
                     options_out['groupType'] = 'flag'
                 if options_out['groupType'] == 'float':
                     group_values = list(np.unique(np.array(self.mrfile.nc.variables[var_name])))
@@ -368,10 +607,11 @@ class MDBPlot:
 
     def get_select_options(self, options, section, options_out):
 
-        options_out['selectByWavelength'] = self.get_value_param(options,section,'selectByWavelength',False,'boolean')
-        wl_values = self.get_value_param(options,section,'wlvalues',None,'floatlist')
+        options_out['selectByWavelength'] = self.get_value_param(options, section, 'selectByWavelength', False,
+                                                                 'boolean')
+        wl_values = self.get_value_param(options, section, 'wlvalues', None, 'floatlist')
         if wl_values is None and options_out['selectByWavelength']:
-            wl_values = list(np.array(self.mrfile.nc.variables['satellite_bands']))
+            wl_values = list(np.unique(np.array(self.mrfile.nc.variables['mu_wavelength'])))
         options_out['wl_values'] = wl_values
 
         options_out['selectBy'] = self.get_value_param(options, section, 'selectBy', None, 'str')
@@ -387,15 +627,13 @@ class MDBPlot:
                     'flag_values': flag_values,
                     'flag_meanings': flag_meanings
                 }
-                print('================================',flag_values)
-                options_out['selectValues'] = self.get_value_param(options, section, 'selectValues', flag_values,'intlist')
-                print('================================', options_out['selectValues'])
+                options_out['selectValues'] = self.get_value_param(options, section, 'selectValues', flag_values,
+                                                                   'intlist')
                 options_out['selectType'] = 'flag'
             if options_out['selectType'] == 'float':
                 group_values = list(np.unique(np.array(self.mrfile.nc.variables[var_name])))
-                options_out['selectValues'] = self.get_value_param(options, section, 'selectValues', group_values,'floatlist')
-
-
+                options_out['selectValues'] = self.get_value_param(options, section, 'selectValues', group_values,
+                                                                   'floatlist')
 
         return options_out
 
@@ -421,8 +659,8 @@ class MDBPlot:
         xlabeldefault = defaults.xlabel_default
         ylabeldefault = defaults.ylabel_default
         options_out['scale_factor'] = self.get_value_param(options, section, 'scale_factor', sfdefault, 'float')
-        options_out['xlabel'] = self.get_value_param(options, section, 'xlabel', xlabeldefault, 'float')
-        options_out['ylabel'] = self.get_value_param(options, section, 'ylabel', ylabeldefault, 'float')
+        options_out['xlabel'] = self.get_value_param(options, section, 'xlabel', xlabeldefault, 'str')
+        options_out['ylabel'] = self.get_value_param(options, section, 'ylabel', ylabeldefault, 'str')
         options_out['units'] = self.get_value_param(options, section, 'units', unitsdefault, 'str')
         options_out['identity_line'] = self.get_value_param(options, section, 'identity_line', True, 'boolean')
         options_out['regression_line'] = self.get_value_param(options, section, 'regression_line', True, 'boolean')
@@ -435,10 +673,10 @@ class MDBPlot:
         edgeColorDefault = None
         lineWidthDefault = None
         if options_out['groupBy'] is not None:
-            if options_out['groupType']=='rrs':
+            if options_out['groupType'] == 'rrs':
                 edgeColorDefault = 'gray'
                 lineWidthDefault = 1.5
-            if options_out['groupType']=='flag':
+            if options_out['groupType'] == 'flag':
                 edgeColorDefault = 'black'
                 lineWidthDefault = 0.25
 
@@ -447,15 +685,51 @@ class MDBPlot:
 
         return options_out
 
-    def get_options_statstable_wl(self,options,section,options_out):
-        options_out['selectByWavelength'] = True ##option to be always true
+    def get_options_statstable(self, options, section, options_out):
+        options_out['selectByWavelength'] = True  ##option to be always true
         if options_out['wl_values'] is None:
             options_out['wl_values'] = list(np.unique(np.array(self.mrfile.nc.variables['mu_wavelength'])))
 
-        options_out['params'] = self.get_value_param(options,section,'params',self.valid_stats.keys(),'strlist')
+        options_out['params'] = self.get_value_param(options, section, 'params', self.valid_stats.keys(), 'strlist')
+
+        if self.output_path is not None:
+            name_default = options_out['name'] + '.csv'
+            file_out_default = os.path.join(self.output_path, name_default)
+        options_out['file_out'] = self.get_value_param(options, section, 'file_out', file_out_default, 'str')
 
         return options_out
 
+    def get_options_statswlplot(self, options, section, options_out):
+        options_out['selectByWavelength'] = True  ##option to be always true
+        if options_out['wl_values'] is None:
+            options_out['wl_values'] = list(np.unique(np.array(self.mrfile.nc.variables['mu_wavelength'])))
+        options_out['params'] = self.get_value_param(options, section, 'params', self.valid_stats.keys(), 'strlist')
+
+        if self.output_path is not None:
+            name_default = options_out['name'] + '.'+self.format_image
+            file_out_default = os.path.join(self.output_path, name_default)
+        options_out['file_out'] = self.get_value_param(options, section, 'file_out', file_out_default, 'str')
+        options_out['title'] = self.get_value_param(options, section, 'title', None, 'str')
+        xlabeldefault = defaults.xlabel_wl_default
+        ylabeldefault = defaults.ylabel_default
+        options_out['xlabel'] = self.get_value_param(options, section, 'xlabel', xlabeldefault, 'str')
+        options_out['ylabel'] = self.get_value_param(options, section, 'ylabel', ylabeldefault, 'str')
+        line_color = ['black']
+        if options_out['selectValues'] is not None:
+            nvalues = len(options_out['selectValues'])
+            line_color = defaults.get_color_list(nvalues)
+        line_type = ['-']
+        line_width = [1]
+        marker = ['.']
+        marker_size = [10]
+        options_out['line_color'] = self.get_value_param(options,section,'line_color',line_color,'strlist')
+        options_out['line_type'] = self.get_value_param(options, section, 'line_type', line_type, 'strlist')
+        options_out['line_width'] = self.get_value_param(options, section, 'line_width', line_width, 'floatlist')
+        options_out['marker'] = self.get_value_param(options, section, 'marker', marker, 'strlist')
+        options_out['marker_size'] = self.get_value_param(options, section, 'marker_size', marker_size, 'floatlist')
+
+
+        return options_out
 
     def get_value(self, options, section, key):
         value = None
@@ -506,12 +780,12 @@ class MDBPlot:
                 list.append(float(vals))
             return list
 
-    def get_flag_list(self,values, allValues, allFlags):
+    def get_flag_list(self, values, allValues, allFlags):
         flag_list = []
         for val in values:
-            indext = np.where(allValues==val)
+            indext = np.where(allValues == val)
             index = indext[0]
-            if len(index)==1:
+            if len(index) == 1:
                 indexf = index[0]
                 flag_list.append(allFlags[indexf])
         return flag_list

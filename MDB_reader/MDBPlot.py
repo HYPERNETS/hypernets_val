@@ -284,7 +284,6 @@ class MDBPlot:
             plt.savefig(file_out, dpi=300)
 
     def plot_spectra_plot(self, title, legend, file_out):
-        # print('-------------------------------->', )
         plt.close()
         plt.figure()
         if not legend is None:

@@ -12,6 +12,7 @@ class PlotSpectra():
             'marker': None,
             'linestyle': '-',
             'linewidth': 1,
+            'markersize': 25
         }
         self.legend_options = {
             'loc': 'upper left',
@@ -21,6 +22,7 @@ class PlotSpectra():
     def start_plot(self):
         plt.close()
         plt.figure()
+
     def close_plot(self):
         plt.close()
 
@@ -32,9 +34,10 @@ class PlotSpectra():
                  color=style['color'],
                  linestyle=style['linestyle'],
                  linewidth=style['linewidth'],
-                 marker=style['marker'])
+                 marker=style['marker'],
+                 markersize=style['markersize'])
 
-    def plot_single_line(self, ydata, line_color, line_type, line_width, marker):
+    def plot_single_line(self, ydata, line_color, line_type, line_width, marker,marker_size):
         style = self.line_style_default
         if line_color is not None:
             style['color'] = line_color
@@ -44,6 +47,8 @@ class PlotSpectra():
             style['linewidth'] = line_width
         if marker is not None:
             style['marker'] = marker
+        if marker_size is not None:
+            style['markersize'] = marker_size
 
         self.plot_data(ydata, style)
 
@@ -52,6 +57,17 @@ class PlotSpectra():
 
     def set_title(self,title):
         plt.title(title)
+
+    def set_xticks(self,xticks,xtickvalues,rotation,fontsize):
+        if rotation is None:
+            rotation = 0
+        if rotation<0 or rotation>90:
+            rotation = 0
+        if xtickvalues is None:
+            xtickvalues = xticks
+        if fontsize is None:
+            fontsize = 12
+        plt.xticks(xticks,xtickvalues,rotation=rotation,fontsize=9)
 
     def set_xaxis_title(self,xaxis_title):
         plt.xlabel(xaxis_title,fontsize=12)

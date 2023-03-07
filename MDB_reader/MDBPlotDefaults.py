@@ -28,6 +28,8 @@ ylabel_rrs = r'R$_r$$_s$ (sr$^-$$^1$)'
 label_insitu_default = 'In situ Rrs'
 xlabel_wl_default = 'Wavelength (nm)'
 
+colors_default = ['Blue', 'Red', 'Green', 'Black', 'Pink']
+
 
 def get_color_ref(wlvalue):
     dif_ref = 10000
@@ -43,5 +45,11 @@ def get_color_ref(wlvalue):
 
 def get_color_flag(flagvalue):
     index = int(math.log2(flagvalue))
-    colors = ['Blue', 'Red', 'Green', 'Black', 'Pink']
-    return colors[index]
+    return colors_default[index]
+
+
+def get_color_list(n):
+    if n <= len(colors_default):
+        return colors_default[0:n]
+    else:
+        return colors_default[0]

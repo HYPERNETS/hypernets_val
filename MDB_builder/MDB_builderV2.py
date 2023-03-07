@@ -89,6 +89,10 @@ def main():
     if args.verbose:
         print(f'[INFO] Generating MDB extract files----------------------------------------------------------START')
     ihd = INSITU_HYPERNETS_DAY(mo, args.verbose)
+    if args.verbose:
+        print(f'[INFO] Checking SSH access: {ihd.CHECK_SSH}')
+        time_maxh = ihd.mdb_options.insitu_options['time_max']/3600
+        print(f'[INFO] Maximum time window: {time_maxh:0.2f} hours')
     ins_sensor = 'HYPSTAR'
     mdb_extract_files = []
     for extract in extract_list:
@@ -134,10 +138,13 @@ def main():
             if args.verbose:
                 print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
-            for idx in range(ninsitu):
-                insitu_file = insitu_files[idx]
+            idx = 0
+            for insitu_file in insitu_files:
+                #insitu_file = insitu_files[idx]
                 #print(insitu_file,idx,date_here,mo.get_sat_extracts_info())
-                ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
+                b = ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
+                if b:
+                    idx = idx +1
 
             ihd.close_mdb()
 
