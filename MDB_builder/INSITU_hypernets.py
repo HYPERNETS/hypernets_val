@@ -6,14 +6,14 @@ from datetime import timedelta
 
 class INSITU_HYPERNETS_DAY(INSITUBASE):
 
-    def __init__(self, mdb_options, verbose):
+    def __init__(self, mdb_options, rsync_user, verbose):
         self.mdb_options = mdb_options
         self.verbose = verbose
         self.new_MDB = None
 
         # Default: rsync_user: hypstar
-        print(mdb_options)
-        rsync_user = mdb_options.insitu_options['rsync_user']
+        if mdb_options is not None:
+            rsync_user = mdb_options.insitu_options['rsync_user']
         if rsync_user is None:
             rsync_user = 'hypstar'
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'

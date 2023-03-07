@@ -39,7 +39,7 @@ def main():
 
     #Option to a list dates
     if args.sitename and args.output and args.listdates:
-        ihd = INSITU_HYPERNETS_DAY(None, args.verbose)
+        ihd = INSITU_HYPERNETS_DAY(None,None, args.verbose)
         ihd.save_list_dates_to_file(args.output,args.sitename,None,None)
         return
 
@@ -88,7 +88,7 @@ def main():
     ##checking in situ files
     if args.verbose:
         print(f'[INFO] Generating MDB extract files----------------------------------------------------------START')
-    ihd = INSITU_HYPERNETS_DAY(mo, args.verbose)
+    ihd = INSITU_HYPERNETS_DAY(mo, None,args.verbose)
     if args.verbose:
         print(f'[INFO] Checking SSH access: {ihd.CHECK_SSH}')
         time_maxh = ihd.mdb_options.insitu_options['time_max']/3600
