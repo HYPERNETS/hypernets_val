@@ -316,7 +316,6 @@ class MDBBuilderOptions:
 
             station_name = self.param_insitu['station_name']
             if self.insitu_type == 'HYPERNETS':
-                print('*******************************************************************',self.insitu_options['rsync_user'])
                 hday = INSITU_HYPERNETS_DAY(None,self.insitu_options['rsync_user'], self.verbose)
                 if hday.CHECK_SSH:
                     sday, eday = hday.get_start_and_end_dates(station_name, self.start_date, self.end_date)
