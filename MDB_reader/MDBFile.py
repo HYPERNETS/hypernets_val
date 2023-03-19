@@ -123,7 +123,7 @@ class MDBFile:
 
         self.df_mu = None
         self.col_names_mu = ['Index_MU', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'satellite', 'platform', 'sensor', 'site',
-                             'ac', 'mu_valid', 'spectrum_complete', 'n_good_bands', 'status']
+                             'ac', 'mu_valid', 'mu_insitu_id', 'spectrum_complete', 'n_good_bands', 'status']
 
         # variables controlling display images
         self.rgb_bands = [665, 560, 490]
@@ -696,6 +696,52 @@ class MDBFile:
             plt.savefig(file_img)
             plt.close()
 
+
+    def save_wl_images(self,path_img):
+        print('[INFO] Saving RGB images...')
+        for index_mu in range(self.n_mu_total):
+            if index_mu!=15:
+                continue
+            satellite_rrs = self.variables['satellite_Rrs'][index_mu]
+            for idx in range(14):
+                wl = self.satellite_bands[idx]
+                wls = str(wl).replace('.','_')
+                band = np.ma.array(satellite_rrs[idx][:][:])
+                mu_sat_time = self.sat_times[index_mu]
+                mu_sat_time_str = mu_sat_time.strftime('%Y%m%d_%H%M')
+                file_name = f'SAT_{index_mu}_{wls}_{mu_sat_time_str}.png'
+                file_img = os.path.join(path_img, file_name)
+                print(file_img)
+                extent = [0, 25, 0, 25]
+                cmap = plt.colormaps['gray']
+                plt.imshow(band, cmap = cmap, interpolation=None, extent=extent)
+
+                # plt.hlines(11, 11, 14, colors=['r'])
+                # plt.hlines(14, 11, 14, colors=['r'])
+                # plt.vlines(11, 11, 14, colors=['r'])
+                # plt.vlines(14, 11, 14, colors=['r'])
+                # plt.colorbar()
+                plt.savefig(file_img)
+                plt.close()
+        for index_mu in range(self.n_mu_total):
+            name_bands = ['satellite_WQSF','satellite_AOT_0865p50','OAA','OZA']
+            for name_band in name_bands:
+                satellite_band = self.variables['satellite_WQSF'][index_mu]
+                if index_mu!=15:
+                    continue
+                band = satellite_band[:][:]
+                file_name = f'SAT_{index_mu}_{name_band}.png'
+                file_img = os.path.join(path_img, file_name)
+                print(file_img)
+                extent = [0, 25, 0, 25]
+                if name_band == 'satellite_WQSF':
+                    cmap = plt.colormaps['Set1']
+                else:
+                    cmap = plt.colormaps['gray']
+                plt.imshow(band, cmap=cmap, interpolation=None, extent=extent)
+                plt.savefig(file_img)
+                plt.close()
+
     def scale_array(self, array, min_value, max_value):
         # print('=====================================')
         # print(array)
@@ -742,6 +788,7 @@ class MDBFile:
                     'site': self.info['insitu_site_name'].upper(),
                     'ac': self.info['satellite_aco_processor'].upper(),
                     'mu_valid': mu_valid,
+                    'mu_insitu_id': self.ins_time_index,
                     'spectrum_complete': spectrum_complete,
                     'n_good_bands': 0,
                     'status': info_mu['status']
@@ -953,42 +1000,73 @@ class MDBFile:
                 continue
         return sat_time
 
-    def get_all_insitu_valid_spectra(self):
+    def get_insitu_wl(self):
+        wl = np.array(self.nc.variables['insitu_original_bands'][:])
+        return wl
+
+    def get_sat_wl_as_strlist(self, wllist):
+        wlstrlist = []
+        wlsat_orig = np.array(self.nc.variables['satellite_bands'])
+        for wl in wllist:
+            isat = np.argmin(np.abs(wlsat_orig - wl))
+            wlstr = f'{wlsat_orig[isat]:.2f}'
+            wlstr = wlstr.replace('.00', '')
+            wlstrlist.append(wlstr)
+        return wlstrlist
+
+    def get_mu_insitu_spectra(self, index_mu, scale_factor):
+        import numpy.ma as ma
+        noriginal_bands = len(self.dimensions['insitu_original_bands'])
+        spectra_all = ma.zeros((self.n_insitu_day, noriginal_bands))
+        var_insitu = self.nc.variables['insitu_Rrs']
+        insitu_valid = np.array(self.nc.variables['insitu_valid'][index_mu])
+        insitu_id = self.nc.variables['mu_insitu_id'][index_mu]
+        insitu_valid[insitu_id] = 2
+        for idx in range(self.n_insitu_day):
+            spectra_here = ma.array(var_insitu[index_mu, :, idx]).transpose()
+            if np.sum(np.isnan(spectra_here)) > 0:
+                insitu_valid[idx] = -1
+            else:
+                if scale_factor is not None:
+                    spectra_here = spectra_here * scale_factor
+                spectra_all[idx, :] = spectra_here[:]
+
+        spectra_selected = spectra_all[insitu_valid == 2]
+        spectra_valid = spectra_all[insitu_valid == 1]
+        spectra_invalid = spectra_all[insitu_valid == 0]
+
+        return spectra_selected, spectra_valid, spectra_invalid
+
+    def get_all_insitu_valid_spectra(self, scale_factor):
         import numpy.ma as ma
         nspectra = self.n_mu_total * self.n_insitu_day
         noriginal_bands = len(self.dimensions['insitu_original_bands'])
-        spectra = ma.zeros((nspectra, noriginal_bands))
+        spectra_good = ma.zeros((nspectra, noriginal_bands))
         var_insitu = self.nc.variables['insitu_Rrs']
+        var_insitu_valid = self.nc.variables['insitu_valid']
         index_row = 0
         for index_mu in range(self.n_mu_total):
-            spectra_here = ma.array(var_insitu[index_mu, :, :]).transpose()
-            spectra[index_row:index_row + self.n_insitu_day] = spectra_here[:, :]
-            index_row = index_row + self.n_insitu_day
+            for idx in range(self.n_insitu_day):
+                if var_insitu_valid[index_mu, idx] == 1:
+                    spectra_here = ma.array(var_insitu[index_mu, :, idx]).transpose()
+                    if scale_factor is not None:
+                        spectra_here = spectra_here * scale_factor
+                    spectra_good[index_row, :] = spectra_here[:]
+                    index_row = index_row + 1
 
-        valid = np.zeros((nspectra,))
-        index_mu = 0
-        insitu_id = 0
-        for idx in range(nspectra):
-            if insitu_id == self.n_insitu_day:
-                insitu_id = 0
-                index_mu = index_mu + 1
-            valid_here = self.qc_insitu.check_validity_spectrum(spectra[idx, :], index_mu, insitu_id)
-            if valid_here:
-                valid[idx] = 1
-            insitu_id = insitu_id + 1
-        spectra_good = spectra[valid == 1]
+        spectra_good = spectra_good[0:index_row, :]
 
         import statistics as st
         spectra_avg = ma.mean(spectra_good, axis=0)
         spectra_std = ma.std(spectra_good, axis=0)
         indices_max = ma.argmax(spectra_good, axis=0)
         imax = st.mode(indices_max)
-        spectra_max_real = spectra[imax, :]
+        spectra_max_real = spectra_good[imax, :]
         spectra_max = ma.max(spectra_good, axis=0)
 
         indices_min = ma.argmin(spectra_good, axis=0)
         imin = st.mode(indices_min)
-        spectra_mim_real = spectra[imin, :]
+        spectra_mim_real = spectra_good[imin, :]
         spectra_min = ma.min(spectra_good, axis=0)
 
         spectra_stats = {
@@ -1000,7 +1078,94 @@ class MDBFile:
             'spectra_max': spectra_max,
         }
 
-        return spectra, spectra_stats
+        return spectra_good, spectra_stats
+
+    def get_flag_insitu_valid_spectra(self, scale_factor, flag_name, flag_value):
+        import numpy.ma as ma
+        nspectra = self.n_mu_total * self.n_insitu_day
+        noriginal_bands = len(self.dimensions['insitu_original_bands'])
+        spectra_good = ma.zeros((nspectra, noriginal_bands))
+        var_insitu = self.nc.variables['insitu_Rrs']
+        var_insitu_valid = self.nc.variables['insitu_valid']
+        var_flag = self.nc.variables[flag_name]
+        index_row = 0
+        for index_mu in range(self.n_mu_total):
+            for idx in range(self.n_insitu_day):
+                if var_insitu_valid[index_mu, idx] == 1 and var_flag[index_mu] == flag_value:
+                    spectra_here = ma.array(var_insitu[index_mu, :, idx]).transpose()
+                    if scale_factor is not None:
+                        spectra_here = spectra_here * scale_factor
+                    spectra_good[index_row, :] = spectra_here[:]
+                    index_row = index_row + 1
+
+        spectra_good = spectra_good[0:index_row, :]
+
+        import statistics as st
+        spectra_avg = ma.mean(spectra_good, axis=0)
+        spectra_std = ma.std(spectra_good, axis=0)
+        indices_max = ma.argmax(spectra_good, axis=0)
+        imax = st.mode(indices_max)
+        spectra_max_real = spectra_good[imax, :]
+        spectra_max = ma.max(spectra_good, axis=0)
+
+        indices_min = ma.argmin(spectra_good, axis=0)
+        imin = st.mode(indices_min)
+        spectra_mim_real = spectra_good[imin, :]
+        spectra_min = ma.min(spectra_good, axis=0)
+
+        spectra_stats = {
+            'avg': spectra_avg,
+            'std': spectra_std,
+            'spectra_min_real': spectra_mim_real,
+            'spectra_max_real': spectra_max_real,
+            'spectra_min': spectra_min,
+            'spectra_max': spectra_max,
+        }
+
+        return spectra_good, spectra_stats
+
+    def get_mu_spectra_insitu_and_sat(self, index_mu, scale_factor):
+
+        if self.nc.variables['mu_valid'][index_mu] == 1:
+            var_insitu = np.array(self.nc.variables['mu_ins_rrs'])
+            var_satrrs = np.array(self.nc.variables['mu_sat_rrs'])
+            var_wl = np.array(self.nc.variables['mu_wavelength'])
+            var_satid = np.array(self.nc.variables['mu_satellite_id'])
+
+            insitu_spectra = var_insitu[var_satid == index_mu]
+            sat_spectra = var_satrrs[var_satid == index_mu]
+            if scale_factor is not None:
+                insitu_spectra = insitu_spectra * scale_factor
+                sat_spectra = sat_spectra * scale_factor
+            wl = var_wl[var_satid == index_mu]
+            return wl, insitu_spectra, sat_spectra
+        else:
+            return None, None, None
+
+    def analyze_sat_flags(self, flag_var_name, flag_list):
+        flag_variable = self.nc.variables[flag_var_name]
+        if flag_list is None:
+            flag_list = flag_variable.flag_meanings.split(' ')
+        flag_info = {}
+        flagging = flag.Class_Flags_OLCI(flag_variable.flag_masks,flag_variable.flag_meanings)
+        for flag_name in flag_list:
+            #flag_value = flag_values[idx]
+            #flag_name = flag_list[idx]
+            array = np.zeros((25,25))
+            nmacro = 0
+            for index_mu in range(self.n_mu_total):
+                flag_array_mu = np.array(self.variables[self.flag_band_name][index_mu])
+                mask = flagging.Mask(flag_array_mu, [flag_name])
+                mask[np.where(mask != 0)] = 1
+                if np.sum(mask)>0:
+                    nmacro = nmacro+1
+                array = array + mask
+            flag_info[flag_name] = {
+                'array': array,
+                'ntotal': np.sum(array),
+                'nmacro': nmacro
+            }
+        return flag_info
 
     def close(self):
         if self.VALID:

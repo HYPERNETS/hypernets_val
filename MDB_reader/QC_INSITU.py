@@ -195,9 +195,10 @@ class QC_INSITU:
 
                 if th_type == 'keep' and not check_condition:
                     check = False
-                    print('value bad: ', val_here)
-                if th_type == 'keep' and check_condition:
-                    print('value good: ', val_here)
+                    #print('value bad: ', val_here)
+                # if th_type == 'keep' and check_condition:
+                #     check = True
+                    #print('value good: ', val_here)
                 if th_type == 'remove' and check_condition:
                     check = False
 
@@ -215,6 +216,17 @@ class QC_INSITU:
                     check = False
                     break
         return check
+
+    def check_validity_spectra_mu(self,index_mu):
+        val_array = np.zeros((self.nid))
+        for idx in range(self.nid):
+            rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
+            valid = self.check_validity_spectrum(rrs_values, index_mu, idx)
+            if valid:
+                val_array[idx]=1
+        return val_array
+
+
 
     def get_insitu_index(self, wl):
         all_wl = self.insitu_bands[:]

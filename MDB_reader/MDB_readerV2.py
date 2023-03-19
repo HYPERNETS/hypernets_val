@@ -65,7 +65,7 @@ class MDB_READER():
             'mu_satellite_id': {
                 'namedf': 'Index_MU',
                 'fillvalue': None,
-                'type': 'i4'
+                'type': 'i2'
             },
             'mu_ins_rrs': {
                 'namedf': 'Ins_Rrs',
@@ -106,10 +106,17 @@ class MDB_READER():
             },
             'mu_valid': {
                 'namedf': 'mu_valid',
-                'fillvalue': -999,
-                'type': 'i8'
+                'fillvalue': -1,
+                'type': 'i1'
+            },
+            'mu_insitu_id': {
+                'namedf': 'mu_insitu_id',
+                'fillvalue': -1,
+                'type': 'i1'
             }
         }
+
+
 
         if self.mfile.df_mu is None:
             self.mfile.prepare_df_mu()
@@ -138,7 +145,18 @@ class MDB_READER():
             for idx in range(self.mfile.n_mu_total):
                 new_var[idx] = [array[idx]]
 
+
+        ##validitiy of spectrums
+        if args.verbose:
+            print('[INFO] Check validity spectra...')
+        new_var = new_MDB.createVariable('insitu_valid', 'i1',('satellite_id','insitu_id'),zlib=True,complevel=6,fill_value=-1)
+        for index_mu in range(self.mfile.n_mu_total):
+            validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
+            new_var[index_mu] = validity_spectra[:]
+
         new_MDB.close()
+        if args.verbose:
+            print(f'[INFO] Completed')
 
     def set_defaults_olci_wfr_hypstar(self):
         wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8]
@@ -358,7 +376,7 @@ def main():
             wllist = qco.get_wllist()
             reader.mfile.set_wl_ref(wllist)
             reader.mfile.qc_sat.ncdataset = reader.mfile.nc
-            reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat,reader.mfile.nc)
+            reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat, reader.mfile.nc)
             reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
             reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu)
 
@@ -432,9 +450,33 @@ def main():
         import configparser
         options = configparser.ConfigParser()
         options.read(config_file)
-        #print(mplot.VALID)
-        #mplot.plot_from_options(options)
-        mplot.mrfile.get_all_insitu_valid_spectra()
+        # print(mplot.VALID)
+        mplot.plot_from_options(options)
+
+        #path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS'
+
+        #mplot.mrfile.save_wl_images(path_img)
+        #mplot.mrfile.save_rgb_images(path_img)
+
+        # flag_info = mplot.mrfile.analyze_sat_flags('satellite_WQSF',None)
+        # for flag in flag_info:
+        #     print(flag,flag_info[flag]['nmacro'])
+
+
+
+
+        # spectra, stats = mplot.mrfile.get_all_insitu_valid_spectra()
+        # from PlotSpectra import PlotSpectra
+        # pspectra = PlotSpectra()
+        # wavelength = mplot.mrfile.get_insitu_wl()
+        # #spectra = spectra[:, 0:990]
+        # pspectra.plot_multiple_spectra(wavelength,spectra,stats,None,800)
+        # # pspectra.xdata = mplot.mrfile.get_insitu_wl()[0:990]
+        # # spectra = spectra[:, 0:990]
+        # # pspectra.plot_data(spectra.transpose(), pspectra.line_style_default)
+        # file_out_here = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/tal.jpg'
+        # pspectra.save_plot(file_out_here)
+        # pspectra.close_plot()
 
 
 if __name__ == '__main__':

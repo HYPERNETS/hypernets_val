@@ -19,13 +19,16 @@ parser.add_argument('-c', "--config_file", help="Config File.", required=True)
 # parser.add_argument('-ps', "--path_to_sat", help="Path to satellite extracts.")
 parser.add_argument('-o', "--output", help="Output file. Only with --listdates")
 # parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
-parser.add_argument('-ld', "--listdates", help="Option to obtain a date list for a specific HYPERNETS site (-site option).", action="store_true")
+parser.add_argument('-ld', "--listdates",
+                    help="Option to obtain a date list for a specific HYPERNETS site (-site option).",
+                    action="store_true")
 parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 
 args = parser.parse_args()
 
 import MDB_builder_options
 import sys
+
 code_home = os.path.dirname(os.path.dirname(MDB_builder_options.__file__))
 # code_home = os.path.abspath('../')
 sys.path.append(code_home)
@@ -37,10 +40,10 @@ from COMMON import common_functions as cfs
 def main():
     print('[INFO] Creating MDB files!')
 
-    #Option to a list dates
+    # Option to a list dates
     if args.sitename and args.output and args.listdates:
-        ihd = INSITU_HYPERNETS_DAY(None,None, args.verbose)
-        ihd.save_list_dates_to_file(args.output,args.sitename,None,None)
+        ihd = INSITU_HYPERNETS_DAY(None, None, args.verbose)
+        ihd.save_list_dates_to_file(args.output, args.sitename, None, None)
         return
 
     if os.path.isfile(args.config_file):
@@ -66,8 +69,6 @@ def main():
     ##in situ options
     mo.get_insitu_options()
 
-
-
     ##dates
     if args.verbose:
         print(f'[INFO] Checking available dates--------------------------------------------------------------START')
@@ -88,10 +89,10 @@ def main():
     ##checking in situ files
     if args.verbose:
         print(f'[INFO] Generating MDB extract files----------------------------------------------------------START')
-    ihd = INSITU_HYPERNETS_DAY(mo, None,args.verbose)
+    ihd = INSITU_HYPERNETS_DAY(mo, None, args.verbose)
     if args.verbose:
         print(f'[INFO] Checking SSH access: {ihd.CHECK_SSH}')
-        time_maxh = ihd.mdb_options.insitu_options['time_max']/3600
+        time_maxh = ihd.mdb_options.insitu_options['time_max'] / 3600
         print(f'[INFO] Maximum time window: {time_maxh:0.2f} hours')
     ins_sensor = 'HYPSTAR'
     mdb_extract_files = []
@@ -111,7 +112,7 @@ def main():
             insitu_files = ihd.get_insitu_files(date_here)
 
         bad_spectra_times = {}
-        #print(mo.insitu_options)
+        # print(mo.insitu_options)
         if mo.insitu_options['bad_spectra_file_list'] is not None:
             prefix = mo.insitu_options['bad_spectra_prefix']
             time_format = mo.insitu_options['bad_spectra_format_time']
@@ -120,15 +121,15 @@ def main():
                 if prefix is not None:
                     if not line.strip().startswith(prefix):
                         continue
-                    datestr = line.replace(prefix,'').strip()
+                    datestr = line.replace(prefix, '').strip()
                 else:
                     datestr = line.strip()
-                date_py = dt.strptime(datestr,time_format)
+                date_py = dt.strptime(datestr, time_format)
                 date_py_str = date_py.strftime('%Y%m%d%H%M')
                 bad_spectra_times[date_py_str] = 1
             f1.close()
 
-        if len(bad_spectra_times)>0 and args.verbose:
+        if len(bad_spectra_times) > 0 and args.verbose:
             for bad_time in bad_spectra_times:
                 print(bad_time)
                 print(f'[INFO] Spectrum at {bad_time} is invalid')
@@ -140,11 +141,11 @@ def main():
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
             idx = 0
             for insitu_file in insitu_files:
-                #insitu_file = insitu_files[idx]
-                #print(insitu_file,idx,date_here,mo.get_sat_extracts_info())
+                # insitu_file = insitu_files[idx]
+                # print(insitu_file,idx,date_here,mo.get_sat_extracts_info())
                 b = ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
                 if b:
-                    idx = idx +1
+                    idx = idx + 1
 
             ihd.close_mdb()
 
@@ -171,7 +172,6 @@ def main():
         for bad_time in bad_spectra_times:
             print(bad_time)
             print(f'[INFO] Spectrum at {bad_time} is invalid')
-
 
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):

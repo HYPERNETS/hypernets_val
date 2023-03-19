@@ -21,7 +21,7 @@ color_dict = dict({ \
 xlabel_default = r'In situ R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
 ylabel_default = r'Satellite R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
 ylabel_rrs = r'R$_r$$_s$ (sr$^-$$^1$)'
-
+ylabel_rrs_scaled = r'R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
 # xlabel_default = r'Panthyr R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
 # ylabel_default = r'Hypstar R$_r$$_s$ (10$^-$$^3$ sr$^-$$^1$)'
 
