@@ -272,7 +272,7 @@ def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wc
 def check_list_products_eumetsat(edac, date, insitu_lat, insitu_lon):
     date_str = date.strftime('%Y-%m-%d')
     products, product_names, collection_id = edac.search_olci_by_point(date_str, 'FR', 'L2', insitu_lat, insitu_lon, -1,
-                                                                       -1)
+                                                                       -1,'NT')
 
     info = {}
     if len(product_names)==0:
