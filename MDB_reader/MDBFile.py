@@ -420,6 +420,13 @@ class MDBFile:
         # if self.info['satellite_aco_processor'] == 'CCI':
         #     self.mu_sat_time = self.mu_sat_time.replace(hour=11)
 
+        # print(index_mu)
+        # if index_mu==95 or index_mu==181:
+        #     self.mu_curr_ins_rrs = []
+        #     self.mu_curr_sat_rrs_mean = []
+        #     load_info['status'] = -3  # f'IN SITU DATA OUT OF TIME WINDOW'
+        #     return is_mu_valid, load_info
+
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
@@ -767,6 +774,8 @@ class MDBFile:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
+
+
 
             if mu_valid:
                 nmu_valid = nmu_valid + 1

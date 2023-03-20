@@ -330,7 +330,7 @@ def check_donwload():
         sys.path.append(code_download)
         try:
             from eumdac_lois import EUMDAC_LOIS
-            edac = EUMDAC_LOIS(True)
+            edac = EUMDAC_LOIS(True,None)
         except:
             print(f'[WARNING] Error loading package eumdac_lois. Download is not enabled')
             return None
