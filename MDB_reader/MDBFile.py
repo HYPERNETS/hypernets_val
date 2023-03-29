@@ -1023,6 +1023,7 @@ class MDBFile:
             wlstrlist.append(wlstr)
         return wlstrlist
 
+
     def get_mu_insitu_spectra(self, index_mu, scale_factor):
         import numpy.ma as ma
         noriginal_bands = len(self.dimensions['insitu_original_bands'])
@@ -1133,6 +1134,31 @@ class MDBFile:
 
         return spectra_good, spectra_stats
 
+    def get_spectra_stats(self,spectra_good):
+        import statistics as st
+        import numpy.ma as ma
+        spectra_avg = ma.mean(spectra_good, axis=0)
+        spectra_std = ma.std(spectra_good, axis=0)
+        indices_max = ma.argmax(spectra_good, axis=0)
+        imax = st.mode(indices_max)
+        spectra_max_real = spectra_good[imax, :]
+        spectra_max = ma.max(spectra_good, axis=0)
+
+        indices_min = ma.argmin(spectra_good, axis=0)
+        imin = st.mode(indices_min)
+        spectra_mim_real = spectra_good[imin, :]
+        spectra_min = ma.min(spectra_good, axis=0)
+
+        spectra_stats = {
+            'avg': spectra_avg,
+            'std': spectra_std,
+            'spectra_min_real': spectra_mim_real,
+            'spectra_max_real': spectra_max_real,
+            'spectra_min': spectra_min,
+            'spectra_max': spectra_max,
+        }
+        return spectra_stats
+
     def get_mu_spectra_insitu_and_sat(self, index_mu, scale_factor):
 
         if self.nc.variables['mu_valid'][index_mu] == 1:
@@ -1151,31 +1177,176 @@ class MDBFile:
         else:
             return None, None, None
 
+    def get_all_spectra_insitu_sat(self,scale_factor):
+        import numpy.ma as ma
+        nspectra = self.n_mu_total
+        n_bands = len(np.unique(np.array(self.nc.variables['mu_wavelength'])))
+        insitu_spectra_good = ma.zeros((nspectra, n_bands))
+        sat_spectra_good = ma.zeros((nspectra,n_bands))
+        index_here = 0
+        wavelength = None
+        for index_mu in range(self.n_mu_total):
+            wl, insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat(index_mu,scale_factor)
+            if insitu_spectrum is not None and sat_spectrum is not None:
+                wavelength = wl
+                insitu_spectra_good[index_here,:] = insitu_spectrum[:]
+                sat_spectra_good[index_here,:] = sat_spectrum[:]
+                index_here = index_here +1
+        sat_spectra_good = sat_spectra_good[0:index_here, :]
+        insitu_spectra_good = insitu_spectra_good[0:index_here, :]
+        sat_stats = self.get_spectra_stats(sat_spectra_good)
+        insitu_stats = self.get_spectra_stats(insitu_spectra_good)
+
+
+
+        return wavelength,sat_stats,insitu_stats
+
+
     def analyze_sat_flags(self, flag_var_name, flag_list):
         flag_variable = self.nc.variables[flag_var_name]
         if flag_list is None:
             flag_list = flag_variable.flag_meanings.split(' ')
         flag_info = {}
         flagging = flag.Class_Flags_OLCI(flag_variable.flag_masks,flag_variable.flag_meanings)
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
         for flag_name in flag_list:
             #flag_value = flag_values[idx]
             #flag_name = flag_list[idx]
             array = np.zeros((25,25))
             nmacro = 0
+            nmacrow = 0
             for index_mu in range(self.n_mu_total):
                 flag_array_mu = np.array(self.variables[self.flag_band_name][index_mu])
                 mask = flagging.Mask(flag_array_mu, [flag_name])
                 mask[np.where(mask != 0)] = 1
                 if np.sum(mask)>0:
                     nmacro = nmacro+1
+
+                mask_window = mask[r_s:r_e,c_s:c_e]
+                if np.sum(mask_window)>0:
+                    nmacrow = nmacrow + 1
                 array = array + mask
+            parray = (array / self.n_mu_total)*100
             flag_info[flag_name] = {
                 'array': array,
+                'parray': parray,
                 'ntotal': np.sum(array),
-                'nmacro': nmacro
+                'nmacro': nmacro,
+                'nmacrow': nmacrow,
+                'pmacro': float((nmacro/self.n_mu_total)*100),
+                'pmacrow': float((nmacrow/self.n_mu_total)*100)
             }
         return flag_info
 
+    def analyse_mu_temporal(self,onlyvalid,file_out):
+        year_min = self.start_date.year
+        year_max = self.end_date.year + 1
+        year = list(range(year_min, year_max))
+        year.reverse()
+        month = list(range(1, 13))
+        dfall_month = pd.DataFrame(index=year, columns=month, dtype=np.float)
+        dfall_month[:] = 0
+        mu_valid = np.array(self.nc.variables['mu_valid'])
+        for idx in range(self.n_mu_total):
+            date_here = self.sat_times[idx]
+            year_here = date_here.year
+            month_here = date_here.month
+            if onlyvalid:
+                if mu_valid[idx]==1:
+                    dfall_month.at[year_here, month_here] = dfall_month.at[year_here, month_here] + 1
+            else:
+                dfall_month.at[year_here, month_here] = dfall_month.at[year_here, month_here] + 1
+        from matplotlib import cm
+        import seaborn as sns
+        h = plt.Figure()
+        cmap = cm.get_cmap('RdYlBu_r')
+        dfall_month_withnan = dfall_month
+        dfall_month_withnan[dfall_month == 0] = np.nan
+        sns.heatmap(dfall_month_withnan, annot=False, cmap=cmap, linewidths=1, linecolor='black')
+        plt.xlabel('Month')
+        plt.ylabel('Year')
+        #plt.title(title)
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+        plt.close(h)
+
+    def analyse_mu_temporal_flag(self,onlyvalid,name_flag_var,file_out):
+        year_min = self.start_date.year
+        year_max = self.end_date.year + 1
+        #year = list(range(year_min, year_max))
+        #year.reverse()
+        #month_s = list(range(1, 13))
+        monthl = []
+        for year in range(year_min,year_max):
+            for month in range(1,13):
+                date_here = datetime(year,month,1)
+                print(date_here)
+                monthl.append(date_here.strftime('%Y-%m'))
+
+
+        flag_var = self.nc.variables[name_flag_var]
+        flag_var_array = np.array(flag_var)
+        flag_list = flag_var.flag_meanings.split(' ')
+        flag_values = flag_var.flag_values
+
+        dfall_month = pd.DataFrame(index=flag_list, columns=monthl, dtype=np.float)
+        dfall_month[:] = 0
+        mu_valid = np.array(self.nc.variables['mu_valid'])
+        for idx in range(self.n_mu_total):
+            date_here = self.sat_times[idx]
+            date_here_str = date_here.strftime('%Y-%m')
+            flag_value = flag_var_array[idx]
+            flag_index = np.where(flag_values == flag_value)[0][0]
+            flag_here = flag_list[flag_index]
+            if onlyvalid:
+                if mu_valid[idx]==1:
+                    dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + 1
+            else:
+                dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + 1
+        from matplotlib import cm
+        import seaborn as sns
+        h = plt.Figure()
+        cmap = cm.get_cmap('RdYlBu_r')
+        dfall_month_withnan = dfall_month
+        dfall_month_withnan[dfall_month == 0] = np.nan
+        sns.heatmap(dfall_month_withnan, annot=False, cmap=cmap, linewidths=1, linecolor='black')
+        plt.xlabel('Year-Month')
+        plt.ylabel('Site')
+        plt.gcf().tight_layout()
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+        plt.close(h)
+
+    def analyse_mu_flag(self,name_flag_var,file_out):
+        flag_var = self.nc.variables[name_flag_var]
+        flag_var_array = np.array(flag_var)
+        flag_list = flag_var.flag_meanings.split(' ')
+        flag_values = flag_var.flag_values
+        mu_valid = np.array(self.nc.variables['mu_valid'])
+        nflag = len(flag_values)
+        print(flag_list)
+        print(nflag)
+        n_values = np.zeros((nflag,))
+        n_valid = np.zeros((nflag,))
+
+        for idx in range(self.n_mu_total):
+            flag_value = flag_var_array[idx]
+            flag_index = np.where(flag_values==flag_value)[0][0]
+            n_values[flag_index] = n_values[flag_index]+1
+            if mu_valid[idx]==1:
+                n_valid[flag_index] = n_valid[flag_index] + 1
+
+        print(n_values,n_valid)
+        porc_values = (n_valid/n_values)*100
+        print(porc_values)
+        plt.figure()
+        plt.barh(flag_list, porc_values)
+        plt.grid(b=True, which='major', color='gray', linestyle='--')
+        plt.xlabel('% Valid Match-ups', fontsize=12)
+        plt.gcf().tight_layout()
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+        plt.close()
     def close(self):
         if self.VALID:
             self.nc.close()

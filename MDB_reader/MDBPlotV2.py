@@ -497,20 +497,22 @@ class MDBPlot:
 
         type_rrs = options_out['type_rrs']
 
-        if type_rrs.startswith('mu_'): #mu_comparison, mu_sat, mu_ins
+        if type_rrs.startswith('mu_'):  # mu_comparison, mu_sat, mu_ins
             print(options_out)
             self.plot_spectra_mu_comparison(options_out)
             return
-        if type_rrs.startswith('flag_'):
+        if type_rrs.startswith('flag_') and type_rrs!='flag_sat_insitu':
             self.plot_spectra_comparison_stats(options_out)
             return
-
+        if type_rrs.startswith('flag_sat_insitu'):
+            self.plot_comparison_stats_sat_insitu(options_out)
+            return
 
         ##GETTING DATA
         spectra_data = options_out['plot_spectra']
         if type_rrs == 'ins':
             wavelength = self.mrfile.get_insitu_wl()
-            if options_out['plot_stats'] or spectra_data[0].lower()=='all':
+            if options_out['plot_stats'] or spectra_data[0].lower() == 'all':
                 spectra, stats = self.mrfile.get_all_insitu_valid_spectra(options_out['scale_factor'])
 
         from PlotSpectra import PlotSpectra
@@ -518,7 +520,7 @@ class MDBPlot:
             stats = None
 
         make_by_mu = False
-        muoptions = ['MU_all','MU_valid', 'MU_invalid', 'MU_selected']
+        muoptions = ['MU_all', 'MU_valid', 'MU_invalid', 'MU_selected']
         for m in muoptions:
             if m in options_out['plot_spectra']:
                 make_by_mu = True
@@ -548,13 +550,16 @@ class MDBPlot:
         from PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         if stats is not None:
-            imin, imax = pspectra.plot_multiple_spectra(wavelength, None, stats, options_out['wl_min'],options_out['wl_max'])
+            imin, imax = pspectra.plot_multiple_spectra(wavelength, None, stats, options_out['wl_min'],
+                                                        options_out['wl_max'])
         else:
-            imin, imax = pspectra.get_imin_imax_from_wavelength(wavelength,options_out['wl_min'],options_out['wl_max'])
+            imin, imax = pspectra.get_imin_imax_from_wavelength(wavelength, options_out['wl_min'],
+                                                                options_out['wl_max'])
             pspectra.xdata = wavelength[imin:imax]
-        spectra_selected, spectra_valid, spectra_invalid = self.mrfile.get_mu_insitu_spectra(index_mu, options_out['scale_factor'])
+        spectra_selected, spectra_valid, spectra_invalid = self.mrfile.get_mu_insitu_spectra(index_mu, options_out[
+            'scale_factor'])
 
-        if options_out['plot_spectra'][0]=='MU_all':
+        if options_out['plot_spectra'][0] == 'MU_all':
             for spectrum in spectra_valid:
                 hline = pspectra.plot_single_line(spectrum[imin:imax], 'black', 'solid', 1, None, 25)
             for spectrum in spectra_invalid:
@@ -588,12 +593,13 @@ class MDBPlot:
 
         pspectra.set_xaxis_title(options_out['xlabel'])
         pspectra.set_yaxis_title(options_out['ylabel'])
+        pspectra.set_y_range(-5,10)
         if options_out['title'] is not None:
             title_here = options_out['title'] + f' MU: {index_mu}'
             pspectra.set_title(title_here)
         pspectra.set_grid()
         if len(str_legend) > 0:
-            pspectra.legend_options['bbox_to_anchor']=(0.65,1.0)
+            pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
             pspectra.legend_options['framealpha'] = 1
             pspectra.set_legend_h(hlines, str_legend)
         pspectra.set_tigth_layout()
@@ -606,28 +612,29 @@ class MDBPlot:
             pspectra.save_fig(file_out)
         pspectra.close_plot()
 
-    def plot_spectra_mu_comparison(self,options_out):
+    def plot_spectra_mu_comparison(self, options_out):
         for index_mu in range(self.mrfile.n_mu_total):
             if index_mu == 0 or (index_mu % 100) == 0:
                 print(f'[INFO] Plotting spectra for MU: {index_mu}')
-            if index_mu == 15:
-                self.plot_spectra_mu_comparison_impl(index_mu,options_out)
 
-    def plot_spectra_mu_comparison_impl(self,index_mu,options_out):
-        wl, insitu_spectra, sat_spectra = self.mrfile.get_mu_spectra_insitu_and_sat(index_mu,options_out['scale_factor'])
+            self.plot_spectra_mu_comparison_impl(index_mu, options_out)
+
+    def plot_spectra_mu_comparison_impl(self, index_mu, options_out):
+        wl, insitu_spectra, sat_spectra = self.mrfile.get_mu_spectra_insitu_and_sat(index_mu,
+                                                                                    options_out['scale_factor'])
         if wl is None:
             return
         from PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = wl
         wls = self.mrfile.get_sat_wl_as_strlist(wl)
-        pspectra.set_xticks(wl,wls,90,8)
-        if options_out['type_rrs']=='mu_comparison':
+        pspectra.set_xticks(wl, wls, 90, 8)
+        if options_out['type_rrs'] == 'mu_comparison':
             hline1 = pspectra.plot_single_line(insitu_spectra, 'red', 'solid', 1, '.', 10)
             hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 1, '.', 10)
-        if options_out['type_rrs']=='mu_sat':
+        if options_out['type_rrs'] == 'mu_sat':
             hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 1, '.', 10)
-        if options_out['type_rrs']=='mu_ins':
+        if options_out['type_rrs'] == 'mu_ins':
             hline1 = pspectra.plot_single_line(insitu_spectra, 'red', 'solid', 1, '.', 10)
 
         pspectra.set_xaxis_title(options_out['xlabel'])
@@ -636,7 +643,7 @@ class MDBPlot:
             title_here = options_out['title'] + f' MU: {index_mu}'
             pspectra.set_title(title_here)
         if options_out['type_rrs'] == 'mu_comparison':
-            pspectra.set_legend_h([hline1,hline2],['In situ Rrs','Satellite Rrs'])
+            pspectra.set_legend_h([hline1, hline2], ['In situ Rrs', 'Satellite Rrs'])
         pspectra.set_grid()
         pspectra.set_tigth_layout()
         if not options_out['file_out'] is None:
@@ -646,48 +653,44 @@ class MDBPlot:
             pspectra.save_fig(file_out)
         pspectra.close_plot()
 
-    def plot_spectra_comparison_stats(self,options_out):
-
-        print(options_out)
+    def plot_comparison_stats_sat_insitu(self, options_out):
         from PlotSpectra import PlotSpectra
+        wavelength, sat_stats, insitu_stats = self.mrfile.get_all_spectra_insitu_sat(options_out['scale_factor'])
         pspectra = PlotSpectra()
-        type_rrs = options_out['type_rrs']
-        flag_values = options_out['groupValues']
-        flag_name = options_out['groupBy']
-        str_legend = self.get_flag_list(flag_values, options_out[flag_name]['flag_values'],options_out[flag_name]['flag_meanings'])
-        h_legend = []
-        if type_rrs=='flag_ins_comparison':
-            wavelength = self.mrfile.get_insitu_wl()
-            imin, imax = pspectra.get_imin_imax_from_wavelength(wavelength,options_out['wl_min'], options_out['wl_max'])
+        imin, imax = pspectra.get_imin_imax_from_wavelength(wavelength, options_out['wl_min'], options_out['wl_max'])
 
-        ymin = None
-        ymax = None
-        for flag_value in flag_values:
-            if type_rrs=='flag_ins_comparison':
-                wavelength = self.mrfile.get_insitu_wl()
-                spectra_good_flag, stats_flag = self.mrfile.get_flag_insitu_valid_spectra(options_out['scale_factor'],flag_name,flag_value)
-                ymin_flag, ymax_flag = pspectra.get_ymin_ymax_from_stats(stats_flag,imin,imax)
-                if ymin is None and ymax is None:
-                    ymin = ymin_flag
-                    ymax = ymax_flag
-                else:
-                    if ymin_flag<ymin:
-                        ymin = ymin_flag
-                    if ymax_flag>ymax:
-                        ymax = ymax_flag
-            print(ymin,ymax)
+        str_legend = ['insitu Rrs','satellite Rrs']
+        ymin_sat, ymax_sat = pspectra.get_ymin_ymax_from_stats(sat_stats, imin, imax)
+        ymin_insitu, ymax_insitu = pspectra.get_ymin_ymax_from_stats(insitu_stats, imin, imax)
+        ymin = np.min([ymin_sat,ymin_insitu])
+        ymax = np.max([ymax_sat,ymax_insitu])
 
-            #pspectra.plot_multiple_spectra(wavelength, None, stats_flag, options_out['wl_min'], options_out['wl_max'])
-            color = defaults.get_color_flag(flag_value)
-            pspectra.xdata = wavelength[imin:imax]
-            pspectra.stats_style['avg']['color'] = color
-            pspectra.stats_style['fill']['color'] = color
-            pspectra.stats_style['fill']['framealpha'] = 0.5
-            #print(pspectra.stats_style['fill']['color'])
-            hline = pspectra.plot_stats(stats_flag,imin,imax)
-            h_legend.append(hline)
+        wl_list = wavelength[imin:imax]
+        xdata_plot = [float(self.get_wl_str_from_wl(x)) for x in wl_list]
+        wl_col = [self.get_wl_str_from_wl(x) for x in wl_list]
+        pspectra.xdata = xdata_plot
 
-        pspectra.set_y_range(ymin,ymax)
+
+        color = 'red'
+        pspectra.stats_style['avg']['color'] = color
+        pspectra.stats_style['avg']['marker'] = 'o'
+        pspectra.stats_style['avg']['markersize'] = 5
+        pspectra.stats_style['fill']['color'] = color
+        pspectra.stats_style['fill']['framealpha'] = 0.5
+        hlineinsitu = pspectra.plot_stats(insitu_stats, imin, imax)
+
+        color = 'blue'
+        pspectra.xdata = wavelength[imin:imax]
+        pspectra.stats_style['avg']['color'] = color
+        pspectra.stats_style['avg']['marker'] = 'o'
+        pspectra.stats_style['avg']['markersize'] = 5
+        pspectra.stats_style['fill']['color'] = color
+        pspectra.stats_style['fill']['framealpha'] = 0.5
+        hlinesat = pspectra.plot_stats(sat_stats, imin, imax)
+
+        h_legend = [hlineinsitu,hlinesat]
+        pspectra.set_xticks(xdata_plot,wl_col,90,8)
+        pspectra.set_y_range(ymin, ymax)
         pspectra.set_xaxis_title(options_out['xlabel'])
         pspectra.set_yaxis_title(options_out['ylabel'])
         if options_out['title'] is not None:
@@ -696,11 +699,108 @@ class MDBPlot:
         pspectra.set_grid()
         pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
         pspectra.legend_options['framealpha'] = 1
-        pspectra.set_legend_h(h_legend,str_legend)
+        pspectra.set_legend_h(h_legend, str_legend)
         pspectra.set_tigth_layout()
         if not options_out['file_out'] is None:
             pspectra.save_fig(options_out['file_out'])
         pspectra.close_plot()
+
+    def plot_spectra_comparison_stats(self, options_out):
+
+        print(options_out)
+        from PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        type_rrs = options_out['type_rrs']
+        flag_values = options_out['groupValues']
+        flag_name = options_out['groupBy']
+        str_legend = self.get_flag_list(flag_values, options_out[flag_name]['flag_values'],
+                                        options_out[flag_name]['flag_meanings'])
+        h_legend = []
+        if type_rrs == 'flag_ins_comparison':
+            wavelength = self.mrfile.get_insitu_wl()
+            imin, imax = pspectra.get_imin_imax_from_wavelength(wavelength, options_out['wl_min'],
+                                                                options_out['wl_max'])
+
+        ymin = None
+        ymax = None
+        for flag_value in flag_values:
+            if type_rrs == 'flag_ins_comparison':
+                wavelength = self.mrfile.get_insitu_wl()
+                spectra_good_flag, stats_flag = self.mrfile.get_flag_insitu_valid_spectra(options_out['scale_factor'],
+                                                                                          flag_name, flag_value)
+                ymin_flag, ymax_flag = pspectra.get_ymin_ymax_from_stats(stats_flag, imin, imax)
+                if ymin is None and ymax is None:
+                    ymin = ymin_flag
+                    ymax = ymax_flag
+                else:
+                    if ymin_flag < ymin:
+                        ymin = ymin_flag
+                    if ymax_flag > ymax:
+                        ymax = ymax_flag
+            print(ymin, ymax)
+
+            # pspectra.plot_multiple_spectra(wavelength, None, stats_flag, options_out['wl_min'], options_out['wl_max'])
+            color = defaults.get_color_flag(flag_value)
+            pspectra.xdata = wavelength[imin:imax]
+            pspectra.stats_style['avg']['color'] = color
+            pspectra.stats_style['fill']['color'] = color
+            pspectra.stats_style['fill']['framealpha'] = 0.5
+            # print(pspectra.stats_style['fill']['color'])
+            hline = pspectra.plot_stats(stats_flag, imin, imax)
+            h_legend.append(hline)
+
+        pspectra.set_y_range(ymin, ymax)
+        pspectra.set_xaxis_title(options_out['xlabel'])
+        pspectra.set_yaxis_title(options_out['ylabel'])
+        if options_out['title'] is not None:
+            title_here = options_out['title']
+            pspectra.set_title(title_here)
+        pspectra.set_grid()
+        pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
+        pspectra.legend_options['framealpha'] = 1
+        pspectra.set_legend_h(h_legend, str_legend)
+        pspectra.set_tigth_layout()
+        if not options_out['file_out'] is None:
+            pspectra.save_fig(options_out['file_out'])
+        pspectra.close_plot()
+
+    def plot_flag(self, info_flag, file_out):
+        x = list(info_flag.keys())
+        ylabel = 'nmacrow'
+        ydata = []
+        for flag in info_flag:
+            ydata.append(info_flag[flag][ylabel])
+        x = np.array(x)
+        ydata = np.array(ydata)
+        from matplotlib import pyplot as plt
+        print(x)
+        print(ydata)
+        plt.figure()
+        plt.barh(x, ydata)
+        plt.grid(b=True, which='major', color='gray', linestyle='--')
+        plt.xlabel('Total number of match-ups', fontsize=12)
+        plt.gcf().tight_layout()
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+        plt.close()
+
+    def plot_flag_array(self, info_flag, flag, file_out):
+        from matplotlib import pyplot as plt
+        extent = [0, 25, 0, 25]
+        cmap = plt.colormaps['jet']
+        band = np.array(info_flag[flag]['parray'])
+
+        plt.imshow(band, cmap=cmap, interpolation=None, extent=extent, vmin=30, vmax=50)
+
+        plt.hlines(11, 11, 14, colors=['r'])
+        plt.hlines(14, 11, 14, colors=['r'])
+        plt.vlines(11, 11, 14, colors=['r'])
+        plt.vlines(14, 11, 14, colors=['r'])
+        plt.colorbar()
+        plt.gcf().tight_layout()
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+        plt.close()
 
     def create_table_stats_wl(self, options_out):
         params = options_out['params']  # self.valid_stats.keys()
@@ -962,7 +1062,7 @@ class MDBPlot:
         elif options_out['type_rrs'] == 'sat':
             ylabeldefault = defaults.ylabel_default
         elif options_out['type_rrs'].startswith('mu_') or options_out['type_rrs'].startswith('flag_'):
-            ylabeldefault  = defaults.ylabel_rrs_scaled
+            ylabeldefault = defaults.ylabel_rrs_scaled
         options_out['xlabel'] = self.get_value_param(options, section, 'xlabel', xlabeldefault, 'str')
         options_out['ylabel'] = self.get_value_param(options, section, 'ylabel', ylabeldefault, 'str')
 

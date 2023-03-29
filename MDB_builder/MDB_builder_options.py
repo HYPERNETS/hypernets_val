@@ -286,8 +286,9 @@ class MDBBuilderOptions:
         resolution = sat_extract_info['resolution']
         platform = sat_extract_info['satellite'] + sat_extract_info['platform']
         ins_sensor = sat_extract_info['ins_sensor']
+        ac = sat_extract_info['ac']
         # datetime_creation = sat_extract_info['time_creation']
-        filename = f'MDB_{platform}_{sensor_str}_{resolution}_{datetime_min}_{datetime_max}_{ins_sensor}_{station_name}.nc'
+        filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{ins_sensor}_{station_name}.nc'
         filepath = os.path.join(self.path_out, filename)
         return filepath
 

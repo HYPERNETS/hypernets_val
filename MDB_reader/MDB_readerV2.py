@@ -458,12 +458,28 @@ def main():
         #mplot.mrfile.save_wl_images(path_img)
         #mplot.mrfile.save_rgb_images(path_img)
 
-        # flag_info = mplot.mrfile.analyze_sat_flags('satellite_WQSF',None)
-        # for flag in flag_info:
-        #     print(flag,flag_info[flag]['nmacro'])
 
+        ##FLAG ANALYSIS
+        #mplot.mrfile.window_size = 3
+        #flag_l = 'LAND,COASTLINE,CLOUD,CLOUD_AMBIGUOUS,CLOUD_MARGIN,INVALID,COSMETIC,SATURATED,SUSPECT,HISOLZEN,HIGHGLINT,SNOW_ICE,AC_FAIL,WHITECAPS,RWNEG_O2,RWNEG_O3,RWNEG_O4,RWNEG_O5,RWNEG_O6,RWNEG_O7,RWNEG_O8'
+        #flag_list = flag_l.split(',')
+        # flag_list = ['CLOUD']
+        #flag_info = mplot.mrfile.analyze_sat_flags('satellite_WQSF',flag_list)
+        #for flag in flag_info:
+        #    print(flag,flag_info[flag]['nmacrow'],flag_info[flag]['pmacrow'])
+        #file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/FlagTotalGait.jpg'
+        #mplot.plot_flag(flag_info,file_out)
+        #file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/WaterGAIT.jpg'
+        #mplot.plot_flag_array(flag_info,'CLOUD',file_out)
 
+        # MU ANALYSIS
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/MUALL_SITE.jpg'
+        # mplot.mrfile.analyse_mu_temporal_flag(False,'flag_site',file_out)
 
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/MUVALID_SITE.jpg'
+        # mplot.mrfile.analyse_mu_temporal_flag(True, 'flag_site',file_out)
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/MUVALID_SITE.jpg'
+        # mplot.mrfile.analyse_mu_flag('flag_site',file_out)
 
         # spectra, stats = mplot.mrfile.get_all_insitu_valid_spectra()
         # from PlotSpectra import PlotSpectra
