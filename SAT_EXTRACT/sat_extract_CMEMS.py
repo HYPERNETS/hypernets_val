@@ -633,11 +633,11 @@ def get_band_list(options):
 
 def get_format_name(options):
     if options.has_option('satellite_options','format_name'):
-        format_name = options['satellite_options']['format_name']
+        format_name = options['satellite_options']['format_name'].strip()
     else:
         format_name = 'O$DATE$-rrs$BAND$-med-fr.nc'
     if options.has_option('satellite_options','format_name_date'):
-        format_name_date = options['satellite_options']['format_name_date']
+        format_name_date = options['satellite_options']['format_name_date'].strip()
     else:
         format_name_date = '%Y%j'
 
