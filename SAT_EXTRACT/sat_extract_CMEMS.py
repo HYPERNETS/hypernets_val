@@ -1419,7 +1419,7 @@ def main():
     if options.has_option('Time_and_sites_selection', 'time_list') and \
             options.has_option('file_path', 'cmems_product') and \
             options.has_option('file_path', 'cmems_dataset'):
-        run_cmems_option(options)
+        run_cmems_option_noreformat(options)
         return
 
     # work only with the specified product file
