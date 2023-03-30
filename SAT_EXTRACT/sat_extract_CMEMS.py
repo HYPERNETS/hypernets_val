@@ -1016,7 +1016,7 @@ def run_cmems_option_noreformat(options):
         print(f'[WARNING] Script implemented for only one site')
         return ncreated
 
-    site = sites.keys()[0]
+    site = list(sites.keys())[0]
     print(site)
     product_name = options['file_path']['cmems_product']
     dataset_name = options['file_path']['cmems_dataset']
