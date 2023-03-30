@@ -411,7 +411,7 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
     return True
 
 
-def create_extract_multiple(ofname, pdu, options, nc_files, global_at, lat, long, r, c):
+def create_extract_multiple(ofname, pdu, options, nc_files,band_list, global_at, lat, long, r, c):
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
     stop_idx_x = (c + int(size_box / 2) + 1)
@@ -467,7 +467,7 @@ def create_extract_multiple(ofname, pdu, options, nc_files, global_at, lat, long
         nc_sat = Dataset(f)
         name_file = f.split('/')[-1]
         rband = name_file.split('-')[1].upper()
-        wls = rband[3:].replace('_', '.')
+        wls = band_list[index].replace('_', '.')
         wl = float(wls)
         wavelenghts.append(wl)
         rbandvar = nc_sat.variables[rband]
@@ -622,6 +622,26 @@ def get_sat_time_from_fname(fname):
             continue
     return sat_time
 
+def get_band_list(options):
+    if options.has_option('satellite_options','band_list'):
+        list_str = options['satellite_options']['band_list']
+        band_list = list_str.split(',')
+        return band_list
+    else:
+        band_list = ['400', '412_5', '442_5', '490', '510', '560', '620', '665', '673_75', '681_25', '708_75', '753_75','778_75']
+        return band_list
+
+def get_format_name(options):
+    if options.has_option('satellite_options','format_name'):
+        format_name = options['satellite_options']['format_name']
+    else:
+        format_name = 'O$DATE$-rrs$BAND$-med-fr.nc'
+    if options.has_option('satellite_options','format_name_date'):
+        format_name_date = options['satellite_options']['format_name_date']
+    else:
+        format_name_date = '%Y%j'
+
+    return format_name,format_name_date
 
 def get_global_atrib(nc_sat, options):
     at = {}
@@ -971,6 +991,77 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
 
     return True
 
+def run_cmems_option_noreformat(options):
+    if args.verbose:
+        print('[INFO] Started CMEMS option...')
+
+    ncreated = 0
+    path_output = get_output_path(options)
+    if path_output is None:
+        print(f'ERROR: {path_output} is not valid')
+        return ncreated
+
+    # Retrieving sites
+    site_file, site_list, region_list = get_site_options(options)
+    if site_file is not None:
+        sites = cfs.get_sites_from_file(site_file, site_list, region_list, path_output)
+    else:
+        sites = cfs.get_sites_from_list(site_list, path_output)
+
+    if len(sites) == 0:
+        print('[ERROR] No sites are defined')
+        return ncreated
+
+    if len(sites)>1:
+        print(f'[WARNING] Script implemented for only one site')
+        return ncreated
+
+    site = sites[0]
+    product_name = options['file_path']['cmems_product']
+    dataset_name = options['file_path']['cmems_dataset']
+    path_source = options['file_path']['sat_source_dir']
+
+    flist = options['Time_and_sites_selection']['time_list']
+    ff = open(flist, 'r')
+    for line in ff:
+        strdate = line.strip()
+        try:
+            date = dt.strptime(strdate, '%Y-%m-%d')
+            datestr = date.strftime('%Y%m%d')
+            yyyy = date.strftime('%Y')
+            jjj = date.strftime('%j')
+            if args.verbose:
+                print('----------------------------------')
+                print(f'[INFO] Date: {strdate}')
+
+            filename =  f'CMEMS_{dataset_name}_extract_{datestr}_{site}.nc'#+ '_extract_' + site + '.nc'
+            ofname = os.path.join(path_output, filename)
+
+            if os.path.exists(ofname):
+                if args.verbose:
+                    print(f'[INFO] Extract file for date: {strdate} already exist. Skipping...')
+                continue
+
+            path_nc = os.path.join(path_source,yyyy,jjj)
+            if not os.path.exists(path_nc):
+                print(f'[WARNING] Path nc files {path_nc} does not exist. Skipping...')
+                continue
+            nhere = create_extract_cmems_multiple(path_nc, date, options, sites, ofname)
+
+            ncreated = ncreated + nhere
+            # if args.verbose:
+            #     print(f'[INFO] Removing file {filenc}')
+            # os.remove(filenc)
+
+        except:
+            print('ERROR FILE')
+            pass
+    ff.close()
+    if args.verbose:
+        print('*********************************************************************************')
+        print(f'[INFO] Extraction completed. Sat extracts created: {ncreated}')
+
+
 
 def run_cmems_option(options):
     if args.verbose:
@@ -993,8 +1084,8 @@ def run_cmems_option(options):
         print('[ERROR] No sites are defined')
         return ncreated
 
-    # path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
-    path_code_eistools = '/store/COP2-OC-TAC/CODE/eistools'
+    path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
+    #path_code_eistools = '/store/COP2-OC-TAC/CODE/eistools'
     sys.path.append(path_code_eistools)
     import product_info
     import reformatCMEMS_202207_class
@@ -1122,15 +1213,20 @@ def create_extract_cmems(filepath, options, sites, path_output):
     return ncreated
 
 
-def create_extract_cmems_multiple(ncpath, date, options, sites, path_output):
+def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
     if args.verbose:
         print(f'[INFO] NC Path: {ncpath}')
-    strdate = date.strftime('%Y%j')
-    band_list = ['400', '412_5', '442_5', '490', '510', '560', '620', '665', '673_75', '681_25', '708_75', '753_75',
-                 '778_75']
+
+    band_list = get_band_list(options)
+    format_name, format_name_date = get_format_name(options)
+    #strdate = date.strftime('%Y%j')
+    strdate = date.strftime(format_name_date)
     ncfiles = []
     for b in band_list:
-        name = f'O{strdate}-rrs{b}-med-fr.nc'
+        #name = f'O{strdate}-rrs{b}-med-fr.nc'
+        name = format_name
+        name = name.replace('$DATE$',strdate)
+        name = name.replace('%BAND$',b)
         fname = os.path.join(ncpath, name)
         print(fname, os.path.exists(fname))
         ncfiles.append(fname)
@@ -1183,16 +1279,16 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, path_output):
             # filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
             # pdu = filepath.split('/')[-1]
             pdu = ncpath
-            filename = f'CMEMS2_O{strdate}-rrs-med-fr_nc_extract_{site}.nc'
-
-            path_output_site = os.path.join(path_output, site)
-            if not os.path.exists(path_output_site):
-                os.mkdir(path_output_site)
-            ofname = os.path.join(path_output_site, filename)
+            # filename = f'CMEMS2_O{strdate}-rrs-med-fr_nc_extract_{site}.nc'
+            #
+            # path_output_site = os.path.join(path_output, site)
+            # if not os.path.exists(path_output_site):
+            #     os.mkdir(path_output_site)
+            # ofname = os.path.join(path_output_site, filename)
             global_at['station_name'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
-            res = create_extract_multiple(ofname, pdu, options, ncfiles, global_at, lat, lon, r, c)
+            res = create_extract_multiple(ofname, pdu, options, ncfiles,band_list, global_at, lat, lon, r, c)
             if res:
                 ncreated = ncreated + 1
                 print(f'[INFO]    Extract file created: {ofname}')
