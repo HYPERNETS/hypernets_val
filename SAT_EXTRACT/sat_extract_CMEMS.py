@@ -1016,7 +1016,7 @@ def run_cmems_option_noreformat(options):
         print(f'[WARNING] Script implemented for only one site')
         return ncreated
 
-    site = sites
+    site = sites.keys()[0]
     print(site)
     product_name = options['file_path']['cmems_product']
     dataset_name = options['file_path']['cmems_dataset']
@@ -1227,7 +1227,7 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
         #name = f'O{strdate}-rrs{b}-med-fr.nc'
         name = format_name
         name = name.replace('$DATE$',strdate)
-        name = name.replace('%BAND$',b)
+        name = name.replace('$BAND$',b)
         fname = os.path.join(ncpath, name)
         print(fname, os.path.exists(fname))
         ncfiles.append(fname)
