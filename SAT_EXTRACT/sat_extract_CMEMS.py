@@ -625,7 +625,7 @@ def get_sat_time_from_fname(fname):
 def get_band_list(options):
     if options.has_option('satellite_options','band_list'):
         list_str = options['satellite_options']['band_list']
-        band_list = list_str.split(',')
+        band_list = [x.strip() for x in list_str.split(',')]
         return band_list
     else:
         band_list = ['400', '412_5', '442_5', '490', '510', '560', '620', '665', '673_75', '681_25', '708_75', '753_75','778_75']
@@ -1132,7 +1132,7 @@ def run_cmems_option(options):
 
             path_nc = os.path.dirname(expected_file_nc)
             if not os.path.exists(path_nc):
-                print(f'[WARNING] Path nc files {path_nc} does not exist. Skypping...')
+                print(f'[WARNING] Path nc files {path_nc} does not exist. Skipping...')
                 continue
             nhere = create_extract_cmems_multiple(path_nc, date, options, sites, path_output)
 
