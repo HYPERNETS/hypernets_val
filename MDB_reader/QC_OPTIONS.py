@@ -156,6 +156,8 @@ class QC_OPTIONS:
             'time_diff_max': {'valid': 0, 'value': None, 'type': 'float'},
             'wl_diff_max': {'valid': 0, 'value': None, 'type': 'int'},
             'apply_band_shift': {'valid': 0, 'value': None, 'type': 'boolean'},
+            'srf': {'valid': 0, 'value': None, 'type': 'str'},
+            'apply_nir_correction': {'valid':0,'value':None,'type':'boolean'},
             'filter_th_X': {'valid': 0, 'value': None, 'type': 'dict',
                             'keys': {'wlmin': 'float', 'wlmax': 'float', 'thmin': 'float', 'thmax': 'float'}
                             },
@@ -202,6 +204,15 @@ class QC_OPTIONS:
                 qc_insitu.wl_diff_max = options_qc_insitu[option]['value']
             elif option == 'apply_band_shift':
                 qc_insitu.apply_band_shift = options_qc_insitu[option]['value']
+            elif option == 'apply_nir_correction':
+                qc_insitu.apply_nir_correction = options_qc_insitu[option]['value']
+            elif option == 'srf':
+                srffile = options_qc_insitu[option]['value']
+                if os.path.exists(srffile):
+                    qc_insitu.srf = srffile
+                else:
+                    print(f'[ERROR] Spectral response file: {srffile} does not exist. Please check it...')
+                    return None
             elif option == 'filter_th_X':
                 list_vals = options_qc_insitu[option]['value']
                 for val in list_vals:

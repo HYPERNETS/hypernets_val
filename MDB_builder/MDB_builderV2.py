@@ -18,6 +18,7 @@ parser.add_argument('-site', "--sitename", help="Site name. Only with --listdate
 parser.add_argument('-c', "--config_file", help="Config File.", required=True)
 # parser.add_argument('-ps', "--path_to_sat", help="Path to satellite extracts.")
 parser.add_argument('-o', "--output", help="Output file. Only with --listdates")
+parser.add_argument('-edir',"--sat_extract_dir", help="Input sat. extract dir. Only with --listdates")
 # parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
 parser.add_argument('-ld', "--listdates",
                     help="Option to obtain a date list for a specific HYPERNETS site (-site option).",
@@ -43,7 +44,10 @@ def main():
     # Option to a list dates
     if args.sitename and args.output and args.listdates:
         ihd = INSITU_HYPERNETS_DAY(None, None, args.verbose)
-        ihd.save_list_dates_to_file(args.output, args.sitename, None, None)
+        sat_extract_dir = None
+        if args.sat_extract_dir:
+            sat_extract_dir = args.sat_extract_dir
+        ihd.save_list_dates_to_file(args.output, args.sitename, None, None,sat_extract_dir)
         return
 
     if os.path.isfile(args.config_file):

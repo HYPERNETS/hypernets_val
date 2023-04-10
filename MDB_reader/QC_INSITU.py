@@ -1,7 +1,10 @@
 import numpy as np
 import numpy.ma as ma
-import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
+import pandas
 
+import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 class QC_INSITU:
 
@@ -32,6 +35,8 @@ class QC_INSITU:
         self.thersholds = None
 
         self.apply_band_shift = False
+        self.apply_nir_correction = True
+        self.srf = None
 
         self.check_indices_by_mu = False
         self.only_complete_spectra = True
@@ -40,6 +45,23 @@ class QC_INSITU:
         self.ncdataset = None
         self.check_flags = {}
         self.check_th_other_bands = {}
+
+        #for idendifying bands
+        self.msibands = {
+            'B1': 443,
+            'B2': 490,
+            'B3': 560,
+            'B4': 665,
+            'B5': 705,
+            'B6': 740,
+            'B7': 783,
+            'B8': 842,
+            'B8A': 865,
+            'B9': 945,
+            'B10': 1375,
+            'B11': 1610,
+            'B12': 2190
+        }
 
     ##Method to make the subset of the spectra
     def set_wllist_min_max(self, wlmin, wlmax):
@@ -408,7 +430,8 @@ class QC_INSITU:
 
         spectra = ma.array(self.insitu_rrs[index_mu, :, index_insitu])
 
-        #implementation of spectral response function here
+
+
 
         if self.check_indices_by_mu:
             indices, valid_bands = self.get_insitu_indices_mu(index_mu)
@@ -418,7 +441,28 @@ class QC_INSITU:
             rrs_values = spectra[indices]
             valid_bands = np.invert(ma.getmaskarray(rrs_values)).tolist()
 
+        #print(type(rrs_values))
+        # implementation of spectral response function here
+        #print('************************************************', self.srf)
+        if self.srf is not None:
+            import pandas as pd
+            S2srf = pd.read_csv(self.srf)
+
+
+            bands = self.insitu_bands[:]
+            df = pd.DataFrame(data=spectra, index=bands)
+            nnT = self.reindex_and_interpolate(df, S2srf["SR_WL"].values)
+            rrs_values = []
+            for a in np.arange(1, S2srf.shape[1]):
+                rrs_values.append(nnT.mul(np.array(S2srf.iloc[:, a]), axis=0).sum(axis=0) / (sum(np.array(S2srf.iloc[:, a]))))
+            rrs_values = np.ma.array(rrs_values)
+            #print(type(rrs_values))
+
         return rrs_values, indices, valid_bands
+
+    def reindex_and_interpolate(self,df, new_index):
+        return df.reindex(df.index | new_index).interpolate(method='index', limit_direction='both').loc[new_index]
+
 
     # ngood is only for checking (assing -1 for not using it)
     def get_good_spectrum_for_mu(self, index_mu, id_min_time, ngood):

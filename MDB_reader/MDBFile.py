@@ -369,13 +369,19 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
 
+
+
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.fromtimestamp(float(ins_time))
         else:  ##aunque los datos sean invalidos (time dif>max time dif), obtenemos el mu_insitu_time como referencia
+            #print(time_difference)
             ins_time_index = np.argmin(np.abs(time_difference))
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            mu_insitu_time = datetime.fromtimestamp(float(ins_time))
+            if np.ma.is_masked(ins_time): ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
+                mu_insitu_time = sat_time_here
+            else:
+                mu_insitu_time = datetime.fromtimestamp(float(ins_time))
 
         return ins_time_index, mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_values
 
@@ -411,7 +417,13 @@ class MDBFile:
         self.index_mu = index_mu
 
         # Sat and instrument rrs
-        self.insitu_rrs = self.variables['insitu_Rrs'][index_mu]
+        name_variable_insitu = 'insitu_Rrs'
+        #print(self.qc_insitu.apply_nir_correction)
+        if not self.qc_insitu.apply_nir_correction:
+            #print('ME LLEGA AQUI***********************************************************')
+            name_variable_insitu = 'insitu_Rrs_nosc'
+
+        self.insitu_rrs = self.variables[name_variable_insitu][index_mu]
         self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
 
         # Sat and instrument time
@@ -429,6 +441,7 @@ class MDBFile:
 
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
+
 
         if rrs_ins_values is not None and self.PI_DIVIDED:
             rrs_ins_values = rrs_ins_values / np.pi
@@ -774,7 +787,9 @@ class MDBFile:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
-
+            # print(index_mu)
+            # print(info_mu)
+            # print('------------')
 
 
             if mu_valid:

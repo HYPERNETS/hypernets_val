@@ -236,6 +236,7 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
         fill_value = None
         if '_FillValue' in list(reader.mfile.nc.ncattrs()):
             fill_value = variable._FillValue
+        #print(name)
         ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
                              shuffle=True, complevel=6)
         # copy variable attributes all at once via dictionary
@@ -379,6 +380,10 @@ def main():
             reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat, reader.mfile.nc)
             reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
             reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu)
+            if reader.mfile.qc_insitu is None:
+                return
+            if not reader.mfile.qc_insitu.apply_nir_correction:
+                reader.mfile.qc_insitu.insitu_rrs = reader.mfile.variables['insitu_Rrs_nosc']
 
         else:
             reader.set_defaults_olci_wfr_hypstar()

@@ -660,7 +660,7 @@ def get_global_atrib(nc_sat, options):
             if atrib_name in nc_sat.ncattrs():
                 at[atrib_name] = nc_sat.getncattr(atrib_name)
             else:
-                print(f'[WARNING] Attribute {atrib_name} is not available in dataset. Skyping...')
+                print(f'[WARNING] Attribute {atrib_name} is not available in dataset. Skiping...')
 
     compulsory_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
     for key in compulsory_keys:
@@ -1229,7 +1229,7 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
         name = name.replace('$DATE$',strdate)
         name = name.replace('$BAND$',b)
         fname = os.path.join(ncpath, name)
-        print(fname, os.path.exists(fname))
+        #print(fname, os.path.exists(fname))
         ncfiles.append(fname)
 
     nc_sat = Dataset(ncfiles[0], 'r')

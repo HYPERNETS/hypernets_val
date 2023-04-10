@@ -385,14 +385,30 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                                     list_dates.append(datehere)
         return list_dates
 
-    def save_list_dates_to_file(self, fout, sitename, start_date_ref, end_date_ref):
+    def save_list_dates_to_file(self, fout, sitename, start_date_ref, end_date_ref,sat_extract_dir):
         list_dates = self.get_list_dates(sitename, start_date_ref, end_date_ref)
         if len(list_dates) == 0:
             print(f'[WARNING] Data were not found for site: {sitename}')
             return
+        dates_extracts = []
+        if sat_extract_dir is not None:
+            for name in os.listdir(sat_extract_dir):
+                if not name.endswith('.nc'):
+                    continue
+                fname = os.path.join(sat_extract_dir,name)
+                from netCDF4 import Dataset
+                dataset = Dataset(fname)
+                if 'satellite_time' in dataset.variables:
+                    sat_time = float(dataset.variables['satellite_time'][0])
+                    sat_time_str = dt.utcfromtimestamp(sat_time).strftime('%Y-%m-%d')
+                    dates_extracts.append(sat_time_str)
+                dataset.close()
         f1 = open(fout, 'w')
         for date in list_dates:
             date_str = date.strftime('%Y-%m-%d')
+            if date_str in dates_extracts:
+                print(f'[INFO] Sat. extracts are already available for the date: {date_str}')
+                continue
             f1.write(date_str)
             f1.write('\n')
         f1.close()
