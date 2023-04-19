@@ -110,6 +110,9 @@ class SAT_EXTRACTS_LIST:
         sensor_here = None
         if 'sensor' in dataset.ncattrs():
             sensor_here = dataset.sensor
+            if sensor_here.startswith('MODIS Moderate Resolution Imaging Spectroradiometer,'):
+                sensor_here = 'MULTI'
+
         if sensor_here is None:
             print(f'[WARNING] Sensor set to {sensor_name} despite of not being defined in the extract file')
             return sensor_name
