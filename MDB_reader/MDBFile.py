@@ -131,34 +131,33 @@ class MDBFile:
         self.PI_DIVIDED = False
 
     def check_repeated(self):
-        sat_times_unique = np.unique(np.array(self.sat_times))
-        if len(self.sat_times) != len(sat_times_unique):
-            print(f'[WARNING] There are repeated satellite times.')
-            return False
+        sat_times = np.array(self.sat_times)
+        for idx in range(1, self.n_mu_total):
+            for idu in range(idx):
+                if sat_times[idx] == sat_times[idu]:
+                    print(f'[WARNING] There are repeated satellite times.')
+                    return False
         return True
 
     def remove_repeated(self):
-        sat_times_unique = np.unique(np.array(self.sat_times))
+
         sat_times = np.array(self.sat_times)
-        sat_times.sort()
-        sat_times_unique.sort()
-        nrepeated = len(sat_times) - len(sat_times_unique)
-        print(f'[INFO] # repeated satellite ids: {nrepeated}')
+
         idx_included = [True] * self.n_mu_total
         n_excluded = 0
-        idu = 0
         print(f'[INFO] Searching repeated ids...')
-        for idx in range(self.n_mu_total):
-            if sat_times[idx] == sat_times_unique[idu]:
-                idu = idu + 1
-                continue
-            else:
-                idx_included[idx] = False
-                n_excluded = n_excluded + 1
-                print(f'[INFO] Repeated satellite id: {idx} with time: {sat_times[idx]}')
-                if n_excluded == nrepeated:
-                    break
-        indices = np.where(np.array(idx_included, dtype=np.bool))
+
+        for idx in range(1, self.n_mu_total):
+            for idu in range(idx):
+                if sat_times[idx] == sat_times[idu]:
+                    idx_included[idx] = False
+                    n_excluded = n_excluded + 1
+                    print(
+                        f'[INFO] Repeated satellite id: {idx} with time: {sat_times[idx]} is equal to {idu} -> {sat_times[idu]}')
+
+        print(f'[INFO] Number of repeated ids: {n_excluded}')
+
+        indices = np.array(idx_included, dtype=np.bool)
 
         print(f'[INFO] Creating temporary file without repeated ids...')
         file_temp = os.path.join(os.path.dirname(self.file_path), 'Temp.nc')
@@ -184,8 +183,10 @@ class MDBFile:
             ncout[name].setncatts(self.nc[name].__dict__)
 
             if 'satellite_id' in variable.dimensions:
-                var_new_array = np.array(variable[indices])
-                for idx in range(len(indices[0])):
+                var_new_array = np.array(variable[indices == True])
+                nnew = var_new_array.shape[0]
+                # print('Longitud de nueva variable: ',name,len(indices[0]))
+                for idx in range(nnew):
                     if name == 'satellite_PDU':
                         ncout.variables[name][idx] = str(var_new_array[idx])
                     else:
@@ -369,16 +370,14 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
 
-
-
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.fromtimestamp(float(ins_time))
         else:  ##aunque los datos sean invalidos (time dif>max time dif), obtenemos el mu_insitu_time como referencia
-            #print(time_difference)
+            # print(time_difference)
             ins_time_index = np.argmin(np.abs(time_difference))
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            if np.ma.is_masked(ins_time): ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
+            if np.ma.is_masked(ins_time):  ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
                 mu_insitu_time = sat_time_here
             else:
                 mu_insitu_time = datetime.fromtimestamp(float(ins_time))
@@ -418,12 +417,13 @@ class MDBFile:
 
         # Sat and instrument rrs
         name_variable_insitu = 'insitu_Rrs'
-        #print(self.qc_insitu.apply_nir_correction)
+        # print(self.qc_insitu.apply_nir_correction)
         if not self.qc_insitu.apply_nir_correction:
             #print('ME LLEGA AQUI***********************************************************')
             name_variable_insitu = 'insitu_Rrs_nosc'
 
         self.insitu_rrs = self.variables[name_variable_insitu][index_mu]
+        #print(self.insitu_rrs)
         self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
 
         # Sat and instrument time
@@ -441,7 +441,6 @@ class MDBFile:
 
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
-
 
         if rrs_ins_values is not None and self.PI_DIVIDED:
             rrs_ins_values = rrs_ins_values / np.pi
@@ -716,16 +715,15 @@ class MDBFile:
             plt.savefig(file_img)
             plt.close()
 
-
-    def save_wl_images(self,path_img):
+    def save_wl_images(self, path_img):
         print('[INFO] Saving RGB images...')
         for index_mu in range(self.n_mu_total):
-            if index_mu!=15:
+            if index_mu != 15:
                 continue
             satellite_rrs = self.variables['satellite_Rrs'][index_mu]
             for idx in range(14):
                 wl = self.satellite_bands[idx]
-                wls = str(wl).replace('.','_')
+                wls = str(wl).replace('.', '_')
                 band = np.ma.array(satellite_rrs[idx][:][:])
                 mu_sat_time = self.sat_times[index_mu]
                 mu_sat_time_str = mu_sat_time.strftime('%Y%m%d_%H%M')
@@ -734,7 +732,7 @@ class MDBFile:
                 print(file_img)
                 extent = [0, 25, 0, 25]
                 cmap = plt.colormaps['gray']
-                plt.imshow(band, cmap = cmap, interpolation=None, extent=extent)
+                plt.imshow(band, cmap=cmap, interpolation=None, extent=extent)
 
                 # plt.hlines(11, 11, 14, colors=['r'])
                 # plt.hlines(14, 11, 14, colors=['r'])
@@ -744,10 +742,10 @@ class MDBFile:
                 plt.savefig(file_img)
                 plt.close()
         for index_mu in range(self.n_mu_total):
-            name_bands = ['satellite_WQSF','satellite_AOT_0865p50','OAA','OZA']
+            name_bands = ['satellite_WQSF', 'satellite_AOT_0865p50', 'OAA', 'OZA']
             for name_band in name_bands:
                 satellite_band = self.variables['satellite_WQSF'][index_mu]
-                if index_mu!=15:
+                if index_mu != 15:
                     continue
                 band = satellite_band[:][:]
                 file_name = f'SAT_{index_mu}_{name_band}.png'
@@ -787,10 +785,9 @@ class MDBFile:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
-            # print(index_mu)
-            # print(info_mu)
+            #print(index_mu)
+            #print(info_mu)
             # print('------------')
-
 
             if mu_valid:
                 nmu_valid = nmu_valid + 1
@@ -1038,7 +1035,6 @@ class MDBFile:
             wlstrlist.append(wlstr)
         return wlstrlist
 
-
     def get_mu_insitu_spectra(self, index_mu, scale_factor):
         import numpy.ma as ma
         noriginal_bands = len(self.dimensions['insitu_original_bands'])
@@ -1149,7 +1145,7 @@ class MDBFile:
 
         return spectra_good, spectra_stats
 
-    def get_spectra_stats(self,spectra_good):
+    def get_spectra_stats(self, spectra_good):
         import statistics as st
         import numpy.ma as ma
         spectra_avg = ma.mean(spectra_good, axis=0)
@@ -1182,78 +1178,95 @@ class MDBFile:
             var_wl = np.array(self.nc.variables['mu_wavelength'])
             var_satid = np.array(self.nc.variables['mu_satellite_id'])
 
+
             insitu_spectra = var_insitu[var_satid == index_mu]
             sat_spectra = var_satrrs[var_satid == index_mu]
             if scale_factor is not None:
                 insitu_spectra = insitu_spectra * scale_factor
                 sat_spectra = sat_spectra * scale_factor
             wl = var_wl[var_satid == index_mu]
+            valid = np.ones(wl.shape,dtype=bool)
+            valid[wl==832.8] = False
+            valid[wl==1613.7] = False
+            valid[wl==2202.4] = False
+            wl = wl[valid]
+            insitu_spectra = insitu_spectra[valid]
+            sat_spectra = sat_spectra[valid]
             return wl, insitu_spectra, sat_spectra
         else:
             return None, None, None
 
-    def get_all_spectra_insitu_sat(self,scale_factor):
+    def get_all_spectra_insitu_sat(self, scale_factor):
         import numpy.ma as ma
         nspectra = self.n_mu_total
         n_bands = len(np.unique(np.array(self.nc.variables['mu_wavelength'])))
+        n_bands = len(np.array(self.nc.variables['satellite_bands']))
+        #n_bands = 8
+
         insitu_spectra_good = ma.zeros((nspectra, n_bands))
-        sat_spectra_good = ma.zeros((nspectra,n_bands))
+        sat_spectra_good = ma.zeros((nspectra, n_bands))
         index_here = 0
         wavelength = None
         for index_mu in range(self.n_mu_total):
-            wl, insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat(index_mu,scale_factor)
+            wl, insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat(index_mu, scale_factor)
             if insitu_spectrum is not None and sat_spectrum is not None:
                 wavelength = wl
-                insitu_spectra_good[index_here,:] = insitu_spectrum[:]
-                sat_spectra_good[index_here,:] = sat_spectrum[:]
-                index_here = index_here +1
+                insitu_spectra_good[index_here, :] = insitu_spectrum[:]
+                sat_spectra_good[index_here, :] = sat_spectrum[:]
+                index_here = index_here + 1
         sat_spectra_good = sat_spectra_good[0:index_here, :]
         insitu_spectra_good = insitu_spectra_good[0:index_here, :]
         sat_stats = self.get_spectra_stats(sat_spectra_good)
         insitu_stats = self.get_spectra_stats(insitu_spectra_good)
 
-
-
-        return wavelength,sat_stats,insitu_stats
-
+        return wavelength, sat_stats, insitu_stats
 
     def analyze_sat_flags(self, flag_var_name, flag_list):
         flag_variable = self.nc.variables[flag_var_name]
+        if isinstance(flag_variable.flag_meanings,list):
+            flag_meanings = ' '.join(flag_variable.flag_meanings)
+        else:
+            flag_meanings = flag_variable.flag_meanings
         if flag_list is None:
             flag_list = flag_variable.flag_meanings.split(' ')
         flag_info = {}
-        flagging = flag.Class_Flags_OLCI(flag_variable.flag_masks,flag_variable.flag_meanings)
+
+        flag_masks = flag_variable.flag_masks
+        if flag_masks.dtype=='int64':
+            flag_masks = flag_masks.astype(np.uint64)
+
+        flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
         for flag_name in flag_list:
-            #flag_value = flag_values[idx]
-            #flag_name = flag_list[idx]
-            array = np.zeros((25,25))
+            # flag_value = flag_values[idx]
+            # flag_name = flag_list[idx]
+            array = np.zeros((25, 25))
             nmacro = 0
             nmacrow = 0
             for index_mu in range(self.n_mu_total):
                 flag_array_mu = np.array(self.variables[self.flag_band_name][index_mu])
                 mask = flagging.Mask(flag_array_mu, [flag_name])
                 mask[np.where(mask != 0)] = 1
-                if np.sum(mask)>0:
-                    nmacro = nmacro+1
+                if np.sum(mask) > 0:
+                    nmacro = nmacro + 1
 
-                mask_window = mask[r_s:r_e,c_s:c_e]
-                if np.sum(mask_window)>0:
+                mask_window = mask[r_s:r_e, c_s:c_e]
+                if np.sum(mask_window) > 0:
                     nmacrow = nmacrow + 1
                 array = array + mask
-            parray = (array / self.n_mu_total)*100
+            parray = (array / self.n_mu_total) * 100
             flag_info[flag_name] = {
                 'array': array,
                 'parray': parray,
                 'ntotal': np.sum(array),
                 'nmacro': nmacro,
                 'nmacrow': nmacrow,
-                'pmacro': float((nmacro/self.n_mu_total)*100),
-                'pmacrow': float((nmacrow/self.n_mu_total)*100)
+                'pmacro': float((nmacro / self.n_mu_total) * 100),
+                'pmacrow': float((nmacrow / self.n_mu_total) * 100)
             }
         return flag_info
 
-    def analyse_mu_temporal(self,onlyvalid,file_out):
+    def analyse_mu_temporal(self, onlyvalid, file_out):
         year_min = self.start_date.year
         year_max = self.end_date.year + 1
         year = list(range(year_min, year_max))
@@ -1267,7 +1280,7 @@ class MDBFile:
             year_here = date_here.year
             month_here = date_here.month
             if onlyvalid:
-                if mu_valid[idx]==1:
+                if mu_valid[idx] == 1:
                     dfall_month.at[year_here, month_here] = dfall_month.at[year_here, month_here] + 1
             else:
                 dfall_month.at[year_here, month_here] = dfall_month.at[year_here, month_here] + 1
@@ -1280,24 +1293,25 @@ class MDBFile:
         sns.heatmap(dfall_month_withnan, annot=False, cmap=cmap, linewidths=1, linecolor='black')
         plt.xlabel('Month')
         plt.ylabel('Year')
-        #plt.title(title)
+        # plt.title(title)
         if file_out is not None:
             plt.savefig(file_out, dpi=300)
         plt.close(h)
 
-    def analyse_mu_temporal_flag(self,onlyvalid,name_flag_var,file_out):
+    def analyse_mu_temporal_flag(self, onlyvalid, name_flag_var, file_out):
         year_min = self.start_date.year
         year_max = self.end_date.year + 1
-        #year = list(range(year_min, year_max))
-        #year.reverse()
-        #month_s = list(range(1, 13))
+        # year = list(range(year_min, year_max))
+        # year.reverse()
+        # month_s = list(range(1, 13))
         monthl = []
-        for year in range(year_min,year_max):
-            for month in range(1,13):
-                date_here = datetime(year,month,1)
+        for year in range(year_min, year_max):
+            for month in range(1, 13):
+                if year==2023 and month>=4:
+                    continue
+                date_here = datetime(year, month, 1)
                 print(date_here)
                 monthl.append(date_here.strftime('%Y-%m'))
-
 
         flag_var = self.nc.variables[name_flag_var]
         flag_var_array = np.array(flag_var)
@@ -1314,7 +1328,7 @@ class MDBFile:
             flag_index = np.where(flag_values == flag_value)[0][0]
             flag_here = flag_list[flag_index]
             if onlyvalid:
-                if mu_valid[idx]==1:
+                if mu_valid[idx] == 1:
                     dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + 1
             else:
                 dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + 1
@@ -1332,7 +1346,7 @@ class MDBFile:
             plt.savefig(file_out, dpi=300)
         plt.close(h)
 
-    def analyse_mu_flag(self,name_flag_var,file_out):
+    def analyse_mu_flag(self, name_flag_var, file_out):
         flag_var = self.nc.variables[name_flag_var]
         flag_var_array = np.array(flag_var)
         flag_list = flag_var.flag_meanings.split(' ')
@@ -1346,13 +1360,13 @@ class MDBFile:
 
         for idx in range(self.n_mu_total):
             flag_value = flag_var_array[idx]
-            flag_index = np.where(flag_values==flag_value)[0][0]
-            n_values[flag_index] = n_values[flag_index]+1
-            if mu_valid[idx]==1:
+            flag_index = np.where(flag_values == flag_value)[0][0]
+            n_values[flag_index] = n_values[flag_index] + 1
+            if mu_valid[idx] == 1:
                 n_valid[flag_index] = n_valid[flag_index] + 1
 
-        print(n_values,n_valid)
-        porc_values = (n_valid/n_values)*100
+        print(n_values, n_valid)
+        porc_values = (n_valid / n_values) * 100
         print(porc_values)
         plt.figure()
         plt.barh(flag_list, porc_values)
@@ -1362,6 +1376,7 @@ class MDBFile:
         if file_out is not None:
             plt.savefig(file_out, dpi=300)
         plt.close()
+
     def close(self):
         if self.VALID:
             self.nc.close()

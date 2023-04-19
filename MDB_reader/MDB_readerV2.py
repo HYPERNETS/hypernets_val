@@ -116,8 +116,6 @@ class MDB_READER():
             }
         }
 
-
-
         if self.mfile.df_mu is None:
             self.mfile.prepare_df_mu()
 
@@ -145,11 +143,11 @@ class MDB_READER():
             for idx in range(self.mfile.n_mu_total):
                 new_var[idx] = [array[idx]]
 
-
         ##validitiy of spectrums
         if args.verbose:
             print('[INFO] Check validity spectra...')
-        new_var = new_MDB.createVariable('insitu_valid', 'i1',('satellite_id','insitu_id'),zlib=True,complevel=6,fill_value=-1)
+        new_var = new_MDB.createVariable('insitu_valid', 'i1', ('satellite_id', 'insitu_id'), zlib=True, complevel=6,
+                                         fill_value=-1)
         for index_mu in range(self.mfile.n_mu_total):
             validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
             new_var[index_mu] = validity_spectra[:]
@@ -236,7 +234,7 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
         fill_value = None
         if '_FillValue' in list(reader.mfile.nc.ncattrs()):
             fill_value = variable._FillValue
-        #print(name)
+        # print(name)
         ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
                              shuffle=True, complevel=6)
         # copy variable attributes all at once via dictionary
@@ -264,6 +262,245 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
     ncout.close()
     reader.mfile.close()
     return True
+
+
+def creating_copy_correcting_band(reader, file_out):
+    # reader = MDB_READER('', True)
+    from netCDF4 import Dataset
+    import numpy as np
+    ncout = Dataset(file_out, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(reader.mfile.nc.__dict__)
+
+    # copy dimensions
+    for name, dimension in reader.mfile.nc.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    # copy variables
+    for name, variable in reader.mfile.nc.variables.items():
+        fill_value = None
+        if '_FillValue' in list(reader.mfile.nc.ncattrs()):
+            fill_value = variable._FillValue
+        # print(name)
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(reader.mfile.nc[name].__dict__)
+
+        # copy variable data
+        ncout[name][:] = reader.mfile.nc[name][:]
+        if name == 'satellite_Rrs':
+            ncout[name][:, 1, :, :] = reader.mfile.nc[name][:, 1, :, :] * np.pi
+
+    ncout.close()
+    reader.mfile.close()
+    return True
+
+
+def creating_copy_with_eight_bands(reader, file_out):
+    # reader = MDB_READER('', True)
+    from netCDF4 import Dataset
+    import numpy as np
+    ncout = Dataset(file_out, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(reader.mfile.nc.__dict__)
+
+    # copy dimensions
+    for name, dimension in reader.mfile.nc.dimensions.items():
+        if name == 'satellite_bands':
+            ncout.createDimension(name, 8)
+        else:
+            ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+    indices_good = [0, 1, 2, 3, 4, 5, 6, 8]
+
+    # copy variables
+    for name, variable in reader.mfile.nc.variables.items():
+        fill_value = None
+        if '_FillValue' in list(reader.mfile.nc.ncattrs()):
+            fill_value = variable._FillValue
+        # print(name)
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(reader.mfile.nc[name].__dict__)
+
+        # copy variable data
+        if name == 'satellite_bands':
+            ncout[name][:] = reader.mfile.nc[name][indices_good]
+        elif name == 'satellite_Rrs':
+            ncout[name][:, :, :, :] = reader.mfile.nc[name][:, indices_good, :, :]
+        else:
+            ncout[name][:] = reader.mfile.nc[name][:]
+
+    ncout.close()
+    reader.mfile.close()
+    return True
+
+def creating_copy_with_valid_indices(reader,file_out,indices_sat_valid):
+    from netCDF4 import Dataset
+    import numpy as np
+    ncout = Dataset(file_out, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(reader.mfile.nc.__dict__)
+
+    # copy dimensions
+    for name, dimension in reader.mfile.nc.dimensions.items():
+        ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+        # copy variables
+    for name, variable in reader.mfile.nc.variables.items():
+        fill_value = None
+        if '_FillValue' in list(reader.mfile.nc.ncattrs()):
+            fill_value = variable._FillValue
+        # print(name)
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(reader.mfile.nc[name].__dict__)
+
+        if name=='mu_valid':
+            mu_valid_array = np.array(reader.mfile.nc[name][:])
+            mu_valid_array[indices_sat_valid==False] = 0
+            ncout[name][:] = mu_valid_array[:]
+        else:
+            ncout[name][:] = reader.mfile.nc[name][:]
+
+    ncout.close()
+    reader.mfile.close()
+    return True
+
+def getting_common_matchups():
+    # getting common match-ups
+    dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/CONTATENATED_WITHOUT_COMMON_MATCHUPS'
+    file_in = os.path.join(dir_base, 'MDBrc_ALL.nc')
+    mu = {}
+    from netCDF4 import Dataset
+    import numpy as np
+    from datetime import datetime as dt
+    from datetime import timedelta
+    dataset = Dataset(file_in)
+    sat_time = np.array(dataset.variables['satellite_time'][:])
+    satellite = np.array(dataset.variables['flag_satellite'][:])
+    processor = np.array(dataset.variables['flag_ac'][:])
+    valid = np.array(dataset.variables['mu_valid'])
+    nsat = sat_time.shape[0]
+    for idx in range(nsat):
+        if not valid[idx]:
+            continue
+        time = sat_time[idx]
+        time_here = dt(1970, 1, 1) + timedelta(seconds=int(time))
+        time_here_str = time_here.strftime('%Y%m%d')
+        sat = 'A'
+        if satellite[idx] == 2:
+            sat = 'B'
+        ac = 'ACOLITE'
+        if processor[idx] == 2:
+            ac = 'C2RCC'
+        if time_here_str not in mu:
+            mu[time_here_str] = {
+                'A': {
+                    'ACOLITE': False,
+                    'C2RCC': False
+                },
+                'B': {
+                    'ACOLITE': False,
+                    'C2RCC': False
+                }
+
+            }
+
+        if ac == 'ACOLITE':
+            mu[time_here_str][sat]['ACOLITE'] = True
+        elif ac == 'C2RCC':
+            mu[time_here_str][sat]['C2RCC'] = True
+    list_dates = []
+    list_sat = []
+    cm = {}
+    for datestr in mu:
+        add_a = False
+        add_b = False
+        if mu[datestr]['A']['ACOLITE'] and mu[datestr]['A']['C2RCC']:
+            list_dates.append(datestr)
+            list_sat.append('A')
+            add_a = True
+        if mu[datestr]['B']['ACOLITE'] and mu[datestr]['B']['C2RCC']:
+            list_dates.append(datestr)
+            list_sat.append('B')
+            add_b = True
+        if sat is not None:
+            if datestr not in cm.keys():
+                # print('llega aqui')
+                cm[datestr] = {
+                    'A': False,
+                    'B': False
+                }
+            if add_a:
+                cm[datestr]['A'] = True
+            if add_b:
+                cm[datestr]['B'] = True
+            # print(cm[datestr]['A'])
+            # print('-------------------')
+
+    return list_dates, list_sat, cm
+
+
+def getting_common_satellite_id(file_in, cm):
+    from netCDF4 import Dataset
+    import numpy as np
+    from datetime import datetime as dt
+    from datetime import timedelta
+    dataset = Dataset(file_in)
+    sat_time = np.array(dataset.variables['satellite_time'][:])
+    satellite = np.array(dataset.variables['flag_satellite'][:])
+    valid = np.array(dataset.variables['mu_valid'][:])
+    nsat = sat_time.shape[0]
+    indices = []
+    indices_valid = [False] * nsat
+    used = {}
+
+
+    for idx in range(nsat):
+        if not valid[idx]:
+            continue
+        time = sat_time[idx]
+        time_here = dt(1970, 1, 1) + timedelta(seconds=int(time))
+        time_here_str = time_here.strftime('%Y%m%d')
+        if time_here_str not in cm.keys():
+            continue
+        if time_here_str not in used.keys():
+            used[time_here_str] = {
+                'A': 0,
+                'B': 0
+            }
+
+        sat = 'A'
+        if satellite[idx] == 2:
+            sat = 'B'
+
+        if cm[time_here_str][sat] and used[time_here_str][sat]<2:
+            indices.append(idx)
+            indices_valid[idx] =  True
+            used[time_here_str][sat] = used[time_here_str][sat]+1
+
+    print(len(indices))
+
+    indices_mu = np.array(dataset.variables['mu_satellite_id'][:])
+    nmu = indices_mu.shape[0]
+    indices_mu_common = []
+    indices_mu_common_valid = [False] * nmu
+    for idx in range(nmu):
+        index_here = indices_mu[idx]
+        if indices_valid[index_here]:
+            indices_mu_common.append(idx)
+            indices_mu_common_valid[idx] = True
+
+
+    return np.array(indices_valid,dtype=bool),np.array(indices_mu_common_valid,dtype=bool)
 
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):
@@ -326,14 +563,72 @@ def main():
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
-        fconfig = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/config_qc.ini'
-        import configparser
-        from QC_OPTIONS import QC_OPTIONS
-        # from QC_SAT import  QC_SAT
-        options = configparser.ConfigParser()
-        options.read(fconfig)
-        qco = QC_OPTIONS(options)
-        qco.getting_qcsat(None)
+        # fconfig = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/config_qc.ini'
+        # import configparser
+        # from QC_OPTIONS import QC_OPTIONS
+        # # from QC_SAT import  QC_SAT
+        # options = configparser.ConfigParser()
+        # options.read(fconfig)
+        # qco = QC_OPTIONS(options)
+        # qco.getting_qcsat(None)
+
+        # dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/LPAR'
+        # dir_deprecated = os.path.join(dir_base,'DEPRECATED')
+        # for name in os.listdir(dir_deprecated):
+        #     if name.startswith('MDB_'):
+        #         file_in = os.path.join(dir_deprecated,name)
+        #         file_out = os.path.join(dir_base,name)
+        #         print(file_in,'-->',file_out)
+        #         reader = MDB_READER(file_in, True)
+        #         creating_copy_correcting_band(reader, file_out)
+
+        # dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/ACOLITE_11BANDS'
+        # dir_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/ALLr'
+        # for name in os.listdir(dir_base):
+        #     file_in = os.path.join(dir_base, name)
+        #     file_out = os.path.join(dir_out,name)
+        #     print(file_in,'-->',file_out)
+        #     reader = MDB_READER(file_in, True)
+        #     creating_copy_with_eight_bands(reader,file_out)
+
+        # name_a = 'MDB_S2A_MSI_20M_ACOLITE_20220101T000000_20230313T235959_HYPSTAR_VEIT.nc'
+        # file_a = os.path.join(dir_base, 'DEPRECATED', name_a)
+        # file_ao = os.path.join(dir_base,name_a)
+        # reader = MDB_READER(file_a, True)
+        # creating_copy_correcting_band(reader,file_ao)
+        #
+        # name_b = 'MDB_S2B_MSI_20M_ACOLITE_20220101T000000_20230313T235959_HYPSTAR_VEIT.nc'
+        # file_b = os.path.join(dir_base, 'DEPRECATED',name_b)
+        # file_bo = os.path.join(dir_base, name_b)
+        # reader = MDB_READER(file_b, True)
+        # creating_copy_correcting_band(reader, file_bo)
+
+        list_dates, list_sat, cm = getting_common_matchups()
+        na = 0
+        nb = 0
+        for datestr in cm:
+            if cm[datestr]['A']:
+                na = na + 1
+            if cm[datestr]['B']:
+                nb = nb + 1
+        ncommon = na + nb
+        print(na, nb, ncommon)
+
+        dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI'
+        file_in = os.path.join(dir_base, 'CONTATENATED_WITHOUT_COMMON_MATCHUPS','MDBrc_ALL.nc')
+        file_out = os.path.join(dir_base,'MRDrc_ALL.nc')
+        indices, indices_mu = getting_common_satellite_id(file_in, cm)
+
+
+        import numpy as np
+        print(np.sum(indices))
+        # print(np.sum(indices_mu))
+        reader = MDB_READER(file_in, True)
+        creating_copy_with_valid_indices(reader,file_out,indices)
+
+
+
+        return
 
     ##REMOVE REPETEADED SATELLITE ID FROM SINGLE MDF FILES
     if args.input_path and mode == 'REMOVEREP':
@@ -384,6 +679,8 @@ def main():
                 return
             if not reader.mfile.qc_insitu.apply_nir_correction:
                 reader.mfile.qc_insitu.insitu_rrs = reader.mfile.variables['insitu_Rrs_nosc']
+                if args.verbose:
+                    print('[INFO] NIR Correction is not applied. Using insitu_Rrs_nosc as input variable')
 
         else:
             reader.set_defaults_olci_wfr_hypstar()
@@ -456,35 +753,183 @@ def main():
         options = configparser.ConfigParser()
         options.read(config_file)
         # print(mplot.VALID)
-        mplot.plot_from_options(options)
+        #mplot.plot_from_options(options)
 
-        #path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS'
+        # path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS'
+        # from PlotMultiple import PlotMultiple
+        # file_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS/'
 
-        #mplot.mrfile.save_wl_images(path_img)
-        #mplot.mrfile.save_rgb_images(path_img)
+        path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS'
+        from PlotMultiple import PlotMultiple
+        file_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS/'
 
+        # mplot.mrfile.save_wl_images(path_img)
+        # mplot.mrfile.save_rgb_images(path_img)
 
         ##FLAG ANALYSIS
-        #mplot.mrfile.window_size = 3
-        #flag_l = 'LAND,COASTLINE,CLOUD,CLOUD_AMBIGUOUS,CLOUD_MARGIN,INVALID,COSMETIC,SATURATED,SUSPECT,HISOLZEN,HIGHGLINT,SNOW_ICE,AC_FAIL,WHITECAPS,RWNEG_O2,RWNEG_O3,RWNEG_O4,RWNEG_O5,RWNEG_O6,RWNEG_O7,RWNEG_O8'
-        #flag_list = flag_l.split(',')
-        # flag_list = ['CLOUD']
-        #flag_info = mplot.mrfile.analyze_sat_flags('satellite_WQSF',flag_list)
-        #for flag in flag_info:
+        # mplot.mrfile.window_size = 3
+        # flag_l = 'LAND,COASTLINE,CLOUD,CLOUD_AMBIGUOUS,CLOUD_MARGIN,INVALID,COSMETIC,SATURATED,SUSPECT,HISOLZEN,HIGHGLINT,SNOW_ICE,AC_FAIL,WHITECAPS,RWNEG_O2,RWNEG_O3,RWNEG_O4,RWNEG_O5,RWNEG_O6,RWNEG_O7,RWNEG_O8'
+        # #flag_l = 'IDEPIX_INVALID, IDEPIX_CLOUD, IDEPIX_CLOUD_AMBIGUOUS, IDEPIX_CLOUD_SURE, IDEPIX_CLOUD_BUFFER, IDEPIX_CLOUD_SHADOW, IDEPIX_SNOW_ICE, IDEPIX_BRIGHT, IDEPIX_WHITE, IDEPIX_COASTLINE, IDEPIX_LAND, IDEPIX_CIRRUS_SURE, IDEPIX_CIRRUS_AMBIGUOUS, IDEPIX_CLEAR_LAND, IDEPIX_BRIGHTWHITE, IDEPIX_VEG_RISK, IDEPIX_MOUNTAIN_SHADOW, IDEPIX_POTENTIAL_SHADOW, IDEPIX_CLUSTERED_CLOUD_SHADOW'
+        # flag_list = [x.strip() for x in flag_l.split(',')]
+        # #flag_list = ['CLOUD']
+        # flag_info = mplot.mrfile.analyze_sat_flags('satellite_WQSF',flag_list)
+        # for flag in flag_info:
         #    print(flag,flag_info[flag]['nmacrow'],flag_info[flag]['pmacrow'])
-        #file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/FlagTotalGait.jpg'
-        #mplot.plot_flag(flag_info,file_out)
-        #file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/WaterGAIT.jpg'
-        #mplot.plot_flag_array(flag_info,'CLOUD',file_out)
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS/FlagTotal.jpg'
+        # #file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS/FlagTotal.jpg'
+        # mplot.plot_flag(flag_info,file_out)
+        # # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/Water.jpg'
+        # # mplot.plot_flag_array(flag_info,'CLOUD',file_out)
 
         # MU ANALYSIS
-        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/MUALL_SITE.jpg'
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS/MUALL_SITE.jpg'
         # mplot.mrfile.analyse_mu_temporal_flag(False,'flag_site',file_out)
-
-        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/MUVALID_SITE.jpg'
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS/MUVALID_SITE.jpg'
         # mplot.mrfile.analyse_mu_temporal_flag(True, 'flag_site',file_out)
-        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/MUVALID_SITE.jpg'
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS/MUVALID_SITE_PORC.jpg'
         # mplot.mrfile.analyse_mu_flag('flag_site',file_out)
+
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS/MUALL_SITE.jpg'
+        # mplot.mrfile.analyse_mu_temporal_flag(False,'flag_site',file_out)
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS/MUVALID_SITE.jpg'
+        # mplot.mrfile.analyse_mu_temporal_flag(True, 'flag_site',file_out)
+        # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS/MUVALID_SITE_PORC.jpg'
+        # mplot.mrfile.analyse_mu_flag('flag_site',file_out)
+
+        # Coverage
+        # file00 = os.path.join(file_base,'MUALL_SITE.jpg')
+        # file10 = os.path.join(file_base,'MUVALID_SITE.jpg')
+        # file_out = os.path.join(file_base,'MUDistribution.jpg')
+        # pm = PlotMultiple()
+        # pm.start_multiple_plot(2,1)
+        # pm.plot_image(file00,0,0)
+        # pm.plot_image(file10, 1, 0)
+        # pm.set_text('a',1850,-50)
+        # pm.set_text('b', 1850, 1400)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
+
+        # PorcValidSiteFlag.jpg
+        # file00 = os.path.join(file_base,'MUVALID_SITE_PORC.jpg')
+        # file01 = os.path.join(file_base,'FlagTotal.jpg')
+        # file_out = os.path.join(file_base,'PorcValidSiteFlag.jpg')
+        # pm = PlotMultiple()
+        # pm.start_multiple_plot(1,2)
+        # pm.plot_image(file00,0,0)
+        # pm.plot_image(file01, 0, 1)
+        # pm.set_text('a',-50,1400)
+        # pm.set_text('b', 1850, 1400)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
+
+        # scatterplots
+        # file00 = os.path.join(file_base,'OVERAL_SCATTERPLOT_ACOLITE.jpg')
+        # file10 = os.path.join(file_base,'OVERAL_SCATTERPLOT_C2RCC.jpg')
+        # file_out = os.path.join(file_base,'OverallScatterplot.jpg')
+        # pm = PlotMultiple()
+        # pm.start_multiple_plot(2,1)
+        # pm.plot_image(file00,0,0)
+        # pm.plot_image(file10, 1, 0)
+        # pm.set_text('ACOLITE', 800, -1350)
+        # pm.set_text('C2RCC',800,100)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
+
+        # stats site
+        # file00 = os.path.join(file_base, 'PLOT_STAT_flag_site_RMSD.jpg')
+        # file10 = os.path.join(file_base, 'PLOT_STAT_flag_site_DETER(r2).jpg')
+        # file20 = os.path.join(file_base, 'PLOT_STAT_flag_site_BIAS.jpg')
+        # file_out = os.path.join(file_base, 'StatsByWL.jpg')
+        # pm = PlotMultiple()
+        # pm.start_multiple_plot(3, 1)
+        # pm.plot_image(file00, 0, 0)
+        # pm.plot_image(file10, 1, 0)
+        # pm.plot_image(file20, 2, 0)
+        # pm.set_text('a',1800,-1475)
+        # pm.set_text('b', 1800, -50)
+        # pm.set_text('c', 1800, 1400)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
+
+        # stats ac
+        # file00 = os.path.join(file_base,'PLOT_STAT_flag_ac_RMSD.jpg')
+        # file10 = os.path.join(file_base,'PLOT_STAT_flag_ac_DETER(r2).jpg')
+        # file20 = os.path.join(file_base, 'PLOT_STAT_flag_ac_BIAS.jpg')
+        # file_out = os.path.join(file_base,'StatsByWL.jpg')
+        # pm = PlotMultiple()
+        # pm.start_multiple_plot(3,1)
+        # pm.plot_image(file00,0,0)
+        # pm.plot_image(file10, 1, 0)
+        # pm.plot_image(file20, 2, 0)
+        # pm.set_text('a',1800,-1475)
+        # pm.set_text('b', 1800, -50)
+        # pm.set_text('c', 1800, 1400)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
+
+        # sites
+        # file00 = os.path.join(file_base,'PLOT_SAT_INS_COMPARISON_VEIT.jpg')
+        # file01 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_BEFR.jpg')
+        # file10 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_LPAR.jpg')
+        # file11 = os.path.join(file_base,'PLOT_SAT_INS_COMPARISON_MAFR.jpg')
+        # file20 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_GAIT.jpg')
+        # file21 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_M1BE.jpg')
+        # file_out = os.path.join(file_base,'PLOT_SAT_INS_COMPARISON.jpg')
+        # pm = PlotMultiple()
+        # pm.start_multiple_plot(3,2)
+        # pm.plot_image(file00, 0, 0)
+        # pm.plot_image(file01, 0, 1)
+        # pm.plot_image(file10, 1, 0)
+        # pm.plot_image(file11, 1, 1)
+        # pm.plot_image(file20, 2, 0)
+        # pm.plot_image(file21, 2, 1)
+        # pm.set_text('VEIT',-200,-1475)
+        # pm.set_text('BEFR', 1700, -1475)
+        # pm.set_text('LPAR', -200,-45)
+        # pm.set_text('MAFR', 1700, -45)
+        # pm.set_text('GAIT', -200, 1380)
+        # pm.set_text('M1BE', 1700, 1380)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
+
+        # comparison ab
+        # file00 = os.path.join(file_base, 'OVERAL_SCATTERPLOT_SAT.jpg')
+        # file01 = os.path.join(file_base, 'PLOT_STAT_SAT_flag_satellite_BIAS.jpg')
+        # file10 = os.path.join(file_base, 'PLOT_STAT_SAT_flag_satellite_RMSD.jpg')
+        # file11 = os.path.join(file_base, 'PLOT_STAT_SAT_flag_satellite_DETER(r2).jpg')
+        # file_out = os.path.join(file_base, 'ComparisonAB.jpg')
+        # pm = PlotMultiple()
+        # pm.start_multiple_plot(2, 2)
+        # pm.plot_image(file00, 0, 0)
+        # pm.plot_image(file01, 0, 1)
+        # pm.plot_image(file10, 1, 0)
+        # pm.plot_image(file11, 1, 1)
+        # pm.set_text('a',-100,-50)
+        # pm.set_text('b', 1800, -50)
+        # pm.set_text('c', -100, 1375)
+        # pm.set_text('d', 1800, 1375)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
+
+        # comparison site
+        file00 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_VEIT_ACOLITE.jpg')
+        file01 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_VEIT_C2RCC.jpg')
+        file10 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_BEFR_ACOLITE.jpg')
+        file11 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_BEFR_C2RCC.jpg')
+        file_out = os.path.join(file_base, 'Sites_S2.jpg')
+        pm = PlotMultiple()
+        pm.start_multiple_plot(2, 2)
+        pm.plot_image(file00, 0, 0)
+        pm.plot_image(file01, 0, 1)
+        pm.plot_image(file10, 1, 0)
+        pm.plot_image(file11, 1, 1)
+        pm.set_text('a. VEIT ACOLITE',-400,-40)
+        pm.set_text('b. VEIT C2RCC', 1500, -40)
+        pm.set_text('c. BEFR ACOLITE', -400, 1385)
+        pm.set_text('d. BEFR C2RCC', 1500, 1385)
+        pm.save_fig(file_out)
+        pm.close_plot()
+
 
         # spectra, stats = mplot.mrfile.get_all_insitu_valid_spectra()
         # from PlotSpectra import PlotSpectra

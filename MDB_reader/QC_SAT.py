@@ -306,10 +306,16 @@ class QC_SAT:
 
     def compute_masks_and_check_roi(self, index_mu):
         land = self.compute_flag_masks(index_mu)
+
+
         self.compute_invalid_masks(index_mu)
+
+
         self.compute_th_masks(index_mu)
+
         self.NVP = self.NTP - np.sum(self.flag_mask)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
+
         # print(f'[INFO] Index mu: {index_mu}')
         # print(f'[INFO] Number total of pixels: {self.NTP}')
         # print(f'[INFO] Water pixels: {self.NTPW}')

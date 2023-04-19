@@ -149,7 +149,8 @@ class SAT_EXTRACTS_LIST:
         platform_here = None
         if 'satellite' in dataset.ncattrs() and 'platform' in dataset.ncattrs():
             platform_here = f'{dataset.satellite}{dataset.platform}'
-
+        if len(platform_here)==0:
+            platform_here = None
         if platform_here is None:
             print(f'[WARNING] Platform set to {platform_name} despite of not being defined in the extract file')
             return platform_name

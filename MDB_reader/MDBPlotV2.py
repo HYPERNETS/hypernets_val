@@ -91,16 +91,47 @@ class MDBPlot:
                 file_out_base = options_out['file_out']
                 title_base = options_out['title']
                 if options_out['selectBy'] is None:  # scatter plot global by wavelengh
-                    for wl in options_out['wl_values']:
-                        self.set_data_scatterplot(options_out['groupBy'], None, None, wl)
-                        options_out['file_out'] = self.get_file_out_name(file_out_base, wl, None)
-                        options_out['title'] = self.get_title(title_base, wl, None, None)
-                        self.plot_scatter_plot(options_out)
+                    if options_out['multiple_plot'] is None:
+                        for wl in options_out['wl_values']:
+                            self.set_data_scatterplot(options_out['groupBy'], None, None, wl)
+                            options_out['file_out'] = self.get_file_out_name(file_out_base, wl, None)
+                            options_out['title'] = self.get_title(title_base, wl, None, None)
+                            self.plot_scatter_plot(options_out, None, -1, wl)
+                    else:
+                        rc = options_out['multiple_plot'].split(',')
+                        nrow = int(rc[0].strip())
+                        ncol = int(rc[1].strip())
+                        ntot = nrow * ncol
+                        index = 0
+                        from PlotScatter import PlotScatter
+                        plot_here = PlotScatter()
+                        plot_here.xtitle_options['fontsize'] = options_out['fontsize']
+                        plot_here.ytitle_options['fontsize'] = options_out['fontsize']
+                        plot_here.plot_text_options['fontsize'] = options_out['fontsize']
+                        plot_here.start_multiple_plot(nrow,ncol)
+                        print(f'[INFO] Starting multiple plot with {nrow} rows and {ncol} cols')
+                        print(options_out['wl_values'])
+                        for wl in options_out['wl_values']:
+                            self.set_data_scatterplot(options_out['groupBy'], None, None, wl)
+                            options_out['title'] = self.get_title(title_base, wl, None, None)
+                            options_out['file_out'] = None
+                            self.plot_scatter_plot(options_out,plot_here,index,wl)
+                            index = index +1
+                        for index_blank in range(index,ntot):
+                            plot_here.plot_blanck(index_blank)
+                        if options_out['legend']:
+                            str_legend = self.get_str_legend(options_out)
+                            if len(str_legend) > 0:
+                                plot_here.set_global_legend(str_legend)
+                        file_out = self.get_file_out_name(file_out_base,None,None)
+                        plot_here.save_fig(file_out)
+                        plot_here.close_plot()
+
 
             if not options_out['selectByWavelength'] and options_out['selectBy'] is None:
                 # print('me llega aqui...')
                 self.set_data_scatterplot(options_out['groupBy'], None, None, None)
-                self.plot_scatter_plot(options_out)
+                self.plot_scatter_plot(options_out,None,-1,-1)
 
         if options_out['type'] == 'statstable_wl':
             self.create_table_stats_wl(options_out)
@@ -108,6 +139,7 @@ class MDBPlot:
         if options_out['type'] == 'statstable':
             self.create_table_stats(options_out, None)
             for wl in options_out['wl_values']:
+                print('wl-->',wl)
                 self.create_table_stats(options_out, wl)
 
         if options_out['type'] == 'statswlplot':
@@ -230,12 +262,17 @@ class MDBPlot:
         rrs_sat = np.array(self.mrfile.nc.variables['mu_sat_rrs'])
         id_all = np.array(self.mrfile.nc.variables['mu_satellite_id'])
         mu_valid = np.array(self.mrfile.nc.variables['mu_valid'])
+        #print('MVALID: ',np.sum(mu_valid))
 
         valid_all = self.get_array_all_from_arraymu(id_all, mu_valid)
 
         if wl_value is not None:
             wl_array = np.array(self.mrfile.nc.variables['mu_wavelength'])
             valid_all[wl_array != wl_value] = 0
+        wl_array = np.array(self.mrfile.nc.variables['mu_wavelength'])
+        valid_all[wl_array==832.8] = 0
+        valid_all[wl_array==1613.7] =0
+        valid_all[wl_array == 2202.4] = 0
 
         if selectBy is not None and valSelect is not None:
             select_array = np.array(self.mrfile.nc.variables[selectBy])
@@ -260,8 +297,24 @@ class MDBPlot:
             array_out[id_all_array == id] = mu_array[id]
         return array_out
 
+    def get_str_legend(self,options):
+        str_legend = []
+        ngroup = 1
+        groupValues = options['groupValues']
+        if len(self.groupdata) > 0 and groupValues is not None:
+            ngroup = len(groupValues)
+            if ngroup > 1:
+                if options['groupType'] == 'float':
+                    for g in groupValues:
+                        str_legend.append(f'{g:.2f}')
+                if options['groupType'] == 'flag':
+                    flag_name = options['groupBy']
+                    str_legend = self.get_flag_list(groupValues, options[flag_name]['flag_values'],
+                                                    options[flag_name]['flag_meanings'])
+        return str_legend
+
     # MAIN FUNCTION TO PLOT SCATTERPLOT
-    def plot_scatter_plot(self, options):
+    def plot_scatter_plot(self, options, plot, index, wl):
 
         if options['include_stats']:
             self.compute_statistics()
@@ -280,11 +333,15 @@ class MDBPlot:
                     str_legend = self.get_flag_list(groupValues, options[flag_name]['flag_values'],
                                                     options[flag_name]['flag_meanings'])
 
-        from PlotScatter import PlotScatter
+
         from scipy.stats import gaussian_kde
-        plot = PlotScatter()
-        plot.close_plot()
-        plot.start_plot()
+        if plot is None and index==-1:
+            from PlotScatter import PlotScatter
+            plot = PlotScatter()
+            plot.close_plot()
+            plot.start_plot()
+        if plot is not None and index>=0:
+            plot.set_axhere_index(index)
 
         if options['scale_factor'] is not None:
             self.xdata = self.xdata * options['scale_factor']
@@ -302,6 +359,7 @@ class MDBPlot:
                 xhere = self.xdata[self.groupdata == g]
                 yhere = self.ydata[self.groupdata == g]
                 # None, None, color, 'gray', 1.5
+
                 plot.plot_data(xhere, yhere, options['marker'], options['markersize'], color, options['edgecolor'],
                                options['linewidth'])
         else:  # density scatter plot
@@ -344,25 +402,44 @@ class MDBPlot:
                 max_xy = options['max_xy']
 
         plot.set_limits(min_xy, max_xy)
-        plot.set_xaxis_title(options['xlabel'])
-        plot.set_yaxis_title(options['ylabel'])
+        if index==-1 or plot.index_row==plot.nrow-1:
+            plot.set_xaxis_title(options['xlabel'])
+            if options['ticks'] is not None:
+                plot.set_ticks(options['ticks'], options['fontsize'])
+                added_ticks = True
+        if index==-1 or plot.index_col==0:
+            plot.set_yaxis_title(options['ylabel'])
+            if options['ticks'] is not None:
+                plot.set_ticks(options['ticks'], options['fontsize'])
+        if index>=0 and plot.index_col>0:
+            plot.set_yticks_labels_off(options['ticks'])
+        if index>=0 and plot.index_row<(plot.nrow-1):
+            plot.set_xticks_labels_off(options['ticks'])
         plot.set_equal_apect()
-        if options['legend'] and len(str_legend) > 0:
+
+        if options['legend'] and len(str_legend) > 0 and index==-1:
             plot.set_legend(str_legend)
         if options['identity_line']:
             plot.plot_identity_line()
 
         if options['include_stats']:
             if options['type_scatterplot'] == 'rrs':
-                str0 = 'N={:d}\nRMSD={:,.1e} UNITS\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.1e} UNITS' \
-                    .format(self.valid_stats['N'],
-                            self.valid_stats['RMSD'],
-                            self.valid_stats['RPD'],
-                            self.valid_stats['APD'],
-                            self.valid_stats['DETER(r2)'],
-                            self.valid_stats['BIAS'])
-                str0 = str0.replace('UNITS', options['units'])
-                plot.plot_text(0.05, 0.70, str0)
+                if index==-1:
+                    str0 = 'N={:d}\nRMSD={:,.1e} UNITS\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.1e} UNITS' \
+                        .format(self.valid_stats['N'],
+                                self.valid_stats['RMSD'],
+                                self.valid_stats['RPD'],
+                                self.valid_stats['APD'],
+                                self.valid_stats['DETER(r2)'],
+                                self.valid_stats['BIAS'])
+                    str0 = str0.replace('UNITS', options['units'])
+                    plot.plot_text(0.05, 0.70, str0)
+                if index>=0:
+                    bias = self.valid_stats['BIAS']
+                    r2 = self.valid_stats['DETER(r2)']
+                    rmsd = self.valid_stats['RMSD']
+                    str0 = f'{wl:.2f} nm\nbias={bias:.1e}\nr\u00b2={r2:.2f}'
+                    plot.plot_text(0.05, 0.70, str0)
         #     if self.units.startswith('mg'):  # chla
         #         str0 = 'N={:d}\nRMSD={:,.2f} UNITS\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.2f} UNITS' \
         #             .format(self.valid_stats['N'],
@@ -399,6 +476,8 @@ class MDBPlot:
         if not options['file_out'] is None:
             plot.save_fig(options['file_out'])
             plot.close_plot()
+
+
 
     def plot_statistics_bywl(self, options_out):
         params = options_out['params']  # self.valid_stats.keys()
@@ -455,6 +534,7 @@ class MDBPlot:
             plot.set_yaxis_title(param)
             plot.set_xticks(xdata_plot, wl_col, 90, 8)
             plot.set_grid()
+
             plot.set_title(self.get_title(options_out['title'], None, None, param))
             if len(legend) > 0:
                 plot.set_legend(legend)
@@ -840,6 +920,9 @@ class MDBPlot:
         flag_name = options_out['selectBy']
         flag_list = []
         if flag_name is not None and options_out['selectType'] == 'flag':
+            # print(options_out['selectValues'])
+            # print(options_out[flag_name]['flag_values'])
+            # print(options_out[flag_name]['flag_meanings'])
             flag_list = self.get_flag_list(options_out['selectValues'], options_out[flag_name]['flag_values'],
                                            options_out[flag_name]['flag_meanings'])
             flags = flags + flag_list
@@ -874,6 +957,7 @@ class MDBPlot:
         if options_out['type'] is None:
             return options_out
         options_out['name'] = section
+        options_out['multiple_plot'] = self.get_value_param(options,section,'multiple_plot',None,'str')
         if options_out['type'] == 'scatterplot':
             options_out = self.get_group_options(options, section, options_out)
             options_out = self.get_select_options(options, section, options_out)
@@ -907,8 +991,20 @@ class MDBPlot:
                         'flag_values': flag_values,
                         'flag_meanings': flag_meanings
                     }
-                    options_out['groupValues'] = self.get_value_param(options, section, 'groupValues', flag_values,
-                                                                      'intlist')
+                    #options_out['groupValues'] = self.get_value_param(options, section, 'groupValues', flag_values,'intlist')
+                    flag_list_config = self.get_value_param(options, section, 'groupValues', None, 'strlist')
+                    if flag_list_config is None:
+                        print(flag_values)
+                        options_out['groupValues'] = flag_values
+                    else:
+                        flag_values_config = []
+                        for flag_config in flag_list_config:
+                            try:
+                                iflag = flag_meanings.index(flag_config.strip())
+                                flag_values_config.append(flag_values[iflag])
+                            except:
+                                print(f'[WARNING] Flag {flag_config.strip()} is not in the list')
+                        options_out['groupValues'] = flag_values_config
                     options_out['groupType'] = 'flag'
                 if options_out['groupType'] == 'float':
                     group_values = list(np.unique(np.array(self.mrfile.nc.variables[var_name])))
@@ -934,12 +1030,26 @@ class MDBPlot:
                 flag_values = self.mrfile.nc.variables[var_name].flag_values
                 flag_meanings_list = self.mrfile.nc.variables[var_name].flag_meanings.split(' ')
                 flag_meanings = [x.strip() for x in flag_meanings_list]
+
                 options_out[var_name] = {
                     'flag_values': flag_values,
                     'flag_meanings': flag_meanings
                 }
-                options_out['selectValues'] = self.get_value_param(options, section, 'selectValues', flag_values,
-                                                                   'intlist')
+                flag_list_config = self.get_value_param(options, section, 'selectValues', None, 'strlist')
+                if flag_list_config is None:
+                    print('y aqui deberia llegar')
+                    options_out['selectValues'] = flag_values
+                else:
+                    flag_values_config = []
+                    for flag_config in flag_list_config:
+                        try:
+                            iflag = flag_meanings.index(flag_config.strip())
+                            flag_values_config.append(flag_values[iflag])
+                        except:
+                            print(f'[WARNING] Flag {flag_config.strip()} is not in the list')
+                    options_out['selectValues'] = flag_values_config
+                #options_out['selectValues'] = self.get_value_param(options, section, 'selectValues', flag_values,'intlist')
+
                 options_out['selectType'] = 'flag'
             if options_out['selectType'] == 'float':
                 group_values = list(np.unique(np.array(self.mrfile.nc.variables[var_name])))
@@ -962,6 +1072,8 @@ class MDBPlot:
         options_out['log_scale'] = self.get_value_param(options, section, 'log_scale', False, 'boolean')
         options_out['min_xy'] = self.get_value_param(options, section, 'min_xy', None, 'float')
         options_out['max_xy'] = self.get_value_param(options, section, 'max_xy', None, 'float')
+        options_out['ticks'] = self.get_value_param(options, section, 'ticks', None, 'floatlist')
+        options_out['fontsize'] = self.get_value_param(options, section, 'fontsize', 12, 'float')
         sfdefault = None
         unitsdefault = None
         if options_out['type_scatterplot'] == 'rrs':
@@ -993,6 +1105,8 @@ class MDBPlot:
 
         options_out['edgecolor'] = self.get_value_param(options, section, 'edgecolor', edgeColorDefault, 'str')
         options_out['linewidth'] = self.get_value_param(options, section, 'linewidth', lineWidthDefault, 'float')
+
+
 
         return options_out
 
@@ -1209,6 +1323,8 @@ class MDBPlot:
 
         # the mean of relative (signed) percent differences
         rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)
+        #rel_diff[rel_diff>500] = rel_diff[rel_diff>500]/10
+
         self.valid_stats['RPD'] = np.mean(rel_diff)
 
         #  the mean of absolute (unsigned) percent differences
