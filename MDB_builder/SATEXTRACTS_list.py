@@ -36,6 +36,7 @@ class SAT_EXTRACTS_LIST:
                 print(f'[WARNING] Extract {name} is not a valid NetCDF file. Skipping...')
                 continue
             time_here = self.check_time(name, dataset, start_date, end_date)
+
             if time_here is None:
                 dataset.close()
                 continue
@@ -77,6 +78,8 @@ class SAT_EXTRACTS_LIST:
 
     def check_time(self, fname, dataset, start_date, end_date):
         datetime_here = dt.utcfromtimestamp(float(dataset.variables['satellite_time'][0]))
+        if datetime_here.hour==0 and datetime_here.minute==0 and datetime_here.second==0:
+            datetime_here = datetime_here.replace(hour=11)
         try:
             datetime_here_name = dt.strptime(fname.split('_')[7], '%Y%m%dT%H%M%S')
             if datetime_here_name > datetime_here:
