@@ -133,7 +133,8 @@ class SAT_EXTRACTS_LIST:
                 # ac_here = ac_here.split(':')[1].strip().upper()
                 # if ac_here.startswith('X'):
                 #     ac_here = 'STANDARD'
-
+        if len(ac_here)==0:
+            ac_here = None
         if ac_here is None:
             print(f'[WARNING] Atmospheric correction set to {ac_name.upper()} despite of not being defined in the extract file')
             return ac_name.upper()
