@@ -1777,6 +1777,7 @@ def main():
             if args.verbose:
                 print('-----------------')
             path_to_sat_source = line[:-1]
+            iszipped = False
             if path_to_sat_source.endswith('.zip'):
                 if not tmp_path is None and os.path.exists(tmp_path):
                     cmd = f'unzip -o {path_to_sat_source} -d {tmp_path}'
@@ -1788,6 +1789,7 @@ def main():
                     path_to_sat_source = os.path.join(tmp_path, namesat[0:namesat.find('.zip')])
                     if not os.path.exists(path_to_sat_source):
                         continue
+                    iszipped = True
                 else:
                     continue
             # extract date time info
@@ -1802,7 +1804,7 @@ def main():
 
             if datetime_start <= satellite_datetime <= datetime_end:
                 launch_create_extract(in_situ_sites, size_box, path_to_sat_source, res_str, make_brdf)
-                if day_of_year != day_ref and not tmp_path is None:
+                if day_of_year != day_ref and not tmp_path is None and iszipped:
                     if day_ref != -1:
                         print('Deleting temporary files...')
                         tmp_path_del = os.path.join(tmp_path, '*')

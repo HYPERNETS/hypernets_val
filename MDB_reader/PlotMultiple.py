@@ -21,8 +21,8 @@ class PlotMultiple():
 
         #self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(15.9, 18), frameon=False,gridspec_kw={'wspace': 0, 'hspace': 0})
 
+        #self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(16, 12), frameon=False,gridspec_kw={'wspace': 0, 'hspace': 0})
         self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(16, 12), frameon=False,gridspec_kw={'wspace': 0, 'hspace': 0})
-
         # self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(8, 6), frameon=False,
         #                                  gridspec_kw={'wspace': 0, 'hspace': 0})
     def set_text(self, str_text, x, y):

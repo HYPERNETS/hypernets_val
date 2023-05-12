@@ -58,7 +58,10 @@ class MDBFile:
             print('[INFO] Total mu: ', self.n_mu_total)
             self.sat_times = []
             for st in self.variables['satellite_time']:
-                self.sat_times.append(datetime.fromtimestamp(float(st)))
+                sat_time_here = datetime.utcfromtimestamp(float(st))
+                if sat_time_here.hour==0 and sat_time_here.minute==0 and sat_time_here.second==0:
+                    sat_time_here = sat_time_here.replace(hour=11)
+                self.sat_times.append(sat_time_here)
             self.start_date = self.sat_times[0]
             self.end_date = self.sat_times[-1]
             self.insitu_bands = self.nc.variables['insitu_original_bands'][:]  # insitu_bands(insitu_bands)
@@ -103,10 +106,11 @@ class MDBFile:
         self.qc_insitu.time_max = self.delta_t
         self.qc_insitu.set_wllist_using_wlref(self.wlref)
 
+
         if self.nc.satellite_aco_processor == 'ACOLITE' or self.nc.satellite_aco_processor == 'Climate Change Initiative - European Space Agency':
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                  self.info['satellite_aco_processor'])
-        elif len(self.nc.satellite_aco_processor) == 0:
+        elif len(self.nc.satellite_aco_processor) == 0 or self.nc.satellite_aco_processor=='CMEMS':
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                  'Climate Change Initiative - European Space Agency')
         else:
@@ -353,6 +357,7 @@ class MDBFile:
         time_difference = np.ma.copy(time_difference_prev)
         times_here = self.variables['insitu_time'][index_mu]
         sat_time_here = self.sat_times[index_mu]
+
         for idx in range(len(times_here)):
             itime = times_here[idx]
             if not np.ma.is_masked(itime) and not np.isnan(itime):
@@ -785,8 +790,8 @@ class MDBFile:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
-            #print(index_mu)
-            #print(info_mu)
+            # print(index_mu)
+            # print(info_mu)
             # print('------------')
 
             if mu_valid:

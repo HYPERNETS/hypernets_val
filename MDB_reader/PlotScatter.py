@@ -51,8 +51,8 @@ class PlotScatter():
     def start_multiple_plot(self,nrow,ncol):
         self.nrow = nrow
         self.ncol = ncol
-        self.fig, self.ax = plt.subplots(nrow, ncol,figsize=(7,7),gridspec_kw={'wspace':0.1,'hspace':0.1})
-        #self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(7, 4), gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
+        #self.fig, self.ax = plt.subplots(nrow, ncol,figsize=(7,7),gridspec_kw={'wspace':0.1,'hspace':0.1})
+        self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(7, 4), gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
 
     def close_plot(self):
         plt.close()
@@ -115,9 +115,10 @@ class PlotScatter():
         self.axhere.colorbar()
 
     def set_cmap(self, cmap):
-        if self.axhere is None:
-            self.set_axhere()
-        self.axhere.set_cmap(cmap)
+        plt.set_cmap(cmap)
+        # if self.axhere is None:
+        #     self.set_axhere()
+        # self.axhere.set_cmap(cmap)
 
     def set_equal_apect(self):
         if self.axhere is None:

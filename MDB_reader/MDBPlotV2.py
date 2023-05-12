@@ -129,7 +129,6 @@ class MDBPlot:
 
 
             if not options_out['selectByWavelength'] and options_out['selectBy'] is None:
-                # print('me llega aqui...')
                 self.set_data_scatterplot(options_out['groupBy'], None, None, None)
                 self.plot_scatter_plot(options_out,None,-1,-1)
 
@@ -363,7 +362,6 @@ class MDBPlot:
                 plot.plot_data(xhere, yhere, options['marker'], options['markersize'], color, options['edgecolor'],
                                options['linewidth'])
         else:  # density scatter plot
-
             xhere = np.asarray(self.xdata, dtype=np.float)
             yhere = np.asarray(self.ydata, dtype=np.float)
 
@@ -374,12 +372,13 @@ class MDBPlot:
                     z = gaussian_kde(xy)(xy)
                     idx = z.argsort()
                     xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
+                    plot.set_cmap('jet')
                     plot.plot_data(xhere, yhere, options['marker'], options['markersize'], z, options['edgecolor'],
                                    options['linewidth'])
-                    plot.set_cmap('jet')
+
                 except:
                     plot.plot_data(xhere, yhere, options['marker'], options['markersize'], options['color'],
-                                   options['edgecolor'], options['linewidth'])
+                                       options['edgecolor'], options['linewidth'])
 
             else:
                 plot.plot_data(xhere, yhere, options['marker'], options['markersize'], options['color'],
@@ -425,7 +424,7 @@ class MDBPlot:
         if options['include_stats']:
             if options['type_scatterplot'] == 'rrs':
                 if index==-1:
-                    str0 = 'N={:d}\nRMSD={:,.1e} UNITS\nAPD={:,.0f}%\nRPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.1e} UNITS' \
+                    str0 = 'N={:d}\nRMSD={:,.1e} UNITS\nRPD={:,.0f}%\nAPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.1e} UNITS' \
                         .format(self.valid_stats['N'],
                                 self.valid_stats['RMSD'],
                                 self.valid_stats['RPD'],

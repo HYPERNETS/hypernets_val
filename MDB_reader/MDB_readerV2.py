@@ -759,9 +759,13 @@ def main():
         # from PlotMultiple import PlotMultiple
         # file_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS/'
 
-        path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS'
+        # path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS'
+        # from PlotMultiple import PlotMultiple
+        # file_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS/'
+
+        path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/CMEMSMULTI/VEIT/PLOTS'
         from PlotMultiple import PlotMultiple
-        file_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS/'
+        file_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/CMEMSMULTI/VEIT/PLOTS'
 
         # mplot.mrfile.save_wl_images(path_img)
         # mplot.mrfile.save_rgb_images(path_img)
@@ -776,7 +780,7 @@ def main():
         # for flag in flag_info:
         #    print(flag,flag_info[flag]['nmacrow'],flag_info[flag]['pmacrow'])
         # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS/FlagTotal.jpg'
-        # #file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/PLOTS/FlagTotal.jpg'
+        # #file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/LOTS/FlagTotal.jpg'
         # mplot.plot_flag(flag_info,file_out)
         # # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/PLOTS/Water.jpg'
         # # mplot.plot_flag_array(flag_info,'CLOUD',file_out)
@@ -867,6 +871,23 @@ def main():
         # pm.save_fig(file_out)
         # pm.close_plot()
 
+        # stats gloal
+        file00 = os.path.join(file_base,'PLOT_STAT_GLOBAL_RMSD.jpg')
+        file10 = os.path.join(file_base,'PLOT_STAT_GLOBAL_DETER(r2).jpg')
+        file20 = os.path.join(file_base, 'PLOT_STAT_GLOBAL_BIAS.jpg')
+        file_out = os.path.join(file_base,'StatsByWL.jpg')
+        pm = PlotMultiple()
+        pm.start_multiple_plot(3,1)
+        pm.plot_image(file00,0,0)
+        pm.plot_image(file10, 1, 0)
+        pm.plot_image(file20, 2, 0)
+        pm.set_text('a',1800,-1475)
+        pm.set_text('b', 1800, -50)
+        pm.set_text('c', 1800, 1400)
+        pm.save_fig(file_out)
+        pm.close_plot()
+
+
         # sites
         # file00 = os.path.join(file_base,'PLOT_SAT_INS_COMPARISON_VEIT.jpg')
         # file01 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_BEFR.jpg')
@@ -912,23 +933,23 @@ def main():
         # pm.close_plot()
 
         # comparison site
-        file00 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_VEIT_ACOLITE.jpg')
-        file01 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_VEIT_C2RCC.jpg')
-        file10 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_BEFR_ACOLITE.jpg')
-        file11 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_BEFR_C2RCC.jpg')
-        file_out = os.path.join(file_base, 'Sites_S2.jpg')
-        pm = PlotMultiple()
-        pm.start_multiple_plot(2, 2)
-        pm.plot_image(file00, 0, 0)
-        pm.plot_image(file01, 0, 1)
-        pm.plot_image(file10, 1, 0)
-        pm.plot_image(file11, 1, 1)
-        pm.set_text('a. VEIT ACOLITE',-400,-40)
-        pm.set_text('b. VEIT C2RCC', 1500, -40)
-        pm.set_text('c. BEFR ACOLITE', -400, 1385)
-        pm.set_text('d. BEFR C2RCC', 1500, 1385)
-        pm.save_fig(file_out)
-        pm.close_plot()
+        # file00 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_VEIT_ACOLITE.jpg')
+        # file01 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_VEIT_C2RCC.jpg')
+        # file10 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_BEFR_ACOLITE.jpg')
+        # file11 = os.path.join(file_base, 'PLOT_SAT_INS_COMPARISON_BEFR_C2RCC.jpg')
+        # file_out = os.path.join(file_base, 'Sites_S2.jpg')
+        # pm = PlotMultiple()
+        # pm.start_multiple_plot(2, 2)
+        # pm.plot_image(file00, 0, 0)
+        # pm.plot_image(file01, 0, 1)
+        # pm.plot_image(file10, 1, 0)
+        # pm.plot_image(file11, 1, 1)
+        # pm.set_text('a. VEIT ACOLITE',-400,-40)
+        # pm.set_text('b. VEIT C2RCC', 1500, -40)
+        # pm.set_text('c. BEFR ACOLITE', -400, 1385)
+        # pm.set_text('d. BEFR C2RCC', 1500, 1385)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
 
 
         # spectra, stats = mplot.mrfile.get_all_insitu_valid_spectra()
