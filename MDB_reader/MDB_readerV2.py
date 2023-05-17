@@ -149,6 +149,8 @@ class MDB_READER():
         new_var = new_MDB.createVariable('insitu_valid', 'i1', ('satellite_id', 'insitu_id'), zlib=True, complevel=6,
                                          fill_value=-1)
         for index_mu in range(self.mfile.n_mu_total):
+            if (index_mu%100)==0 and args.verbose:
+                print(f'[INFO] MU: {index_mu} of {self.mfile.n_mu_total}')
             validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
             new_var[index_mu] = validity_spectra[:]
 

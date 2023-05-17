@@ -19,7 +19,8 @@ class MDBBuilderOptions:
         self.insitu_type = None
         # insitu_sensors
         self.insitu_sensors = {
-            'HYPERNETS': 'HYPSTAR'
+            'HYPERNETS': 'HYPSTAR',
+            'AERONET': 'AERONET'
         }
         # insitu path source
         self.insitu_path_source = None
@@ -135,6 +136,25 @@ class MDBBuilderOptions:
             'insitu_lat': in_situ_lat,
             'insitu_lon': in_situ_lon
         }
+
+    #get in situ file  with the station name in the name file
+    def get_insitu_file(self,ext):
+        import os
+        if ext is None:
+            ext = 'nc'
+        if self.insitu_path_source is None:
+            return None
+        if not os.path.exists(self.insitu_path_source):
+            return None
+        if self.param_insitu is None:
+            return None
+        station_name = self.param_insitu['station_name']
+        file_insitu = None
+        for name in os.listdir(self.insitu_path_source):
+            if name.endswith(ext) and name.find(station_name)>0:
+                file_insitu = os.path.join(self.insitu_path_source,name)
+                break
+        return file_insitu
 
     def get_param_sat_extracts(self):
         sat_sensor = 'SENSOR'
@@ -325,3 +345,23 @@ class MDBBuilderOptions:
                             self.start_date = sday.replace(hour=0, minute=0, second=0, microsecond=0)
                         if eday < self.end_date:
                             self.end_date = eday.replace(hour=23, minute=59, second=59)
+
+    def get_wllist(self):
+        if self.options.has_option('Time_and_sites_selection','wllist'):
+            try:
+                wlliststr = self.options['Time_and_sites_selection']['wllist']
+                wllist = [float(x) for x in wlliststr.split(',')]
+                return wllist
+            except:
+                return None
+        return None
+
+    def get_maxwl_diff(self):
+        maxwldiff = 5
+        if self.options.has_option('Time_and_sites_selection','maxwldiff'):
+            try:
+                maxwldiff = float(self.options['Time_and_sites_selection']['maxwldiff'])
+            except:
+                pass
+        return maxwldiff
+

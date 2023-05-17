@@ -35,7 +35,7 @@ class QC_OPTIONS:
                               'keys': {'central_stat': 'str', 'dispersion_stat': 'str', 'factor': 'float'}
                               },
             'info_flag_X': {'valid': 0, 'value': None, 'type': 'dict',
-                            'keys': {'name': 'str', 'flag_list': 'str', 'flag_land': 'str', 'flag_inlandwater': 'str'}
+                            'keys': {'name': 'str', 'flag_list': 'str', 'flag_land': 'str', 'flag_inlandwater': 'str','ac_processor':'str'}
                             },
             'rrs_th_X': {'valid': 0, 'value': None, 'type': 'dict',
                          'keys': {'wl_min': 'float', 'wl_max': 'float', 'th_value': 'float', 'th_type': 'str'}
@@ -93,6 +93,7 @@ class QC_OPTIONS:
                 continue
             if option == 'wllist':
                 qc_sat.wl_ref = options_qcsat[option]['value']
+                qc_sat.update_invalid_mask()
                 print(f'[INFO] Set wavelength list: {qc_sat.wl_ref}')
             elif option == 'window_size':
                 qc_sat.window_size = options_qcsat[option]['value']
@@ -115,21 +116,42 @@ class QC_OPTIONS:
             elif option == 'info_flag_X':
 
                 list_vals = options_qcsat[option]['value']
+                if len(list_vals)>0:
+                    qc_sat.info_flag = {}
+                #print(':::::::::::::::::::::::::::::::::::::::::.')
+                #print(list_vals)
                 for val in list_vals:
                     name_var = val['name']
                     variable = None
                     if name_var in dataset.variables:
                         variable = dataset.variables[name_var]
-                    qc_sat.info_flag[val['name']] = {
+
+                    #print(name_var)
+                    #print(val['flag_list'])
+
+                    if val['flag_land']=='N/A':
+                        val['flag_land'] = None
+                    if val['flag_inlandwater']=='N/A':
+                        val['flag_inlandwater'] = None
+                    acp = qc_sat.ac_processor
+                    if val['ac_processor']!='N/A':
+                        acp = val['ac_processor']
+
+
+
+                    qc_sat.info_flag[name_var] = {
                         'variable': variable,
                         'flag_list': val['flag_list'],
                         'flag_land': val['flag_land'],
                         'flag_inlandwater': val['flag_inlandwater'],
-                        'ac_processor': qc_sat.ac_processor,
+                        'ac_processor': acp,
                         'nflagged': 0,
                         'flag_stats': None
                     }
-                    #print(f'[INFO] Flag band: {qc_sat.info_flag}')
+                for name_var in qc_sat.info_flag:
+                    print(f'[INFO] Flag band: {name_var}')
+                    flist = qc_sat.info_flag[name_var]['flag_list']
+                    print(f'[INFO] Flag list: {flist}')
             elif option == 'rrs_th_X':
                 list_vals = options_qcsat[option]['value']
                 for val in list_vals:
@@ -158,6 +180,8 @@ class QC_OPTIONS:
             'apply_band_shift': {'valid': 0, 'value': None, 'type': 'boolean'},
             'srf': {'valid': 0, 'value': None, 'type': 'str'},
             'apply_nir_correction': {'valid':0,'value':None,'type':'boolean'},
+            'check_indices_by_mu': {'valid':0,'value':None,'type':'boolean'},
+            'only_complete_spectra': {'valid':0,'value':None,'type':'boolean'},
             'filter_th_X': {'valid': 0, 'value': None, 'type': 'dict',
                             'keys': {'wlmin': 'float', 'wlmax': 'float', 'thmin': 'float', 'thmax': 'float'}
                             },
@@ -200,12 +224,22 @@ class QC_OPTIONS:
                 continue
             if option == 'time_diff_max':
                 qc_insitu.time_max = options_qc_insitu[option]['value'] * 60  ##in seconds
+                print(f'[INFO] Set maximum time difference to: {qc_insitu.time_max}')
             elif option == 'wl_diff_max':
                 qc_insitu.wl_diff_max = options_qc_insitu[option]['value']
+                print(f'[INFO] Set maximum wavelength difference  to: {qc_insitu.wl_diff_max}')
             elif option == 'apply_band_shift':
                 qc_insitu.apply_band_shift = options_qc_insitu[option]['value']
+                print(f'[INFO] Set apply_band_shift to: {qc_insitu.apply_band_shift}')
             elif option == 'apply_nir_correction':
                 qc_insitu.apply_nir_correction = options_qc_insitu[option]['value']
+                print(f'[INFO] Set apply_nir_correction to: {qc_insitu.apply_nir_correction}')
+            elif option == 'check_indices_by_mu':
+                qc_insitu.check_indices_by_mu = options_qc_insitu[option]['value']
+                print(f'[INFO] Set check_indices_by_mu to: {qc_insitu.check_indices_by_mu}')
+            elif option == 'only_complete_spectra':
+                qc_insitu.only_complete_spectra = options_qc_insitu[option]['value']
+                print(f'[INFO] Set only_complete_spectra  to: {qc_insitu.only_complete_spectra}')
             elif option == 'srf':
                 srffile = options_qc_insitu[option]['value']
                 if os.path.exists(srffile):
@@ -244,14 +278,21 @@ class QC_OPTIONS:
 
     def get_value_param_dict(self, section, key, default, keys_dict):
         value = {}
+        has_data = False
         for kd in keys_dict:
             key_here = f'{key}.{kd}'
             val_here = self.get_value_param(section, key_here, 'N/A', keys_dict[kd])
             if val_here is None:
                 return None
-            if val_here == 'N/A':
-                return default
+            # if val_here == 'N/A':
+            #     return default
+            if val_here != 'N/A':
+                has_data = True
             value[kd] = val_here
+
+        if not has_data:
+            return default
+
         return value
 
     def get_value_param_list(self, section, key, options):

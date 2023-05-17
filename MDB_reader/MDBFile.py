@@ -59,7 +59,7 @@ class MDBFile:
             self.sat_times = []
             for st in self.variables['satellite_time']:
                 sat_time_here = datetime.utcfromtimestamp(float(st))
-                if sat_time_here.hour==0 and sat_time_here.minute==0 and sat_time_here.second==0:
+                if sat_time_here.hour == 0 and sat_time_here.minute == 0 and sat_time_here.second == 0:
                     sat_time_here = sat_time_here.replace(hour=11)
                 self.sat_times.append(sat_time_here)
             self.start_date = self.sat_times[0]
@@ -106,11 +106,10 @@ class MDBFile:
         self.qc_insitu.time_max = self.delta_t
         self.qc_insitu.set_wllist_using_wlref(self.wlref)
 
-
         if self.nc.satellite_aco_processor == 'ACOLITE' or self.nc.satellite_aco_processor == 'Climate Change Initiative - European Space Agency':
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                  self.info['satellite_aco_processor'])
-        elif len(self.nc.satellite_aco_processor) == 0 or self.nc.satellite_aco_processor=='CMEMS':
+        elif len(self.nc.satellite_aco_processor) == 0 or self.nc.satellite_aco_processor == 'CMEMS':
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                  'Climate Change Initiative - European Space Agency')
         else:
@@ -137,9 +136,10 @@ class MDBFile:
     def check_repeated(self):
         sat_times = np.array(self.sat_times)
         for idx in range(1, self.n_mu_total):
+            sat_time_idx = sat_times[idx].replace(hour=0, minute=0, second=0, microsecond=0)
             for idu in range(idx):
-                if sat_times[idx] == sat_times[idu]:
-                    print(f'[WARNING] There are repeated satellite times.')
+                if sat_time_idx == sat_times[idu].replace(hour=0, minute=0, second=0, microsecond=0):
+                    print(f'[WARNING] There are repeated satellite dates.')
                     return False
         return True
 
@@ -152,8 +152,9 @@ class MDBFile:
         print(f'[INFO] Searching repeated ids...')
 
         for idx in range(1, self.n_mu_total):
+            sat_time_idx = sat_times[idx].replace(hour=0, minute=0, second=0, microsecond=0)
             for idu in range(idx):
-                if sat_times[idx] == sat_times[idu]:
+                if sat_time_idx == sat_times[idu].replace(hour=0, minute=0, second=0, microsecond=0):
                     idx_included[idx] = False
                     n_excluded = n_excluded + 1
                     print(
@@ -361,9 +362,10 @@ class MDBFile:
         for idx in range(len(times_here)):
             itime = times_here[idx]
             if not np.ma.is_masked(itime) and not np.isnan(itime):
-                insitu_time_here = datetime.fromtimestamp(float(itime))
+                insitu_time_here = datetime.utcfromtimestamp(float(itime))
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
+                # print(time_difference_prev[idx],'vs.',time_diff_here)
             else:
                 time_difference[idx] = np.ma.masked
 
@@ -377,7 +379,7 @@ class MDBFile:
 
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            mu_insitu_time = datetime.fromtimestamp(float(ins_time))
+            mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
         else:  ##aunque los datos sean invalidos (time dif>max time dif), obtenemos el mu_insitu_time como referencia
             # print(time_difference)
             ins_time_index = np.argmin(np.abs(time_difference))
@@ -385,20 +387,9 @@ class MDBFile:
             if np.ma.is_masked(ins_time):  ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
                 mu_insitu_time = sat_time_here
             else:
-                mu_insitu_time = datetime.fromtimestamp(float(ins_time))
+                mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
 
         return ins_time_index, mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_values
-
-    # def retrieve_ins_info_mu(self, index_mu):
-    #     time_difference = self.variables['time_difference'][index_mu]
-    #     ins_time_index = np.argmin(np.abs(time_difference))
-    #     ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-    #     mu_insitu_time = datetime.fromtimestamp(
-    #         int(ins_time))  # datetime(1970, 1, 1) + timedelta(seconds=int(ins_time))
-    #     time_condition = False
-    #     if np.abs(time_difference[ins_time_index]) < self.delta_t:
-    #         time_condition = True
-    #     return ins_time_index, mu_insitu_time, time_condition
 
     def load_mu_datav2(self, index_mu):
 
@@ -424,11 +415,11 @@ class MDBFile:
         name_variable_insitu = 'insitu_Rrs'
         # print(self.qc_insitu.apply_nir_correction)
         if not self.qc_insitu.apply_nir_correction:
-            #print('ME LLEGA AQUI***********************************************************')
+            # print('ME LLEGA AQUI***********************************************************')
             name_variable_insitu = 'insitu_Rrs_nosc'
 
         self.insitu_rrs = self.variables[name_variable_insitu][index_mu]
-        #print(self.insitu_rrs)
+        # print(self.insitu_rrs)
         self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
 
         # Sat and instrument time
@@ -823,7 +814,7 @@ class MDBFile:
                     self.mu_dates[mukey]['ac'] = 'STANDARD'
             else:
                 print('[WARNING] A single MDB file should not contain more than one match-up in a specific time/date')
-                # print(f'REPEATED MU KEY: {mukey}')
+                print(f'[WARNING] REPEATED MU KEY: {mukey}')
 
             index_valid = 0
             n_good_bands = 0
@@ -872,7 +863,7 @@ class MDBFile:
 
         self.prepare_df_mu()
         print(
-            f'[INFO]# total match-ups: {self.n_mu_total} Valid: {nmu_valid}  With complete spectrum: {nmu_valid_complete}')
+            f'[INFO] #total match-ups: {self.n_mu_total} Valid: {nmu_valid}  With complete spectrum: {nmu_valid_complete}')
         return nmu_valid
 
     def prepare_df_mu(self):
@@ -1183,17 +1174,16 @@ class MDBFile:
             var_wl = np.array(self.nc.variables['mu_wavelength'])
             var_satid = np.array(self.nc.variables['mu_satellite_id'])
 
-
             insitu_spectra = var_insitu[var_satid == index_mu]
             sat_spectra = var_satrrs[var_satid == index_mu]
             if scale_factor is not None:
                 insitu_spectra = insitu_spectra * scale_factor
                 sat_spectra = sat_spectra * scale_factor
             wl = var_wl[var_satid == index_mu]
-            valid = np.ones(wl.shape,dtype=bool)
-            valid[wl==832.8] = False
-            valid[wl==1613.7] = False
-            valid[wl==2202.4] = False
+            valid = np.ones(wl.shape, dtype=bool)
+            valid[wl == 832.8] = False
+            valid[wl == 1613.7] = False
+            valid[wl == 2202.4] = False
             wl = wl[valid]
             insitu_spectra = insitu_spectra[valid]
             sat_spectra = sat_spectra[valid]
@@ -1206,7 +1196,7 @@ class MDBFile:
         nspectra = self.n_mu_total
         n_bands = len(np.unique(np.array(self.nc.variables['mu_wavelength'])))
         n_bands = len(np.array(self.nc.variables['satellite_bands']))
-        #n_bands = 8
+        # n_bands = 8
 
         insitu_spectra_good = ma.zeros((nspectra, n_bands))
         sat_spectra_good = ma.zeros((nspectra, n_bands))
@@ -1228,7 +1218,7 @@ class MDBFile:
 
     def analyze_sat_flags(self, flag_var_name, flag_list):
         flag_variable = self.nc.variables[flag_var_name]
-        if isinstance(flag_variable.flag_meanings,list):
+        if isinstance(flag_variable.flag_meanings, list):
             flag_meanings = ' '.join(flag_variable.flag_meanings)
         else:
             flag_meanings = flag_variable.flag_meanings
@@ -1237,7 +1227,7 @@ class MDBFile:
         flag_info = {}
 
         flag_masks = flag_variable.flag_masks
-        if flag_masks.dtype=='int64':
+        if flag_masks.dtype == 'int64':
             flag_masks = flag_masks.astype(np.uint64)
 
         flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
@@ -1312,7 +1302,7 @@ class MDBFile:
         monthl = []
         for year in range(year_min, year_max):
             for month in range(1, 13):
-                if year==2023 and month>=4:
+                if year == 2023 and month >= 4:
                     continue
                 date_here = datetime(year, month, 1)
                 print(date_here)

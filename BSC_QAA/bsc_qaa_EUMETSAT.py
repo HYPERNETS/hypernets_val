@@ -173,6 +173,10 @@ def bsc_qaa(rrs_in, band_in, band_out, g0=0.089, g1=0.1245):
     rrs_in = ma.array(rrs_in)
     band_in = ma.array(band_in)
     band_out = ma.array(band_out)
+    # print(rrs_in)
+    # print(band_in)
+    # print(band_out)
+
     shaper = len(rrs_in.shape)
     # if array is not 3D (bands, lat, lon) we create a fictional 3D array
     if shaper == 1:
@@ -222,7 +226,7 @@ def bsc_qaa(rrs_in, band_in, band_out, g0=0.089, g1=0.1245):
     aw = read_aw_coeff(band_all)  # pure water abs
     aw_e = ma.transpose([[list(aw)] * bbp.shape[1]] * bbp.shape[2])  # we reshape the array for the next calculations
     a = adg + aph + aw_e  # total abs
-    b555 = nearest.nearest(band_all, 555.)
+    #b555 = nearest.nearest(band_all, 555.)
     rrs0m = g0 * (bb / (bb + a)) + g1 * (bb / (bb + a)) ** 2.
     rrsf = 0.52 * rrs0m / (1. - 1.7 * rrs0m)  # qaa in forward mode
     for (i, band) in enumerate(band_out):

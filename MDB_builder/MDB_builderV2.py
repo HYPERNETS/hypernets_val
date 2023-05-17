@@ -7,7 +7,7 @@ from INSITU_hypernets import INSITU_HYPERNETS_DAY
 from datetime import datetime as dt
 
 parser = argparse.ArgumentParser(
-    description="Create Match-up DataBase files (MDB) files from satellite extracts and in situ L2 files.")
+    description="Create Match-up DataBase files (MDB) files from satellite extracts and in situ L2 HYPERNETS files.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 # parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 # parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")

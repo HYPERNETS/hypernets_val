@@ -56,6 +56,8 @@ class QC_SAT:
         self.statistics_norrs = {}
         self.ncdataset = None
 
+
+
         self.invalid_mask = {}
         for sat_index in range(self.nbands):
             sat_index_str = str(sat_index)
@@ -127,6 +129,26 @@ class QC_SAT:
             '885': 1.00089,
             '1020': 0.94064
         }
+
+    def update_invalid_mask(self):
+        if self.wl_ref is None:
+            return
+        self.invalid_mask = {}
+        for sat_index in range(self.nbands):
+            apply_mask = False
+            wlhere = self.sat_bands[sat_index]
+            for wl in self.wl_ref:
+                diffwl = abs(wlhere-wl)
+                if diffwl<1.0:
+                    apply_mask = True
+            sat_index_str = str(sat_index)
+            self.invalid_mask[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'apply_mask': apply_mask,
+                'n_masked': 0,
+                'ref': f'rrs_{self.sat_bands[sat_index]:.0f}_invalid'
+            }
+
 
     def set_window_size(self, wsize):
         self.window_size = wsize
@@ -306,11 +328,7 @@ class QC_SAT:
 
     def compute_masks_and_check_roi(self, index_mu):
         land = self.compute_flag_masks(index_mu)
-
-
         self.compute_invalid_masks(index_mu)
-
-
         self.compute_th_masks(index_mu)
 
         self.NVP = self.NTP - np.sum(self.flag_mask)
@@ -383,13 +401,14 @@ class QC_SAT:
         self.flag_mask[mask_thershold > 0] = 1
 
     def compute_invalid_masks(self, index_mu):
+
+
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
         mask_invalid = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
         for sat_index in range(self.nbands):
             sat_index_str = str(sat_index)
             if self.invalid_mask[sat_index_str]['apply_mask']:
                 rrshere = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
-
                 mask_invalid_here = np.zeros(rrshere.shape, dtype=np.uint64)
                 mask_invalid_here[rrshere.mask] = 1
                 n_masked = np.sum(mask_invalid_here)
@@ -526,20 +545,20 @@ class QC_SAT:
         if isinstance(flag_list_tobe_applied, str):
             flag_list_tobe_applied = [x.strip() for x in flag_list_tobe_applied.split(',')]
 
-
         if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
             flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, flag_meanings)
             flag_mask = flagging.MaskGeneral(satellite_flag_band)
             flag_mask[np.where(flag_mask != 0)] = 1
         elif self.info_flag[flag_band]['ac_processor'] == 'IDEPIX':
             flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, flag_meanings)
-            flag_mask = flagging.Mask(satellite_flag_band,flag_list_tobe_applied)
+            flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
             flag_mask[np.where(flag_mask != 0)] = 1
         else:
             ##we must be sure that flag_mask must be uint64
             flag_masks = satellite_flag.flag_masks.astype('uint64')
             flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
-            if self.info_flag[flag_band]['ac_processor'] == 'C2RCC' and not flag_band=='satellite_WQSF': # C2RCC FLAGS
+            if self.info_flag[flag_band][
+                'ac_processor'] == 'C2RCC' and not flag_band == 'satellite_WQSF':  # C2RCC FLAGS
                 valuePE = np.uint64(2147483648)
                 flag_mask = np.ones(satellite_flag_band.shape, dtype=np.uint64)
                 flag_mask[satellite_flag_band == valuePE] = 0
@@ -553,10 +572,10 @@ class QC_SAT:
                 #         print('----> ',fl,':',ntal)
 
         flag_land = self.info_flag[flag_band]['flag_land']
-        if flag_land is not None and flag_land.strip().lower()=='none':
+        if flag_land is not None and flag_land.strip().lower() == 'none':
             flag_land = None
         flag_inlandwater = self.info_flag[flag_band]['flag_inlandwater']
-        if flag_inlandwater is not None and flag_inlandwater.strip().lower()=='none':
+        if flag_inlandwater is not None and flag_inlandwater.strip().lower() == 'none':
             flag_inlandwater = None
 
         if flag_land is not None:

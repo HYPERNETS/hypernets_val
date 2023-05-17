@@ -4,7 +4,9 @@ import pandas
 
 import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
 import warnings
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 class QC_INSITU:
 
@@ -46,7 +48,7 @@ class QC_INSITU:
         self.check_flags = {}
         self.check_th_other_bands = {}
 
-        #for idendifying bands
+        # for idendifying bands
         self.msibands = {
             'B1': 443,
             'B2': 490,
@@ -217,10 +219,10 @@ class QC_INSITU:
 
                 if th_type == 'keep' and not check_condition:
                     check = False
-                    #print('value bad: ', val_here)
+                    # print('value bad: ', val_here)
                 # if th_type == 'keep' and check_condition:
                 #     check = True
-                    #print('value good: ', val_here)
+                # print('value good: ', val_here)
                 if th_type == 'remove' and check_condition:
                     check = False
 
@@ -239,16 +241,15 @@ class QC_INSITU:
                     break
         return check
 
-    def check_validity_spectra_mu(self,index_mu):
+    def check_validity_spectra_mu(self, index_mu):
         val_array = np.zeros((self.nid))
         for idx in range(self.nid):
             rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
             valid = self.check_validity_spectrum(rrs_values, index_mu, idx)
             if valid:
-                val_array[idx]=1
+                val_array[idx] = 1
+                break
         return val_array
-
-
 
     def get_insitu_index(self, wl):
         all_wl = self.insitu_bands[:]
@@ -375,9 +376,24 @@ class QC_INSITU:
             time_dif = dif_time_array[idx]
             time_condition = time_dif < self.time_max
             if time_condition:
+                # if index_mu==138:
+                #     print('AQUI DEBERIA ESTAR WITH IDX: ',idx)
                 rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
+                valid_bands_array = np.array(valid_bands, dtype=bool)
+                rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
+                # if index_mu==138:
+                #     print(rrs_values)
+                #     print(indices)
+                #     print(valid_bands)
+                #     print(type(rrs_values))
+                #     valid_bands_array = np.array(valid_bands,dtype=bool)
+                #     rrs_values = np.ma.masked_where(valid_bands_array==False,rrs_values)
+                #     print(rrs_values)
+                #     print(sum(valid_bands),np.sum(valid_bands),type(valid_bands))
+                #     print(self.wl_list)
+
                 valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
-                spectrum_complete = sum(valid_bands) == len(self.wl_list)
+                spectrum_complete = np.sum(valid_bands_array) == len(self.wl_list)
                 if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
                     if len(exact_wl_array.shape) == 1:
                         exact_wl = exact_wl_array[indices]
@@ -430,39 +446,37 @@ class QC_INSITU:
 
         spectra = ma.array(self.insitu_rrs[index_mu, :, index_insitu])
 
-
-
-
         if self.check_indices_by_mu:
             indices, valid_bands = self.get_insitu_indices_mu(index_mu)
             rrs_values = spectra[indices]
+            rrs_values[valid_bands == False] = np.ma.masked
+
         else:
             indices = self.wl_indices
             rrs_values = spectra[indices]
             valid_bands = np.invert(ma.getmaskarray(rrs_values)).tolist()
 
-        #print(type(rrs_values))
+        # print(type(rrs_values))
         # implementation of spectral response function here
-        #print('************************************************', self.srf)
+        # print('************************************************', self.srf)
         if self.srf is not None:
             import pandas as pd
             S2srf = pd.read_csv(self.srf)
-
 
             bands = self.insitu_bands[:]
             df = pd.DataFrame(data=spectra, index=bands)
             nnT = self.reindex_and_interpolate(df, S2srf["SR_WL"].values)
             rrs_values = []
             for a in np.arange(1, S2srf.shape[1]):
-                rrs_values.append(nnT.mul(np.array(S2srf.iloc[:, a]), axis=0).sum(axis=0) / (sum(np.array(S2srf.iloc[:, a]))))
+                rrs_values.append(
+                    nnT.mul(np.array(S2srf.iloc[:, a]), axis=0).sum(axis=0) / (sum(np.array(S2srf.iloc[:, a]))))
             rrs_values = np.ma.array(rrs_values)
-            #print(type(rrs_values))
+            # print(type(rrs_values))
 
         return rrs_values, indices, valid_bands
 
-    def reindex_and_interpolate(self,df, new_index):
+    def reindex_and_interpolate(self, df, new_index):
         return df.reindex(df.index | new_index).interpolate(method='index', limit_direction='both').loc[new_index]
-
 
     # ngood is only for checking (assing -1 for not using it)
     def get_good_spectrum_for_mu(self, index_mu, id_min_time, ngood):
