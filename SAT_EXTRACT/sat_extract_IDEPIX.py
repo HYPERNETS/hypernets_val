@@ -79,6 +79,11 @@ def launch_create_extract(filepath, options):
             if not os.path.exists(sites[site]['path_out']):
                 os.mkdir(sites[site]['path_out'])
             ofname = os.path.join(sites[site]['path_out'], filename)
+            if os.path.exists(ofname):
+                ncreated = ncreated + 1
+                print(f'[INFO] Extract file already created: {ofname}. Skipping...')
+                nc_sat.close()
+                continue
             global_at['station_name'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
