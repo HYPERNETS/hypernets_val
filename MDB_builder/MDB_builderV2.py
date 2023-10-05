@@ -8,22 +8,18 @@ from datetime import datetime as dt
 
 parser = argparse.ArgumentParser(
     description="Create Match-up DataBase files (MDB) files from satellite extracts and in situ L2 HYPERNETS files.")
-parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-# parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
-# parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
-parser.add_argument('-site', "--sitename", help="Site name. Only with --listdates")
-# parser.add_argument('-ins', "--insitu", help="Satellite sensor name.", choices=['PANTHYR', 'HYPERNETS'])  # ,'HYPSTAR'])
-# parser.add_argument('-pi', "--path_to_ins", help="Path to in situ sources.")
-# parser.add_argument('-sat', "--satellite", help="Satellite sensor name.", choices=['OLCI', 'MSI'])
-parser.add_argument('-c', "--config_file", help="Config File.", required=True)
-# parser.add_argument('-ps', "--path_to_sat", help="Path to satellite extracts.")
-parser.add_argument('-o', "--output", help="Output file. Only with --listdates")
-parser.add_argument('-edir',"--sat_extract_dir", help="Input sat. extract dir. Only with --listdates")
-# parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
+
+parser.add_argument('-c', "--config_file", help="Config File.")
+parser.add_argument('-o', "--output",
+                    help="Output file. Required with --listdates or single concatenation")
+parser.add_argument('-edir', "--sat_extract_dir",
+                    help="Input sat. extract dir. Optional for --listdates, required for single concatenation")
+parser.add_argument('-site', "--sitename", help="Site name. Only required with --listdates")
 parser.add_argument('-ld', "--listdates",
                     help="Option to obtain a date list for a specific HYPERNETS site (-site option).",
                     action="store_true")
 parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
+parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
 args = parser.parse_args()
 
@@ -47,9 +43,42 @@ def main():
         sat_extract_dir = None
         if args.sat_extract_dir:
             sat_extract_dir = args.sat_extract_dir
-        ihd.save_list_dates_to_file(args.output, args.sitename, None, None,sat_extract_dir)
+        ihd.save_list_dates_to_file(args.output, args.sitename, None, None, sat_extract_dir)
         return
 
+    # option to make single extract concatenation from files in a input path
+    if args.sat_extract_dir and args.output:
+        output_file = args.output
+        if os.path.isdir(output_file):
+            print(f'[ERROR] Output should be a NetCDF file name')
+            return
+        if not output_file.endswith('.nc'):
+            output_file = f'{output_file}.nc'
+        if os.path.exists(output_file):
+            print(f'[WARNING] Output file {output_file} alreaday exist. Skipping')
+            return
+        output_path = os.path.dirname(output_file)
+        if not os.path.isdir(output_path):
+            print(f'[ERROR] Output path {output_path} does not exist.')
+            return
+        input_path = args.sat_extract_dir
+        if not os.path.isdir(input_path):
+            print(f'[ERROR] Input path {input_path} should be a directory')
+
+        input_files = []
+        for name in os.listdir(input_path):
+            if name.endswith('.nc'):
+                input_file = os.path.join(input_path, name)
+                input_files.append(input_file)
+        if len(input_files) == 0:
+            print(f'[WARNING] No input NC files found in {input_path}')
+            return
+        concatenate_nc_impl(input_files, output_path, output_file)
+        return
+
+    if not args.config_file:
+        print('[ERROR] Configuration file (-c or --config_file) option is required')
+        return
     if os.path.isfile(args.config_file):
         options = configparser.ConfigParser()
         options.read(args.config_file)
@@ -87,6 +116,8 @@ def main():
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------START')
     slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
+    for e in extract_list:
+        print(e,extract_list[e]['time'])
     if args.verbose:
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
 
@@ -95,7 +126,8 @@ def main():
         print(f'[INFO] Generating MDB extract files----------------------------------------------------------START')
     ihd = INSITU_HYPERNETS_DAY(mo, None, args.verbose)
     if args.verbose:
-        print(f'[INFO] Checking SSH access: {ihd.CHECK_SSH}')
+        if mo.insitu_options['apply_rsync']:
+            print(f'[INFO] Checking SSH access: {ihd.CHECK_SSH}')
         time_maxh = ihd.mdb_options.insitu_options['time_max'] / 3600
         print(f'[INFO] Maximum time window: {time_maxh:0.2f} hours')
     ins_sensor = 'HYPSTAR'
@@ -103,8 +135,18 @@ def main():
     for extract in extract_list:
         if args.verbose:
             print(f'[INFO] Working with extract file: {extract} *******************')
+        bad_spectra_times = {}
         ofile = mo.get_mdb_extract_path(extract, ins_sensor)
         if os.path.exists(ofile):
+            from netCDF4 import Dataset
+            import numpy as np
+            dtal = Dataset(ofile)
+            insitu_bands = np.array(dtal.variables['insitu_original_bands'])
+            vtal = insitu_bands[0]
+            dtal.close()
+            if vtal==-999.0:
+                print(f'[ERROR] Error in MDB extract file. Skipping...')
+                continue
             mdb_extract_files.append(ofile)
             print(f'[WARNING] MDB extract file already exits. Skipping...')
             continue
@@ -115,7 +157,7 @@ def main():
             ihd.get_files_day_ssh(date_here, True)
             insitu_files = ihd.get_insitu_files(date_here)
 
-        bad_spectra_times = {}
+
         # print(mo.insitu_options)
         if mo.insitu_options['bad_spectra_file_list'] is not None:
             prefix = mo.insitu_options['bad_spectra_prefix']
@@ -145,8 +187,6 @@ def main():
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
             idx = 0
             for insitu_file in insitu_files:
-                # insitu_file = insitu_files[idx]
-                # print(insitu_file,idx,date_here,mo.get_sat_extracts_info())
                 b = ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
                 if b:
                     idx = idx + 1
@@ -178,6 +218,9 @@ def main():
             print(f'[INFO] Spectrum at {bad_time} is invalid')
 
 
+
+
+
 def concatenate_nc_impl(list_files, path_out, ncout_file):
     if len(list_files) == 0:
         print(f'[WARNING] No MDB sat extract files were found. Please review')
@@ -193,6 +236,8 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
                 print(f'[INFO] Concatening: {icent} / {len(list_files)}')
             indextmp = int(icent / nfiles_ref)
             list_files_here = list_files[icent:icent + nfiles_ref]
+            if icent == 290:
+                print(list_files_here)
             ncout_file_tmp = os.path.join(path_out, f'Temp_{indextmp}.nc')
             list_files_tmp.append(ncout_file_tmp)
             list_files_here.append(ncout_file_tmp)
@@ -215,6 +260,12 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
 
         if not args.nodelfiles:
             [os.remove(f) for f in list_files]
+
+        for f in list_files_tmp:
+            fname = f.split('/')[-1]
+            if fname.startswith('Temp_'):
+                os.remove(f)
+
 
     else:
         list_files.append(ncout_file)

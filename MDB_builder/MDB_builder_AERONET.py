@@ -35,8 +35,6 @@ from COMMON import common_functions as cfs
 
 
 def get_time_from_extract_file(extract_path):
-
-
     dataset = Dataset(extract_path)
     satellite_time_var = None
     if 'satellite_time' in dataset.variables:
@@ -47,15 +45,18 @@ def get_time_from_extract_file(extract_path):
         time_str = extract_path.split('/')[-1].split('_')[7]
         satellite_time_file = dt.strptime(time_str, '%Y%m%dT%H%M%S')
     except:
-        pass
+        try:
+            time_str = extract_path.split('/')[-1][1:8]
+            satellite_time_file = dt.strptime(time_str, '%Y%j')
+        except:
+            pass
 
     if satellite_time_file is not None and satellite_time_var is not None:
         if satellite_time_file == satellite_time_var:
             return satellite_time_var
         else:
             print(f'[WARNING] Date time in name file is different from time in satellite_time variable')
-            print(f'[WARNING] File: {extract_path}')
-            print(f'[WARNING] Time set to: {satellite_time_file}')
+            print(f'[WARNING] Satellite time set to: {satellite_time_file}')
             return satellite_time_file
     if satellite_time_file is not None and satellite_time_var is None:
         return satellite_time_file
@@ -63,12 +64,21 @@ def get_time_from_extract_file(extract_path):
     return satellite_time_var
 
 
-def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list):
+def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_time_ini,ins_time_end):
     extract_path = extract_info['path']
     satellite_datetime = get_time_from_extract_file(extract_path)
 
+    if satellite_datetime.hour == 0 and satellite_datetime.minute == 0:
+        satellite_datetime = dt.strptime(extract_info['time'],'%Y%m%dT%H%M%S')
+        if args.verbose:
+            print(f'[WARNING] Satellite time set to default hour: {satellite_datetime}')
+
     if satellite_datetime is None:
         print(f'[ERROR] Extract satellite datetime could not be retrieved.')
+        return False
+
+    if satellite_datetime<ins_time_ini or satellite_datetime>ins_time_end:
+        print(f'[WARNING] No in situ spectra were found for date: {satellite_datetime}')
         return False
     satellite_date = satellite_datetime.strftime('%Y-%m-%d')
     check_date = areader.prepare_data_fordate(satellite_date)
@@ -84,7 +94,7 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list):
 
     for i in range(nspectra):
         time_dif_seconds[i] = float(abs((time_list[i] - satellite_datetime).total_seconds()))
-        #print(satellite_datetime, time_list[i], time_dif_seconds[i],'============================================')
+        #print(satellite_datetime, time_list[i], time_dif_seconds[i], '============================================')
         if time_dif_seconds[i] < time_window_seconds:
             spectra_within_timewindow[i] = True
             nspectra_within_timewindow = nspectra_within_timewindow + 1
@@ -110,6 +120,7 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list):
         from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         maxwldiff = mo_options.get_maxwl_diff()
         exactwl_h = exactwl[0][:]
+
         nominal_wavelengths = update_nominal_wl_with_sat_wl(nominal_wavelengths, extract_path, maxwldiff)
         indiceswl_valid, nominal_wavelengths_exact = get_wl_valid_indices(nominal_wavelengths, exactwl_h, maxwldiff)
         rrsh = rrs[0][:]
@@ -119,8 +130,12 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list):
         nwl = len(nominal_wavelengths)
         rrsnew = np.ma.zeros((ns, nwl))
         exactwlnew = np.ma.zeros((ns, nwl))
+
         for idx in range(ns):
-            rrsnew[idx, :] = qaa.bsc_qaa(rrs[idx][indices_good], exactwl[idx][indices_good], nominal_wavelengths)
+            if len(indices_good[0]) == 1 and indices_good[0][0] == 0:
+                rrsnew[idx, :] = qaa.bsc_qaa(rrs[idx][:], exactwl[idx][:], nominal_wavelengths)
+            else:
+                rrsnew[idx, :] = qaa.bsc_qaa(rrs[idx][indices_good], exactwl[idx][indices_good], nominal_wavelengths)
             rrsnew[idx, indiceswl_valid < 0] = np.ma.masked
             exactwlnew[idx, :] = nominal_wavelengths_exact[:]
 
@@ -129,9 +144,9 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list):
 
     # to append to nc file
     if subset_wl:
-        new_MDB = copy_nc(extract_path, ofile, satellite_datetime,nominal_wavelengths, maxwldiff)
+        new_MDB = copy_nc(extract_path, ofile, satellite_datetime, nominal_wavelengths, maxwldiff)
     else:
-        new_MDB = copy_nc(extract_path, ofile, satellite_datetime,None, None)
+        new_MDB = copy_nc(extract_path, ofile, satellite_datetime, None, None)
 
     # add time window diff
     new_MDB.time_diff = f'{time_window_seconds}'  # in seconds
@@ -235,7 +250,7 @@ def update_nominal_wl_with_sat_wl(nominal_wl, extract_path, maxwldiff):
     return nominal_wl
 
 
-def copy_nc(ifile, ofile, satellite_time,nominalwl, maxwldif):
+def copy_nc(ifile, ofile, satellite_time, nominalwl, maxwldif):
     with Dataset(ifile) as src:
         dst = Dataset(ofile, 'w', format='NETCDF4')
 
@@ -274,7 +289,7 @@ def copy_nc(ifile, ofile, satellite_time,nominalwl, maxwldif):
                 elif name == 'satellite_time':
                     satellite_time_real = float(satellite_time.replace(tzinfo=timezone.utc).timestamp())
                     satellite_time_prev = float(src[name][0])
-                    if satellite_time_real!=satellite_time_prev:
+                    if satellite_time_real != satellite_time_prev:
                         print(f'[WARNING] Setting time to: {satellite_time}')
                         dst[name][0] = satellite_time_real
                     else:
@@ -323,13 +338,32 @@ def main():
     ##dates
     if args.verbose:
         print(f'[INFO] Checking available dates--------------------------------------------------------------START')
+    mo.get_dates()
     sdate, edate = areader.get_time_ini_fin()
-    mo.start_date = sdate
-    mo.end_date = edate
+    if sdate>mo.start_date:
+        mo.start_date = sdate.replace(hour=0,minute=0,second=0,microsecond=0)
+
+    if edate<mo.end_date:
+        from datetime import timedelta
+        mo.end_date = (edate+timedelta(days=1)).replace(hour=0,minute=0,second=0,microsecond=0)
+
     if args.verbose:
         print(f'[INFO] Start date for MDB_builder:{mo.start_date}')
         print(f'[INFO] End date for MDB_builder: {mo.end_date}')
         print(f'[INFO] Checking available dates--------------------------------------------------------------STOP')
+
+    ins_sensor = 'AERONET'
+    time_list = areader.extract_time_list()
+    time_list_range = []
+    for itime in time_list:
+        if mo.start_date <= itime <= mo.end_date:
+            time_list_range.append(itime)
+    if len(time_list_range)==0:
+        print(f'[WARNING] No insitu files were found in the given range')
+        return
+    ins_time_ini = time_list_range[0].replace(hour=0, minute=0, second=0, microsecond=0)
+    from datetime import timedelta
+    ins_time_end = (time_list_range[-1] + timedelta(hours=24)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     ##retrieving sat extract list
     if args.verbose:
@@ -339,8 +373,6 @@ def main():
     if args.verbose:
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
 
-    ins_sensor = 'AERONET'
-    time_list = areader.extract_time_list()
     mdb_extract_files = []
 
     for extract in extract_list:
@@ -351,7 +383,7 @@ def main():
             mdb_extract_files.append(ofile)
             print(f'[WARNING] MDB extract file already exits. Skipping...')
             continue
-        b = add_insitu_aeronet(extract_list[extract], ofile, areader, mo, time_list)
+        b = add_insitu_aeronet(extract_list[extract], ofile, areader, mo, time_list,ins_time_ini,ins_time_end)
         if b:
             mdb_extract_files.append(ofile)
     nextract_files = len(mdb_extract_files)
@@ -425,6 +457,7 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
             [os.remove(f) for f in list_files[:-1]]
     if args.verbose:
         print(f'[INFO] Concatenated MDB file created: {ncout_file}')
+
 
 # %%
 if __name__ == '__main__':

@@ -17,11 +17,14 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if rsync_user is None:
             rsync_user = 'hypstar'
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
-        self.base_folder = '/home/hypstar/'
+        # self.base_folder = '/home/hypstar/'
+        self.base_folder = '/waterhypernet/hypstar/processed20230317/'
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
+        self.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
 
         self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'
+        self.rsync_url = f'rsync -a -e \'ssh -p 9022\' {self.url_base}'
 
         self.CHECK_SSH = self.check_ssh()
 
@@ -180,11 +183,27 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['time_difference'][0, insitu_idx] = time_diff
         self.new_MDB.variables['insitu_filename'][0, insitu_idx] = file_name
+        wini = 0
+        wfin = 1600
+        iini = 0
+        ifin = 1600
+        if nc_ins.variables['wavelength'].shape[0] == 1537:
+            wini = 66
+            wfin = 1600
+            iini = 0
+            ifin = 1600 - 66
+
         if insitu_idx == 0:
-            self.new_MDB.variables['insitu_original_bands'][:] = [nc_ins.variables['wavelength'][0:1600]]
-        insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][0:1600]]
+            self.new_MDB.variables['insitu_original_bands'][wini:wfin] = [nc_ins.variables['wavelength'][iini:ifin]]
+            if wini>0:
+                wlref = self.new_MDB.variables['insitu_original_bands'][wini]
+                for iw in range(wini,-1,-1):
+                    self.new_MDB.variables['insitu_original_bands'][iw] = wlref
+                    wlref  = wlref - 0.50
+
+        insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]]
         insitu_RrsArray = ma.array(insitu_rhow_vec).transpose() / np.pi
-        self.new_MDB.variables['insitu_Rrs'][0, :, insitu_idx] = [insitu_RrsArray]
+        self.new_MDB.variables['insitu_Rrs'][0, wini:wfin, insitu_idx] = [insitu_RrsArray[iini:ifin]]
 
         for var_name in self.insitu_extract_variables:
             var_ins = self.insitu_extract_variables[var_name]['name_orig']
@@ -193,14 +212,14 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         for var_name in self.insitu_spectral_variables:
             var_ins = self.insitu_spectral_variables[var_name]['name_orig']
-            var_array = ma.array(nc_ins.variables[var_ins][0:1600])  # [x for x in nc_ins.variables[var_ins][:]]
+            var_array = ma.array(nc_ins.variables[var_ins][iini:ifin])  # [x for x in nc_ins.variables[var_ins][:]]
             # print('--->',var_array.shape)
             if var_name.find('Rrs') > 0:
                 var_array = var_array / np.pi
             else:
                 var_array = var_array
             # print('--->', var_array.shape)
-            self.new_MDB.variables[var_name][0, :, insitu_idx] = [var_array]
+            self.new_MDB.variables[var_name][0, wini:wfin, insitu_idx] = [var_array]
         nc_ins.close()
 
         if insitu_idx == 0:
@@ -349,6 +368,22 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             print(f'[INFO] Transfering files completed')
             print(f'[INFO] =====================================================================')
 
+    def transfer_files_to_output_folder_via_ssh(self, lista_files, output_folder):
+        if self.verbose:
+            print(f'[INFO] =====================================================================')
+            print(f'[INFO] Starting transfer of {len(lista_files)} files via SSH...')
+        for file in lista_files:
+            if self.verbose:
+                print(f'[INFO] Transfering file: {file} to {output_folder}')
+            cmd = f'{self.rsync_url}:{file} {output_folder}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)
+        if self.verbose:
+            print(f'[INFO] Transfering files completed')
+            print(f'[INFO] =====================================================================')
+
     def check_ssh(self):
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}'
         try:
@@ -385,7 +420,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                                     list_dates.append(datehere)
         return list_dates
 
-    def save_list_dates_to_file(self, fout, sitename, start_date_ref, end_date_ref,sat_extract_dir):
+    def save_list_dates_to_file(self, fout, sitename, start_date_ref, end_date_ref, sat_extract_dir):
         list_dates = self.get_list_dates(sitename, start_date_ref, end_date_ref)
         if len(list_dates) == 0:
             print(f'[WARNING] Data were not found for site: {sitename}')
@@ -395,7 +430,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             for name in os.listdir(sat_extract_dir):
                 if not name.endswith('.nc'):
                     continue
-                fname = os.path.join(sat_extract_dir,name)
+                fname = os.path.join(sat_extract_dir, name)
                 from netCDF4 import Dataset
                 dataset = Dataset(fname)
                 if 'satellite_time' in dataset.variables:
@@ -483,8 +518,21 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         list = out.decode('utf-8').split('\n')
         listd = []
         for l in list:
+            if l == '':
+                continue
             try:
                 listd.append(l)
             except:
                 pass
         return listd
+
+    def get_files_download(self, date_here, site):
+        folder_date = os.path.join(self.base_folder, site, date_here.strftime('%Y'), date_here.strftime('%m'),
+                                   date_here.strftime('%d'))
+        self.find_ref = self.find_ref.replace('SITE', site)
+        cmd = f'{self.ssh_base} {self.url_base} find {folder_date} -name {self.find_ref}'
+
+        list_files = self.get_list_files(cmd)
+        if len(list_files) == 1 and list_files[0] == '':
+            return None
+        return list_files

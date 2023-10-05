@@ -11,6 +11,9 @@ class QC_SAT:
         self.name = ''
         self.satellite_rrs = satellite_rrs
         self.sat_bands = sat_bands
+
+        self.pi_multiplied = [False] * len(self.sat_bands)
+        self.pi_divided = [False] * len(self.sat_bands)
         self.nmu = self.satellite_rrs.shape[0]
         self.nbands = self.satellite_rrs.shape[1]
 
@@ -55,8 +58,6 @@ class QC_SAT:
         self.check_statistics_norrs = []
         self.statistics_norrs = {}
         self.ncdataset = None
-
-
 
         self.invalid_mask = {}
         for sat_index in range(self.nbands):
@@ -130,6 +131,15 @@ class QC_SAT:
             '1020': 0.94064
         }
 
+    ##type: 1: multiplied 2: divided
+    def update_pi_correct(self, wl_list_rhow, type):
+        for wl in wl_list_rhow:
+            idx = self.get_index_sat_from_wlvalue(wl)
+            if idx >= 0 and type==1:
+                self.pi_multiplied[idx] = True
+            if idx >= 0 and type == 2:
+                self.pi_divided[idx] = True
+
     def update_invalid_mask(self):
         if self.wl_ref is None:
             return
@@ -138,8 +148,8 @@ class QC_SAT:
             apply_mask = False
             wlhere = self.sat_bands[sat_index]
             for wl in self.wl_ref:
-                diffwl = abs(wlhere-wl)
-                if diffwl<1.0:
+                diffwl = abs(wlhere - wl)
+                if diffwl < 1.0:
                     apply_mask = True
             sat_index_str = str(sat_index)
             self.invalid_mask[sat_index_str] = {
@@ -148,7 +158,6 @@ class QC_SAT:
                 'n_masked': 0,
                 'ref': f'rrs_{self.sat_bands[sat_index]:.0f}_invalid'
             }
-
 
     def set_window_size(self, wsize):
         self.window_size = wsize
@@ -284,6 +293,7 @@ class QC_SAT:
 
     def get_match_up_values(self, index_mu):
         self.prepare_new_match_up()
+
         cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
 
         cond_stats = False
@@ -315,11 +325,15 @@ class QC_SAT:
 
             cond_stats = self.do_check_statistics()
 
+
             if cond_stats:
                 valid_mu = True
             for idx in range(len(indexes_bands)):
                 sat_index = indexes_bands[idx]
                 sat_index_str = str(sat_index)
+                # print(sat_index_str)
+                # print(self.statistics[sat_index_str])
+                # print('*****************************************************************************')
                 values[idx] = self.statistics[sat_index_str][outliers_str][self.stat_value]
             if self.apply_band_shifting:
                 values = bsc_qaa.bsc_qaa(values, wl_orig, self.wl_ref)
@@ -327,13 +341,24 @@ class QC_SAT:
         return cond_min_pixels, cond_stats, valid_mu, values
 
     def compute_masks_and_check_roi(self, index_mu):
-        land = self.compute_flag_masks(index_mu)
-        self.compute_invalid_masks(index_mu)
-        self.compute_th_masks(index_mu)
 
+        land = self.compute_flag_masks(index_mu)
+
+        nv = self.NTP - np.sum(self.flag_mask)
+        #print(index_mu,np.sum(land))
+        # if index_mu==0:
+        #     print('After flag mask: ',nv)
+        self.compute_invalid_masks(index_mu)
+        nv = self.NTP - np.sum(self.flag_mask)
+        #print(index_mu,'After invalid: ',nv)
+        # if index_mu == 0:
+        #     print('After Invalid: ', nv)
+        self.compute_th_masks(index_mu)
         self.NVP = self.NTP - np.sum(self.flag_mask)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
-
+        # if index_mu == 0:
+        #     print('After th: ',self.NVP)
+        # print(index_mu,'After th: ', self.NVP)
         # print(f'[INFO] Index mu: {index_mu}')
         # print(f'[INFO] Number total of pixels: {self.NTP}')
         # print(f'[INFO] Water pixels: {self.NTPW}')
@@ -354,11 +379,29 @@ class QC_SAT:
         land = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
         for flag_band in self.info_flag.keys():
             flag_mask_here, land_here = self.compute_flag_mask_impl(index_mu, flag_band)
+
+            ##CHAMBELA
+            if flag_mask_here is not None:
+                central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions_inner(3)
+                flag_mask_here[r_s:r_e, c_s:c_e] = 1
+                # invalid = None
+                # if self.ncdataset.platform=='A':
+                #     invalid = [24]
+                # if self.ncdataset.platform=='B':
+                #     invalid = [19,22,24]
+                # if invalid is not None:
+                #     if index_mu in invalid:
+                #         flag_mask_here[:,:] = 1
+
+
+
             if flag_mask_here is not None:
                 flag_mask = np.add(flag_mask, flag_mask_here)
             if land_here is not None:
                 land = np.add(land, land_here)
             self.info_flag[flag_band]['nflagged'] = np.sum(flag_mask)
+
+
 
         if self.flag_mask is None:
             self.flag_mask = flag_mask
@@ -377,19 +420,17 @@ class QC_SAT:
         mask_thershold = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
         for idx in range(len(self.th_masks)):
             th_mask = self.th_masks[idx]
-            rrs_here = self.satellite_rrs[index_mu, th_mask['index_sat'], r_s:r_e, c_s:c_e]
+            if th_mask['index_sat'] >= 0:
+                band_here = self.satellite_rrs[index_mu, th_mask['index_sat'], r_s:r_e, c_s:c_e]
+            else:
+                var_here = self.ncdataset.variables[th_mask['band_name']]
+                band_here = var_here[index_mu, r_s:r_e, c_s:c_e]
 
-            # if index_mu==54:
-            #     print('***************************************************')
-            #     ital = th_mask['index_sat']
-            #     if ital==0:
-            #         print(th_mask['index_sat'])
-            #         print(rrs_here)
-            mask_thershold_here = np.zeros(rrs_here.shape, dtype=np.uint64)
+            mask_thershold_here = np.zeros(band_here.shape, dtype=np.uint64)
             if th_mask['type_th'] == 'greater':
-                mask_thershold_here[rrs_here > th_mask['value_th']] = 1
+                mask_thershold_here[band_here > th_mask['value_th']] = 1
             elif th_mask['type_th'] == 'lower':
-                mask_thershold_here[rrs_here < th_mask['value_th']] = 1
+                mask_thershold_here[band_here < th_mask['value_th']] = 1
             n_masked = np.sum(mask_thershold_here)
             th_mask['n_masked'] = n_masked
             self.th_masks[idx] = th_mask
@@ -402,7 +443,6 @@ class QC_SAT:
 
     def compute_invalid_masks(self, index_mu):
 
-
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
         mask_invalid = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
         for sat_index in range(self.nbands):
@@ -411,6 +451,8 @@ class QC_SAT:
                 rrshere = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
                 mask_invalid_here = np.zeros(rrshere.shape, dtype=np.uint64)
                 mask_invalid_here[rrshere.mask] = 1
+                # if np.sum(mask_invalid_here)>0:
+                #     print(index_mu, '->Index with invalid values: ',sat_index)
                 n_masked = np.sum(mask_invalid_here)
                 self.invalid_mask[sat_index_str]['n_masked'] = n_masked
                 mask_invalid = mask_invalid + mask_invalid_here
@@ -449,6 +491,16 @@ class QC_SAT:
         for index_sat in range(self.nbands):
             if wl_min <= self.sat_bands[index_sat] <= wl_max:
                 self.add_theshold_mask(index_sat, -1, value_th, type_th)
+
+    def add_threshold_mask_norrs(self, band_name, value_th, type_th):
+        th_mask = {
+            'index_sat': -1,
+            'band_name': band_name,
+            'value_th': value_th,
+            'type_th': type_th,
+            'n_masked': 0
+        }
+        self.th_masks.append(th_mask)
 
     def add_band_statistics(self, index_sat, wl_sat, type_stat, with_outliers, value_th, type_th):
         if index_sat == -1:
@@ -540,6 +592,11 @@ class QC_SAT:
         if str(satellite_flag.dtype) == 'float32':
             satellite_flag_band = satellite_flag_band.astype('uint64')
 
+        # if index_mu==3:
+        #     print('vistazo a los datos:')
+        #     print(satellite_flag_band.shape)
+        #     print(satellite_flag_band)
+
         # flag list, it coulb be a comma separated string
         flag_list_tobe_applied = self.info_flag[flag_band]['flag_list']
         if isinstance(flag_list_tobe_applied, str):
@@ -557,19 +614,36 @@ class QC_SAT:
             ##we must be sure that flag_mask must be uint64
             flag_masks = satellite_flag.flag_masks.astype('uint64')
             flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
-            if self.info_flag[flag_band][
-                'ac_processor'] == 'C2RCC' and not flag_band == 'satellite_WQSF':  # C2RCC FLAGS
-                valuePE = np.uint64(2147483648)
-                flag_mask = np.ones(satellite_flag_band.shape, dtype=np.uint64)
-                flag_mask[satellite_flag_band == valuePE] = 0
-            else:
-                flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
-                flag_mask[np.where(flag_mask != 0)] = 1
-                # for fl in self.info_flag[flag_band]['flag_list']:
-                #     fltal = flagging.Mask(satellite_flag_band, ([fl]))
-                #     ntal = np.count_nonzero(fltal)
-                #     if ntal>0:
-                #         print('----> ',fl,':',ntal)
+            # if index_mu==3:
+            #     print(flag_list_tobe_applied)
+            flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+            # if index_mu==3:
+            #     print(flag_list_tobe_applied)
+            #     print(flag_mask)
+            #     tal = [17536]
+            #     tal = np.array(tal,dtype=np.uint64)
+            #     print(flag_meanings)
+            #     flag_meanings_l = [x.strip() for x in flag_meanings.split(' ')]
+            #     for l in flag_meanings_l:
+            #         ll = [l]
+            #         ftal = flagging.Mask(tal,ll)
+            #         print(l,ftal)
+            flag_mask[np.where(flag_mask != 0)] = 1
+
+
+            # if self.info_flag[flag_band][
+            #     'ac_processor'] == 'C2RCC' and not flag_band == 'satellite_WQSF':  # C2RCC FLAGS
+            #     valuePE = np.uint64(2147483648)
+            #     flag_mask = np.ones(satellite_flag_band.shape, dtype=np.uint64)
+            #     flag_mask[satellite_flag_band == valuePE] = 0
+            # else:
+            #     flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+            #     flag_mask[np.where(flag_mask != 0)] = 1
+            # for fl in self.info_flag[flag_band]['flag_list']:
+            #     fltal = flagging.Mask(satellite_flag_band, ([fl]))
+            #     ntal = np.count_nonzero(fltal)
+            #     if ntal>0:
+            #         print('----> ',fl,':',ntal)
 
         flag_land = self.info_flag[flag_band]['flag_land']
         if flag_land is not None and flag_land.strip().lower() == 'none':
@@ -610,6 +684,18 @@ class QC_SAT:
         r_e = central_r + int(np.floor(self.window_size / 2)) + 1  # ending row
         c_s = central_c - int(np.floor(self.window_size / 2))  # starting col
         c_e = central_c + int(np.floor(self.window_size / 2)) + 1  # ending col
+        return central_r, central_c, r_s, r_e, c_s, c_e
+
+    def get_dimensions_inner(self,wsize):
+        # Dimensions
+        nrows = self.satellite_rrs.shape[2]
+        ncols = self.satellite_rrs.shape[3]
+        central_r = int(np.floor(nrows / 2))
+        central_c = int(np.floor(ncols / 2))
+        r_s = central_r - int(np.floor(wsize / 2))  # starting row
+        r_e = central_r + int(np.floor(wsize / 2)) + 1  # ending row
+        c_s = central_c - int(np.floor(wsize / 2))  # starting col
+        c_e = central_c + int(np.floor(wsize / 2)) + 1  # ending col
         return central_r, central_c, r_s, r_e, c_s, c_e
 
     def get_flag_defaults(self, ac_processor):

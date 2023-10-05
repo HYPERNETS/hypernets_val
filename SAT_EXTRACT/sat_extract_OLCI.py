@@ -525,7 +525,8 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
     return ws0, ws1, sza, saa, vza, vaa
 
 
-def launch_create_extract_skie(filepath, skie_file, options):
+def launch_create_extract_syke(filepath, skie_file, options):
+
     ncreated = 0
 
     path_output = get_output_path(options)
@@ -549,6 +550,10 @@ def launch_create_extract_skie(filepath, skie_file, options):
     if options.has_option('satellite_options', 'max_time_diff'):
         nminutes = int(options['satellite_options']['max_time_diff'])
 
+    if args.verbose:
+        print(f'[INFO] Maximum time diferrence set to: {nminutes}')
+
+
     # Retrieving global atribbutes
     if args.verbose:
         print('[INFO] Retrieving global attributes...')
@@ -570,12 +575,10 @@ def launch_create_extract_skie(filepath, skie_file, options):
         if not contain_flag:
             continue
         r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-        # insitu_time = skie_file.get_time_at_subdb(irow, None)
-        # distd, timed, speed = skie_file.get_dist_timedif_speed_at_subdb(irow)
-        # index = skie_file.get_index_at_subdb(irow)
-        # print(irow, index, insitu_time, insitu_lat, insitu_lon, r, c, distd, timed, speed)
         keyrc = f'{r}_{c}'
         if keyrc not in extracts.keys():
+            if args.verbose:
+                print(f'[INFO]   --> In situ spectra added for row: {r} and column: {c}')
             extracts[keyrc] = {
                 'r': r,
                 'c': c,
@@ -587,6 +590,8 @@ def launch_create_extract_skie(filepath, skie_file, options):
     for extract in extracts:
         r = int(extracts[extract]['r'])
         c = int(extracts[extract]['c'])
+        if args.verbose:
+            print(f'[INFO] Creating extract for row: {r} and column {c}')
         filename = filepath.split('/')[-1].replace('.', '_') + '_extract_skie_' + extract + '.nc'
         pdu = filepath.split('/')[-1]
         ofname = os.path.join(path_output, filename)
@@ -594,8 +599,11 @@ def launch_create_extract_skie(filepath, skie_file, options):
         global_at['in_situ_lat'] = f'in situ points at pixel row={r},col={c}'
         global_at['in_situ_lon'] = f'in situ points at pixel row={r},col={c}'
 
-        create_extract_syke(ofname, pdu, options, filepath, global_at, lat, lon, r, c, skie_file,
+        b = create_extract_syke(ofname, pdu, options, filepath, global_at, lat, lon, r, c, skie_file,
                             extracts[extract]['irows'])
+
+        if b:
+            ncreated = ncreated + 1
 
     return ncreated
 
@@ -620,7 +628,7 @@ def create_extract_syke(ofname, pdu, options, filepath, global_at, lat, long, r,
         return False
 
     if args.verbose:
-        print(f'[INFO]Creating file: {ofname}')
+        print(f'[INFO]  Creating file: {ofname}')
     newEXTRACT.set_global_attributes(global_at)
     if skie_file is not None:
         newEXTRACT.create_dimensions_incluidinginsitu(size_box, n_bands, skie_file.get_n_bands(), 30)
@@ -1680,7 +1688,7 @@ def main():
                     print('------------------------------')
                     pname = filepath.split('/')[-1]
                     print(f'[INFO]Extracting sat extract for product: {pname}')
-                nhere = launch_create_extract_skie(filepath, skie_file, options)
+                nhere = launch_create_extract_syke(filepath, skie_file, options)
             ncreated = ncreated + nhere
             print('------------------------------')
             print(f'COMPLETED. {ncreated} sat extract files were created')

@@ -7,6 +7,47 @@ class SAT_EXTRACTS_LIST:
     def __init__(self, boptions, verbose):
         self.boptions = boptions
         self.verbose = verbose
+        self.hour_default = 11
+        self.minute_default = 0
+
+        self.file_name_format = self.boptions.param_sat['file_name_format']
+        self.file_name_date_format = self.boptions.param_sat['file_name_date_format']
+
+    def creating_copy_correction_sattime(self,input_file,output_file,sat_time_new):
+        from datetime import timezone
+        input_dataset = Dataset(input_file)
+        ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+        # copy global attributes all at once via dictionary
+        ncout.setncatts(input_dataset.__dict__)
+
+        # copy dimensions
+        for name, dimension in input_dataset.dimensions.items():
+            ncout.createDimension(
+                name, (len(dimension) if not dimension.isunlimited() else None))
+
+        for name, variable in input_dataset.variables.items():
+            fill_value = None
+            if '_FillValue' in list(variable.ncattrs()):
+                fill_value = variable._FillValue
+
+            ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                                 shuffle=True, complevel=6)
+
+            # copy variable attributes all at once via dictionary
+            ncout[name].setncatts(input_dataset[name].__dict__)
+
+            # copy data
+            if name == 'satellite_time':
+                ftime = sat_time_new.replace(tzinfo=timezone.utc).timestamp()
+                ncout[name][:] = ftime
+
+            else:
+                ncout[name][:] = input_dataset[name][:]
+
+        ncout.close()
+
+        input_dataset.close()
 
     def get_list_as_dict(self):
         start_date = self.boptions.start_date
@@ -35,11 +76,12 @@ class SAT_EXTRACTS_LIST:
             except:
                 print(f'[WARNING] Extract {name} is not a valid NetCDF file. Skipping...')
                 continue
-            time_here = self.check_time(name, dataset, start_date, end_date)
+            time_here,correct_time = self.check_time(name, dataset, start_date, end_date)
 
             if time_here is None:
                 dataset.close()
                 continue
+
             site_here = self.check_site(name, dataset, site['station_name'])
             if site_here is None:
                 dataset.close()
@@ -61,6 +103,17 @@ class SAT_EXTRACTS_LIST:
             if resolution is None:
                 dataset.close()
                 continue
+            dataset.close()
+
+            if correct_time:
+                output_file = os.path.join(sat_extract_dir,name[:-3]+'_COPY.NC')
+                self.creating_copy_correction_sattime(fextract,output_file,time_here)
+                os.rename(output_file,fextract)
+                dataset = Dataset(fextract)
+                ftime = dataset.variables['satellite_time']
+                time_check = dt.utcfromtimestamp(float(dataset.variables['satellite_time'][0]))
+                dataset.close()
+                print(f'[WARNING] Time was corrected and set as UTC to: {time_check}')
 
             sat_list[name] = {
                 'path': fextract,
@@ -76,16 +129,47 @@ class SAT_EXTRACTS_LIST:
             print(f'[INFO] Number of extract files added to the list: {nadded} ')
         return sat_list
 
-    def check_time(self, fname, dataset, start_date, end_date):
+    def check_time(self,fname,dataset,start_date,end_date):
+        correct = False
         datetime_here = dt.utcfromtimestamp(float(dataset.variables['satellite_time'][0]))
-        if datetime_here.hour==0 and datetime_here.minute==0 and datetime_here.second==0:
-            datetime_here = datetime_here.replace(hour=11)
+        if self.file_name_format is not None and self.file_name_date_format is not None:
+            istart = self.file_name_format.index('$DATE$')
+            iend = istart + len(dt.now().strftime(self.file_name_date_format))
+            if istart>0 and iend>0:
+                datetime_here_name_str = fname[istart:iend]
+                try:
+                    datetime_here_name = dt.strptime(datetime_here_name_str,self.file_name_date_format)
+                    tdif = abs((datetime_here-datetime_here_name).total_seconds())
+                    if tdif>120:
+                        correct = True
+                        datetime_here = datetime_here_name
+                except:
+                    pass
+
+        if datetime_here.hour == 0 and datetime_here.minute == 0 and datetime_here.second == 0:
+            datetime_here = datetime_here.replace(hour=self.hour_default, minute=self.minute_default)
+        if start_date <= datetime_here <= end_date:
+            return datetime_here,correct
+        else:
+            return None,correct
+
+    def check_time_deprecated(self, fname, dataset, start_date, end_date):
+        datetime_here = dt.utcfromtimestamp(float(dataset.variables['satellite_time'][0]))
+
         try:
             datetime_here_name = dt.strptime(fname.split('_')[7], '%Y%m%dT%H%M%S')
             if datetime_here_name > datetime_here:
                 datetime_here = datetime_here_name
         except:
-            pass
+            try:
+                datetime_here_name = dt.strptime(fname[1:8], '%Y%j')
+                if datetime_here_name > datetime_here:
+                    datetime_here = datetime_here_name
+            except:
+                pass
+
+        if datetime_here.hour == 0 and datetime_here.minute == 0 and datetime_here.second == 0:
+            datetime_here = datetime_here.replace(hour=self.hour_default, minute=self.minute_default)
         if start_date <= datetime_here <= end_date:
             return datetime_here
         else:
@@ -115,6 +199,8 @@ class SAT_EXTRACTS_LIST:
             sensor_here = dataset.sensor
             if sensor_here.startswith('MODIS Moderate Resolution Imaging Spectroradiometer,'):
                 sensor_here = 'MULTI'
+            if sensor_here.startswith('SeaWiFS,'):
+                sensor_here = 'MULTI'
 
         if sensor_here is None:
             print(f'[WARNING] Sensor set to {sensor_name} despite of not being defined in the extract file')
@@ -136,13 +222,14 @@ class SAT_EXTRACTS_LIST:
                     ac_here = ac_name.upper()
                 else:
                     ac_here = 'STANDARD'
-                # ac_here = ac_here.split(':')[1].strip().upper()
-                # if ac_here.startswith('X'):
-                #     ac_here = 'STANDARD'
-        if len(ac_here)==0:
+            if ac_here == 'Climate Change Initiative - European Space Agency':
+                ac_here = 'CCI'
+
+        if len(ac_here) == 0:
             ac_here = None
         if ac_here is None:
-            print(f'[WARNING] Atmospheric correction set to {ac_name.upper()} despite of not being defined in the extract file')
+            print(
+                f'[WARNING] Atmospheric correction set to {ac_name.upper()} despite of not being defined in the extract file')
             return ac_name.upper()
         else:
             if ac_here.upper() == ac_name.upper():
@@ -156,7 +243,7 @@ class SAT_EXTRACTS_LIST:
         platform_here = None
         if 'satellite' in dataset.ncattrs() and 'platform' in dataset.ncattrs():
             platform_here = f'{dataset.satellite}{dataset.platform}'
-        if len(platform_here)==0:
+        if len(platform_here) == 0:
             platform_here = None
         if platform_here is None:
             print(f'[WARNING] Platform set to {platform_name} despite of not being defined in the extract file')

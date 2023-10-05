@@ -49,21 +49,25 @@ class QC_INSITU:
         self.check_th_other_bands = {}
 
         # for idendifying bands
-        self.msibands = {
-            'B1': 443,
-            'B2': 490,
-            'B3': 560,
-            'B4': 665,
-            'B5': 705,
-            'B6': 740,
-            'B7': 783,
-            'B8': 842,
-            'B8A': 865,
-            'B9': 945,
-            'B10': 1375,
-            'B11': 1610,
-            'B12': 2190
+        self.msibands = self.get_msi_bands_dict()
+
+    def get_msi_bands_dict(self):
+        msibands = {
+            'B1': {'wl': 443, 'apply': False},
+            'B2': {'wl': 490, 'apply': False},
+            'B3': {'wl': 560, 'apply': False},
+            'B4': {'wl': 665, 'apply': False},
+            'B5': {'wl': 705, 'apply': False},
+            'B6': {'wl': 740, 'apply': False},
+            'B7': {'wl': 783, 'apply': False},
+            'B8': {'wl': 842, 'apply': False},
+            'B8A': {'wl': 865, 'apply': False},
+            'B9': {'wl': 945, 'apply': False},
+            'B10': {'wl': 1375, 'apply': False},
+            'B11': {'wl': 1610, 'apply': False},
+            'B12': {'wl': 2190, 'apply': False}
         }
+        return msibands
 
     ##Method to make the subset of the spectra
     def set_wllist_min_max(self, wlmin, wlmax):
@@ -91,12 +95,16 @@ class QC_INSITU:
     def set_wllist_using_wlref(self, wlreflist):
         self.wl_list = wlreflist
         self.wl_indices = []
+        self.msibands = self.get_msi_bands_dict()
         for wl in self.wl_list:
             index, wl_index = self.get_insitu_index(wl)
-            self.wl_indices.append(index)
+            if index >= 0:
+                self.wl_indices.append(index)
+                for b in self.msibands:
+                    if abs(wl-self.msibands[b]['wl'])<10:
+                        self.msibands[b]['apply'] = True
 
     def start_quality_control(self):
-
         self.thersholds = {}
         for wl in self.wl_list:
             wls = str(wl)
@@ -260,6 +268,8 @@ class QC_INSITU:
             index = -1
         return index, wl_index
 
+
+
     def get_insitu_index_mu(self, imu, wl):
         dif_ref = self.maxdifwl
         index = -1
@@ -369,29 +379,19 @@ class QC_INSITU:
         ngood = len(dif_time_good)
         if ngood == 0:
             return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
+        if len(dif_time_good.shape) == 2:
+            dif_time_good = dif_time_array.flatten()
 
         indices_good = np.argsort(dif_time_good)
+
         for idx in indices_good:
             id_min_time = idx
             time_dif = dif_time_array[idx]
             time_condition = time_dif < self.time_max
             if time_condition:
-                # if index_mu==138:
-                #     print('AQUI DEBERIA ESTAR WITH IDX: ',idx)
                 rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
                 valid_bands_array = np.array(valid_bands, dtype=bool)
                 rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
-                # if index_mu==138:
-                #     print(rrs_values)
-                #     print(indices)
-                #     print(valid_bands)
-                #     print(type(rrs_values))
-                #     valid_bands_array = np.array(valid_bands,dtype=bool)
-                #     rrs_values = np.ma.masked_where(valid_bands_array==False,rrs_values)
-                #     print(rrs_values)
-                #     print(sum(valid_bands),np.sum(valid_bands),type(valid_bands))
-                #     print(self.wl_list)
-
                 valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
                 spectrum_complete = np.sum(valid_bands_array) == len(self.wl_list)
                 if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
@@ -401,7 +401,6 @@ class QC_INSITU:
                         exact_wl = exact_wl_array[indices, id_min_time]
                     rrs_values = bsc_qaa.bsc_qaa(rrs_values, exact_wl, wl_ref)
                 if valid_values:
-                    # print(f'[INFO] Selected in situ spectra with time dif: {time_dif}')
                     break
 
         return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
@@ -456,22 +455,23 @@ class QC_INSITU:
             rrs_values = spectra[indices]
             valid_bands = np.invert(ma.getmaskarray(rrs_values)).tolist()
 
-        # print(type(rrs_values))
         # implementation of spectral response function here
-        # print('************************************************', self.srf)
         if self.srf is not None:
             import pandas as pd
             S2srf = pd.read_csv(self.srf)
-
             bands = self.insitu_bands[:]
             df = pd.DataFrame(data=spectra, index=bands)
             nnT = self.reindex_and_interpolate(df, S2srf["SR_WL"].values)
             rrs_values = []
             for a in np.arange(1, S2srf.shape[1]):
-                rrs_values.append(
-                    nnT.mul(np.array(S2srf.iloc[:, a]), axis=0).sum(axis=0) / (sum(np.array(S2srf.iloc[:, a]))))
+                band = str(S2srf.columns[a]).split('_')[-1]
+                if self.msibands[band]['apply']:
+                    rrs_values.append(
+                        nnT.mul(np.array(S2srf.iloc[:, a]), axis=0).sum(axis=0) / (sum(np.array(S2srf.iloc[:, a]))))
             rrs_values = np.ma.array(rrs_values)
-            # print(type(rrs_values))
+            rrs_values = rrs_values.flatten()
+
+
 
         return rrs_values, indices, valid_bands
 

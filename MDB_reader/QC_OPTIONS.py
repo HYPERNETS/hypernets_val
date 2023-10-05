@@ -22,10 +22,16 @@ class QC_OPTIONS:
 
         return wllist
 
+    def get_create_copy_with_band_list(self):
+        section = 'QC_SAT'
+        return self.get_value_param(section,'copy_with_wllist',False,'boolean')
+
     def get_qcsat(self, qc_sat, dataset):
         section = 'QC_SAT'
         options_qcsat = {
             'wllist': {'valid': 0, 'value': None, 'type': 'floatlist'},
+            'wllist_pi_multiplied': {'valid': 0, 'value': None, 'type': 'floatlist'},
+            'wllist_pi_divided': {'valid': 0, 'value': None, 'type': 'floatlist'},
             'window_size': {'valid': 0, 'value': None, 'type': 'int'},
             'min_valid_pixels': {'valid': 0, 'value': None, 'type': 'int'},
             'use_Bailey_Werdell': {'valid': 0, 'value': None, 'type': 'boolean'},
@@ -40,6 +46,9 @@ class QC_OPTIONS:
             'rrs_th_X': {'valid': 0, 'value': None, 'type': 'dict',
                          'keys': {'wl_min': 'float', 'wl_max': 'float', 'th_value': 'float', 'th_type': 'str'}
                          },
+            'band_th_X' : {'valid': 0, 'value': None, 'type': 'dict',
+                           'keys': {'band_name': 'str', 'th_value': 'float', 'th_type': 'str'}
+                           },
             'macropixel_filter_rrs_X': {'valid': 0, 'value': None, 'type': 'dict',
                                         'keys': {'wl': 'float', 'stat': 'str', 'withoutliers': 'boolean',
                                                  'th_value': 'float', 'th_type': 'str'}
@@ -95,8 +104,13 @@ class QC_OPTIONS:
                 qc_sat.wl_ref = options_qcsat[option]['value']
                 qc_sat.update_invalid_mask()
                 print(f'[INFO] Set wavelength list: {qc_sat.wl_ref}')
+            elif option == 'wllist_pi_multiplied':
+                qc_sat.update_pi_correct(options_qcsat[option]['value'],1)
+            elif option == 'wllist_pi_divided':
+                qc_sat.update_pi_correct(options_qcsat[option]['value'],2)
             elif option == 'window_size':
-                qc_sat.window_size = options_qcsat[option]['value']
+                #qc_sat.window_size = options_qcsat[option]['value']
+                qc_sat.set_window_size(options_qcsat[option]['value'])
                 print(f'[INFO] Set window size: {qc_sat.window_size}')
             elif option == 'min_valid_pixels':
                 qc_sat.min_valid_pixels = options_qcsat[option]['value']
@@ -156,6 +170,10 @@ class QC_OPTIONS:
                 list_vals = options_qcsat[option]['value']
                 for val in list_vals:
                     qc_sat.add_threhold_mask_range(val['wl_min'], val['wl_max'], val['th_value'], val['th_type'])
+            elif option == 'band_th_X':
+                list_vals = options_qcsat[option]['value']
+                for val in list_vals:
+                    qc_sat.add_threshold_mask_norrs(val['band_name'],val['th_value'],val['th_type'])
             elif option == 'macropixel_filter_rrs_X':
                 list_vals = options_qcsat[option]['value']
                 for val in list_vals:

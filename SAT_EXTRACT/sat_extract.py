@@ -57,6 +57,14 @@ class SatExtract:
         self.EXTRACT.createDimension('rows', size_box)
         self.EXTRACT.createDimension('columns', size_box)
 
+    def create_dimensions_basic_includinginsitu(self, size_box,n_insitubands,n_insituid):
+        self.EXTRACT.createDimension('satellite_id', None)
+        self.EXTRACT.createDimension('rows', size_box)
+        self.EXTRACT.createDimension('columns', size_box)
+
+        self.EXTRACT.createDimension('insitu_original_bands', n_insitubands)
+        self.EXTRACT.createDimension('insitu_id', n_insituid)
+
     def create_dimensions(self, size_box, n_bands):
         # dimensions
         self.EXTRACT.createDimension('satellite_id', None)
@@ -92,7 +100,9 @@ class SatExtract:
         satellite_time.units = "Seconds since 1970-1-1"
 
     def create_pdu_variable(self, pdu, sensor):
-        satellite_PDU = self.EXTRACT.createVariable('satellite_PDU', 'S4', ('satellite_id'), zlib=True,
+
+
+        satellite_PDU = self.EXTRACT.createVariable('satellite_PDU', 'S1', ('satellite_id'), zlib=True,
                                                     complevel=6)  # string
 
         satellite_PDU[0] = pdu

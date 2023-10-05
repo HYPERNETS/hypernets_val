@@ -54,6 +54,12 @@ class PlotScatter():
         #self.fig, self.ax = plt.subplots(nrow, ncol,figsize=(7,7),gridspec_kw={'wspace':0.1,'hspace':0.1})
         self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(7, 4), gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
 
+    def start_multiple_plot_advanced(self,nrow,ncol,xfigsize,yfigsize,widthspace,heightspace):
+        self.nrow = nrow
+        self.ncol = ncol
+        # self.fig, self.ax = plt.subplots(nrow, ncol,figsize=(7,7),gridspec_kw={'wspace':0.1,'hspace':0.1})
+        self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(xfigsize, yfigsize), gridspec_kw={'wspace': widthspace, 'hspace': heightspace})
+
     def close_plot(self):
         plt.close()
 
@@ -103,7 +109,8 @@ class PlotScatter():
                             s=style['s'],
                             c=style['c'],
                             edgecolors=style['edgecolors'],
-                            linewidths=style['linewidths'])
+                            linewidths=style['linewidths'],
+                            alpha = 1.0)
 
     def plot_reg_line(self, xdata, ydata, color):
         data_plot = pd.concat([xdata, ydata], axis=1).astype(dtype=np.float)
@@ -154,8 +161,10 @@ class PlotScatter():
                            bbox_to_anchor=self.legend_options['bbox_to_anchor'])
 
     def set_global_legend(self,str_legend):
-        self.fig.legend(str_legend, loc='lower center', ncol=len(str_legend))
+        #self.fig.legend(str_legend, loc='lower center', ncol=len(str_legend),markerscale=2.0,bbox_to_anchor=(0.5,0.04))
+        #self.fig.legend(str_legend, loc='lower center', ncol=len(str_legend), markerscale=2.0)
         #self.fig.legend(str_legend, loc='upper center', ncol=len(str_legend))
+        self.fig.legend(str_legend, fontsize=10, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.5, -0.01))
 
     def set_title(self, title):
         if self.axhere is None:
@@ -169,12 +178,12 @@ class PlotScatter():
         ymin, ymax = self.axhere.get_ylim()
         xmin = np.min([xmin, ymin])
         xmax = np.max([xmax, ymax])
-        self.axhere.plot([xmin, xmax], [xmin, xmax], '--k')
+        self.axhere.plot([xmin, xmax], [xmin, xmax], '--k', linewidth=0.75)
 
     def plot_regress_line(self, xdata, ydata, color):
         if self.axhere is None:
             self.set_axhere()
-        self.axhere.plot(xdata, ydata, color=color, linestyle='-', linewidth=1, marker=None)
+        self.axhere.plot(xdata, ydata, color=color, linestyle='-', linewidth=2, marker=None)
 
     def plot_text(self, xpos, ypos, str):
         if self.axhere is None:
@@ -191,18 +200,29 @@ class PlotScatter():
         self.axhere.set_yticks(ticks)
         if fontsize>0:
             self.axhere.tick_params(axis='both',labelsize=fontsize)
+
+    def set_ticks_and_labels(self,ticks,labels,fontsize):
+        if self.axhere is None:
+            self.set_axhere()
+        self.axhere.set_xticks(ticks,labels=labels)
+        self.axhere.set_yticks(ticks,labels=labels)
+        if fontsize>0:
+            self.axhere.tick_params(axis='both',labelsize=fontsize)
+
     def set_xticks_labels_off(self,ticks):
         if self.axhere is None:
             self.set_axhere()
-        self.axhere.set_xticks(ticks)
-        self.axhere.set_yticks(ticks)
+        if ticks is not None:
+            self.axhere.set_xticks(ticks)
+            self.axhere.set_yticks(ticks)
         self.axhere.tick_params(axis='x',labelbottom=False,labeltop=False)
 
     def set_yticks_labels_off(self,ticks):
         if self.axhere is None:
             self.set_axhere()
-        self.axhere.set_xticks(ticks)
-        self.axhere.set_yticks(ticks)
+        if ticks is not None:
+            self.axhere.set_xticks(ticks)
+            self.axhere.set_yticks(ticks)
         self.axhere.tick_params(axis='y',labelleft=False,labelright=False)
 
     def plot_blanck(self,index):
@@ -213,4 +233,4 @@ class PlotScatter():
         self.axhere.axis('off')
 
     def save_fig(self, file_out):
-        plt.savefig(file_out, dpi=300)
+        plt.savefig(file_out,dpi = 300, bbox_inches = 'tight')

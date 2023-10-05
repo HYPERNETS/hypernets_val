@@ -276,6 +276,7 @@ def create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_
 
     return True
 
+
 def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, syke_file, irows):
     size_box = get_box_size(options)
     start_idx_x = (c - int(size_box / 2))
@@ -598,6 +599,8 @@ def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop
 
 
 def run_syke_option(options):
+    if args.verbose:
+        print(f'[INFO] STARTING SYKE MODE')
     path_syke = options['file_path']['path_syke']
     path_syke_code = options['file_path']['path_syke_code']
     if not os.path.exists(path_syke):
@@ -729,9 +732,10 @@ def run_insitu_option(options):
                     global_at['in_situ_lat'] = insitu_lat
                     global_at['in_situ_lon'] = insitu_lon
                     insitu_info = valid_dates[sat_date_str][h]
-                    created = create_extract_insitu(ofname,pdu,options,nc_sat,global_at,r,c,insitu_time,insitu_info,name_variables)
+                    created = create_extract_insitu(ofname, pdu, options, nc_sat, global_at, r, c, insitu_time,
+                                                    insitu_info, name_variables)
                     if created:
-                        ncreated = ncreated +1
+                        ncreated = ncreated + 1
         nc_sat.close()
         # nhere = 1  # nhere = launch_create_extract_syke(filepath, syke_file, options)
         # ncreated = ncreated + nhere

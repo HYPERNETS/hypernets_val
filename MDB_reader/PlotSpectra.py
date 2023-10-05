@@ -26,24 +26,34 @@ class PlotSpectra():
         self.spectra_style['color'] = 'gray'
 
         self.stats_style = {
-            'avg': line_style_default.copy(),
-            'std': line_style_default.copy(),
+            'central': line_style_default.copy(),
+            'dispersion': line_style_default.copy(),
             'minmax': line_style_default.copy(),
             'fill': {
                 'color': 'gray',
                 'alpha': 0.2
             }
         }
-        self.stats_style['avg']['color'] = 'black'
-        self.stats_style['avg']['linewidth'] = 1
+        self.stats_style['central']['color'] = 'black'
+        self.stats_style['central']['linewidth'] = 1
 
-        self.stats_style['std']['color'] = 'black'
-        self.stats_style['std']['linewidth'] = 0
-        self.stats_style['std']['linestyle'] = 'dashed'
+        self.stats_style['dispersion']['color'] = 'black'
+        self.stats_style['dispersion']['linewidth'] = 0
+        self.stats_style['dispersion']['linestyle'] = 'dashed'
 
         self.stats_style['minmax']['color'] = 'black'
         self.stats_style['minmax']['linewidth'] = 0
         self.stats_style['minmax']['linestyle'] = 'dashed'
+
+        self.stats_plot = {
+            'central': 'avg',
+            'dispersion': 'std',
+            'factor':  1,
+        }
+
+
+
+
 
     def start_plot(self):
         plt.close()
@@ -54,6 +64,15 @@ class PlotSpectra():
 
     def save_plot(self, file_out):
         plt.savefig(file_out, dpi=300)
+
+    def set_iqr_as_stats_plot(self):
+        self.stats_plot['central'] = 'median'
+        self.stats_plot['dispersion'] = 'iqr'
+
+    def set_std_as_stats_plot(self,factor):
+        self.stats_plot['central'] = 'avg'
+        self.stats_plot['dispersion'] = 'std'
+        self.stats_plot['factor'] = factor
 
     def plot_data(self, ydata, style):
         h, = plt.plot(self.xdata, ydata,
@@ -79,9 +98,12 @@ class PlotSpectra():
 
         h = self.plot_data(ydata, style)
 
+
+
         return h
 
     def set_legend(self, str_legend):
+        print(self.legend_options['bbox_to_anchor'])
         plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'])
 
     def set_legend_h(self,handles,str_legend):
@@ -101,11 +123,33 @@ class PlotSpectra():
             fontsize = 9
         plt.xticks(xticks, xtickvalues, rotation=rotation, fontsize=fontsize)
 
+    def set_yticks(self, yticks, ytickvalues, rotation, fontsize):
+        if rotation is None:
+            rotation = 0
+        if rotation < 0 or rotation > 90:
+            rotation = 0
+        if ytickvalues is None:
+            ytickvalues = yticks
+        if fontsize is None:
+            fontsize = 9
+        if yticks is None:
+            plt.yticks(rotation=rotation, fontsize=fontsize)
+        else:
+            plt.yticks(yticks, ytickvalues, rotation=rotation, fontsize=fontsize)
+
+    def get_xticks(self):
+        locs, labels = plt.xticks()
+        return locs,labels
+
+    def get_yticks(self):
+        locs, labels = plt.yticks()
+        return locs
+
     def set_xaxis_title(self, xaxis_title):
-        plt.xlabel(xaxis_title, fontsize=12)
+        plt.xlabel(xaxis_title, fontsize=14)
 
     def set_yaxis_title(self, yaxis_title):
-        plt.ylabel(yaxis_title, fontsize=12)
+        plt.ylabel(yaxis_title, fontsize=14)
 
     def save_fig(self, file_out):
         plt.savefig(file_out, dpi=300)
@@ -122,6 +166,10 @@ class PlotSpectra():
     def set_y_range(self, ymin, ymax):
         plt.ylim(ymin, ymax)
 
+    def get_y_range(self):
+        ymin, ymax = plt.ylim()
+        return ymin,ymax
+
     def plot_multiple_spectra(self, wavelength, spectra, stats, wlmin, wlmax):
         imin, imax = self.get_imin_imax_from_wavelength(wavelength,wlmin,wlmax)
 
@@ -130,11 +178,11 @@ class PlotSpectra():
             spectra = spectra[:, imin:imax]
             self.plot_data(spectra.transpose(), self.spectra_style)
 
-        self.plot_data(stats['avg'][imin:imax], self.stats_style['avg'])
+        self.plot_data(stats['avg'][imin:imax], self.stats_style['central'])
         y1 = stats['avg'][imin:imax] - stats['std'][imin:imax]
         y2 = stats['avg'][imin:imax] + stats['std'][imin:imax]
-        self.plot_data(y1, self.stats_style['std'])
-        self.plot_data(y2, self.stats_style['std'])
+        self.plot_data(y1, self.stats_style['dispersion'])
+        self.plot_data(y2, self.stats_style['dispersion'])
         plt.fill_between(self.xdata, y1, y2, color=self.stats_style['fill']['color'],
                          alpha=self.stats_style['fill']['alpha'])
         self.plot_data(stats['spectra_min'][imin:imax], self.stats_style['minmax'])
@@ -146,14 +194,29 @@ class PlotSpectra():
         return imin,imax
 
     def plot_stats(self,stats,imin, imax):
-        h = self.plot_data(stats['avg'][imin:imax], self.stats_style['avg'])
-        y1 = stats['avg'][imin:imax] - stats['std'][imin:imax]
-        y2 = stats['avg'][imin:imax] + stats['std'][imin:imax]
-        if self.stats_style['std']['linewidth']>0:
-            self.plot_data(y1, self.stats_style['std'])
-            self.plot_data(y2, self.stats_style['std'])
-        plt.fill_between(self.xdata, y1, y2, facecolor=self.stats_style['fill']['color'],
-                         alpha=self.stats_style['fill']['alpha'])
+
+        stat_central = self.stats_plot['central'] #avg or median
+        stat_dispersion = self.stats_plot['dispersion'] #std o iqr
+        #h = self.plot_data(stats['avg'][imin:imax], self.stats_style['central'])
+        h = self.plot_data(stats[stat_central][imin:imax],self.stats_style['central'])
+
+        if stat_dispersion=='std':
+            factor = self.stats_plot['factor']
+            y1 = stats['avg'][imin:imax] - (factor * stats['std'][imin:imax])
+            y2 = stats['avg'][imin:imax] + (factor * stats['std'][imin:imax])
+        elif stat_dispersion=='iqr':
+            y1 = stats['p25'][imin:imax]
+            y2 = stats['p75'][imin:imax]
+
+
+
+        if self.stats_style['dispersion']['linewidth']>0:
+            self.plot_data(y1, self.stats_style['dispersion'])
+            self.plot_data(y2, self.stats_style['dispersion'])
+
+        if self.stats_style['fill']['color'] is not None:
+            plt.fill_between(self.xdata, y1, y2, facecolor=self.stats_style['fill']['color'],alpha=self.stats_style['fill']['alpha'])
+
         if  self.stats_style['minmax']['linewidth'] > 0:
             self.plot_data(stats['spectra_min'][imin:imax], self.stats_style['minmax'])
             self.plot_data(stats['spectra_max'][imin:imax], self.stats_style['minmax'])
@@ -179,4 +242,5 @@ class PlotSpectra():
             imin = np.argmin(np.abs(wavelength - wlmin))
         if wlmax is not None and wavelength[imin] < wlmax < wavelength[imax]:
             imax = np.argmin(np.abs(wavelength - wlmax))
+        imax = imax +1
         return imin, imax

@@ -185,6 +185,14 @@ class MDBBuilderOptions:
             elif atm_corr == 'OLCI-L3':
                 prefix = f'CMEMS2_O'
 
+        file_name_format = None
+        file_name_date_format = None
+        if self.options.has_option('satellite_options','file_name_format'):
+            file_name_format = self.options['satellite_options']['file_name_format']
+            file_name_date_format = '%Y%m%dT%H%M%S'
+            if self.options.has_option('satellite_options','file_name_date_format'):
+                file_name_date_format = self.options['satellite_options']['file_name_date_format']
+
         if self.verbose:
             print(
                 f'[INFO] Satellite extracts options----------------------------------------------------------------START')
@@ -194,6 +202,8 @@ class MDBBuilderOptions:
             print(f'[INFO] Satellite resolution: {sat_res.upper()}')
             print(f'[INFO] Satellite atmospheric correction: {atm_corr.upper()}')
             print(f'[INFO] Prefix: {prefix}')
+            print(f'[INFO] File name format: {file_name_format}')
+            print(f'[INFO] Fie name date format: {file_name_date_format}')
             print(
                 f'[INFO] Satellite extracts options------------------------------------------------------------------END')
 
@@ -203,7 +213,9 @@ class MDBBuilderOptions:
             'platform': sat_platform.upper(),
             'resolution': sat_res.upper(),
             'ac': atm_corr.upper(),
-            'prefix': prefix
+            'prefix': prefix,
+            'file_name_format':file_name_format,
+            'file_name_date_format': file_name_date_format
         }
 
     def get_insitu_options(self):

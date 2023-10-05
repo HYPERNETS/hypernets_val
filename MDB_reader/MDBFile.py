@@ -79,7 +79,10 @@ class MDBFile:
                 self.info['satellite_aco_processor'] = 'STANDARD'
 
             if self.info['satellite_aco_processor'] == 'CLIMATE CHANGE INITIATIVE - EUROPEAN SPACE AGENCY':
-                self.info['satellite_aco_processor'] = 'CCI'
+                if file_name.find('CCIALL') > 0:
+                    self.info['satellite_aco_processor'] = 'CCIALL'
+                else:
+                    self.info['satellite_aco_processor'] = 'CCI'
 
             self.info['res'] = 'WFR'
             self.info['insitu_sensor'] = 'HYPSTAR'
@@ -116,6 +119,8 @@ class MDBFile:
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
                                  self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
 
+        self.window_size = self.qc_sat.window_size
+
         # Variables to make validation...
         self.col_names = ['Index', 'Index_MU', 'Index_Band', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Wavelenght',
                           'Ins_Rrs',
@@ -132,6 +137,7 @@ class MDBFile:
         self.rgb_bands = [665, 560, 490]
 
         self.PI_DIVIDED = False
+        self.var_mu_valid = 'mu_valid'
 
     def check_repeated(self):
         sat_times = np.array(self.sat_times)
@@ -142,6 +148,76 @@ class MDBFile:
                     print(f'[WARNING] There are repeated satellite dates.')
                     return False
         return True
+
+    def check_wl(self):
+        if 'mu_wavelength' not in self.variables:
+            return True
+
+        checkw = True
+        mu_wl = np.unique(np.array(self.variables['mu_wavelength'][:]))
+        wl_list = list(self.satellite_bands)
+        for mwl in mu_wl:
+            if mwl not in wl_list:
+                print(f'[WARNING] {mwl} is not available in satellite bands variable')
+                checkw = False
+
+        return checkw
+
+    def correct_wl(self):
+        print('[INFO] Correcting wavelengths... ')
+        mu_wl = np.array(self.variables['mu_wavelength'][:])
+        mu_wl_end = mu_wl.copy()
+        wl_list = list(self.satellite_bands)
+        nreassigned = 0
+        for idx in range(len(mu_wl)):
+            mwl = mu_wl[idx]
+            if mwl in wl_list:
+                continue
+            diffwl = np.abs(mwl - self.satellite_bands)
+            imin = np.argmin(diffwl)
+            if diffwl[imin] <= 1:
+                mu_wl_end[idx] = self.satellite_bands[imin]
+                nreassigned = nreassigned + 1
+                # print(f'[INFO] Wavelength: {mwl} set to {mu_wl_end[idx]}')
+            else:
+                print(f'[ERROR] Wavelength could not be reassigned')
+                return
+
+        print(f'[INFO] Number of reassigned data points: {nreassigned}')
+
+        print(f'[INFO] Creating temporary file with corrected wavelengths...')
+        file_temp = os.path.join(os.path.dirname(self.file_path), 'Temp.nc')
+        if os.path.exists(file_temp):
+            os.remove(file_temp)
+
+        ncout = Dataset(file_temp, 'w', format='NETCDF4')
+
+        # copy global attributes all at once via dictionary
+        ncout.setncatts(self.nc.__dict__)
+
+        # copy dimensions (satellite_id is defined as unlimited, so we do not need to change it)
+        for name, dimension in self.nc.dimensions.items():
+            ncout.createDimension(
+                name, (len(dimension) if not dimension.isunlimited() else None))
+
+        for name, variable in self.nc.variables.items():
+            fill_value = None
+            if '_FillValue' in variable.ncattrs():
+                fill_value = variable._FillValue
+            ncout.createVariable(name, variable.datatype, variable.dimensions, zlib=True, fill_value=fill_value,
+                                 shuffle=True, complevel=6)
+            ncout[name].setncatts(self.nc[name].__dict__)
+
+            if name == 'mu_wavelength':
+                ncout[name][:] = mu_wl_end[:]
+            else:
+                ncout[name][:] = self.nc[name][:]
+        ncout.close()
+
+        self.nc.close()
+        print(f'[INFO] Final file: {self.file_path}')
+        os.rename(file_temp, self.file_path)
+        print(f'[INFO] Completed')
 
     def remove_repeated(self):
 
@@ -365,7 +441,15 @@ class MDBFile:
                 insitu_time_here = datetime.utcfromtimestamp(float(itime))
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
-                # print(time_difference_prev[idx],'vs.',time_diff_here)
+                diff_time = abs(time_difference_prev[idx] - time_diff_here)
+                if diff_time >= 150:
+                    print('[WARNING] Unexplained time difference. Please review sat and insitu times are in utc: ')
+                    ssource = self.variables['satellite_PDU'][index_mu]
+                    isource = self.variables['insitu_filename'][index_mu][idx]
+                    print(f'--> Satellite time in file: {sat_time_here} Name file: {ssource}')
+                    print(f'--> In situ time in file: {insitu_time_here} Name file: {isource}')
+                    print(f'--> Time difference in file: {time_difference_prev[idx]} Recomputed: {time_diff_here}')
+
             else:
                 time_difference[idx] = np.ma.masked
 
@@ -419,7 +503,7 @@ class MDBFile:
             name_variable_insitu = 'insitu_Rrs_nosc'
 
         self.insitu_rrs = self.variables[name_variable_insitu][index_mu]
-        # print(self.insitu_rrs)
+
         self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
 
         # Sat and instrument time
@@ -475,12 +559,19 @@ class MDBFile:
         self.mu_curr_sat_rrs_mean = []
         for iref in range(len(self.wlref_sat_indices)):
             if not np.ma.is_masked(rrs_ins_values[iref]):
-                self.mu_curr_sat_rrs_mean.append(sat_values[iref])
+                iband = self.wlref_sat_indices[iref]
+                sat_value_here = sat_values[iref]
+                if self.qc_sat.pi_multiplied[iband]:
+                    sat_value_here = sat_value_here * np.pi
+                if self.qc_sat.pi_divided[iband]:
+                    sat_value_here = sat_value_here / np.pi
+
+                self.mu_curr_sat_rrs_mean.append(sat_value_here)
                 self.mu_curr_ins_rrs.append(rrs_ins_values[iref])
                 mu_valid_bands[iref] = True
 
         if sum(mu_valid_bands) == 0:
-            load_info['status'] = -6  # f'NO VALID IN SITU DATA'
+            load_info['status'] = -7  # f'NO VALID IN SITU DATA'
             return is_mu_valid, load_info
 
         load_info['status'] = 1  # f'OK'
@@ -776,11 +867,17 @@ class MDBFile:
         index_tot = 0
         nmu_valid = 0
         nmu_valid_complete = 0
+        status_error = [0] * 8
         for index_mu in range(self.n_mu_total):
             if index_mu % 100 == 0:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
+
+            if info_mu['status'] < 0:
+                spos = info_mu['status'] * (-1)
+                status_error[spos] = status_error[spos] + 1
+
             # print(index_mu)
             # print(info_mu)
             # print('------------')
@@ -823,8 +920,18 @@ class MDBFile:
 
                 sat_band_index = self.wlref_sat_indices[iref]
                 valid_here = mu_valid
+
                 if not spectrum_complete and mu_valid:
                     valid_here = mu_valid_bands[iref]
+
+                # valid_here_int = 1
+                # if not valid_here:
+                #     valid_here_int = 0
+                #     spos = info_mu['status'] * (-1)
+                #     if spos<=3:
+                #         valid_here_int = -1
+
+
                 row = {
                     'Index': [index_tot],
                     'Index_MU': [index_mu],
@@ -835,7 +942,7 @@ class MDBFile:
                     'Wavelenght': [self.wlref[iref]],
                     'Ins_Rrs': [-999],
                     'Sat_Rrs': [-999],
-                    'Valid': [valid_here]  # [self.mu_valid_bands[sat_band_index]]
+                    'Valid': [valid_here],
                 }
                 if valid_here:  # self.mu_valid_bands[sat_band_index]:
                     n_good_bands = n_good_bands + 1
@@ -864,7 +971,44 @@ class MDBFile:
         self.prepare_df_mu()
         print(
             f'[INFO] #total match-ups: {self.n_mu_total} Valid: {nmu_valid}  With complete spectrum: {nmu_valid_complete}')
-        return nmu_valid
+
+        valid_options = ['Satellite', 'Platform', 'Sensor', 'Site', 'Total', 'Valid', 'NO VALID MDB FILE',
+                         'NO VALID MATCH-UP INDEX', 'OUT OF TIME WINDOW', 'INVALID IN SITU DATA',
+                         'INCOMPLETE IN SITU SPECTRUM', 'INVALID SAT DATA', 'INVALID IN SITU VALUES']
+
+        df_valid = pd.DataFrame(index=list(range(1)), columns=valid_options)
+        df_valid.iloc[0].at['Satellite'] = self.nc.satellite
+        df_valid.iloc[0].at['Platform'] = self.nc.platform
+        df_valid.iloc[0].at['Sensor'] = self.nc.sensor
+        df_valid.iloc[0].at['Site'] = self.nc.insitu_site_name
+        df_valid.iloc[0].at['Total'] = self.n_mu_total
+        df_valid.iloc[0].at['Valid'] = nmu_valid
+
+        for idx in range(1,len(status_error)):
+            idxl = idx + 5
+            col_name = valid_options[idxl]
+            sbase = f'# Invalid match-ups [{col_name}]: '
+            df_valid.iloc[0].at[col_name] = status_error[idx]
+            # if idx == 1:
+            #     sbase = '# Invalid match-ups [NO VALID MDB FILE]: '
+            # if idx == 2:
+            #     sbase = '# Invalid match-ups [NO VALID MATCH-UP INDEX]: '
+            # if idx == 3:
+            #     sbase = '# Invalid match-ups [OUT OF TIME WINDOW]: '
+            # if idx == 4:
+            #         sbase = '# Invalid match-ups [INVALID IN SITU DATA]: '
+            # if idx == 5:
+            #         sbase = '# Invalid match-ups [INCOMPLETE IN SITU SPECTRUM]: '
+            # if idx == 6:
+            #         sbase = '# Invalid match-ups [INVALID SAT DATA]: '
+            # if idx == 7:
+            #         sbase = '# Invalid match-ups [INVALID IN SITU VALUES]: '
+            if status_error[idx] > 0:
+                print(f'[INFO] -> {sbase}{status_error[idx]}')
+
+
+
+        return nmu_valid, df_valid
 
     def prepare_df_mu(self):
         self.df_mu = pd.DataFrame(columns=self.col_names_mu, index=list(range(len(self.mu_dates))))
@@ -959,6 +1103,20 @@ class MDBFile:
         dates = self.start_date.strftime('%Y-%m-%d') + ' to ' + self.end_date.strftime('%Y-%m-%d')
         title = self.get_file_name_base() + f' {dates}'
         return title
+
+    def check_bands(self, wllist, maxdiff):
+
+        for wl in wllist:
+            index = np.argmin(np.abs(wl - self.satellite_bands))
+            diff = np.abs(wl - self.satellite_bands[index])
+            if diff > maxdiff:
+                print(f'[ERROR] Band {wl} is not avaiable in satellite band list:')
+                print(f'[ERROR] -> {self.satellite_bands}')
+                return -1
+        if len(wllist) != len(self.satellite_bands):
+            return 0
+
+        return 1
 
     def set_wl_ref(self, wllist):
         self.wlref = wllist
@@ -1144,7 +1302,10 @@ class MDBFile:
     def get_spectra_stats(self, spectra_good):
         import statistics as st
         import numpy.ma as ma
+        # for s in spectra_good:
+        #     print(s)
         spectra_avg = ma.mean(spectra_good, axis=0)
+        # print(spectra_avg)
         spectra_std = ma.std(spectra_good, axis=0)
         indices_max = ma.argmax(spectra_good, axis=0)
         imax = st.mode(indices_max)
@@ -1156,6 +1317,25 @@ class MDBFile:
         spectra_mim_real = spectra_good[imin, :]
         spectra_min = ma.min(spectra_good, axis=0)
 
+        spectra_median = ma.median(spectra_good, axis=0)
+
+        num_nonmasked = spectra_median.count()
+        nspectra = spectra_median.shape[0]
+        spectra_p25 = np.percentile(spectra_good, 25, axis=0)
+        spectra_p75 = np.percentile(spectra_good, 75, axis=0)
+        if spectra_p25.count() < num_nonmasked:
+            spectra_p25 = np.ma.zeros(spectra_median.shape)
+            spectra_p75 = np.ma.zeros(spectra_median.shape)
+            for idx in range(nspectra):
+                array_here = spectra_good[:, idx]
+                array_here = array_here[array_here.mask == False]
+                if len(array_here) > 0:
+                    spectra_p25[idx] = np.percentile(array_here, 25)
+                    spectra_p75[idx] = np.percentile(array_here, 75)
+                else:
+                    spectra_p25[idx] = ma.masked
+                    spectra_p75[idx] = ma.masked
+
         spectra_stats = {
             'avg': spectra_avg,
             'std': spectra_std,
@@ -1163,12 +1343,60 @@ class MDBFile:
             'spectra_max_real': spectra_max_real,
             'spectra_min': spectra_min,
             'spectra_max': spectra_max,
+            'median': spectra_median,
+            'p25': spectra_p25,
+            'p75': spectra_p75
         }
         return spectra_stats
 
+    def get_mu_spectra_insitu_and_sat_withwlvalues(self, index_mu, wlvalues, scale_factor, flag_name, flag_value,
+                                                   flag_array):
+        if self.nc.variables[self.var_mu_valid][index_mu] == 1:
+
+            if flag_name is not None:
+                if flag_array is not None:
+                    if flag_array[index_mu] != flag_value:
+                        return None, None
+                else:
+                    if self.nc.variables[flag_name][index_mu] != flag_value:
+                        return None, None
+
+            import netCDF4
+            dfv = netCDF4.default_fillvals['f4']
+            var_insitu = np.array(self.nc.variables['mu_ins_rrs'])
+            var_satrrs = np.array(self.nc.variables['mu_sat_rrs'])
+            var_wl = np.array(self.nc.variables['mu_wavelength'])
+            var_satid = np.array(self.nc.variables['mu_satellite_id'])
+            insitu_spectra = var_insitu[var_satid == index_mu]
+            sat_spectra = var_satrrs[var_satid == index_mu]
+            wl = var_wl[var_satid == index_mu]
+
+            n_bands = len(wlvalues)
+            import numpy.ma as ma
+            insitu_spectra_end = ma.masked_equal(np.zeros(n_bands), 0)
+            # print(insitu_spectra_end)
+            sat_spectra_end = ma.masked_equal(np.zeros(n_bands), 0)
+            # DOTAL = False
+            for idx in range(n_bands):
+                wlhere = wlvalues[idx]
+                if wlhere in wl:
+                    insitu_spectra_end[idx] = insitu_spectra[wl == wlhere]
+                    sat_spectra_end[idx] = sat_spectra[wl == wlhere]
+                    if insitu_spectra_end[idx] == dfv:
+                        insitu_spectra_end[idx] = np.ma.masked
+                    if sat_spectra_end[idx] == dfv:
+                        sat_spectra_end[idx] = np.ma.masked
+            if scale_factor is not None:
+                insitu_spectra_end = insitu_spectra_end * scale_factor
+                sat_spectra_end = sat_spectra_end * scale_factor
+
+            return insitu_spectra_end, sat_spectra_end
+
+        return None, None
+
     def get_mu_spectra_insitu_and_sat(self, index_mu, scale_factor):
 
-        if self.nc.variables['mu_valid'][index_mu] == 1:
+        if self.nc.variables[self.var_mu_valid][index_mu] == 1:
             var_insitu = np.array(self.nc.variables['mu_ins_rrs'])
             var_satrrs = np.array(self.nc.variables['mu_sat_rrs'])
             var_wl = np.array(self.nc.variables['mu_wavelength'])
@@ -1181,9 +1409,6 @@ class MDBFile:
                 sat_spectra = sat_spectra * scale_factor
             wl = var_wl[var_satid == index_mu]
             valid = np.ones(wl.shape, dtype=bool)
-            valid[wl == 832.8] = False
-            valid[wl == 1613.7] = False
-            valid[wl == 2202.4] = False
             wl = wl[valid]
             insitu_spectra = insitu_spectra[valid]
             sat_spectra = sat_spectra[valid]
@@ -1191,10 +1416,57 @@ class MDBFile:
         else:
             return None, None, None
 
+    def get_all_spectra_insitu_sat_with_wlvalues_group(self, scale_factor, wlvalues, flag_name, flag_value, flag_array, group_value, group_array):
+        import numpy.ma as ma
+        nspectra = self.n_mu_total
+        n_bands = len(wlvalues)
+        insitu_spectra_good = ma.zeros((nspectra, n_bands))
+        sat_spectra_good = ma.zeros((nspectra, n_bands))
+        index_here = 0
+        for index_mu in range(self.n_mu_total):
+            if group_array[index_mu]!=group_value:
+                continue
+            # wl, insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat(index_mu, scale_factor)
+            insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat_withwlvalues(index_mu, wlvalues,
+                                                                                            scale_factor, flag_name,
+                                                                                            flag_value, flag_array)
+            if insitu_spectrum is not None and sat_spectrum is not None:
+                insitu_spectra_good[index_here, :] = insitu_spectrum[:]
+                sat_spectra_good[index_here, :] = sat_spectrum[:]
+                index_here = index_here + 1
+        sat_spectra_good = sat_spectra_good[0:index_here, :]
+        insitu_spectra_good = insitu_spectra_good[0:index_here, :]
+        sat_stats = self.get_spectra_stats(sat_spectra_good)
+        insitu_stats = self.get_spectra_stats(insitu_spectra_good)
+
+        return sat_stats, insitu_stats
+    def get_all_spectra_insitu_sat_with_wlvalues(self, scale_factor, wlvalues, flag_name, flag_value, flag_array):
+        import numpy.ma as ma
+        nspectra = self.n_mu_total
+        n_bands = len(wlvalues)
+        insitu_spectra_good = ma.zeros((nspectra, n_bands))
+        sat_spectra_good = ma.zeros((nspectra, n_bands))
+        index_here = 0
+        for index_mu in range(self.n_mu_total):
+            # wl, insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat(index_mu, scale_factor)
+            insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat_withwlvalues(index_mu, wlvalues,
+                                                                                            scale_factor, flag_name,
+                                                                                            flag_value, flag_array)
+            if insitu_spectrum is not None and sat_spectrum is not None:
+                insitu_spectra_good[index_here, :] = insitu_spectrum[:]
+                sat_spectra_good[index_here, :] = sat_spectrum[:]
+                index_here = index_here + 1
+        sat_spectra_good = sat_spectra_good[0:index_here, :]
+        insitu_spectra_good = insitu_spectra_good[0:index_here, :]
+        sat_stats = self.get_spectra_stats(sat_spectra_good)
+        insitu_stats = self.get_spectra_stats(insitu_spectra_good)
+
+        return sat_stats, insitu_stats
+
     def get_all_spectra_insitu_sat(self, scale_factor):
         import numpy.ma as ma
         nspectra = self.n_mu_total
-        n_bands = len(np.unique(np.array(self.nc.variables['mu_wavelength'])))
+        # n_bands = len(np.unique(np.array(self.nc.variables['mu_wavelength'])))
         n_bands = len(np.array(self.nc.variables['satellite_bands']))
         # n_bands = 8
 
@@ -1215,6 +1487,354 @@ class MDBFile:
         insitu_stats = self.get_spectra_stats(insitu_spectra_good)
 
         return wavelength, sat_stats, insitu_stats
+
+    def get_flag_value(self, flag_var, flag):
+        flag_variable = self.variables[flag_var]
+        if isinstance(flag_variable.flag_meanings, list):
+            flag_meanings = ' '.join(flag_variable.flag_meanings)
+        else:
+            flag_meanings = flag_variable.flag_meanings
+        flag_list = flag_meanings.upper().split(' ')
+        flag_values = flag_variable.flag_values
+        flag_value = None
+        try:
+            index = flag_list.index(flag.upper())
+            flag_value = flag_values[index]
+        except:
+            pass
+        return flag_value
+
+    def get_flag_list_names(self, flag_var):
+        flag_names = []
+        if flag_var not in self.variables:
+            return flag_names
+        flag_values = np.unique(self.nc.variables[flag_var][:])
+        all_flag_values = self.nc.variables[flag_var].flag_values.tolist()
+        all_flag_names = self.nc.variables[flag_var].flag_meanings.split(" ")
+        if isinstance(all_flag_values, int):
+            all_flag_values = [all_flag_values]
+        for flag_value in flag_values:
+            idx = all_flag_values.index(flag_value)
+            if idx >= 0:
+                flag_names.append(all_flag_names[idx])
+        return flag_names
+
+    def get_flag_name(self, flag_var, index_mu):
+        flag_value = self.nc.variables[flag_var][index_mu]
+        all_flag_values = self.nc.variables[flag_var].flag_values.tolist()
+        if isinstance(all_flag_values, int):
+            all_flag_values = [all_flag_values]
+        all_flag_names = self.nc.variables[flag_var].flag_meanings.split(" ")
+        # print('==================')
+        # print(flag_var)
+        # print(type(all_flag_values),all_flag_values)
+        # print(all_flag_names)
+        # print(flag_value)
+        # print('=====================')
+        idx = all_flag_values.index(flag_value)
+        if idx >= 0:
+            return all_flag_names[idx]
+        else:
+            return None
+
+    def get_flag_names_mu(self, index_mu):
+        sat = self.get_flag_name('flag_satellite', index_mu)
+        sensor = self.get_flag_name('flag_sensor', index_mu)
+        satsensor = f'{sat.upper()}{sensor.upper()}'
+        site = self.get_flag_name('flag_site', index_mu).upper()
+        ac = self.get_flag_name('flag_ac', index_mu).upper()
+        # from datetime import datetime as dt
+        date_here = self.sat_times[index_mu].strftime('%Y%m%d')
+        return date_here, satsensor, site, ac
+
+    def get_times_mu(self, index_mu):
+        ac = self.get_flag_name('flag_ac', index_mu).upper()
+        sat_time = self.sat_times[index_mu].strftime('%Y%m%d')
+        ins_time_array = np.array(self.variables['insitu_time'])
+        inst_time_here = datetime.utcfromtimestamp(float(ins_time_array[index_mu][0]))
+        ins_time = inst_time_here.strftime('%Y%m%d%H%M%S')
+        return sat_time, ins_time, ac
+
+    def obtain_mu_valid_with_ac(self, ac_ref):
+        # step 1: obtain valid keys with ac
+        key_valids = []
+        mu_valid = np.array(self.nc.variables['mu_valid'][:])
+        for index_mu in range(self.n_mu_total):
+            datehere, satsensor, site, ac = self.get_flag_names_mu(index_mu)
+            if mu_valid[index_mu] and ac == ac_ref:
+                key_here = f'{datehere}{satsensor}{site}'
+                key_valids.append(key_here)
+        # step2: obtain mu with valid vales for specific ac
+        mu_valid_ac_ref = np.zeros(self.n_mu_total, dtype=np.int)
+        for index_mu in range(self.n_mu_total):
+            datehere, satsensor, site, ac = self.get_flag_names_mu(index_mu)
+            if ac == ac_ref:
+                if mu_valid[index_mu]:
+                    mu_valid_ac_ref[index_mu] = 1
+            else:
+                key_here = f'{datehere}{satsensor}{site}'
+                if key_here in key_valids:
+                    mu_valid_ac_ref[index_mu] = 1
+
+        return mu_valid_ac_ref
+
+    def obtain_info_common_mu(self):
+
+        acs = self.get_flag_list_names('flag_ac')
+        if len(acs) <= 1:
+            print(f'[INFO] Common match-ups are set only if more than one AC processor is available')
+            return None
+        print(f'[INFO] Potential atmospheric correction processors: {acs}')
+        info_common_mu = {}
+        mu_valid = np.array(self.nc.variables['mu_valid'][:])
+        print(f'[INFO] Checking MU info...')
+        for index_mu in range(self.n_mu_total):
+            datehere, satsensor, site, ac = self.get_flag_names_mu(index_mu)
+            fill_acs = False
+            if satsensor not in info_common_mu.keys():
+                info_common_mu[satsensor] = {site: {datehere: {}}}
+                fill_acs = True
+            if satsensor in info_common_mu.keys() and site not in info_common_mu[satsensor]:
+                info_common_mu[satsensor][site] = {datehere: {}}
+                fill_acs = True
+            if satsensor in info_common_mu.keys() and site in info_common_mu[satsensor] and datehere not in \
+                    info_common_mu[satsensor][site]:
+                info_common_mu[satsensor][site][datehere] = {}
+                fill_acs = True
+            if fill_acs:
+                for ac_here in acs:
+                    info_common_mu[satsensor][site][datehere][ac_here] = 0
+
+            if mu_valid[index_mu]:
+                info_common_mu[satsensor][site][datehere][ac] = 1
+
+        print(f'[INFO] Obtaining valid common match-ups...')
+        mu_valid_common = np.zeros(self.n_mu_total, dtype=np.int)
+        n_mu_valid_common = 0
+        for index_mu in range(self.n_mu_total):
+            if mu_valid[index_mu] == 1:
+                datehere, satsensor, site, ac = self.get_flag_names_mu(index_mu)
+                sum = 0
+                for ac_here in acs:
+                    sum = sum + info_common_mu[satsensor][site][datehere][ac_here]
+
+                if sum == len(acs):
+                    mu_valid_common[index_mu] = 1
+                    n_mu_valid_common = n_mu_valid_common + 1
+
+        # print(f'[INFO]n_mu_valid_common')
+        # print(len(acs))
+        n_mu_valid_common = n_mu_valid_common / len(acs)
+        print(f'[INFO] # valid commons match-ups: {n_mu_valid_common}')
+
+        if n_mu_valid_common > 0:
+            return mu_valid_common
+        else:
+            return None
+
+    def obtain_info_common_mu_nosat(self):
+
+        acs = self.get_flag_list_names('flag_ac')
+        # acs = ['CCI','POLYMER']
+        if len(acs) <= 1:
+            print(f'[INFO] Common match-ups are set only if more than one AC processor is available')
+            return None
+        print(f'[INFO] Potential atmospheric correction processors: {acs}')
+        info_common_mu = {}
+        mu_valid = np.array(self.nc.variables['mu_valid'][:])
+        print(f'[INFO] Checking MU info...')
+        for index_mu in range(self.n_mu_total):
+            datehere, satsensor, site, ac = self.get_flag_names_mu(index_mu)
+            fill_acs = False
+            if site not in info_common_mu:
+                info_common_mu[site] = {datehere: {}}
+                fill_acs = True
+            if datehere not in info_common_mu[site]:
+                info_common_mu[site][datehere] = {}
+                fill_acs = True
+            if fill_acs:
+                for ac_here in acs:
+                    info_common_mu[site][datehere][ac_here] = 0
+
+            if mu_valid[index_mu]:
+                info_common_mu[site][datehere][ac] = 1
+
+        print(f'[INFO] Obtaining valid common match-ups...')
+        mu_valid_common = np.zeros(self.n_mu_total, dtype=np.int)
+        n_mu_valid_common = 0
+        for index_mu in range(self.n_mu_total):
+            if mu_valid[index_mu] == 1:
+                datehere, satsensor, site, ac = self.get_flag_names_mu(index_mu)
+
+                if ac not in acs:
+                    mu_valid_common[index_mu] = 1
+                    continue
+
+                sum = 0
+                for ac_here in acs:
+                    sum = sum + info_common_mu[site][datehere][ac_here]
+
+                if sum == len(acs):
+                    mu_valid_common[index_mu] = 1
+                    n_mu_valid_common = n_mu_valid_common + 1
+
+        # print(f'[INFO]n_mu_valid_common')
+        # print(len(acs))
+        n_mu_valid_common = n_mu_valid_common / len(acs)
+        print(f'[INFO] # valid commons match-ups: {n_mu_valid_common}')
+
+        if n_mu_valid_common > 0:
+            return mu_valid_common
+        else:
+            return None
+
+    def obtain_info_common_mu_ins(self):
+        acs = self.get_flag_list_names('flag_ac')
+        if len(acs) <= 1:
+            print(f'[INFO] Common match-ups are set only if more than one AC processor is available')
+            return None
+        print(f'[INFO] Potential atmospheric correction processors: {acs}')
+        info_common_mu = {}
+        mu_valid = np.array(self.nc.variables['mu_valid'][:])
+        print(f'[INFO] Checking MU info...')
+        for index_mu in range(self.n_mu_total):
+            sat_time, ins_time, ac = self.get_times_mu(index_mu)
+            key_time = f'{sat_time}_{ins_time}'
+            if key_time not in info_common_mu.keys():
+                info_common_mu[key_time] = {}
+                for ac_here in acs:
+                    info_common_mu[key_time][ac_here] = 0
+            if mu_valid[index_mu]:
+                info_common_mu[key_time][ac] = 1
+
+        print(f'[INFO] Obtaining valid common match-ups...')
+        mu_valid_common = np.zeros(self.n_mu_total, dtype=np.int)
+        n_mu_valid_common = 0
+        for index_mu in range(self.n_mu_total):
+            if mu_valid[index_mu] == 1:
+                sat_time, ins_time, ac = self.get_times_mu(index_mu)
+                key_time = f'{sat_time}_{ins_time}'
+                sum = 0
+                for ac_here in acs:
+                    sum = sum + info_common_mu[key_time][ac_here]
+                if sum == len(acs):
+                    mu_valid_common[index_mu] = 1
+                    n_mu_valid_common = n_mu_valid_common + 1
+
+        # print(f'[INFO]n_mu_valid_common')
+        # print(len(acs))
+        n_mu_valid_common = n_mu_valid_common / len(acs)
+        print(f'[INFO] # valid commons match-ups: {n_mu_valid_common}')
+
+        if n_mu_valid_common > 0:
+            return mu_valid_common
+        else:
+            return None
+
+    def analyze_sat_flags_advanced(self, flag_options, valid_array):
+        flag_info = {}
+        for flag_output in flag_options:
+            flag_var_name = flag_options[flag_output]['flag_var_name']
+            flag_ref = flag_options[flag_output]['flag_ref']
+            flag_method = flag_options[flag_output]['flag_method']
+            var_group_name = flag_options[flag_output]['var_group_name']
+            var_group_val = flag_options[flag_output]['var_group_value']
+            seriesid = flag_options[flag_output]['seriesid']
+            seriesoutput = flag_options[flag_output]['seriesoutput']
+
+
+            array, nmu, nmacro, nmacrow = self.analyze_sat_flags_advanced_impl(flag_var_name, flag_ref, flag_method,
+                                                                               var_group_name, var_group_val,valid_array)
+
+            parray = (array / self.n_mu_total) * 100
+            central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+
+            flag_info[flag_output] = {
+                'array': array,
+                'parray': parray,
+                'ntotal': np.sum(array),
+                'ntotalw': np.sum(array[r_s:r_e, c_s:c_e]),
+                'nmu': nmu,
+                'nmacro': nmacro,
+                'nmacrow': nmacrow,
+                'pmacro': float((nmacro / nmu) * 100),
+                'pmacrow': float((nmacrow / nmu) * 100),
+                'seriesid': seriesid,
+                'seriesoutput': seriesoutput
+            }
+
+        return flag_info
+
+    def analyze_sat_flags_advanced_impl(self, flag_var_name, flag_ref, flag_method, var_group_name, var_group_val,
+                                        valid_array):
+        flag_variable = self.nc.variables[flag_var_name]
+        if isinstance(flag_variable.flag_meanings, list):
+            flag_meanings = ' '.join(flag_variable.flag_meanings)
+        else:
+            flag_meanings = flag_variable.flag_meanings
+            flag_meanings = flag_meanings.replace('  ', ' ')
+
+        flag_masks = flag_variable.flag_masks
+        # if np.min(flag_masks)>0 and np.max(flag_masks)<=np.iinfo(np.int64)
+        # print(np.min(flag_masks),np.max(flag_masks))
+
+        flag_masks = flag_masks.astype(np.uint64)
+
+        # if flag_var_name=='satellite_bitmask':
+        #     print('-------------------------->',flag_meanings)
+        #     print('-------------------------->',type(flag_meanings))
+        #     print('-------------------------->',flag_masks)
+
+        flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        nrows = len(self.dimensions['rows'])
+        ncols = len(self.dimensions['columns'])
+        array = np.zeros((nrows, ncols))
+        nmu = 0
+        nmacro = 0
+        nmacrow = 0
+
+        if flag_method == 'eq':
+            flag_ref_list = [flag_ref]
+
+        if flag_method == 'list':
+            flag_ref_list = []
+            flag_ref_l = flag_ref.split(',')
+            flag_all_list = [x.strip() for x in flag_meanings.split(' ')]
+            for name in flag_ref_l:
+                if name.strip() in flag_all_list:
+                    flag_ref_list.append(name.strip())
+
+        group_array = None
+        if var_group_name is not None:
+            group_array = np.array(self.variables[var_group_name][:])
+
+        for index_mu in range(self.n_mu_total):
+            if group_array is not None:
+                if group_array[index_mu] != var_group_val:
+                    continue
+            if valid_array is not None:
+                if valid_array[index_mu] == 0:
+                    continue
+            nmu = nmu + 1
+            flag_array_mu = np.array(self.variables[flag_var_name][index_mu]).astype(np.uint64)
+
+            mask = flagging.Mask(flag_array_mu, flag_ref_list)
+            # if flag_var_name == 'satellite_c2rcc_flags' and flag_ref_list[0]=='Cloud_risk':
+            #     print(index_mu,'--->',flag_array_mu[11,12],flag_array_mu[12,12],flag_array_mu[13,12])
+            mask[np.where(mask != 0)] = 1
+            if np.sum(mask) > 0:
+                nmacro = nmacro + 1
+            mask_window = mask[r_s:r_e, c_s:c_e]
+
+            if np.sum(mask_window) > 0:
+                nmacrow = nmacrow + 1
+            # if flag_ref == 'sun_glint_risk' and np.sum(mask_window)==9:
+            #     print(index_mu)
+
+            array = array + mask
+
+        return array, nmu, nmacro, nmacrow
 
     def analyze_sat_flags(self, flag_var_name, flag_list):
         flag_variable = self.nc.variables[flag_var_name]
@@ -1244,7 +1864,6 @@ class MDBFile:
                 mask[np.where(mask != 0)] = 1
                 if np.sum(mask) > 0:
                     nmacro = nmacro + 1
-
                 mask_window = mask[r_s:r_e, c_s:c_e]
                 if np.sum(mask_window) > 0:
                     nmacrow = nmacrow + 1
@@ -1293,84 +1912,153 @@ class MDBFile:
             plt.savefig(file_out, dpi=300)
         plt.close(h)
 
-    def analyse_mu_temporal_flag(self, onlyvalid, name_flag_var, file_out):
+    def analyse_mu_temporal_flag(self, onlyvalid, varvalid, name_flag_var, flag_list):
         year_min = self.start_date.year
         year_max = self.end_date.year + 1
-        # year = list(range(year_min, year_max))
-        # year.reverse()
-        # month_s = list(range(1, 13))
+        correct = 1
+        if varvalid == 'mu_valid_common':  # number of common mu is divided by the number of ac
+            if 'flag_ac' in self.nc.variables:
+                flag_var_ac = self.nc.variables['flag_ac']
+                correct = len(flag_var_ac.flag_meanings.split(' '))
+
         monthl = []
         for year in range(year_min, year_max):
             for month in range(1, 13):
                 if year == 2023 and month >= 4:
                     continue
                 date_here = datetime(year, month, 1)
-                print(date_here)
+                # print(date_here)
                 monthl.append(date_here.strftime('%Y-%m'))
 
         flag_var = self.nc.variables[name_flag_var]
         flag_var_array = np.array(flag_var)
-        flag_list = flag_var.flag_meanings.split(' ')
-        flag_values = flag_var.flag_values
+        if flag_list is None:
+            flag_list = flag_var.flag_meanings.split(' ')
+            flag_values = flag_var.flag_values
+        else:
+            all_flag_list = flag_var.flag_meanings.split(' ')
+            all_flag_values = flag_var.flag_values
+            flag_values = np.zeros(all_flag_values.shape)
+            for idx in range(len(flag_list)):
+                flag_here = flag_list[idx]
+                index = all_flag_list.index(flag_here)
+                flag_values[idx] = all_flag_values[index]
 
         dfall_month = pd.DataFrame(index=flag_list, columns=monthl, dtype=np.float)
         dfall_month[:] = 0
-        mu_valid = np.array(self.nc.variables['mu_valid'])
+        total_mu = False
+        if varvalid is not None and not onlyvalid:
+            total_mu = True
+        if varvalid is None:
+            varvalid = 'mu_valid'
+        mu_valid = np.array(self.nc.variables[varvalid])
         for idx in range(self.n_mu_total):
             date_here = self.sat_times[idx]
             date_here_str = date_here.strftime('%Y-%m')
             flag_value = flag_var_array[idx]
-            flag_index = np.where(flag_values == flag_value)[0][0]
+            nw = np.where(flag_values == flag_value)
+            if len(nw[0]) == 0:
+                continue
+            flag_index = nw[0][0]
             flag_here = flag_list[flag_index]
             if onlyvalid:
                 if mu_valid[idx] == 1:
-                    dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + 1
+                    dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (1 / correct)
             else:
-                dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + 1
-        from matplotlib import cm
-        import seaborn as sns
-        h = plt.Figure()
-        cmap = cm.get_cmap('RdYlBu_r')
-        dfall_month_withnan = dfall_month
-        dfall_month_withnan[dfall_month == 0] = np.nan
-        sns.heatmap(dfall_month_withnan, annot=False, cmap=cmap, linewidths=1, linecolor='black')
-        plt.xlabel('Year-Month')
-        plt.ylabel('Site')
-        plt.gcf().tight_layout()
-        if file_out is not None:
-            plt.savefig(file_out, dpi=300)
-        plt.close(h)
+                if total_mu:
+                    if mu_valid[idx]>=0:
+                        dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (1 / correct)
+                else:
+                    dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (1 / correct)
+        return dfall_month
+        # from matplotlib import cm
+        # import seaborn as sns
+        # h = plt.Figure()
+        # cmap = cm.get_cmap('RdYlBu_r')
+        # dfall_month_withnan = dfall_month
+        # dfall_month_withnan[dfall_month == 0] = np.nan
+        # sns.heatmap(dfall_month_withnan, annot=False, cmap=cmap, linewidths=1, linecolor='black')
+        # plt.xlabel('Year-Month')
+        # plt.ylabel('Site')
+        # plt.gcf().tight_layout()
+        # if file_out is not None:
+        #     plt.savefig(file_out, dpi=300)
+        #     file_out_csv = file_out.replace('.jpg','.csv')
+        #     dfall_month_withnan.to_csv(file_out_csv,sep=';')
+        # plt.close(h)
 
-    def analyse_mu_flag(self, name_flag_var, file_out):
+    # varvalid: mu_valid or mu_valid_common
+    def analyse_mu_flag(self, name_flag_var, flag_list, varvalid):
         flag_var = self.nc.variables[name_flag_var]
         flag_var_array = np.array(flag_var)
-        flag_list = flag_var.flag_meanings.split(' ')
-        flag_values = flag_var.flag_values
-        mu_valid = np.array(self.nc.variables['mu_valid'])
+        correct = 1
+        ntot = 1
+        if varvalid == 'mu_valid_common':  # number of common mu is divided by the number of ac
+            if 'flag_ac' in self.nc.variables:
+                flag_var_ac = self.nc.variables['flag_ac']
+                flag_var_ac_array = np.array(flag_var_ac)
+                flag_ac_values = flag_var_ac.flag_values
+                correct = len(flag_var_ac.flag_meanings.split(' '))
+                ntot = ntot + correct
+
+        print(f'CORRECT VALUE {correct}')
+
+        if flag_list is None:
+            # flag_list = flag_var.flag_meanings.split(' ')
+            flag_values = flag_var.flag_values
+        else:
+            all_flag_list = flag_var.flag_meanings.split(' ')
+            all_flag_values = flag_var.flag_values
+            flag_values = np.zeros(all_flag_values.shape)
+            for idx in range(len(flag_list)):
+                flag_here = flag_list[idx]
+                index = all_flag_list.index(flag_here)
+                flag_values[idx] = all_flag_values[index]
+
+        mu_valid = np.array(self.nc.variables[varvalid])
+
         nflag = len(flag_values)
-        print(flag_list)
-        print(nflag)
-        n_values = np.zeros((nflag,))
-        n_valid = np.zeros((nflag,))
+        n_values = np.zeros((nflag, 1))
+        n_valid = np.zeros((nflag, ntot))
 
         for idx in range(self.n_mu_total):
             flag_value = flag_var_array[idx]
-            flag_index = np.where(flag_values == flag_value)[0][0]
-            n_values[flag_index] = n_values[flag_index] + 1
-            if mu_valid[idx] == 1:
-                n_valid[flag_index] = n_valid[flag_index] + 1
 
-        print(n_values, n_valid)
+            nw = np.where(flag_values == flag_value)
+            if len(nw[0]) == 0:
+                continue
+            flag_index = nw[0][0]
+            # flag_index = np.where(flag_values == flag_value)[0][0]
+            n_values[flag_index, 0] = n_values[flag_index, 0] + (1 / correct)
+            if mu_valid[idx] == 1:
+                n_valid[flag_index, 0] = n_valid[flag_index, 0] + (1 / correct)
+
+        if ntot > 1:  ##data for each ac,
+            mu_valid = np.array(self.nc.variables['mu_valid'])
+            for idx in range(self.n_mu_total):
+                flag_value = flag_var_array[idx]
+                flag_index = np.where(flag_values == flag_value)[0][0]
+                flag_ac_here = flag_var_ac_array[idx]
+                flag_ac_index = np.where(flag_ac_values == flag_ac_here)[0][0] + 1
+                if mu_valid[idx] == 1:
+                    n_valid[flag_index, flag_ac_index] = n_valid[flag_index, flag_ac_index] + 1
+
+        # print(n_values, n_valid)
         porc_values = (n_valid / n_values) * 100
-        print(porc_values)
-        plt.figure()
-        plt.barh(flag_list, porc_values)
-        plt.grid(b=True, which='major', color='gray', linestyle='--')
-        plt.xlabel('% Valid Match-ups', fontsize=12)
-        plt.gcf().tight_layout()
-        if file_out is not None:
-            plt.savefig(file_out, dpi=300)
-        plt.close()
+
+        n_values = np.floor(n_values)
+
+        return n_values, n_valid, porc_values
+
+        # print(porc_values)
+        # plt.figure()
+        # plt.barh(flag_list, porc_values)
+        # plt.grid(b=True, which='major', color='gray', linestyle='--')
+        # plt.xlabel('% Valid Match-ups', fontsize=12)
+        # plt.gcf().tight_layout()
+        # if file_out is not None:
+        #     plt.savefig(file_out, dpi=300)
+        # plt.close()
 
     def close(self):
         if self.VALID:
