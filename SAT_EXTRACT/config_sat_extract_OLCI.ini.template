@@ -1,0 +1,25 @@
+## config file for creating satellite extracts
+[file_path]
+sat_source_dir: /home/lois/DATA/INPUT_SAT
+output_dir: /home/lois/DATA/EXTRACTS
+
+[Time_and_sites_selection]
+#first and last dates for analysis. Format: YYYY-MM-DD
+time_start: 2021-02-15
+time_stop: 2021-03-25
+sites: VEIT
+
+[satellite_options]
+sat_prefix: satellite_
+satellite: S3
+platform: A,B
+sensor: olci
+# WRR o WFR for olci
+resolution: WFR
+# processor version. Note: without zeros to the left
+proc_version: 7.00
+extract_size: 25
+window_size: 3
+n_bands: 16
+#apply BRDF to OLCI reflectance
+BRDF: F

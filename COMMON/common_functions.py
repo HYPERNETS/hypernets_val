@@ -95,6 +95,7 @@ def contain_location(lat,lon,in_situ_lat,in_situ_lon):
         
     return contain_flag
 
+<<<<<<< Updated upstream
 def find_row_column_from_lat_lon(lat,lon,lat0,lon0):
     #% closest squared distance
     #% lat and lon are arrays of MxN
@@ -102,6 +103,21 @@ def find_row_column_from_lat_lon(lat,lon,lat0,lon0):
     if contain_location(lat,lon,lat0,lon0):
         dist_squared = (lat-lat0)**2 + (lon-lon0)**2
         r, c = np.unravel_index(np.argmin(dist_squared),lon.shape) # index to the closest in the latitude and longitude arrays
+=======
+
+def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
+    # % closest squared distance
+    # % lat and lon are arrays of MxN
+    # % lat0 and lon0 is the coordinates of one point
+    if contain_location(lat, lon, lat0, lon0):
+        if len(lon.shape)==2:
+            dist_squared = (lat - lat0) ** 2 + (lon - lon0) ** 2
+            r, c = np.unravel_index(np.argmin(dist_squared),
+                                    lon.shape)  # index to the closest in the latitude and longitude arrays
+        else:
+            c=np.argmin((lon-lon0)**2)
+            r=np.argmin((lat-lat0)**2)
+>>>>>>> Stashed changes
     else:
         print('Warning: Location not contained in the file!!!')
         r = np.nan
