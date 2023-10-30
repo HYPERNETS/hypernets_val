@@ -141,6 +141,7 @@ class PlotScatter():
     def set_xaxis_title(self, xaxis_title):
         if self.axhere is None:
             self.set_axhere()
+        xaxis_title = xaxis_title.replace('$R$',u'\u00AE')
         self.axhere.set_xlabel(xaxis_title, fontsize=self.xtitle_options['fontsize'])
 
     def set_yaxis_title(self, yaxis_title):
@@ -164,7 +165,7 @@ class PlotScatter():
         #self.fig.legend(str_legend, loc='lower center', ncol=len(str_legend),markerscale=2.0,bbox_to_anchor=(0.5,0.04))
         #self.fig.legend(str_legend, loc='lower center', ncol=len(str_legend), markerscale=2.0)
         #self.fig.legend(str_legend, loc='upper center', ncol=len(str_legend))
-        self.fig.legend(str_legend, fontsize=10, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.5, -0.01))
+        self.fig.legend(str_legend, fontsize=12, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.5, 0))
 
     def set_title(self, title):
         if self.axhere is None:
@@ -233,4 +234,8 @@ class PlotScatter():
         self.axhere.axis('off')
 
     def save_fig(self, file_out):
-        plt.savefig(file_out,dpi = 300, bbox_inches = 'tight')
+        if file_out.endswith('.tif'):
+            plt.savefig(file_out, dpi=300, bbox_inches='tight',pil_kwargs={"compression": "tiff_lzw"})
+        else:
+            plt.savefig(file_out, dpi=300, bbox_inches='tight')
+        #plt.savefig(file_out,dpi = 300, bbox_inches = 'tight')

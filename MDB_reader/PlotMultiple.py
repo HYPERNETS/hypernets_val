@@ -93,11 +93,14 @@ class PlotMultiple():
 
     def set_global_legend(self, handles, str_legend):
         #self.fig.legend(handles, str_legend, fontsize = 8, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.55,0.08))
-        self.fig.legend(handles, str_legend, fontsize=8, loc='lower center', ncol=len(str_legend), markerscale=1.5,
+        self.fig.legend(handles, str_legend, fontsize=8, loc='lower center', ncol=len(str_legend), markerscale=1.0,
                         bbox_to_anchor=(0.55, 0.06))
 
     def save_fig(self, file_out):
-        plt.savefig(file_out, dpi=300, bbox_inches='tight',transparency=False,facecolor='white')
+        if file_out.endswith('.tif'):
+            plt.savefig(file_out, dpi=300, bbox_inches='tight', transparency=False, facecolor='white',pil_kwargs={"compression": "tiff_lzw"})
+        else:
+            plt.savefig(file_out, dpi=300, bbox_inches='tight',transparency=False,facecolor='white')
         # plt.savefig(file_out, dpi=300)
 
     def close_plot(self):

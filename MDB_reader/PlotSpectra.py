@@ -152,7 +152,11 @@ class PlotSpectra():
         plt.ylabel(yaxis_title, fontsize=14)
 
     def save_fig(self, file_out):
-        plt.savefig(file_out, dpi=300)
+        #plt.savefig(file_out, dpi=300)
+        if file_out.endswith('.tif'):
+            plt.savefig(file_out, dpi=300, bbox_inches='tight',pil_kwargs={"compression": "tiff_lzw"})
+        else:
+            plt.savefig(file_out, dpi=300, bbox_inches='tight')
 
     def set_equal_apect(self):
         plt.gca().set_aspect('equal', adjustable='box')

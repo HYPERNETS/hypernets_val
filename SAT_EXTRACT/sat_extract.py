@@ -8,27 +8,33 @@ import numpy.ma as ma
 class SatExtract:
     def __init__(self, ofname):
 
+        if ofname is None:
+            self.EXTRACT = None
+            self.FILE_CREATED = False
+            pass
+
         self.FILE_CREATED = True
         try:
             self.EXTRACT = Dataset(ofname, 'w', format='NETCDF4')
-        except PermissionError:
-            print('Permission denied: ', ofname)
+        except:
+            print('[ERROR] Error creating: ', ofname)
             self.FILE_CREATED = False
 
+
         self.geometry_variables = {
-            'SZA': {
+            'satellite_SZA': {
                 'long_name': 'Sun Zenith Angle',
                 'units': 'degrees'
             },
-            'SAA': {
+            'satellite_SAA': {
                 'long_name': 'Sun Azimuth Angle',
                 'units': 'degrees'
             },
-            'OZA': {
+            'satellite_OZA': {
                 'long_name': 'Observation Zenith Angle',
                 'units': 'degrees'
             },
-            'OAA': {
+            'satellite_OAA': {
                 'long_name': 'Observation Azimuth Angle',
                 'units': 'degrees'
             }
@@ -81,6 +87,10 @@ class SatExtract:
 
         self.EXTRACT.createDimension('insitu_original_bands', n_insitubands)
         self.EXTRACT.createDimension('insitu_id', n_insituid)
+
+    def create_geometry_variables(self):
+        for name_geom in self.geometry_variables:
+            self.create_geometry_variable(name_geom)
 
     def create_geometry_variable(self, name_geom):
         if not name_geom in self.geometry_variables.keys():
@@ -190,11 +200,14 @@ class SatExtract:
         stop_idx_y = window[1]
         start_idx_x = window[2]
         stop_idx_x = window[3]
-        dtype = var_array.datatype.str
-        if dtype.startswith('<'):
-            dtype = dtype[1:]
-        satellite_2d_band = self.EXTRACT.createVariable(var_name,dtype,('satellite_id', 'rows', 'columns'),fill_value=-999, zlib=True, complevel=6)
-        satellite_2d_band[0, :, :] = [ma.array(var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])]
+        # dtype = var_array.datatype.str
+        # if dtype.startswith('<'):
+        #     dtype = dtype[1:]
+        satellite_2d_band = self.EXTRACT.createVariable(var_name,'f4',('satellite_id', 'rows', 'columns'),fill_value=-999.0, zlib=True, complevel=6)
+        array = ma.array(var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])
+        array = array.filled(-999.0)
+        satellite_2d_band[0, :, :] = [array]
+
         return satellite_2d_band
 
     def create_insitu_time_variable(self):

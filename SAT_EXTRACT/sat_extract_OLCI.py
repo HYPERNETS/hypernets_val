@@ -69,8 +69,214 @@ parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (f
 parser.add_argument('-nl', "--nolist",
                     help="Do not create initial satellite lists, checking day by day allowing download",
                     action="store_true")
+parser.add_argument('-adownload', "--allow_download", help="Allow download", action="store_true")
 
 args = parser.parse_args()
+
+
+class SatExtractOLCI(SatExtract):
+
+    def __init__(self, ofname, variable_list):
+        if ofname is not None:
+            SatExtract.__init__(self, ofname)
+        if variable_list is not None:
+            self.variable_list = variable_list
+        else:
+            self.variable_list = {}
+        self.sensor = 'olci'
+        self.n_bands = 16
+        self.wl_list = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.75, 681.25, 708.75, 753.75, 778.75, 865, 885,
+                        1020.5]
+
+    def set_variable_list(self, path_source, extra_bands):
+        self.variable_list = {}
+        reflectance_bands = {
+            'Oa01': 0,
+            'Oa02': 1,
+            'Oa03': 2,
+            'Oa04': 3,
+            'Oa05': 4,
+            'Oa06': 5,
+            'Oa07': 6,
+            'Oa08': 7,
+            'Oa09': 8,
+            'Oa10': 9,
+            'Oa11': 10,
+            'Oa12': 11,
+            'Oa16': 12,
+            'Oa17': 13,
+            'Oa18': 14,
+            'Oa21': 15,
+        }
+        other_bands = {
+            'T865': {
+                'band': 'satellite_AOT_0865P50',
+                'description': 'Satellite Aerosol optical thickness'
+            },
+            'WQSF': {
+                'band': 'satellite_WQSF',
+                'description': 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
+            }
+
+        }
+        if extra_bands is not None:
+            for key in extra_bands:
+                other_bands[key] = {
+                    'band': f'satellite_{key}',
+                    'description': ''
+                }
+        extra_bands = other_bands
+
+
+        for name in os.listdir(path_source):
+            if not name.endswith('nc'):
+                continue
+            if name.startswith('tie'):
+                continue
+            fnc = os.path.join(path_source, name)
+            dataset = Dataset(fnc)
+            for name_var, variable in dataset.variables.items():
+                dims_names = variable.get_dims()
+                if len(dims_names) != 2:
+                    continue
+                if dims_names[0].name == 'rows' and dims_names[1].name == 'columns':
+                    apply = 0
+                    index_rrs = -1
+                    extract_band = ''
+                    desc = ''
+                    if name_var.endswith('_reflectance'):
+                        apply = 2
+                        band = name_var.split('_')[0]
+                        index_rrs = reflectance_bands[band]
+                        extract_band = 'satellite_Rrs'  # also defined using apply==2
+                    if name_var in extra_bands.keys():
+                        apply = 1
+                        extract_band = extra_bands[name_var]['band']
+                        desc = extra_bands[name_var]['description']
+                    self.variable_list[name_var] = {
+                        'path': name,
+                        'apply': apply,
+                        'index_rrs': index_rrs,
+                        'extract_band': extract_band,
+                        'description': desc
+                    }
+            dataset.close()
+
+    def set_variable_data(self, path_source, window):
+        for name_var in self.variable_list:
+
+            if self.variable_list[name_var]['apply'] == 0:
+                continue
+            file_path = os.path.join(path_source, self.variable_list[name_var]['path'])
+            if not os.path.exists(file_path):
+                print(f'[WARNING] Path to variable: {file_path} not found. Data will not be available')
+                continue
+
+            if self.variable_list[name_var]['apply'] == 2:  ##satellite rrs band, it was already created
+                index_rrs = self.variable_list[name_var]['index_rrs']
+                if args.verbose:
+                    print(f'[INFO] Creating rrs band: {index_rrs}')
+                if 'satellite_Rrs' not in self.EXTRACT.variables:
+                    return False
+                extract_variable = self.EXTRACT.variables['satellite_Rrs']
+                dataset = Dataset(file_path, 'r')
+                rrs_array = dataset.variables[name_var][:]
+                dataset.close()
+                extract_variable[0, index_rrs, :, :] = ma.array(
+                    rrs_array[window[0]:window[1], window[2]:window[3]]) / np.pi
+
+            if self.variable_list[name_var]['apply'] == 1:  ##other bands, not previously created
+                extract_band = self.variable_list[name_var]['extract_band']
+                description = self.variable_list[name_var]['description']
+                dataset = Dataset(file_path, 'r')
+                var_atts = dataset.variables[name_var].ncattrs()
+                if len(description)==0 and 'long_name' in var_atts:
+                    description = dataset.variables[name_var].long_name
+                if 'flag_masks' in var_atts and 'flag_meanings' in var_atts:
+                    if args.verbose:
+                        print(f'[INFO] Creating flag band: {extract_band}')
+                    flag_band = dataset.variables[name_var]
+                    self.create_flag_variable(extract_band, flag_band, description, flag_band.flag_masks,
+                                              flag_band.flag_meanings, window)
+                else:
+                    if args.verbose:
+                        print(f'[INFO] Creating band: {extract_band}')
+                    var_array = dataset.variables[name_var]
+                    extract_var = self.create_2D_variable_general(extract_band, var_array, window)
+                    extract_var.description = description
+
+
+
+
+                dataset.close()
+
+        return True
+
+    def set_geometry_data(self, path_source, size_box, window):
+        if args.verbose:
+            print('Creating geometry variables...')
+        filepah = os.path.join(path_source, 'tie_geometries.nc')
+        nc_sat = Dataset(filepah, 'r')
+        xsubsampling = nc_sat.getncattr('ac_subsampling_factor')
+        ysubsampling = nc_sat.getncattr('al_subsampling_factor')
+        SZA = nc_sat.variables['SZA'][:]
+        SAA = nc_sat.variables['SAA'][:]
+        OZA = nc_sat.variables['OZA'][:]
+        OAA = nc_sat.variables['OAA'][:]
+        nc_sat.close()
+
+
+
+        start_idx_y = window[0]
+        start_idx_x = window[1]
+        for yy in range(size_box):
+            for xx in range(size_box):
+                yPos = start_idx_y + yy
+                xPos = start_idx_x + xx
+                self.EXTRACT.variables['satellite_SZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, SZA)
+                self.EXTRACT.variables['satellite_SAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, SAA)
+                self.EXTRACT.variables['satellite_OZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, OZA)
+                self.EXTRACT.variables['satellite_OAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, OAA)
+
+    def get_version(self, path_source):
+        # extract IFP-OL-2 version
+        proc_version_str = 'IPF-OL-2'
+        with open(os.path.join(path_source, 'xfdumanifest.xml'), 'r', encoding="utf-8") as read_obj:
+            check_version = False
+            for line in read_obj:
+                if 'IPF-OL-2' in line and check_version == False:
+                    IPF_OL_2_version = line.split('"')[3]
+                    proc_version_str = f'IPF-OL-2 version {IPF_OL_2_version}'
+                    if args.verbose:
+                        print(f'[INFO] Version: {proc_version_str}')
+                    check_version = True
+                    pass
+        return proc_version_str
+
+    def get_global_atrib(self, path_source, options):
+        proc_version_str = self.get_version(path_source)
+        filename = path_source.split('/')[-1].replace('.', '_')
+        satellite = filename[0:2]
+        platform = filename[2]
+
+        at = {'sensor': self.sensor, 'satellite': satellite, 'platform': platform, 'res': '',
+              'aco_processor': 'STANDARD', 'proc_version': proc_version_str, 'station_name': '', 'in_situ_lat': -999,
+              'in_situ_lon': -999}
+
+        if options is not None:
+            at['station_name'] = options['station_name']
+            at['in_situ_lat'] = options['in_situ_lat']
+            at['in_situ_lon'] = options['in_situ_lon']
+            at['res'] = options['resolution']
+
+        return at
+
+    def get_sat_time(self, path_source):
+        filepah = os.path.join(path_source, 'Oa01_reflectance.nc')
+        nc_sat = Dataset(filepah, 'r')
+        satellite_start_time = datetime.strptime(nc_sat.start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
+        nc_sat.close()
+        return satellite_start_time
 
 
 def config_reader(FILEconfig):
@@ -166,7 +372,6 @@ def create_extracts_day_by_day(date_list, path_source, site_name, insitu_lat, in
 
 
 def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wce, unzip_path):
-
     year = date.strftime('%Y')
     jday = date.strftime('%j')
     path_year = os.path.join(path_source, year)
@@ -193,8 +398,8 @@ def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wc
     edac = check_donwload()
     if edac is not None:
         info_edac, products = check_list_products_eumetsat(edac, date, insitu_lat, insitu_lon)
-        if len(info_edac)==0:
-            products_to_download = [] ##no products to be downloaded
+        if len(info_edac) == 0:
+            products_to_download = []  ##no products to be downloaded
         else:
             if len(info_path) == 0:  ##all the products in info_edac must me donwloaded
                 products_to_download = products
@@ -272,10 +477,10 @@ def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wc
 def check_list_products_eumetsat(edac, date, insitu_lat, insitu_lon):
     date_str = date.strftime('%Y-%m-%d')
     products, product_names, collection_id = edac.search_olci_by_point(date_str, 'FR', 'L2', insitu_lat, insitu_lon, -1,
-                                                                       -1,'NT')
+                                                                       -1, 'NT')
 
     info = {}
-    if len(product_names)==0:
+    if len(product_names) == 0:
         return info, None
 
     for name in product_names:
@@ -330,7 +535,7 @@ def check_donwload():
         sys.path.append(code_download)
         try:
             from eumdac_lois import EUMDAC_LOIS
-            edac = EUMDAC_LOIS(True,None)
+            edac = EUMDAC_LOIS(True, None)
         except:
             print(f'[WARNING] Error loading package eumdac_lois. Download is not enabled')
             return None
@@ -526,7 +731,6 @@ def extract_wind_and_angles(path_source, in_situ_lat, in_situ_lon):  # for OLCI
 
 
 def launch_create_extract_syke(filepath, skie_file, options):
-
     ncreated = 0
 
     path_output = get_output_path(options)
@@ -552,7 +756,6 @@ def launch_create_extract_syke(filepath, skie_file, options):
 
     if args.verbose:
         print(f'[INFO] Maximum time diferrence set to: {nminutes}')
-
 
     # Retrieving global atribbutes
     if args.verbose:
@@ -600,7 +803,7 @@ def launch_create_extract_syke(filepath, skie_file, options):
         global_at['in_situ_lon'] = f'in situ points at pixel row={r},col={c}'
 
         b = create_extract_syke(ofname, pdu, options, filepath, global_at, lat, lon, r, c, skie_file,
-                            extracts[extract]['irows'])
+                                extracts[extract]['irows'])
 
         if b:
             ncreated = ncreated + 1
@@ -724,6 +927,36 @@ def get_lat_long_arrays(path_source):
     return lat, lon
 
 
+def check_location_source(path_source, in_situ_lat, in_situ_lon, size_box):
+    lat, lon = get_lat_long_arrays(path_source)
+
+    contain_flag = cfs.contain_location(lat, lon, in_situ_lat, in_situ_lon)
+    r = -1
+    c = -1
+    if contain_flag == 1:
+        r, c = cfs.find_row_column_from_lat_lon(lat, lon, in_situ_lat, in_situ_lon)
+
+        start_idx_y, stop_idx_y, start_idx_x, stop_idx_x = get_window_limits(r, c, size_box)
+
+        if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < lat.shape[
+            1]:
+            pass
+        else:
+            r = -1
+            c = -1
+
+    return r, c
+
+
+def get_window_limits(r, c, size_box):
+    start_idx_y = (r - int(size_box / 2))
+    stop_idx_y = (r + int(size_box / 2) + 1)
+    start_idx_x = (c - int(size_box / 2))
+    stop_idx_x = (c + int(size_box / 2) + 1)
+
+    return start_idx_y, stop_idx_y, start_idx_x, stop_idx_x
+
+
 def get_sat_time(path_source):
     filepah = os.path.join(path_source, 'Oa01_reflectance.nc')
     nc_sat = Dataset(filepah, 'r')
@@ -832,6 +1065,142 @@ def launch_create_extract(in_situ_sites, size_box, path_source, res_str, make_br
                 pass
 
 
+def create_extractv2(path_product, path_output, options):
+    size_box = options['size_box']
+    station_name = options['station_name']
+    in_situ_lat = options['in_situ_lat']
+    in_situ_lon = options['in_situ_lon']
+    res_str = options['resolution']
+    make_brdf = options['make_brdf']
+    insitu_info = options['insitu_info']
+    variable_list = options['variable_list']
+    if args.verbose:
+        print(f'[INFO] Creating extract v.2 for {station_name} from {path_product}')
+
+    if args.verbose:
+        print(f'[INFO] Checking in situ  location -> lat: {in_situ_lat}; lon: {in_situ_lon}')
+    r, c = check_location_source(path_product, in_situ_lat, in_situ_lon, size_box)
+    if r == -1 and c == -1:
+        if args.verbose:
+            print('f[WARNING] File does NOT contains the in situ location! Skipping...')
+        return
+
+    start_idx_y, stop_idx_y, start_idx_x, stop_idx_x = get_window_limits(r, c, size_box)
+    window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
+    if args.verbose:
+        print(f'[INFO] Getting extraction window: {stop_idx_y}-{stop_idx_y}:{start_idx_x}-{stop_idx_x}')
+
+    filename = path_product.split('/')[-1].replace('.', '_') + '_extract_' + station_name + '.nc'
+    ofname = os.path.join(path_output, filename)
+    if args.verbose:
+        print(f'[INFO] Starting extract file: {ofname}')
+    newExtract = SatExtractOLCI(ofname, variable_list)
+    newExtract.create_dimensions(size_box, newExtract.n_bands)
+    newExtract.set_global_attributes(newExtract.get_global_atrib(path_product, options))
+    lat, lon = get_lat_long_arrays(path_product)
+    newExtract.create_lat_long_variables(lat, lon, window)
+    newExtract.create_satellite_time_variable(newExtract.get_sat_time(path_product))
+    newExtract.create_satellite_bands_variable(newExtract.wl_list)
+    newExtract.create_rrs_variable(newExtract.sensor)
+    newExtract.create_geometry_variables()
+    b = newExtract.set_variable_data(path_product, window)
+    newExtract.set_geometry_data(path_product,size_box,window)
+    newExtract.close_file()
+
+    if not b:
+        os.remove(ofname)
+        return None
+
+    return ofname
+
+    # ofname = None
+    # solci = SatExtractOLCI(ofname)
+    # solci.set_version(path_source)
+
+    # ofname = None
+    # proc_version_str = check_version(path_source)
+    # variable_list = get_variable_list(path_source,extra_bands)
+    # for var in variable_list:
+    #     print(var,variable_list[var]['apply'],variable_list[var]['path'])
+
+
+def get_variable_list(path_source, extra_bands):
+    variable_list = {}
+    reflectance_bands = {
+        'Oa01': 0,
+        'Oa02': 1,
+        'Oa03': 2,
+        'Oa04': 3,
+        'Oa05': 4,
+        'Oa06': 5,
+        'Oa07': 6,
+        'Oa08': 7,
+        'Oa09': 8,
+        'Oa10': 9,
+        'Oa11': 10,
+        'Oa12': 11,
+        'Oa16': 12,
+        'Oa17': 13,
+        'Oa18': 14,
+        'Oa21': 15,
+    }
+    other_bands = {
+        'T865': {
+            'band': 'satellite_AOT_0865P50',
+            'description': 'Satellite Aerosol optical thickness'
+        },
+        'WQSF': {
+            'band': 'satellite_WQSF',
+            'description': 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
+        }
+
+    }
+    if extra_bands is None:
+        extra_bands = other_bands
+
+    for name in os.listdir(path_source):
+        if not name.endswith('nc'):
+            continue
+        if name.startswith('tie'):
+            continue
+        fnc = os.path.join(path_source, name)
+        dataset = Dataset(fnc)
+        for name_var, variable in dataset.variables.items():
+            dims_names = variable.get_dims()
+            if len(dims_names) != 2:
+                continue
+            if dims_names[0].name == 'rows' and dims_names[1].name == 'columns':
+                apply = 0
+                index_rrs = -1
+                if name_var.endswith('_reflectance'):
+                    apply = 2
+                    band = name_var.split('_')[0]
+                    index_rrs = reflectance_bands[band]
+                variable_list[name_var] = {
+                    'path': fnc,
+                    'apply': apply,
+                    'index_rrs': index_rrs
+                }
+        dataset.close()
+    return variable_list
+
+
+def check_version(path_source):
+    # extract IFP-OL-2 version
+    proc_version_str = 'IPF-OL-2'
+    with open(os.path.join(path_source, 'xfdumanifest.xml'), 'r', encoding="utf-8") as read_obj:
+        check_version = False
+        for line in read_obj:
+            if 'IPF-OL-2' in line and check_version == False:
+                IPF_OL_2_version = line.split('"')[3]
+                proc_version_str = f'IPF-OL-2 version {IPF_OL_2_version}'
+                if args.verbose:
+                    print(f'[INFO] {proc_version_str}')
+                check_version = True
+                pass
+    return proc_version_str
+
+
 def create_extract(size_box, station_name, path_source, path_output, in_situ_lat, in_situ_lon, res_str, make_brdf,
                    insitu_info):
     if args.verbose:
@@ -845,7 +1214,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 IPF_OL_2_version = line.split('"')[3]
                 proc_version_str = f'IPF-OL-2 version {IPF_OL_2_version}'
                 if args.verbose:
-                    print(proc_version_str)
+                    print(f'[INFO] {proc_version_str}')
                 check_version = True
                 pass
 
@@ -1063,7 +1432,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             # new_EXTRACT.satellite_stop_time = nc_sat.stop_time    
             # new_EXTRACT.satellite_PDU = path_source.split('/')[-1]
             # new_EXTRACT.satellite_path_source = path_source
-            new_EXTRACT.satellite_aco_processor = 'Atmospheric Correction processor: xxx'
+            new_EXTRACT.satellite_aco_processor = 'STANDARD'
             new_EXTRACT.satellite_proc_version = proc_version_str
 
             # new_EXTRACT.datapolicy = 'Notice to users: Add data policy'
@@ -1101,22 +1470,26 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             OZA = nc_sat.variables['OZA'][:]
             OAA = nc_sat.variables['OAA'][:]
             nc_sat.close()
-            SZAO = new_EXTRACT.createVariable('SZA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
+            SZAO = new_EXTRACT.createVariable('satellite_SZA', 'f4', ('satellite_id', 'rows', 'columns'),
+                                              fill_value=-999,
                                               zlib=True, complevel=6)
             SZAO.units = 'degress'
             SZAO.long_name = 'Sun Zenith Angle'
 
-            SAAO = new_EXTRACT.createVariable('SAA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
+            SAAO = new_EXTRACT.createVariable('satellite_SAA', 'f4', ('satellite_id', 'rows', 'columns'),
+                                              fill_value=-999,
                                               zlib=True, complevel=6)
             SAAO.units = 'degress'
             SAAO.long_name = 'Sun Azimuth Angle'
 
-            OZAO = new_EXTRACT.createVariable('OZA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
+            OZAO = new_EXTRACT.createVariable('satellite_OZA', 'f4', ('satellite_id', 'rows', 'columns'),
+                                              fill_value=-999,
                                               zlib=True, complevel=6)
             OZAO.units = 'degress'
             OZAO.long_name = 'Observation Zenith Angle'
 
-            OAAO = new_EXTRACT.createVariable('OAA', 'f4', ('satellite_id', 'rows', 'columns'), fill_value=-999,
+            OAAO = new_EXTRACT.createVariable('satellite_OAA', 'f4', ('satellite_id', 'rows', 'columns'),
+                                              fill_value=-999,
                                               zlib=True, complevel=6)
             OAAO.units = 'degress'
             OAAO.long_name = 'Observation Azimuth Angle'
@@ -1267,6 +1640,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_WQSF.flag_masks = WQSF_flag_masks
             satellite_WQSF.flag_meanings = WQSF_flag_meanings
 
+            # other bands
+
             # in situ info
             if insitu_info is not None:
                 if args.verbose:
@@ -1312,8 +1687,13 @@ def get_find_product_info(options):
     wce = '*'
     if options.has_option('file_path', 'wce') and options['file_path']['wce']:
         wce = options['file_path']['wce']
-    time_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
-    time_stop = datetime.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(hours=24)
+    time_start = None
+    time_stop = None
+    if options.has_option('Time_and_sites_selection', 'time_start'):
+        time_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+    if options.has_option('Time_and_sites_selection', 'time_stop'):
+        time_stop = datetime.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(
+            hours=24)
 
     return path_source, org, wce, time_start, time_stop
 
@@ -1499,6 +1879,12 @@ def get_basic_options_from_file_config(options):
             'download'].upper() == 'TRUE':
             make_download = True
 
+    #Ohter bands
+    extra_bands = None
+    if options.has_option('satellite_options','extra_bands'):
+        str_val = options['satellite_options']['extra_bands']
+        extra_bands = [x.strip() for x in str_val.split(',')]
+
     basic_options = {
         'satellite_path_source': satellite_path_source,
         'path_out': path_out,
@@ -1507,7 +1893,8 @@ def get_basic_options_from_file_config(options):
         'make_brdf': make_brdf,
         'org': org,
         'resolution': res,
-        'make_download': make_download
+        'make_download': make_download,
+        'extra_bands': extra_bands
     }
     return basic_options
 
@@ -1734,21 +2121,42 @@ def main():
             fproducts, iszipped = get_olci_products_day(path_source, tmp_path, org, wce, lathere, lonhere, datehere)
             nproducts = len(fproducts)
             if nproducts == 0:
-                if args.verbse:
+                if args.verbose:
                     print(f'[WARNING] No products found for {datehere}')
+                if args.allow_download:  ##make download in needed
+                    date_list = [datehere]
+                    site = f'site_{idx}'
+                    create_extracts_day_by_day(date_list, satellite_path_source, site, lathere, lonhere, wce,
+                                               tmp_path,
+                                               path_out, size_box, make_brdf)
+                    continue
                 continue
             insitu_time = datehere.timestamp()
             insitu_info = [lathere, lonhere, insitu_time]
+            variable_list = None
+
             for id in range(len(fproducts)):
                 path_product = fproducts[id]
                 if args.verbose:
                     print('---------------------------------------------------')
-                    print(f'DATE: {datehere}')
-                    print(f'GRANULE: {path_product}')
+                    print(f'[INFO] DATE: {datehere}')
+                    print(f'[INFO] GRANULE: {path_product}')
                 res_str = path_product.split('/')[-1].split('_')[3]
+                basic_options['resolution'] = res_str
                 ids = f'{idx}_{id}'
-                ofname = create_extract(size_box, ids, path_product, path_out, lathere, lonhere, res_str, make_brdf,
-                                        insitu_info)
+                basic_options['station_name'] = ids
+                basic_options['in_situ_lat'] = lathere
+                basic_options['in_situ_lon'] = lonhere
+                basic_options['insitu_info'] = insitu_info
+                extra_bands = basic_options['extra_bands']
+                if variable_list is None:
+                    solci = SatExtractOLCI(None, None)
+                    solci.set_variable_list(path_product, extra_bands)
+                    variable_list = solci.variable_list
+                basic_options['variable_list'] = variable_list
+                # variable_list = options['variable_list']
+
+                ofname = create_extractv2(path_product, path_out, basic_options)
                 if ofname is not None:
                     if args.verbose:
                         print(f'Sat extract {ofname} was created')
