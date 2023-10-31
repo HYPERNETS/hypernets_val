@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+#import seaborn as sns
 from matplotlib.ticker import FormatStrFormatter
 
 
@@ -112,9 +112,9 @@ class PlotScatter():
                             linewidths=style['linewidths'],
                             alpha = 1.0)
 
-    def plot_reg_line(self, xdata, ydata, color):
-        data_plot = pd.concat([xdata, ydata], axis=1).astype(dtype=np.float)
-        sns.lmplot(data=data_plot, x='Ins_Rrs', y='Sat_Rrs', line_kws={'color': color})
+    # def plot_reg_line(self, xdata, ydata, color):
+    #     data_plot = pd.concat([xdata, ydata], axis=1).astype(dtype=np.float)
+    #     sns.lmplot(data=data_plot, x='Ins_Rrs', y='Sat_Rrs', line_kws={'color': color})
 
     def colorbar(self):
         if self.axhere is None:
