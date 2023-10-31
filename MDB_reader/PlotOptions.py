@@ -78,6 +78,7 @@ class PlotOptions:
         options_out['yvar'] = self.get_value_param(section, 'yvar', 'mu_sat_rrs', 'str')
         options_out['params'] = self.get_value_param(section, 'params', self.valid_stats.keys(), 'strlist')
         options_out['log_scale'] = self.get_value_param(section, 'log_scale', False, 'boolean')
+        options_out['use_rhow'] = self.get_value_param(section, 'use_rhow', False, 'boolean')
         options_out['flag'] = self.get_value_param(section, 'flag', 'GLOBAL', 'str')
         if self.output_path is not None:
             name_default = options_out['name'] + '.csv'
