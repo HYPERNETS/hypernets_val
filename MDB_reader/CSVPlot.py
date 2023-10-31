@@ -50,9 +50,10 @@ class CSVPLOT:
         mplot.ydata = ydata
 
         use_log_scale = options_out['log_scale']
+        use_rhow = options_out['use_rhow']
         params = options_out['params']
         flag = options_out['flag']
-        mplot.compute_statistics(use_log_scale)
+        mplot.compute_statistics(use_log_scale,use_rhow)
         table,indices = mplot.start_table([flag],params)
         table = mplot.assign_table(table, indices, params, flag)
         if not options_out['file_out'] is None:

@@ -1,9 +1,10 @@
 import os.path
 import MDBPlotDefaults as defaults
 
+
 class PlotOptions:
 
-    def __init__(self, options,config_file):
+    def __init__(self, options, config_file):
 
         if options is None and config_file is not None and os.path.exists(config_file):
             import configparser
@@ -39,8 +40,7 @@ class PlotOptions:
     def set_global_options(self):
         section = 'GLOBAL_OPTIONS'
         self.output_path = self.get_value_param(section, 'output_path', self.output_path, 'directory')
-        self.mu_valid_variable = self.get_value_param(section, 'mu_valid_variable', self.mu_valid_variable,'str')
-
+        self.mu_valid_variable = self.get_value_param(section, 'mu_valid_variable', self.mu_valid_variable, 'str')
 
     def get_options(self, section):
         options_out = {'apply': self.get_value_param(section, 'apply', False, 'boolean')}
@@ -58,7 +58,7 @@ class PlotOptions:
             # options_out = self.get_select_options(section, options_out)
             options_out = self.get_options_scatterplot(section, options_out)
         if options_out['type'].startswith('statstable'):
-            options_out = self.get_options_csv_statstable(section,options_out)
+            options_out = self.get_options_csv_statstable(section, options_out)
         # if options_out['type'] == 'statswlplot':
         #     options_out = self.get_select_options(section, options_out)
         #     options_out = self.get_options_statswlplot(section, options_out)
@@ -73,10 +73,7 @@ class PlotOptions:
 
         return options_out
 
-
-
-
-    def get_options_csv_statstable(self,section,options_out):
+    def get_options_csv_statstable(self, section, options_out):
         options_out['xvar'] = self.get_value_param(section, 'xvar', 'mu_ins_rrs', 'str')
         options_out['yvar'] = self.get_value_param(section, 'yvar', 'mu_sat_rrs', 'str')
         options_out['params'] = self.get_value_param(section, 'params', self.valid_stats.keys(), 'strlist')
@@ -92,9 +89,8 @@ class PlotOptions:
 
         options_out['type_scatterplot'] = self.get_value_param(section, 'type_scatterplot', 'rrs', 'str')
 
-        options_out['xvar'] = self.get_value_param(section,'xvar','mu_ins_rrs','str')
-        options_out['yvar'] = self.get_value_param(section,'yvar','mu_sat_rrs','str')
-
+        options_out['xvar'] = self.get_value_param(section, 'xvar', 'mu_ins_rrs', 'str')
+        options_out['yvar'] = self.get_value_param(section, 'yvar', 'mu_sat_rrs', 'str')
 
         options_out['legend'] = self.get_value_param(section, 'legend', True, 'boolean')
         options_out['legend_values'] = self.get_value_param(section, 'legend_values', None, 'strlist')
@@ -111,7 +107,7 @@ class PlotOptions:
         options_out['log_scale'] = self.get_value_param(section, 'log_scale', False, 'boolean')
         options_out['use_rhow'] = self.get_value_param(section, 'use_rhow', False, 'boolean')
         options_out['min_xy'] = self.get_value_param(section, 'min_xy', None, 'float')
-        options_out['max_xy'] = self.get_value_param( section, 'max_xy', None, 'float')
+        options_out['max_xy'] = self.get_value_param(section, 'max_xy', None, 'float')
         options_out['ticks'] = self.get_value_param(section, 'ticks', None, 'floatlist')
         options_out['fontsizeaxis'] = self.get_value_param(section, 'fontsizeaxis', 12, 'float')
         options_out['fontsizelabels'] = self.get_value_param(section, 'fontsizelabels', 12, 'float')
@@ -137,10 +133,10 @@ class PlotOptions:
         options_out['ylabel'] = self.get_value_param(section, 'ylabel', ylabeldefault, 'str')
         options_out['units'] = self.get_value_param(section, 'units', unitsdefault, 'str')
         options_out['identity_line'] = self.get_value_param(section, 'identity_line', True, 'boolean')
-        options_out['regression_line'] = self.get_value_param( section, 'regression_line', True, 'boolean')
+        options_out['regression_line'] = self.get_value_param(section, 'regression_line', True, 'boolean')
         # marker, markersize, color, edgecolor, linewidth
         # o, 25, 'black', None, None
-        options_out['marker'] = self.get_value_param( section, 'marker', ['o'], 'strlist')
+        options_out['marker'] = self.get_value_param(section, 'marker', ['o'], 'strlist')
         options_out['markersize'] = self.get_value_param(section, 'markersize', [25], 'intlist')
         options_out['color'] = self.get_value_param(section, 'color', ['black'], 'strlist')
 
@@ -158,12 +154,12 @@ class PlotOptions:
 
         options_out['xfigsize'] = self.get_value_param(section, 'xfigsize', 7, 'float')
         options_out['yfigsize'] = self.get_value_param(section, 'yfigsize', 7, 'float')
-        options_out['widthspace'] = self.get_value_param( section, 'widthspace', 0.1, 'float')
-        options_out['heightspace'] = self.get_value_param( section, 'heightspace', 0.1, 'float')
+        options_out['widthspace'] = self.get_value_param(section, 'widthspace', 0.1, 'float')
+        options_out['heightspace'] = self.get_value_param(section, 'heightspace', 0.1, 'float')
         options_out['stat_list'] = self.get_value_param(section, 'stat_list', None, 'strlist')
-        options_out['stats_xpos'] = self.get_value_param( section, 'stats_xpos', 0.05, 'float')
-        options_out['stats_ypos'] = self.get_value_param( section, 'stats_ypos', 0.70, 'float')
-        options_out['individual_axis'] = self.get_value_param( section, 'individual_axis', False, 'boolean')
+        options_out['stats_xpos'] = self.get_value_param(section, 'stats_xpos', 0.05, 'float')
+        options_out['stats_ypos'] = self.get_value_param(section, 'stats_ypos', 0.70, 'float')
+        options_out['individual_axis'] = self.get_value_param(section, 'individual_axis', False, 'boolean')
         return options_out
 
     def get_value(self, section, key):
