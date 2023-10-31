@@ -17,7 +17,7 @@ from COMMON import common_functions as cfs
 from QC_INSITU import QC_INSITU
 from QC_SAT import QC_SAT
 
-from skimage import exposure
+#from skimage import exposure
 from matplotlib.colors import ListedColormap
 
 DIMENSION_NAMES = ['satellite_id', 'rows', 'columns', 'satellite_bands', 'insitu_id', 'insitu_original_bands']

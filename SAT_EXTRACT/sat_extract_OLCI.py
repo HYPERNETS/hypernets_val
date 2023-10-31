@@ -2081,6 +2081,8 @@ def main():
             print(f'COMPLETED. {ncreated} sat extract files were created')
         return
 
+
+    ##MOVING TARGET CSV SELECTION
     if options.has_section('CSV_SELECTION') and options.has_option('CSV_SELECTION', 'path_csv'):
         path_csv = options['CSV_SELECTION']['path_csv']
         if not os.path.exists(path_csv):
