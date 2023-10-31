@@ -109,8 +109,8 @@ class PlotOptions:
             file_out_default = os.path.join(self.output_path, name_default)
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str')
         options_out['log_scale'] = self.get_value_param(section, 'log_scale', False, 'boolean')
+        options_out['use_rhow'] = self.get_value_param(section, 'use_rhow', False, 'boolean')
         options_out['min_xy'] = self.get_value_param(section, 'min_xy', None, 'float')
-
         options_out['max_xy'] = self.get_value_param( section, 'max_xy', None, 'float')
         options_out['ticks'] = self.get_value_param(section, 'ticks', None, 'floatlist')
         options_out['fontsizeaxis'] = self.get_value_param(section, 'fontsizeaxis', 12, 'float')
