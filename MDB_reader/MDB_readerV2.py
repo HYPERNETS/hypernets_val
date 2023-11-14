@@ -312,6 +312,7 @@ def creating_copy_changing_valid_mu(input_file, output_file, valid_mu, valid_mu_
 
     ncout.close()
     input_dataset.close()
+
 def creating_copy_adding_new_flag(input_file, output_file, new_flag):
     from netCDF4 import Dataset
     input_dataset = Dataset(input_file)
@@ -1901,16 +1902,17 @@ def main():
         if not os.path.isdir(output_path):
             print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
 
-        from MDBPlotV2 import MDBPlot
+        from MDBPlotV3 import MDBPlot
         mplot = MDBPlot(input_path)
-        mplot.output_path = output_path
-
-        import configparser
-        options = configparser.ConfigParser()
-        options.read(config_file)
-        # print(mplot.VALID)
-        mplot.set_global_options(options)
-        mplot.plot_from_options(options)
+        mplot.plot_from_options_file(config_file)
+        # mplot.output_path = output_path
+        #
+        # import configparser
+        # options = configparser.ConfigParser()
+        # options.read(config_file)
+        # # print(mplot.VALID)
+        # mplot.set_global_options(options)
+        # mplot.plot_from_options(options)
 
         # path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS'
         # from PlotMultiple import PlotMultiple

@@ -76,7 +76,7 @@ class MDBPlot:
                 continue
             options_out = self.get_options(options, plot)
 
-            print(options_out)
+            #print(options_out)
             if options_out['apply']:
                 self.plot_from_options_impl(options_out)
 

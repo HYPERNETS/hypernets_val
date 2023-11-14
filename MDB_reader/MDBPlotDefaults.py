@@ -31,6 +31,28 @@ xlabel_wl_default = 'Wavelength (nm)'
 colors_default = ['Blue', 'Red', 'Green', 'm', 'Cyan','Orange','Yellow']
 
 
+global_options = {
+    'output_path': {
+        'default': None,
+        'type': 'directory'
+    },
+    'mu_valid_variable':{
+        'default': 'mu_valid',
+        'type': 'str',
+        'values': ['mu_valid','mu_valid_common']
+    },
+    'fig_extension':{
+        'default': 'tif',
+        'type': 'str',
+        'values': ['tif','jpg','png']
+    },
+    'fig_resolution':{
+        'default': 300,
+        'type': 'float'
+    }
+}
+
+
 def get_color_ref(wlvalue):
     dif_ref = 10000
     color_out = None
@@ -46,9 +68,6 @@ def get_color_ref(wlvalue):
 def get_color_flag(flagvalue):
     index = int(math.log2(flagvalue))
     return colors_default[index]
-
-
-
 
 def get_color_list(n):
     if n <= len(colors_default):

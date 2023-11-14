@@ -20,7 +20,6 @@ class SatExtract:
             print('[ERROR] Error creating: ', ofname)
             self.FILE_CREATED = False
 
-
         self.geometry_variables = {
             'satellite_SZA': {
                 'long_name': 'Sun Zenith Angle',
@@ -54,16 +53,17 @@ class SatExtract:
         self.EXTRACT.satellite_aco_processor = at['aco_processor']  # 'Atmospheric Correction processor: xxx'
         self.EXTRACT.satellite_proc_version = at['proc_version']  # proc_version_str
 
-        self.EXTRACT.insitu_site_name = at['station_name']
-        self.EXTRACT.insitu_lat = at['in_situ_lat']
-        self.EXTRACT.insitu_lon = at['in_situ_lon']
+        self.EXTRACT.site = at['site']
+        # self.EXTRACT.insitu_site_name = at['station_name']
+        # self.EXTRACT.insitu_lat = at['in_situ_lat']
+        # self.EXTRACT.insitu_lon = at['in_situ_lon']
 
     def create_dimensions_basic(self, size_box):
         self.EXTRACT.createDimension('satellite_id', None)
         self.EXTRACT.createDimension('rows', size_box)
         self.EXTRACT.createDimension('columns', size_box)
 
-    def create_dimensions_basic_includinginsitu(self, size_box,n_insitubands,n_insituid):
+    def create_dimensions_basic_includinginsitu(self, size_box, n_insitubands, n_insituid):
         self.EXTRACT.createDimension('satellite_id', None)
         self.EXTRACT.createDimension('rows', size_box)
         self.EXTRACT.createDimension('columns', size_box)
@@ -76,7 +76,8 @@ class SatExtract:
         self.EXTRACT.createDimension('satellite_id', None)
         self.EXTRACT.createDimension('rows', size_box)
         self.EXTRACT.createDimension('columns', size_box)
-        self.EXTRACT.createDimension('satellite_bands', n_bands)
+        if n_bands > 0:
+            self.EXTRACT.createDimension('satellite_bands', n_bands)
 
     def create_dimensions_incluidinginsitu(self, size_box, n_bands, n_insitubands, n_insituid):
         # dimensions
@@ -86,6 +87,17 @@ class SatExtract:
         self.EXTRACT.createDimension('satellite_bands', n_bands)
 
         self.EXTRACT.createDimension('insitu_original_bands', n_insitubands)
+        self.EXTRACT.createDimension('insitu_id', n_insituid)
+
+    def create_dimensions_includingbasicinsitu(self, size_box, n_bands, n_insituid):
+        self.EXTRACT.createDimension('satellite_id', None)
+        self.EXTRACT.createDimension('rows', size_box)
+        self.EXTRACT.createDimension('columns', size_box)
+        self.EXTRACT.createDimension('satellite_bands', n_bands)
+
+        self.EXTRACT.createDimension('insitu_id', n_insituid)
+
+    def create_dimension_insitu(self, n_insituid):
         self.EXTRACT.createDimension('insitu_id', n_insituid)
 
     def create_geometry_variables(self):
@@ -105,12 +117,11 @@ class SatExtract:
 
         satellite_time = self.EXTRACT.createVariable('satellite_time', 'f8', ('satellite_id'), fill_value=-999,
                                                      zlib=True, complevel=6)
-        #print('Satellite start time es: ',satellite_start_time)
+        # print('Satellite start time es: ',satellite_start_time)
         satellite_time[0] = float(satellite_start_time.timestamp())
         satellite_time.units = "Seconds since 1970-1-1"
 
     def create_pdu_variable(self, pdu, sensor):
-
 
         satellite_PDU = self.EXTRACT.createVariable('satellite_PDU', 'S1', ('satellite_id'), zlib=True,
                                                     complevel=6)  # string
@@ -127,18 +138,17 @@ class SatExtract:
         nrows = (window[1] - window[0])
         ncols = (window[3] - window[2])
 
-
         # latitude
         satellite_latitude = self.EXTRACT.createVariable('satellite_latitude', 'f8',
                                                          ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                          zlib=True, complevel=6)
 
         if lat.ndim == 1:
-            for r in range(nrows):
-                #satellite_latitude[0, r, :] = [lat[start_idx_x:stop_idx_x]]
-                satellite_latitude[0, r, :] = [lat[start_idx_y:stop_idx_y]]
+            for c in range(ncols):
+                satellite_latitude[0, :, c] = [lat[start_idx_y:stop_idx_y]]
         else:
             satellite_latitude[0, :, :] = [lat[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
+
         satellite_latitude.short_name = 'latitude'
 
         # longitude
@@ -146,9 +156,8 @@ class SatExtract:
                                                           ('satellite_id', 'rows', 'columns'), fill_value=-999,
                                                           zlib=True, complevel=6)
         if lon.ndim == 1:
-            for c in range(ncols):
-                #satellite_longitude[0, :, c] = [lon[start_idx_y:stop_idx_y]]
-                satellite_longitude[0, :, c] = [lon[start_idx_x:stop_idx_x]]
+            for r in range(nrows):
+                satellite_longitude[0, r, :] = [lon[start_idx_x:stop_idx_x]]
         else:
             satellite_longitude[0, :, :] = [lon[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]]
         satellite_longitude.short_name = 'longitude'
@@ -195,7 +204,7 @@ class SatExtract:
         satellite_flag.flag_masks = flag_masks
         satellite_flag.flag_meanings = flag_meanings
 
-    def create_2D_variable_general(self,var_name,var_array,window):
+    def create_2D_variable_general(self, var_name, var_array, window):
         start_idx_y = window[0]
         stop_idx_y = window[1]
         start_idx_x = window[2]
@@ -203,10 +212,17 @@ class SatExtract:
         # dtype = var_array.datatype.str
         # if dtype.startswith('<'):
         #     dtype = dtype[1:]
-        satellite_2d_band = self.EXTRACT.createVariable(var_name,'f4',('satellite_id', 'rows', 'columns'),fill_value=-999.0, zlib=True, complevel=6)
-        array = ma.array(var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])
-        array = array.filled(-999.0)
-        satellite_2d_band[0, :, :] = [array]
+        satellite_2d_band = self.EXTRACT.createVariable(var_name, 'f4', ('satellite_id', 'rows', 'columns'),
+                                                        fill_value=-999.0, zlib=True, complevel=6)
+
+
+        satellite_2d_band[0,:,:] = var_array[0,start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        # array = var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        # print(array.shape)
+        # array = array.filled(-999.0)
+        # print(array.shape)
+        # satellite_2d_band[:] = array[:]
+        #satellite_2d_band[0, :, :] = [array]
 
         return satellite_2d_band
 
@@ -263,8 +279,6 @@ class SatExtract:
         insitu_lon.short_name = "longitude"
         insitu_lon.units = "degrees"
 
-
-
         return insitu_lat, insitu_lon
 
     def create_insitu_variables_for_single_insitu_data(self):
@@ -292,9 +306,9 @@ class SatExtract:
         insitu_time.units = "Seconds since 1970-1-1"
         insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
 
-        return insitu_lat,insitu_lon,insitu_time,time_difference
+        return insitu_lat, insitu_lon, insitu_time, time_difference
 
-    def create_insitu_variable_for_single_insitu_data(self,name_var,units,desc):
+    def create_insitu_variable_for_single_insitu_data(self, name_var, units, desc):
 
         name = f'insitu_{name_var}'
 
@@ -307,13 +321,28 @@ class SatExtract:
 
         return insitu_var
 
-    def create_insitu_flag_variable(self,name_var,flag_values,flag_meanings):
+    def create_insitu_flag_variable(self, name_var, flag_values, flag_meanings):
 
         name = f'insitu_flag_{name_var}'
-        insitu_var = self.EXTRACT.createVariable(name,'i4', ('satellite_id',),fill_value=-999,zlib=True,complevel=6)
+        insitu_var = self.EXTRACT.createVariable(name, 'i4', ('satellite_id',), fill_value=-999, zlib=True, complevel=6)
         insitu_var.short_name = name_var
         insitu_var.flag_masks = flag_values
         insitu_var.flag_meanings = flag_meanings
+
+        return insitu_var
+
+    def create_insitu_flag_variable_version2(self, name_var, flag_meanings):
+
+        flag_values = []
+        flag_meanings_str = ' '.join(flag_meanings)
+        for idx in range(len(flag_meanings)):
+            flag_values.append(int(np.power(2, float(idx))))
+
+        insitu_var = self.EXTRACT.createVariable(name_var, 'i4', ('satellite_id', 'insitu_id'), fill_value=-999,
+                                                 zlib=True, complevel=6)
+        insitu_var.short_name = name_var
+        insitu_var.flag_masks = flag_values
+        insitu_var.flag_meanings = flag_meanings_str
 
         return insitu_var
 

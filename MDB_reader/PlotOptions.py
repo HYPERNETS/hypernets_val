@@ -13,8 +13,14 @@ class PlotOptions:
 
         self.options = options
         self.output_path = None
+
+
+
+        ##GLOBAL OPTIONS
+        self.global_options = {}#defaults.global_option
         self.mu_valid_variable = 'mu_valid'
         self.format_image = 'png'
+        self.image_resolution = 300
 
         self.valid_stats = {
             'N': 0,
@@ -37,10 +43,32 @@ class PlotOptions:
             'MAE': 0.0
         }
 
+
     def set_global_options(self):
         section = 'GLOBAL_OPTIONS'
-        self.output_path = self.get_value_param(section, 'output_path', self.output_path, 'directory')
-        self.mu_valid_variable = self.get_value_param(section, 'mu_valid_variable', self.mu_valid_variable, 'str')
+        self.global_options = {}
+        for goption in defaults.global_options:
+            default = defaults.global_options[goption]['default']
+            type = defaults.global_options[goption]['type']
+            self.global_options[goption] = self.get_value_param(section,goption,default,type)
+            if type=='str' and 'values' in defaults.global_options[goption].keys():
+                values = defaults.global_options[goption]['values']
+                if self.global_options[goption] in values:
+                    print(f'[ERROR] [{section}] {self.global_options[goption]} is not a valid  value for {goption}. Valid values: {values} ')
+
+        # self.output_path = self.get_value_param(section, 'output_path', self.output_path, 'directory')
+        # self.mu_valid_variable = self.get_value_param(section, 'mu_valid_variable', self.mu_valid_variable, 'str')
+
+
+    def get_list_figures(self):
+        sections = self.options.sections()
+        list_figures = []
+        for s in sections:
+            apply = self.get_value_param(s, 'apply', False, 'boolean')
+            if apply:
+                list_figures.append(s)
+        return list_figures
+
 
     def get_options(self, section):
         options_out = {'apply': self.get_value_param(section, 'apply', False, 'boolean')}
@@ -50,6 +78,8 @@ class PlotOptions:
         if options_out['type'] is None:
             return options_out
         options_out['name'] = section
+
+
         options_out['multiple_plot'] = self.get_value_param(section, 'multiple_plot', None, 'str')
         # if options_out['type'] == 'csvtable':
         #     options_out = self.get_options_csv(section,options_out)
