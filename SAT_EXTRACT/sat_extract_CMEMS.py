@@ -362,7 +362,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
             return False
 
     # pdu variable
-    newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
+    if pdu is not None:
+        newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
 
     # Rrs and wavelenghts
     satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
@@ -638,7 +639,8 @@ def create_extract_multiple(ofname, pdu, options, nc_files, band_list, global_at
     nc_sat.close()
 
     # pdu variable
-    newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
+    if pdu is not None:
+        newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
 
     # Rrs and wavelenghts
     satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
@@ -1262,7 +1264,7 @@ def run_cmems_option_noreformat(options):
                 print('----------------------------------')
                 print(f'[INFO] Date: {strdate}')
 
-            filename = f'CMEMS_{dataset_name}_extract_{datestr}_{site}.nc'  # + '_extract_' + site + '.nc'
+            filename = f'{dataset_name}_extract_{datestr}_{site}.nc'
             ofname = os.path.join(path_output, filename)
 
             if os.path.exists(ofname):
@@ -1419,12 +1421,13 @@ def create_extract_cmems(filepath, options, sites, path_output):
                     contain_flag = 1
         if contain_flag == 1:
             filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
-            pdu = filepath.split('/')[-1]
+            #pdu = filepath.split('/')[-1]
+            pdu  = None
             path_output_site = os.path.join(path_output, site)
             if not os.path.exists(path_output_site):
                 os.mkdir(path_output_site)
             ofname = os.path.join(path_output_site, filename)
-            global_at['station_name'] = site
+            global_at['site'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
 
@@ -1541,17 +1544,8 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
                         lat.shape[1]:
                     contain_flag = 1
         if contain_flag == 1:
-            # CMEMS2_O2021357 - rrs - med - fr_nc_extract_Venise.nc
-            # filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
-            # pdu = filepath.split('/')[-1]
-            pdu = ncpath
-            # filename = f'CMEMS2_O{strdate}-rrs-med-fr_nc_extract_{site}.nc'
-            #
-            # path_output_site = os.path.join(path_output, site)
-            # if not os.path.exists(path_output_site):
-            #     os.mkdir(path_output_site)
-            # ofname = os.path.join(path_output_site, filename)
-            global_at['station_name'] = site
+            pdu = None # not more implemented
+            global_at['site'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
             res = create_extract_multiple(ofname, pdu, options, ncfiles, band_list, global_at, lat, lon, r, c)
