@@ -618,7 +618,7 @@ def create_extract_multiple(ofname, pdu, options, nc_files, band_list, global_at
 
     newEXTRACT.set_global_attributes(global_at)
     newEXTRACT.EXTRACT.in_situ_lat = global_at['in_situ_lat']
-    newEXTRACT.EXTRACT.in_situ_lat = global_at['in_situ_lon']
+    newEXTRACT.EXTRACT.in_situ_lon = global_at['in_situ_lon']
 
     newEXTRACT.create_dimensions(size_box, n_bands)
 
@@ -627,7 +627,7 @@ def create_extract_multiple(ofname, pdu, options, nc_files, band_list, global_at
     # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
     nc_sat = Dataset(nc_files[0])
     if 'start_date' in nc_sat.ncattrs():
-        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
+        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d').astimezone(pytz.utc)
         sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
         newEXTRACT.create_satellite_time_variable(sat_time)
     else:
