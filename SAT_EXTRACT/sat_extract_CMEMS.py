@@ -1282,7 +1282,7 @@ def run_cmems_option_noreformat(options):
             # os.remove(filenc)
 
         except:
-            print('ERROR FILE')
+            print('[ERROR] Error creating extract...')
             pass
     ff.close()
     if args.verbose:
@@ -1481,8 +1481,11 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
 
     band_list = get_band_list(options)
     format_name, format_name_date = get_format_name(options)
-    # strdate = date.strftime('%Y%j')
     strdate = date.strftime(format_name_date)
+    if args.verbose:
+        print(f'[INFO] Band list: {band_list}')
+        print(f'[INFO] Format name: {format_name}')
+        print(f'[INFO] Format name date: {format_name_date}')
     ncfiles = []
     for b in band_list:
         # name = f'O{strdate}-rrs{b}-med-fr.nc'
@@ -1490,7 +1493,8 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
         name = name.replace('$DATE$', strdate)
         name = name.replace('$BAND$', b)
         fname = os.path.join(ncpath, name)
-        # print(fname, os.path.exists(fname))
+        if args.verbose:
+            print(f'[INFO] {fname} -> {os.path.exists(fname)}')
         ncfiles.append(fname)
 
     nc_sat = Dataset(ncfiles[0], 'r')
