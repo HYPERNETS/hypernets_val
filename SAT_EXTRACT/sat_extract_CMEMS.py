@@ -617,6 +617,8 @@ def create_extract_multiple(ofname, pdu, options, nc_files, band_list, global_at
         print(f'[INFO]    Creating file: {ofname}')
 
     newEXTRACT.set_global_attributes(global_at)
+    newEXTRACT.EXTRACT.in_situ_lat = global_at['in_situ_lat']
+    newEXTRACT.EXTRACT.in_situ_lat = global_at['in_situ_lon']
 
     newEXTRACT.create_dimensions(size_box, n_bands)
 
@@ -1511,7 +1513,8 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
     # Retrieving global atribbutes
     if args.verbose:
         print('[INFO] Retrieving global attributes...')
-    global_at = get_global_atrib(nc_sat, options)
+    #global_at = get_global_atrib(nc_sat, options)
+    global_at = get_satellite_global_atrib_from_options(options)
 
     nc_sat.close()
 
