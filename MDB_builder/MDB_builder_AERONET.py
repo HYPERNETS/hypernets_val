@@ -391,9 +391,12 @@ def main():
         date_ref_str = date_ref.strftime('%Y%m%d')
         if date_ref_str in extract_list.keys():
             extract = extract_list[date_ref_str]
+            name = extract['path'].split('/')[-1]
             if args.verbose:
-                print(f'[INFO] Working with extract file: {extract} *******************')
+                print(f'[INFO] Working with extract file: {name} *******************')
             ofile = mo.get_mdb_extract_path(extract, ins_sensor)
+            if args.verbose:
+                print(f'[INFO] MDB extract file: {ofile}')
             if os.path.exists(ofile):
                 mdb_extract_files.append(ofile)
                 print(f'[WARNING] MDB extract file already exits. Skipping...')
