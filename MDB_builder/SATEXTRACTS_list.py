@@ -130,7 +130,8 @@ class SAT_EXTRACTS_LIST:
                 dataset.close()
                 print(f'[WARNING] Time was corrected and set as UTC to: {time_check}')
 
-            sat_list[name] = {
+            time_ref = time_here.strftime('%Y%m%d')
+            sat_list[time_ref] = {
                 'path': fextract,
                 'time': time_here,#.strftime('%Y%m%dT%H%M%S'),
                 'site': site_here,

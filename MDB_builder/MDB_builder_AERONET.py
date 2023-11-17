@@ -385,17 +385,22 @@ def main():
 
     mdb_extract_files = []
 
-    for extract in extract_list:
-        if args.verbose:
-            print(f'[INFO] Working with extract file: {extract} *******************')
-        ofile = mo.get_mdb_extract_path(extract, ins_sensor)
-        if os.path.exists(ofile):
-            mdb_extract_files.append(ofile)
-            print(f'[WARNING] MDB extract file already exits. Skipping...')
-            continue
-        b = add_insitu_aeronet(extract_list[extract], ofile, areader, mo, time_list,ins_time_ini,ins_time_end)
-        if b:
-            mdb_extract_files.append(ofile)
+    # for extract in extract_list:
+    date_ref = mo.start_date
+    while date_ref<=mo.end_date:
+        date_ref_str = date_ref.strftime('%Y%m%d')
+        if date_ref_str in extract_list.keys():
+            extract = extract_list[date_ref_str]
+            if args.verbose:
+                print(f'[INFO] Working with extract file: {extract} *******************')
+            ofile = mo.get_mdb_extract_path(extract, ins_sensor)
+            if os.path.exists(ofile):
+                mdb_extract_files.append(ofile)
+                print(f'[WARNING] MDB extract file already exits. Skipping...')
+                continue
+            b = add_insitu_aeronet(extract_list[date_ref_str], ofile, areader, mo, time_list,ins_time_ini,ins_time_end)
+            if b:
+                mdb_extract_files.append(ofile)
     nextract_files = len(mdb_extract_files)
     if args.verbose:
         print(f'[INFO] {nextract_files} were created/added')
