@@ -460,7 +460,7 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
             [os.remove(f) for f in list_files]
 
         for f in list_files_tmp:
-            if f.startswith('Temp_'):
+            if os.path.basename(f).startswith('Temp_'):
                 os.remove(f)
 
     else:
