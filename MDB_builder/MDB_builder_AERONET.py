@@ -391,7 +391,7 @@ def main():
         date_ref_str = date_ref.strftime('%Y%m%d')
         if date_ref_str in extract_list.keys():
             extract = extract_list[date_ref_str]
-            name = extract['path'].split('/')[-1]
+            name = os.path.basename(extract['path'])
             if args.verbose:
                 print(f'[INFO] Working with extract file: {name} *******************')
             ofile = mo.get_mdb_extract_path(name, ins_sensor)
