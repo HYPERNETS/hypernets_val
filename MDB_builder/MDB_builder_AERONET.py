@@ -400,10 +400,11 @@ def main():
             if os.path.exists(ofile):
                 mdb_extract_files.append(ofile)
                 print(f'[WARNING] MDB extract file already exits. Skipping...')
-                continue
-            b = add_insitu_aeronet(extract_list[date_ref_str], ofile, areader, mo, time_list,ins_time_ini,ins_time_end)
-            if b:
-                mdb_extract_files.append(ofile)
+            else:
+                b = add_insitu_aeronet(extract_list[date_ref_str], ofile, areader, mo, time_list,ins_time_ini,ins_time_end)
+                if b:
+                    mdb_extract_files.append(ofile)
+        date_ref = date_ref + timedelta(hours=24)
     nextract_files = len(mdb_extract_files)
     if args.verbose:
         print(f'[INFO] {nextract_files} were created/added')
@@ -457,6 +458,9 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
 
         if not args.nodelfiles:
             [os.remove(f) for f in list_files]
+
+        for f in list_files_tmp:
+            os.remove(f)
 
     else:
         list_files.append(ncout_file)
