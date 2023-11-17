@@ -1,14 +1,29 @@
 import os
 from netCDF4 import Dataset
 from datetime import datetime as dt
+import pytz
 
 
 class SAT_EXTRACTS_LIST:
     def __init__(self, boptions, verbose):
         self.boptions = boptions
         self.verbose = verbose
+
+        self.set_time_default = False
         self.hour_default = 11
         self.minute_default = 0
+        print(self.boptions.insitu_options)
+        if self.boptions.insitu_options['time_sat_default'] is not None:
+
+            str_time = self.boptions.insitu_options['time_sat_default']
+            try:
+                time = dt.strptime(str_time,'%H:%M')
+                self.set_time_default = True
+                self.hour_default = int(time.hour)
+                self.minute_default  = int(time.minute)
+                print(f'[INFO] Time sat default set to: {str_time}')
+            except:
+                pass
 
         self.file_name_format = self.boptions.param_sat['file_name_format']
         self.file_name_date_format = self.boptions.param_sat['file_name_date_format']
@@ -117,7 +132,7 @@ class SAT_EXTRACTS_LIST:
 
             sat_list[name] = {
                 'path': fextract,
-                'time': time_here.strftime('%Y%m%dT%H%M%S'),
+                'time': time_here,#.strftime('%Y%m%dT%H%M%S'),
                 'site': site_here,
                 'sensor': sensor,
                 'platform': platform,
@@ -138,7 +153,7 @@ class SAT_EXTRACTS_LIST:
             if istart>0 and iend>0:
                 datetime_here_name_str = fname[istart:iend]
                 try:
-                    datetime_here_name = dt.strptime(datetime_here_name_str,self.file_name_date_format)
+                    datetime_here_name = dt.strptime(datetime_here_name_str,self.file_name_date_format).astimezone(pytz.utc)
                     tdif = abs((datetime_here-datetime_here_name).total_seconds())
                     if tdif>120:
                         correct = True
@@ -146,7 +161,8 @@ class SAT_EXTRACTS_LIST:
                 except:
                     pass
 
-        if datetime_here.hour == 0 and datetime_here.minute == 0 and datetime_here.second == 0:
+        #if datetime_here.hour == 0 and datetime_here.minute == 0 and datetime_here.second == 0:
+        if self.set_time_default:
             datetime_here = datetime_here.replace(hour=self.hour_default, minute=self.minute_default)
         if start_date <= datetime_here <= end_date:
             return datetime_here,correct

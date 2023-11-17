@@ -6,6 +6,7 @@ import numpy as np
 from netCDF4 import Dataset
 from datetime import datetime as dt
 from datetime import timezone
+import pytz
 
 parser = argparse.ArgumentParser(
     description="Create Match-up DataBase files (MDB) files from satellite extracts and AERONET files.")
@@ -25,7 +26,8 @@ import MDB_builder_options
 import sys
 
 code_home = os.path.dirname(os.path.dirname(MDB_builder_options.__file__))
-# code_home = os.path.abspath('../')
+
+# # code_home = os.path.abspath('../')
 sys.path.append(code_home)
 code_aeronet = os.path.join(os.path.dirname(code_home), 'aeronet')
 sys.path.append(code_aeronet)
@@ -66,16 +68,19 @@ def get_time_from_extract_file(extract_path):
 
 def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_time_ini,ins_time_end):
     extract_path = extract_info['path']
-    satellite_datetime = get_time_from_extract_file(extract_path)
-
-    if satellite_datetime.hour == 0 and satellite_datetime.minute == 0:
-        satellite_datetime = dt.strptime(extract_info['time'],'%Y%m%dT%H%M%S')
-        if args.verbose:
-            print(f'[WARNING] Satellite time set to default hour: {satellite_datetime}')
+    satellite_datetime =  extract_info['time']
+    # satellite_datetime = get_time_from_extract_file(extract_path)
+    #
+    # if satellite_datetime.hour == 0 and satellite_datetime.minute == 0:
+    #     satellite_datetime = dt.strptime(extract_info['time'],'%Y%m%dT%H%M%S')
+    #     if args.verbose:
+    #         print(f'[WARNING] Satellite time set to default hour: {satellite_datetime}')
 
     if satellite_datetime is None:
         print(f'[ERROR] Extract satellite datetime could not be retrieved.')
         return False
+    else:
+        print(f'[INFO] Satellite time -> {satellite_datetime}')
 
     if satellite_datetime<ins_time_ini or satellite_datetime>ins_time_end:
         print(f'[WARNING] No in situ spectra were found for date: {satellite_datetime}')
@@ -90,7 +95,7 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
     nspectra_within_timewindow = 0
     spectra_within_timewindow = np.zeros(nspectra, dtype=bool)
     time_dif_seconds = np.zeros(nspectra, dtype=float)
-    time_window_seconds = mo_options.insitu_options['time_max']  # seconds
+    time_window_seconds = mo_options.insitu_options['time_window']  # seconds
 
     for i in range(nspectra):
         time_dif_seconds[i] = float(abs((time_list[i] - satellite_datetime).total_seconds()))
@@ -108,9 +113,10 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
 
     nominal_wavelengths = np.array(mo_options.get_wllist())
     subset_wl = True
-    if nominal_wavelengths is None:
+    if mo_options.get_wllist() is None:
         nominal_wavelengths = areader.dataset['Nominal_Wavelenghts'][:]
         subset_wl = False
+
 
     rrs = areader.extract_rrs(False)
     exactwl = areader.extract_spectral_data('Exact_Wavelengths', False)
@@ -123,6 +129,8 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
 
         nominal_wavelengths = update_nominal_wl_with_sat_wl(nominal_wavelengths, extract_path, maxwldiff)
         indiceswl_valid, nominal_wavelengths_exact = get_wl_valid_indices(nominal_wavelengths, exactwl_h, maxwldiff)
+
+
         rrsh = rrs[0][:]
         indices_good = np.ma.where(rrsh.mask == False)
 
@@ -192,7 +200,9 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
             continue
 
         insitu_time[0, insitu_idx] = float(time_list[i].replace(tzinfo=timezone.utc).timestamp())
+
         time_difference[0, insitu_idx] = time_dif_seconds[i]
+
 
         idx = i - areader.row_ini
         rrs_here = np.array(rrs[idx][:])
