@@ -394,7 +394,7 @@ def main():
             name = extract['path'].split('/')[-1]
             if args.verbose:
                 print(f'[INFO] Working with extract file: {name} *******************')
-            ofile = mo.get_mdb_extract_path(extract['path'], ins_sensor)
+            ofile = mo.get_mdb_extract_path(name, ins_sensor)
             if args.verbose:
                 print(f'[INFO] MDB extract file: {ofile}')
             if os.path.exists(ofile):
