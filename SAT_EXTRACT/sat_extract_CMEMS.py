@@ -1591,6 +1591,7 @@ def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file
 
     for var in dataset_var_list:
         name = dataset_name_file
+        var = var.replace('.','_')
         name = name.replace('$DATE$', strdate)
         name = name.replace('$BAND$', var)
         fname = os.path.join(path_day, name)
@@ -1636,9 +1637,10 @@ def main():
                 s = options['CSV_SELECTION']['dataset_var_list_out']
                 dataset_var_list_out = [x.strip() for x in s.split(',')]
             is_reflectance = True
+            rrs_var_list = []
             for var in dataset_var_list:
                 try:
-                    int(var)
+                    float(var)
                 except:
                     is_reflectance = False
             if is_reflectance:
