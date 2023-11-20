@@ -1494,14 +1494,14 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
     ncfiles = []
     for b in band_list:
         # name = f'O{strdate}-rrs{b}-med-fr.nc'
-        bstr = f'{b:.2f}'
+        bstr = f'{float(b):.2f}'
         if bstr.endswith('.00'):
             bstr = bstr[:-3]
         if bstr.find('.')>0 and bstr.endswith('0'):
             bstr = bstr[:-1]
         name = format_name
         name = name.replace('$DATE$', strdate)
-        name = name.replace('$BAND$', b)
+        name = name.replace('$BAND$', bstr)
         fname = os.path.join(ncpath, name)
         if args.verbose:
             print(f'[INFO] {fname} -> {os.path.exists(fname)}')
