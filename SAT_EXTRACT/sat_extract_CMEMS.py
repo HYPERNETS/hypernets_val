@@ -1499,6 +1499,7 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
             bstr = bstr[:-3]
         if bstr.find('.')>0 and bstr.endswith('0'):
             bstr = bstr[:-1]
+        bstr = bstr.replace('.','_')
         name = format_name
         name = name.replace('$DATE$', strdate)
         name = name.replace('$BAND$', bstr)
