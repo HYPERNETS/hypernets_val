@@ -1423,8 +1423,8 @@ def create_extract_cmems(filepath, options, sites, path_output):
                     contain_flag = 1
         if contain_flag == 1:
             filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
-            #pdu = filepath.split('/')[-1]
-            pdu  = None
+            # pdu = filepath.split('/')[-1]
+            pdu = None
             path_output_site = os.path.join(path_output, site)
             if not os.path.exists(path_output_site):
                 os.mkdir(path_output_site)
@@ -1497,9 +1497,9 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
         bstr = f'{float(b):.2f}'
         if bstr.endswith('.00'):
             bstr = bstr[:-3]
-        if bstr.find('.')>0 and bstr.endswith('0'):
+        if bstr.find('.') > 0 and bstr.endswith('0'):
             bstr = bstr[:-1]
-        bstr = bstr.replace('.','_')
+        bstr = bstr.replace('.', '_')
         name = format_name
         name = name.replace('$DATE$', strdate)
         name = name.replace('$BAND$', bstr)
@@ -1519,7 +1519,7 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
     # Retrieving global atribbutes
     if args.verbose:
         print('[INFO] Retrieving global attributes...')
-    #global_at = get_global_atrib(nc_sat, options)
+    # global_at = get_global_atrib(nc_sat, options)
     global_at = get_satellite_global_atrib_from_options(options)
 
     nc_sat.close()
@@ -1553,7 +1553,7 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
                         lat.shape[1]:
                     contain_flag = 1
         if contain_flag == 1:
-            pdu = None # not more implemented
+            pdu = None  # not more implemented
             global_at['site'] = site
             global_at['in_situ_lat'] = insitu_lat
             global_at['in_situ_lon'] = insitu_lon
@@ -1597,7 +1597,7 @@ def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file
 
     for var in dataset_var_list:
         name = dataset_name_file
-        var = var.replace('.','_')
+        var = var.replace('.', '_')
         name = name.replace('$DATE$', strdate)
         name = name.replace('$BAND$', var)
         fname = os.path.join(path_day, name)
@@ -1628,6 +1628,15 @@ def main():
 
     if options.has_section('CSV_SELECTION') and options.has_option('CSV_SELECTION', 'path_csv'):
         path_csv = options['CSV_SELECTION']['path_csv']
+        if not os.path.exists(path_csv):
+            print(f'[ERROR] Path csv: {path_csv} does not exist')
+            return
+        with open(path_csv) as f:
+            first_line = f.readline().strip()
+        path_csv_out = f'{path_csv[:-4]}_out.csv'
+        fcsv_out = open(path_csv_out, 'w')
+        fcsv_out.write(f'{first_line};Extract;Index')
+
         use_single_file = False
         n_bands = 0
         if options.has_option('CSV_SELECTION', 'dataset'):  ##SINGLE FILE SELECTION
@@ -1693,6 +1702,8 @@ def main():
             csv_flags_meanings = {}
 
         for idx, row in df.iterrows():
+            list = [str(x).strip() for x in row.to_list()]
+            line_orig = ";".join(list)
             try:
                 datehere = None
                 if col_time is not None:
@@ -1709,6 +1720,8 @@ def main():
                     datehere = datehere.replace(hour=12, minute=0, second=0).astimezone(pytz.utc)
             except:
                 print(f'[WARNING] Row {idx} is not valid. Date/Time could not be parsed. Skipping...')
+                fcsv_out.write('\n')
+                fcsv_out.write(f'{line_orig};NaN;-1')
                 continue
             lathere = float(row[col_lat])
             lonhere = float(row[col_lon])
@@ -1736,6 +1749,8 @@ def main():
                 print('TO BE REIMPLEMENTED')
             else:
 
+
+
                 list_files = get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file,
                                                             dataset_name_format_date, dataset_var_list)
 
@@ -1746,7 +1761,7 @@ def main():
                         global_at = get_satellite_global_atrib_from_options(options)
                         datehere_str = datehere.strftime('%Y%m%d')
                         site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
-                        print(f'[INFO] Site: {site}')
+                        # print(f'[INFO] Site: {site}')
                         other = None
                         if csv_flags is not None:
                             other = {}
@@ -1766,6 +1781,8 @@ def main():
                                 pytz.utc)
                         except:
                             print(f'{cmems_time} is not a valid satellite time option. Skipping')
+                            fcsv_out.write('\n')
+                            fcsv_out.write(f'{line_orig};NaN;-1')
                             continue
 
                         if site not in extract_list.keys():
@@ -1784,15 +1801,26 @@ def main():
                                     'global_at': global_at,
                                 }
                             }
+                            fcsv_out.write('\n')
+                            fcsv_out.write(f'{line_orig};{site}.nc;0')
                         else:
                             idx = extract_list[site]['ninsitu'] + 1
+                            fcsv_out.write('\n')
+                            fcsv_out.write(f'{line_orig};{site}.nc;{idx - 1}')
                             idxs = str(idx)
                             extract_list[site]['ninsitu'] = idx
                             extract_list[site][idxs] = {
                                 'insitu_time': datehere,
                                 'global_at': global_at,
                             }
+                    else:
+                        fcsv_out.write('\n')
+                        fcsv_out.write(f'{line_orig};NaN;-1')
+                else:
+                    fcsv_out.write('\n')
+                    fcsv_out.write(f'{line_orig};NaN;-1')
 
+        fcsv_out.close()
         if use_single_file:
             print('NOT IMPLEMENTED')
         else:  ##MULTIPLE

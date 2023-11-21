@@ -187,8 +187,8 @@ class QC_INSITU:
         if rrs_values is None:
             return False
 
-        if np.sum(np.isnan(rrs_values)) > 0:
-            return False
+        # if np.sum(np.isnan(rrs_values)) > 0:
+        #     return False
 
         if self.only_complete_spectra and (rrs_values.count() != len(rrs_values)):
             return False
@@ -390,9 +390,13 @@ class QC_INSITU:
             time_condition = time_dif < self.time_max
             if time_condition:
                 rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
+
                 valid_bands_array = np.array(valid_bands, dtype=bool)
                 rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
                 valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
+                # if not valid_values:
+                #     print(rrs_values)
+                #     print('--------')
                 spectrum_complete = np.sum(valid_bands_array) == len(self.wl_list)
                 if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
                     if len(exact_wl_array.shape) == 1:

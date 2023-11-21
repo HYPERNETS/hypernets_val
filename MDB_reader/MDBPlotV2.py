@@ -520,15 +520,18 @@ class MDBPlot:
 
         wl_data = np.array(self.mrfile.nc.variables['mu_wavelength'])
         wavelenghts = np.unique(wl_data)
+        name_col.append('mu_complete')
         for w in wavelenghts:
             ws = f'{w:0.2f}'
             name_col.append(f'sat_{ws}')
             name_col.append(f'insitu_{ws}')
+
         nmu = self.mrfile.n_mu_total
         file_out = options['file_out']
         df_validation = pd.DataFrame(columns=name_col, index=list(range(nmu)))
 
         df_validation['mu_id'] = np.arange(0, nmu)
+        df_validation['mu_complete'] = np.ones(nmu)
         for idx in range(1, norig):
             name_here = name_col[idx]
             if name_here.endswith('sat_time'):
@@ -552,9 +555,14 @@ class MDBPlot:
             else:
                 df_validation[name_here] = array_here
 
+
+
         sat_data = np.array(self.mrfile.nc.variables['mu_sat_rrs'])
         ins_data = np.array(self.mrfile.nc.variables['mu_ins_rrs'])
         sat_time_data = np.array(self.mrfile.nc.variables['mu_sat_time'])
+        fill_default = 3.131919679877832e+37
+
+
         #ins_time_data = np.array(self.mrfile.nc.variables['mu_ins_time'])
         mu_id = np.array(self.mrfile.nc.variables['mu_satellite_id'])
         for idx in range(len(sat_data)):
@@ -568,13 +576,25 @@ class MDBPlot:
             ws = f'{wl_here:0.2f}'
             sat_col = f'sat_{ws}'
             ins_col = f'insitu_{ws}'
-            # print(index_here,sat_col,ins_col)
+            if sat_here==fill_default:
+                sat_here = -999.0
+                df_validation.loc[index_here,'mu_complete']=0
+            if ins_here==fill_default:
+                ins_here = -999.0
+                df_validation.loc[index_here, 'mu_complete'] = 0
             df_validation.loc[index_here, sat_col] = sat_here
             df_validation.loc[index_here, ins_col] = ins_here
             if options['sat_time_format'] is not None:
-                date_here = dt.utcfromtimestamp(sat_time_data[index_here])
-                #print(idx, index_here, date_here)
+                date_here = dt.utcfromtimestamp(sat_time_data[index_here]).replace(hour=11,minute=0)
+                date_here = date_here.strftime(options['sat_time_format'])
                 df_validation.loc[index_here,'mu_sat_time'] = date_here
+                try:
+                    ins_date_here = int(df_validation.loc[index_here,'mu_ins_time'])
+                    ins_date_here_str = dt.fromtimestamp(ins_date_here).strftime(options['sat_time_format'])
+                    df_validation.loc[index_here, 'mu_ins_time'] = ins_date_here_str
+                except:
+                    pass
+
             else:
                 df_validation.loc[index_here, 'mu_sat_time'] = sat_time_data[index_here]
         # print(df_validation)

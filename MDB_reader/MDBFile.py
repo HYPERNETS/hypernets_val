@@ -25,7 +25,7 @@ VAR_NAMES = ['satellite_time', 'satellite_latitude', 'satellite_longitude', 'sat
              'satellite_Rrs', 'insitu_time', 'insitu_original_bands', 'insitu_Rrs', 'time_difference']
 
 ATRIB_NAMES = ['creation_time', 'satellite', 'platform', 'sensor', 'description', 'satellite_aco_processor',
-               'satellite_proc_version', 'insitu_site_name', 'insitu_lat', 'insitu_lon']
+               'satellite_proc_version', 'site', 'in_situ_lat', 'in_situ_lon']
 
 
 class MDBFile:
@@ -314,12 +314,15 @@ class MDBFile:
         check_atrib = True
         for var in VAR_NAMES:
             if var not in self.variables:
+                print(f'[ERROR] Variable: {var} is not available in MDB file')
                 check_var = False
         for dim in DIMENSION_NAMES:
             if dim not in self.dimensions:
+                print(f'[ERROR] Dimension: {dim} is not available in MDB file')
                 check_dim = False
         for atrib in ATRIB_NAMES:
             if atrib not in self.nc.ncattrs():
+                print(f'[ERROR] Attribute: {atrib} is not available in MDB file')
                 check_atrib = False
 
         if check_var == False or check_dim == False or check_atrib == False:
@@ -461,6 +464,8 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
 
+
+
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
@@ -497,9 +502,7 @@ class MDBFile:
 
         # Sat and instrument rrs
         name_variable_insitu = 'insitu_Rrs'
-        # print(self.qc_insitu.apply_nir_correction)
         if not self.qc_insitu.apply_nir_correction:
-            # print('ME LLEGA AQUI***********************************************************')
             name_variable_insitu = 'insitu_Rrs_nosc'
 
         self.insitu_rrs = self.variables[name_variable_insitu][index_mu]
@@ -508,6 +511,7 @@ class MDBFile:
 
         # Sat and instrument time
         self.mu_sat_time = self.sat_times[index_mu]
+
         # THIS STEP IS NOW DONE BEFORE PREPARING DF FOR VALIDATION
         # if self.info['satellite_aco_processor'] == 'CCI':
         #     self.mu_sat_time = self.mu_sat_time.replace(hour=11)
@@ -890,6 +894,10 @@ class MDBFile:
 
             mukey = self.get_mu_key()
             time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
+            #compability with old mdb
+            key_site = 'site'
+            if key_site not in self.info.keys() and 'insitu_site_name' in self.info.keys():
+                key_site = 'insitu_site_name'
             if not mukey in self.mu_dates.keys():
                 self.mu_dates[mukey] = {
                     'Index_MU': index_mu,
@@ -899,7 +907,7 @@ class MDBFile:
                     'satellite': self.info['satellite'].upper(),
                     'platform': self.info['platform'].upper(),
                     'sensor': self.info['sensor'].upper(),
-                    'site': self.info['insitu_site_name'].upper(),
+                    'site': self.info[key_site].upper(),
                     'ac': self.info['satellite_aco_processor'].upper(),
                     'mu_valid': mu_valid,
                     'mu_insitu_id': self.ins_time_index,
@@ -980,7 +988,11 @@ class MDBFile:
         df_valid.iloc[0].at['Satellite'] = self.nc.satellite
         df_valid.iloc[0].at['Platform'] = self.nc.platform
         df_valid.iloc[0].at['Sensor'] = self.nc.sensor
-        df_valid.iloc[0].at['Site'] = self.nc.insitu_site_name
+        key_site = 'site'
+        if key_site not in self.nc.ncattrs() and 'insitu_site_name' in self.nc.ncattrs():
+            key_site = 'insitu_site_name'
+        print(key_site)
+        df_valid.iloc[0].at['Site'] = self.nc.getncattr(key_site)
         df_valid.iloc[0].at['Total'] = self.n_mu_total
         df_valid.iloc[0].at['Valid'] = nmu_valid
 
