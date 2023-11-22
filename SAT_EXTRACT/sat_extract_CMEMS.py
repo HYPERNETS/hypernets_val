@@ -498,7 +498,8 @@ def add_reflectance_multiple(newEXTRACT, extract, wl_list):
         wavelengths.append(float(wl))
         input_dataset = Dataset(list_files[iwl])
         for name, variable in input_dataset.variables.items():
-            ifind = name.find(wl)
+            wls = str(wl).replace('.','_')
+            ifind = name.find(wls)
             if ifind >= 0:
                 if variable.ndim == 3:
                     bandarray = ma.array(variable[:, :, :])
@@ -1652,7 +1653,6 @@ def main():
                 s = options['CSV_SELECTION']['dataset_var_list_out']
                 dataset_var_list_out = [x.strip() for x in s.split(',')]
             is_reflectance = True
-            rrs_var_list = []
             for var in dataset_var_list:
                 try:
                     float(var)
@@ -1819,6 +1819,7 @@ def main():
                         fcsv_out.write('\n')
                         fcsv_out.write(f'{line_orig};NaN;-1')
                 else:
+                    print(f'[WARNING] Files not found for date: {datehere}. Skipping...')
                     fcsv_out.write('\n')
                     fcsv_out.write(f'{line_orig};NaN;-1')
 
