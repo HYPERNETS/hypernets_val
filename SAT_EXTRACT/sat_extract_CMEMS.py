@@ -1727,6 +1727,8 @@ def main():
             lonhere = float(row[col_lon])
             if np.isnan(lathere) or np.isnan(lonhere):
                 print(f'[WARNING] Row {idx} is not valid. Latitude or longitude could not be parsed. Skipping...')
+                fcsv_out.write('\n')
+                fcsv_out.write(f'{line_orig};NaN;-1')
                 continue
             if csv_flags is not None:
                 for f in csv_flags:
