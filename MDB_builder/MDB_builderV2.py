@@ -18,6 +18,8 @@ parser.add_argument('-site', "--sitename", help="Site name. Only required with -
 parser.add_argument('-ld', "--listdates",
                     help="Option to obtain a date list for a specific HYPERNETS site (-site option).",
                     action="store_true")
+parser.add_argument('-sd',"--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
+parser.add_argument('-ed',"--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
@@ -43,7 +45,17 @@ def main():
         sat_extract_dir = None
         if args.sat_extract_dir:
             sat_extract_dir = args.sat_extract_dir
-        ihd.save_list_dates_to_file(args.output, args.sitename, None, None, sat_extract_dir)
+        start_date = None
+        end_date = None
+        if args.start_date and args.end_date:
+            try:
+                start_date = dt.strptime(args.start_date,'%Y-%m-%d')
+                end_date = dt.strptime(args.end_date,'%Y-%m-%d')
+            except:
+                print(f'[ERROR] Parameters start date: {args.start_date} and/or end date: {args.end_date} are not in the correct format (YYYY-mm-dd)')
+                return
+
+        ihd.save_list_dates_to_file(args.output, args.sitename, start_date, end_date, sat_extract_dir)
         return
 
     # option to make single extract concatenation from files in a input path

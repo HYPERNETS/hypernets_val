@@ -1,4 +1,5 @@
 import datetime
+import pytz
 import os.path
 import sys
 import argparse
@@ -57,6 +58,8 @@ class MDB_READER():
         if self.mfile.df_validation is None:
             nmu_valid, df_valid = self.mfile.prepare_df_validation()
 
+
+
         foutcsv = fout.replace('.nc', '.csv')
         foutcsv = foutcsv.replace('MDBr', 'CSVr')
         df_valid.to_csv(foutcsv, sep=';')
@@ -103,12 +106,12 @@ class MDB_READER():
             'mu_sat_time': {
                 'namedf': 'Sat_Time',
                 'fillvalue': -999.0,
-                'type': 'f4'
+                'type': 'f8'
             },
             'mu_ins_time': {
                 'namedf': 'Ins_Time',
                 'fillvalue': -999.0,
-                'type': 'f4'
+                'type': 'f8'
             },
             'mu_time_diff': {
                 'namedf': 'Time_Diff',
@@ -120,17 +123,23 @@ class MDB_READER():
                 'fillvalue': -1,
                 'type': 'i1'
             },
+            'mu_valid_complete':{
+                'namedf': 'spectrum_complete',
+                'fillvalue': -1,
+                'type': 'i1'
+            },
             'mu_insitu_id': {
                 'namedf': 'mu_insitu_id',
                 'fillvalue': -1,
                 'type': 'i1'
-            },
+            }
         }
 
         if self.mfile.df_mu is None:
             self.mfile.prepare_df_mu()
 
         # print(self.mfile.df_mu)
+
 
         for new_var_name in new_variables_sat_mu:
             new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],
@@ -140,25 +149,27 @@ class MDB_READER():
             array = np.array(self.mfile.df_mu.loc[:, new_variables_sat_mu[new_var_name]['namedf']])
 
             if new_var_name == 'mu_valid':
-                array_status = np.array(self.mfile.df_mu.loc[:,'status'])
+                array_status = np.array(self.mfile.df_mu.loc[:, 'status'])
 
             if new_var_name == 'mu_sat_time' or new_var_name == 'mu_ins_time':
                 array_t = []
-                for val in array:
+                for idx in range(len(array)):
+                    val = array[idx]
                     try:
-                        valdt = datetime.datetime.strptime(val, '%Y-%m-%d %H:%M')
-                        array_t.append(valdt.timestamp())
+                        valdt = datetime.datetime.strptime(val, '%Y-%m-%d %H:%M').replace(tzinfo=pytz.utc)
+                        array_t.append(float(valdt.timestamp()))
                     except:
                         array_t.append(-999.0)
-                array = np.array(array_t)
+                array = np.array(array_t, dtype=np.float64)
 
             fillValue = new_variables_sat_mu[new_var_name]['fillvalue']
             if fillValue is not None:
                 array = ma.masked_array(array, mask=array == fillValue)
+
             for idx in range(self.mfile.n_mu_total):
 
                 if new_var_name == 'mu_valid':
-                    status_here = array_status[idx]*(-1)
+                    status_here = array_status[idx] * (-1)
                     val = array[idx]
                     if 3 >= status_here >= 1:
                         val = -1
@@ -279,6 +290,7 @@ def get_wl_list_from_file(fwl):
         return None
     return wl_list
 
+
 def creating_copy_changing_valid_mu(input_file, output_file, valid_mu, valid_mu_common):
     from netCDF4 import Dataset
     input_dataset = Dataset(input_file)
@@ -312,6 +324,7 @@ def creating_copy_changing_valid_mu(input_file, output_file, valid_mu, valid_mu_
 
     ncout.close()
     input_dataset.close()
+
 
 def creating_copy_adding_new_flag(input_file, output_file, new_flag):
     from netCDF4 import Dataset
@@ -1160,15 +1173,15 @@ def do_test():
     dirbase = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/MAFR/ACOLITEv1'
     dirc = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/MAFR/ACOLITE'
     for name in os.listdir(dirbase):
-        file_ardl = os.path.join(dirbase,name)
-        file_orig = os.path.join(dirc,name)
+        file_ardl = os.path.join(dirbase, name)
+        file_orig = os.path.join(dirc, name)
         if os.path.exists(file_ardl) and os.path.exists(file_orig):
             dataset_ardl = Dataset(file_ardl)
             dataset_orig = Dataset(file_orig)
             flag_ardl = np.array(dataset_ardl.variables['satellite_WQSF'])
             flag_orig = np.array(dataset_orig.variables['satellite_WQSF'])
-            ratio = flag_orig/flag_ardl
-            print(np.min(ratio[:]),np.max(ratio[:]),np.average(ratio[:]))
+            ratio = flag_orig / flag_ardl
+            print(np.min(ratio[:]), np.max(ratio[:]), np.average(ratio[:]))
             dataset_ardl.close()
             dataset_orig.close()
 
@@ -1344,14 +1357,16 @@ def do_check_times(site):
                     time_dif = abs((time_insitu - time_name_insitu).total_seconds())
                     if time_dif > 600:
                         print('ERROR:', time_insitu, name_insitu, time_name_insitu, time_dif)
-                    time_diff_institu_sat = abs(float(satellite_time[idx])-float(insitu_time[idx][ids]))
+                    time_diff_institu_sat = abs(float(satellite_time[idx]) - float(insitu_time[idx][ids]))
 
-                    res = abs(time_diff[idx][ids]-time_diff_institu_sat)
+                    res = abs(time_diff[idx][ids] - time_diff_institu_sat)
                     if res > 150:
-                        print('ERROR Time diff in file:', time_diff[idx][ids], ' checked it: ', time_diff_institu_sat,'res ',res)
+                        print('ERROR Time diff in file:', time_diff[idx][ids], ' checked it: ', time_diff_institu_sat,
+                              'res ', res)
 
             dataset.close()
     return True
+
 
 def do_check_times_S3(site):
     from netCDF4 import Dataset
@@ -1390,17 +1405,19 @@ def do_check_times_S3(site):
                     time_dif = abs((time_insitu - time_name_insitu).total_seconds())
                     if time_dif > 600:
                         print('ERROR:', time_insitu, name_insitu, time_name_insitu, time_dif)
-                    time_diff_institu_sat = abs(float(satellite_time[idx])-float(insitu_time[idx][ids]))
+                    time_diff_institu_sat = abs(float(satellite_time[idx]) - float(insitu_time[idx][ids]))
 
-                    res = abs(time_diff[idx][ids]-time_diff_institu_sat)
+                    res = abs(time_diff[idx][ids] - time_diff_institu_sat)
                     if res > 150:
-                        print('ERROR Time diff in file:', time_diff[idx][ids], ' checked it: ', time_diff_institu_sat,'res ',res)
+                        print('ERROR Time diff in file:', time_diff[idx][ids], ' checked it: ', time_diff_institu_sat,
+                              'res ', res)
 
             dataset.close()
     return True
 
-def set_id_as_invalid(file_in,list_id):
-    file_out = os.path.join(os.path.dirname(file_in),'TempHere.nc')
+
+def set_id_as_invalid(file_in, list_id):
+    file_out = os.path.join(os.path.dirname(file_in), 'TempHere.nc')
     from netCDF4 import Dataset
     import numpy as np
     dataset = Dataset(file_in)
@@ -1413,11 +1430,11 @@ def set_id_as_invalid(file_in,list_id):
         mu_valid[id] = 0
         if mu_valid_common is not None:
             mu_valid_common[id] = 0
-    creating_copy_changing_valid_mu(file_in,file_out,mu_valid,mu_valid_common)
-    os.rename(file_out,file_in)
-
+    creating_copy_changing_valid_mu(file_in, file_out, mu_valid, mu_valid_common)
+    os.rename(file_out, file_in)
 
     return True
+
 
 def main():
     mode = args.mode
@@ -1436,7 +1453,7 @@ def main():
         #     return
         file = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/ALLSITES/MDBrc_S2AB_ALLSITES_MSI_20M_COMMONMU.nc'
         list_id = [771]
-        if set_id_as_invalid(file,list_id):
+        if set_id_as_invalid(file, list_id):
             return
 
         # fconfig = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/config_qc.ini'
@@ -1806,7 +1823,8 @@ def main():
         else:
             ncout_file = os.path.join(input_path, 'MDBrc.nc')
 
-        ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
+        #ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
+        ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'site']
         flag_bands = ['flag_satellite', 'flag_sensor', 'flag_ac', 'flag_site']
         flag_lists = get_flag_lists(input_path, ats_in, flag_bands)
         all_bands = get_band_list(input_path)
@@ -1904,7 +1922,7 @@ def main():
 
         # from MDBPlotV3 import MDBPlot
         # mplot = MDBPlot(input_path)
-        #mplot.plot_from_options_file(config_file)
+        # mplot.plot_from_options_file(config_file)
         # mplot.output_path = output_path
         #
 

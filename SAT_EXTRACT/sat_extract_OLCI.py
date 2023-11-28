@@ -1511,11 +1511,11 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             satellite_time[0] = float(datetime.strptime(satellite_start_time, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
             satellite_time.units = "Seconds since 1970-1-1"
 
-            # PDU
-            satellite_PDU = new_EXTRACT.createVariable('satellite_PDU', 'S2', ('satellite_id'), zlib=True,
-                                                       complevel=6)  # string
-            satellite_PDU[0] = path_source.split('/')[-1]
-            satellite_PDU.long_name = "OLCI source PDU name"
+            # PDU- DEPRECATED NOT INCLUDED IN THE NEW VERSION
+            # satellite_PDU = new_EXTRACT.createVariable('satellite_PDU', 'S2', ('satellite_id'), zlib=True,
+            #                                            complevel=6)  # string
+            # satellite_PDU[0] = path_source.split('/')[-1]
+            # satellite_PDU.long_name = "OLCI source PDU name"
 
             # latitude
             if args.verbose:

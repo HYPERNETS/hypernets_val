@@ -477,26 +477,29 @@ class MDBPlot:
         ncol = int(rc[1].strip())
         ntot = nrow * ncol
 
+        print(ntot,len(files_multiple),file_out)
+        print(files_multiple)
+
         if ntot == len(files_multiple):
             pm = PlotMultiple()
             xfigsize = options_out['xfigsize']
             yfigsize = options_out['yfigsize']
             wspace = options_out['widthspace']
             hspace = options_out['heightspace']
-            pm.start_multiple_plot_advanced(nrow, ncol, xfigsize, yfigsize, wspace, hspace, False)
+            pm.start_multiple_plot_advanced(nrow, ncol, xfigsize, yfigsize, wspace, hspace, True)
             index = 0
             for irow in range(nrow):
                 for icol in range(ncol):
                     pm.plot_image(files_multiple[index], irow, icol)
                     index = index + 1
-            if ntot == 4:
-                pm.set_text(-150, -50, '(a)')
-                pm.set_text(1800, -50, '(b)')
-                pm.set_text(-150, 1400, '(c)')
-                pm.set_text(1800, 1400, '(d)')
-            if ntot == 2:
-                pm.set_text(1800, -50, '(a)')
-                pm.set_text(1800, 1400, '(b)')
+            # if ntot == 4:
+            #     pm.set_text(-150, -50, '(a)')
+            #     pm.set_text(1800, -50, '(b)')
+            #     pm.set_text(-150, 1400, '(c)')
+            #     pm.set_text(1800, 1400, '(d)')
+            # if ntot == 2:
+            #     pm.set_text(1800, -50, '(a)')
+            #     pm.set_text(1800, 1400, '(b)')
             # if len(legend) > 0 and len(legend) == len(handles):
             #     pm.set_global_legend(handles, legend)
             # file_out = self.get_file_out_flag_param(options_out['file_out'], None, None)
@@ -1855,7 +1858,8 @@ class MDBPlot:
         pspectra.set_grid()
         pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
         pspectra.legend_options['framealpha'] = 1
-        # pspectra.set_legend_h(h_legend, str_legend)
+        if options_out['legend']:
+            pspectra.set_legend_h(h_legend, str_legend)
         pspectra.set_tigth_layout()
         if file_out is None:
             file_out = options_out['file_out']
@@ -2767,6 +2771,7 @@ class MDBPlot:
         options_out['heightspace'] = self.get_value_param(options, section, 'heightspace', 0.1, 'float')
         options_out['stat_plot_method'] = self.get_value_param(options, section, 'stat_plot_method', None, 'str')
         options_out['series_color'] = self.get_value_param(options, section, 'series_color', None, 'strlist')
+        options_out['legend'] = self.get_value_param(options, section, 'legend', True, 'boolean')
         return options_out
 
     def get_options_flag(self, options, section, options_out):

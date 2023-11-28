@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
+import pytz
 
 code_home = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(code_home)
@@ -440,11 +441,15 @@ class MDBFile:
 
         for idx in range(len(times_here)):
             itime = times_here[idx]
+
             if not np.ma.is_masked(itime) and not np.isnan(itime):
                 insitu_time_here = datetime.utcfromtimestamp(float(itime))
+
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
                 diff_time = abs(time_difference_prev[idx] - time_diff_here)
+                # if index_mu == 0 and idx == 0:
+                #     print('----------->', sat_time_here, insitu_time_here,time_diff_here,time_difference_prev[idx])
                 if diff_time >= 150:
                     print('[WARNING] Unexplained time difference. Please review sat and insitu times are in utc: ')
                     ssource = self.variables['satellite_PDU'][index_mu]
@@ -477,6 +482,9 @@ class MDBFile:
                 mu_insitu_time = sat_time_here
             else:
                 mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
+
+        # if index_mu==0:
+        #     print('----------->', mu_insitu_time)
 
         return ins_time_index, mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_values
 
@@ -878,6 +886,8 @@ class MDBFile:
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
+
+
             if info_mu['status'] < 0:
                 spos = info_mu['status'] * (-1)
                 status_error[spos] = status_error[spos] + 1
@@ -894,6 +904,8 @@ class MDBFile:
 
             mukey = self.get_mu_key()
             time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
+            # if index_mu==0:
+            #     print(self.mu_insitu_time,self.mu_sat_time,time_diff)
             #compability with old mdb
             key_site = 'site'
             if key_site not in self.info.keys() and 'insitu_site_name' in self.info.keys():
@@ -962,6 +974,7 @@ class MDBFile:
                 # print(pd.DataFrame.from_dict(row))
                 # print(self.df_validation.columns.values)
                 row_here = pd.DataFrame.from_dict(row)
+
                 # print(type(row_here))
                 self.df_validation.iloc[index_tot] = row_here.iloc[0]
                 # print(self.df_validation.index[index_tot])
