@@ -15,7 +15,7 @@ class INSITUBASE:
 
         # time_window = 2  # del mdb_options
         # self.new_MDB.time_diff = f'{time_window * 60 * 60}'  # in seconds
-        self.new_MDB.time_diff = self.mdb_options.insitu_options['time_max']
+        self.new_MDB.time_diff = self.mdb_options.insitu_options['time_window']
 
         n_insitu_id = self.mdb_options.insitu_options['n_insitu_id']
         n_insitu_bands = self.mdb_options.insitu_options['n_insitu_bands']
