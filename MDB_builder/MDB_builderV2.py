@@ -128,8 +128,8 @@ def main():
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------START')
     slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
-    # for e in extract_list:
-    #     print(e,extract_list[e]['time'])
+    for e in extract_list:
+        print(e,extract_list[e])
     if args.verbose:
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
 
@@ -146,7 +146,7 @@ def main():
     mdb_extract_files = []
     for extract in extract_list:
         if args.verbose:
-            print(f'[INFO] Working with extract file: {extract} *******************')
+            print(f'[INFO] Working with extract: {extract} *******************')
         bad_spectra_times = {}
         ofile = mo.get_mdb_extract_path(extract, ins_sensor)
         if os.path.exists(ofile):
