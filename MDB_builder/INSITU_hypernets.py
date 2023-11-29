@@ -167,7 +167,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             return False
 
         time_diff = float(abs((sat_time - insitu_time).total_seconds()))
-        time_max = self.mdb_options.insitu_options['time_max']  # time max in seconds
+        time_max = self.mdb_options.insitu_options['time_window']  # time max in seconds
         time_diffh = time_diff / 3600
         time_maxh = time_max / 3600
         if time_diff > time_max:
