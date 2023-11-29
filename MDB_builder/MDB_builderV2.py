@@ -148,7 +148,8 @@ def main():
         if args.verbose:
             print(f'[INFO] Working with extract: {extract} *******************')
         bad_spectra_times = {}
-        ofile = mo.get_mdb_extract_path(extract, ins_sensor)
+        extract_name = os.path.basename(extract['path'])
+        ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
         if os.path.exists(ofile):
             from netCDF4 import Dataset
             import numpy as np
