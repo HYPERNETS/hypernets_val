@@ -418,6 +418,7 @@ class QC_SAT:
     def compute_th_masks(self, index_mu):
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
         mask_thershold = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
+
         for idx in range(len(self.th_masks)):
             th_mask = self.th_masks[idx]
             if th_mask['index_sat'] >= 0:
@@ -435,6 +436,8 @@ class QC_SAT:
             th_mask['n_masked'] = n_masked
             self.th_masks[idx] = th_mask
             mask_thershold = mask_thershold + mask_thershold_here
+
+
 
         if self.flag_mask is None:
             self.flag_mask = mask_thershold

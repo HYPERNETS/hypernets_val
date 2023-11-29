@@ -128,8 +128,8 @@ def main():
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------START')
     slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
-    for e in extract_list:
-        print(e,extract_list[e]['time'])
+    # for e in extract_list:
+    #     print(e,extract_list[e]['time'])
     if args.verbose:
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
 
@@ -140,7 +140,7 @@ def main():
     if args.verbose:
         if mo.insitu_options['apply_rsync']:
             print(f'[INFO] Checking SSH access: {ihd.CHECK_SSH}')
-        time_maxh = ihd.mdb_options.insitu_options['time_max'] / 3600
+        time_maxh = ihd.mdb_options.insitu_options['time_window'] / 3600
         print(f'[INFO] Maximum time window: {time_maxh:0.2f} hours')
     ins_sensor = 'HYPSTAR'
     mdb_extract_files = []

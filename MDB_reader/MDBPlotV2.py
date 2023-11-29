@@ -91,12 +91,16 @@ class MDBPlot:
 
                 if options_out['selectBy'] is None:  # one scatterplot global for wavelentht
                     if options_out['multiple_plot'] is None:
-
+                        print('me llega aqui...')
                         for wl in options_out['wl_values']:
+                            print(wl)
                             self.set_data_scatterplot(options_out['groupBy'], None, None, wl,options_out)
+
                             options_out['file_out'] = self.get_file_out_name(file_out_base, wl, None)
                             options_out['title'] = self.get_title(title_base, wl, None, None)
+                            print('-->',options_out['file_out'],options_out['title'])
                             if len(self.xdata) > 0 and len(self.ydata) > 0:
+                                print(len(self.xdata))
                                 self.plot_scatter_plot(options_out, None, -1, wl)
                     else:
                         rc = options_out['multiple_plot'].split(',')
@@ -812,14 +816,17 @@ class MDBPlot:
 
     # MAIN FUNCTION TO PLOT SCATTERPLOT
     def plot_scatter_plot(self, options, plot, index, wl):
+
         use_rhow = options['use_rhow']
         if options['include_stats'] or options['regression_line']:
             use_log_scale = options['log_scale']
             self.compute_statistics(use_log_scale,use_rhow)
 
+
         ngroup = 1
         str_legend = []
         groupValues = None
+
         if 'groupValues' in options.keys():
             groupValues = options['groupValues']
         if len(self.groupdata) > 0 and groupValues is not None:
@@ -854,6 +861,7 @@ class MDBPlot:
             self.ydata = self.ydata * np.pi
 
 
+
         colors = options['color']
         color = colors[0]
         markersizes = options['markersize']
@@ -866,6 +874,8 @@ class MDBPlot:
         linewidth = linewidths[0]
 
         ngroupReal = 0
+
+
 
         if ngroup > 1:
             nmubygroup = [0] * ngroup
@@ -910,6 +920,7 @@ class MDBPlot:
 
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
         else:  # density scatter plot
+
             xhere = np.asarray(self.xdata, dtype=np.float)
             yhere = np.asarray(self.ydata, dtype=np.float)
 
@@ -926,12 +937,15 @@ class MDBPlot:
                     idx = z.argsort()
                     xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
                     plot.set_cmap('jet')
+
                     plot.plot_data(xhere, yhere, marker, markersize, z, edgecolor, linewidth)
+
                 except:
                     plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
 
             else:
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
+
 
         if options['log_scale']:
             plot.set_log_scale()
@@ -955,6 +969,7 @@ class MDBPlot:
                     max_y_data = np.max(self.ydata)
                     max_xy = np.ceil(np.max([max_x_data, max_y_data]))
 
+
             if options['min_xy'] is not None:
                 min_xy = options['min_xy']
             if options['max_xy'] is not None:
@@ -974,7 +989,10 @@ class MDBPlot:
         else:
             ticks = options['ticks']
 
+        # print(min_xy)
+        # print(max_xy)
         plot.set_limits(min_xy, max_xy)
+
         if options['log_scale']:
             tlabels = []
             for t in ticks:
@@ -990,6 +1008,7 @@ class MDBPlot:
         else:
             plot.set_ticks(ticks, options['fontsizeaxis'])
 
+
         if options['individual_axis'] or index == -1:
             plot.set_xaxis_title(options['xlabel'])
             plot.set_yaxis_title(options['ylabel'])
@@ -1002,7 +1021,7 @@ class MDBPlot:
                 plot.set_yticks_labels_off(ticks)
             # if plot.index_row < (plot.nrow - 1):
             #     plot.set_xticks_labels_off(ticks)
-            if plot.index_row==2 and plot.index_col==3:
+            if plot.index_row==1 and plot.index_col==3:
                 plot.set_xaxis_title(options['xlabel'])
             else:
                 if plot.index_row < (plot.nrow - 1):
@@ -1072,6 +1091,7 @@ class MDBPlot:
                             # str0 = f'{str0}{wl:.2f} nm'
                     xpos = options['stats_xpos']
                     ypos = options['stats_ypos']
+                    #print('--------->',xpos,ypos)
                     plot.plot_text(xpos, ypos, str0)
                 else:
                     if index == -1:
@@ -1362,9 +1382,9 @@ class MDBPlot:
 
             if file_out is not None:
                 plot.save_fig(file_out)
-                index_file = indices_files[iparam]
-                #print(iparam,index_file,len(files_multiple))
-                files_multiple[index_file] = file_out
+                # index_file = indices_files[iparam]
+                # #print(iparam,index_file,len(files_multiple))
+                # files_multiple[index_file] = file_out
                 #files_multiple.append(file_out)
             plot.close_plot()
 
