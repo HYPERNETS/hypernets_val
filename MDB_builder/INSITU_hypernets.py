@@ -188,12 +188,13 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         wfin = 1600
         iini = 0
         ifin = 1600
-        if nc_ins.variables['wavelength'].shape[0] <1600: #== 1537:
-            iref = np.floor((nc_ins.variables['wavelength'][0]-320.3)/0.45)
+        if nc_ins.variables['wavelength'].shape[0] < 1600: #== 1537:
+            iref = 1600 - nc_ins.variables['wavelength'].shape[0]
             wini = iref
             wfin = 1600
             iini = 0
             ifin = 1600 - iref
+            print(wini,wfin,iini,ifin)
 
         if insitu_idx == 0:
             self.new_MDB.variables['insitu_original_bands'][wini:wfin] = [nc_ins.variables['wavelength'][iini:ifin]]
