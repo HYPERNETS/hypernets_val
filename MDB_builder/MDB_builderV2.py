@@ -162,8 +162,9 @@ def main():
             mdb_extract_files.append(ofile)
             print(f'[WARNING] MDB extract file already exits. Skipping...')
             continue
-        date_here_str = extract_list[extract]['time']
-        date_here = dt.strptime(date_here_str, '%Y%m%dT%H%M%S')
+        #date_here_str = extract_list[extract]['time']
+        #date_here = dt.strptime(date_here_str, '%Y%m%dT%H%M%S')
+        date_here = extract_list[extract]['time']
         insitu_files = ihd.get_insitu_files(date_here)
         if insitu_files is None and mo.insitu_options['apply_rsync'] and ihd.check_ssh():
             ihd.get_files_day_ssh(date_here, True)
