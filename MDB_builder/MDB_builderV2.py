@@ -202,6 +202,7 @@ def main():
             ninsitu = len(insitu_files)
             if args.verbose:
                 print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
+                print(f'[INFO] Creating MDB in situ extract: {ofile}')
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
             idx = 0
             for insitu_file in insitu_files:

@@ -28,10 +28,10 @@ class INSITUBASE:
         insitu_time.units = "Seconds since 1970-1-1"
         insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
 
-        ##FILENAME VARIABLE
-        insitu_filename = self.new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id', 'insitu_id'), zlib=True,
-                                                      complevel=6)
-        insitu_filename.description = 'In situ filename.'
+        ##FILENAME VARIABLE->DEPRECATED
+        # insitu_filename = self.new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id', 'insitu_id'), zlib=True,
+        #                                               complevel=6)
+        # insitu_filename.description = 'In situ filename.'
 
         #ORIGINAL BANDS VARIABLE
         insitu_original_bands = self.new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'),
