@@ -153,6 +153,10 @@ def main():
             from netCDF4 import Dataset
             import numpy as np
             dtal = Dataset(ofile)
+            if 'insitu_original_bands' not in dtal.variables:
+                dtal.close()
+                print(f'[ERROR] Error in MDB extract file: {ofile}. Skipping...')
+                continue
             insitu_bands = np.array(dtal.variables['insitu_original_bands'])
             vtal = insitu_bands[0]
             dtal.close()
