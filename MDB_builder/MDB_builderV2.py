@@ -255,8 +255,8 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
                 print(f'[INFO] Concatening: {icent} / {len(list_files)}')
             indextmp = int(icent / nfiles_ref)
             list_files_here = list_files[icent:icent + nfiles_ref]
-            if icent == 290:
-                print(list_files_here)
+            # if icent == 290:
+            #     print(list_files_here)
             ncout_file_tmp = os.path.join(path_out, f'Temp_{indextmp}.nc')
             list_files_tmp.append(ncout_file_tmp)
             list_files_here.append(ncout_file_tmp)

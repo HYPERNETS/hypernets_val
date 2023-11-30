@@ -322,7 +322,10 @@ class MDBFile:
                 print(f'[ERROR] Dimension: {dim} is not available in MDB file')
                 check_dim = False
         for atrib in ATRIB_NAMES:
+            # if atrib == 'site' or atrib == 'in_situ_lat' or atrib == 'in_situ_lon':
+            #     continue
             if atrib not in self.nc.ncattrs():
+
                 print(f'[ERROR] Attribute: {atrib} is not available in MDB file')
                 check_atrib = False
 

@@ -290,6 +290,140 @@ def get_wl_list_from_file(fwl):
         return None
     return wl_list
 
+def update_mdb_file_version(input_file):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    output_file = os.path.join(os.path.dirname(input_file), 'Temp.nc')
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy attributs
+    for at in input_dataset.ncattrs():
+        val = input_dataset.getncattr(at)
+        if at == 'insitu_site_name':
+            at = 'site'
+        if at == 'insitu_lat':
+            at = 'in_situ_lat'
+        if at == 'insitu_lon':
+            at = 'in_situ_lon'
+        ncout.setncattr(at, val)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    add_mu_valid_complete = True
+    for name, variable in input_dataset.variables.items():
+        if name=='mu_valid_complete':
+            add_mu_valid_complete = False
+        if name=='satellite_PDU':
+            continue
+        if name=='insitu_filename':
+            continue
+        newname = name
+        if name=='OZA' or name=='OAA' or name=='SAA' or name=='SZA':
+            newname = f'satellite_{name}'
+
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(newname, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+
+        # copy variable attributes all at once via dictionary
+        ncout[newname].setncatts(input_dataset[name].__dict__)
+
+        ncout[newname][:] = input_dataset[name][:]
+
+    if add_mu_valid_complete:
+        var = ncout.createVariable('mu_valid_complete', 'i1', ('satellite_id',), zlib=True, shuffle=True, complevel=6)
+        var[:] = 1
+
+
+    os.rename(output_file, input_file)
+
+def creating_copy_with_flag_band(input_file,name_var,flag_values,flag_meanings,value_array):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    output_file = os.path.join(os.path.dirname(input_file), 'Temp.nc')
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy attributs
+    for at in input_dataset.ncattrs():
+        val = input_dataset.getncattr(at)
+        if at == 'insitu_site_name':
+            at = 'site'
+        if at == 'insitu_lat':
+            at = 'in_situ_lat'
+        if at == 'insitu_lon':
+            at = 'in_situ_lon'
+        ncout.setncattr(at, val)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        ncout[name][:] = input_dataset[name][:]
+
+    var_flag = ncout.createVariable(name_var, 'i4', ('satellite_id',), zlib=True,shuffle=True, complevel=6)
+    var_flag.flag_meanings = ' '.join(flag_meanings)
+    var_flag.flag_values = flag_values
+    var_flag[:] = value_array
+    ncout.close()
+    input_dataset.close()
+
+    os.rename(output_file, input_file)
+def creating_copy_correcting_attributes(input_file):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    output_file = os.path.join(os.path.dirname(input_file),'Temp.nc')
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy attributs
+    for at in input_dataset.ncattrs():
+        val = input_dataset.getncattr(at)
+        if at=='insitu_site_name':
+            at='site'
+        if at=='insitu_lat':
+            at='in_situ_lat'
+        if at=='insitu_lon':
+            at='in_situ_lon'
+        ncout.setncattr(at,val)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+
+        ncout[name][:] = input_dataset[name][:]
+
+    ncout.close()
+    input_dataset.close()
+
+    os.rename(output_file,input_file)
 
 def creating_copy_changing_valid_mu(input_file, output_file, valid_mu, valid_mu_common):
     from netCDF4 import Dataset
@@ -608,6 +742,9 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
 
     ##creating flag variables
     for name_flag in flag_lists:
+        if name_flag in reader.mfile.nc.variables:
+            print(f'[INFO] Flag name {name_flag} is already in the original file')
+            continue
         var = ncout.createVariable(name_flag, 'i4', ('satellite_id',), zlib=True, shuffle=True, complevel=6)
         flag_list = flag_lists[name_flag]['flag_values']
         flag_meanings = ' '.join(flag_list)
@@ -1442,6 +1579,16 @@ def main():
 
     if args.mode == 'TEST':
 
+        # file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDB_S3B_OLCI_WFR_STANDARD_20230315T000000_20231115T235959_HYPSTAR_VEIT.nc'
+        # creating_copy_correcting_attributes(file_in)
+
+        #file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_20230315T000000_20231115T235959_HYPSTAR_VEIT.nc'
+        file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_HYPSTARv1_VEIT.nc'
+        name_var = 'flag_hypstar'
+        flag_values = [1,2]
+        flag_meanings = ['HYPSTARv1','HYPSTARv3']
+        #creating_copy_with_flag_band(file_in,name_var,flag_values,flag_meanings,1)
+        update_mdb_file_version(file_in)
         # if do_check_times_S3('LPAR'):
         #     return
 
@@ -1451,10 +1598,10 @@ def main():
         #     return
         # if do_test():
         #     return
-        file = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/ALLSITES/MDBrc_S2AB_ALLSITES_MSI_20M_COMMONMU.nc'
-        list_id = [771]
-        if set_id_as_invalid(file, list_id):
-            return
+        # file = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/ALLSITES/MDBrc_S2AB_ALLSITES_MSI_20M_COMMONMU.nc'
+        # list_id = [771]
+        # if set_id_as_invalid(file, list_id):
+        #     return
 
         # fconfig = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/config_qc.ini'
         # import configparser

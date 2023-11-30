@@ -177,10 +177,19 @@ class PlotSpectra():
     def plot_multiple_spectra(self, wavelength, spectra, stats, wlmin, wlmax):
         imin, imax = self.get_imin_imax_from_wavelength(wavelength,wlmin,wlmax)
 
+        #print(wlmin,wlmax,imin,imax)
         self.xdata = wavelength[imin:imax]
         if spectra is not None:
             spectra = spectra[:, imin:imax]
+            # for ispectra in range(0,spectra.shape[0]):
+            #     self.plot_data(spectra[ispectra,:],self.spectra_style)
+            # print(len(self.xdata))
+            #
+            #print(spectra.transpose().shape)
             self.plot_data(spectra.transpose(), self.spectra_style)
+
+        if stats is None:
+            return imin,imax
 
         self.plot_data(stats['avg'][imin:imax], self.stats_style['central'])
         y1 = stats['avg'][imin:imax] - stats['std'][imin:imax]

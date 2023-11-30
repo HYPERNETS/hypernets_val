@@ -1437,10 +1437,11 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
 
             # new_EXTRACT.datapolicy = 'Notice to users: Add data policy'
             # new_EXTRACT.insitu_sensor_processor_version = '0.0'
-            new_EXTRACT.insitu_site_name = station_name
+            #new_EXTRACT.insitu_site_name = station_name #deprecated changed by site
+            new_EXTRACT.site = station_name
 
-            new_EXTRACT.insitu_lat = in_situ_lat
-            new_EXTRACT.insitu_lon = in_situ_lon
+            new_EXTRACT.in_situ_lat = in_situ_lat
+            new_EXTRACT.in_situ_lon = in_situ_lon
 
             if make_brdf:
                 new_EXTRACT.satellite_ws0 = ws0

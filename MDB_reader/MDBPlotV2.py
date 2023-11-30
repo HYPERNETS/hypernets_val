@@ -1021,7 +1021,7 @@ class MDBPlot:
                 plot.set_yticks_labels_off(ticks)
             # if plot.index_row < (plot.nrow - 1):
             #     plot.set_xticks_labels_off(ticks)
-            if plot.index_row==1 and plot.index_col==3:
+            if plot.index_row==2 and plot.index_col==3:
                 plot.set_xaxis_title(options['xlabel'])
             else:
                 if plot.index_row < (plot.nrow - 1):
@@ -1338,14 +1338,16 @@ class MDBPlot:
             plot.set_y_range(ymin, ymax)
 
             plot.set_xaxis_title(options_out['xlabel'])
-            paramv = f'r$^2$'
+            paramv = param
+            if param == 'DETER(r2)':
+                paramv = f'r$^2$'
             if param == 'RPD' or param == 'APD':
                 paramv = f'{param}(%)'
             if param == 'RMSD' or param == 'BIAS':
                 # paramv = f'{param}(sr$^-$$^1$)'
                 scale_factor_str = ''
                 n = options_out['scale_factor']/10
-                if n>=1:
+                if n>1:
                     scale_factor_str = f'10$^-$$^{n}$'
                 if options_out['use_rhow']:
                     if n >= 1:
@@ -2093,6 +2095,12 @@ class MDBPlot:
             # print(pspectra.stats_style['fill']['color'])
             hline = pspectra.plot_stats(stats_flag, imin, imax)
             h_legend.append(hline)
+
+
+        if options_out['ymin'] is not None:
+            ymin = options_out['ymin']
+        if options_out['ymax'] is not None:
+            ymax = options_out['ymax']
 
         pspectra.set_y_range(ymin, ymax)
         pspectra.set_xaxis_title(options_out['xlabel'])
