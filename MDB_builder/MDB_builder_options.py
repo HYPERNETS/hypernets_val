@@ -20,7 +20,8 @@ class MDBBuilderOptions:
         # insitu_sensors
         self.insitu_sensors = {
             'HYPERNETS': 'HYPSTAR',
-            'AERONET': 'AERONET'
+            'AERONET': 'AERONET',
+            'WISP3':'WISP3'
         }
         # insitu path source
         self.insitu_path_source = None
@@ -85,6 +86,19 @@ class MDBBuilderOptions:
             return
         if self.verbose:
             print(f'[INFO] Path to satellite sources: {self.satellite_path_source}')
+
+    def get_single_insitu_file(self):
+        if self.options.has_option('Time_and_sites_selection', 'name_file'):
+            name_file = self.options['Time_and_sites_selection']['name_file']
+            insitu_file = os.path.join(self.insitu_path_source,name_file)
+            if os.path.exists(insitu_file):
+                return insitu_file
+            else:
+                print(f'[ERROR] Single in situ file {insitu_file} does not exist')
+                return None
+        else:
+            print(f'[ERROR] Single nc name file must be defined as name_file key in Time_and_sites_selection section')
+            return None
 
     def get_insitu_type(self):
         if self.options.has_option('Time_and_sites_selection', 'insitu_type'):

@@ -18,8 +18,8 @@ parser.add_argument('-site', "--sitename", help="Site name. Only required with -
 parser.add_argument('-ld', "--listdates",
                     help="Option to obtain a date list for a specific HYPERNETS site (-site option).",
                     action="store_true")
-parser.add_argument('-sd',"--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
-parser.add_argument('-ed',"--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
+parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
+parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
@@ -49,15 +49,16 @@ def main():
         end_date = None
         if args.start_date and args.end_date:
             try:
-                start_date = dt.strptime(args.start_date,'%Y-%m-%d')
-                end_date = dt.strptime(args.end_date,'%Y-%m-%d')
+                start_date = dt.strptime(args.start_date, '%Y-%m-%d')
+                end_date = dt.strptime(args.end_date, '%Y-%m-%d')
             except:
-                print(f'[ERROR] Parameters start date: {args.start_date} and/or end date: {args.end_date} are not in the correct format (YYYY-mm-dd)')
+                print(
+                    f'[ERROR] Parameters start date: {args.start_date} and/or end date: {args.end_date} are not in the correct format (YYYY-mm-dd)')
                 return
-        if args.sitename=='LAIT':
+        if args.sitename == 'LAIT':
             from INSITU_meda import INSITU_MEDA
             idm = INSITU_MEDA()
-            idm.get_datelist_file(args.output,start_date,end_date)
+            idm.get_datelist_file(args.output, start_date, end_date)
         else:
             ihd = INSITU_HYPERNETS_DAY(None, None, args.verbose)
             ihd.save_list_dates_to_file(args.output, args.sitename, start_date, end_date, sat_extract_dir)
@@ -134,13 +135,22 @@ def main():
     slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
     for e in extract_list:
-        print(e,extract_list[e])
+        print(e, extract_list[e])
     if args.verbose:
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
 
     ##checking in situ files
     if args.verbose:
         print(f'[INFO] Generating MDB extract files----------------------------------------------------------START')
+
+    if mo.insitu_type == 'WISP3':
+        insitu_file = mo.get_single_insitu_file()
+        if insitu_file is not None:
+            create_mdb_wisp_file(mo, extract_list, insitu_file)
+        return
+
+
+
     ihd = INSITU_HYPERNETS_DAY(mo, None, args.verbose)
     if args.verbose:
         if mo.insitu_options['apply_rsync']:
@@ -166,20 +176,19 @@ def main():
             insitu_bands = np.array(dtal.variables['insitu_original_bands'])
             vtal = insitu_bands[0]
             dtal.close()
-            if vtal==-999.0:
+            if vtal == -999.0:
                 print(f'[ERROR] Error in MDB extract file. Skipping...')
                 continue
             mdb_extract_files.append(ofile)
             print(f'[WARNING] MDB extract file already exits. Skipping...')
             continue
-        #date_here_str = extract_list[extract]['time']
-        #date_here = dt.strptime(date_here_str, '%Y%m%dT%H%M%S')
+        # date_here_str = extract_list[extract]['time']
+        # date_here = dt.strptime(date_here_str, '%Y%m%dT%H%M%S')
         date_here = extract_list[extract]['time']
         insitu_files = ihd.get_insitu_files(date_here)
         if insitu_files is None and mo.insitu_options['apply_rsync'] and ihd.check_ssh():
             ihd.get_files_day_ssh(date_here, True)
             insitu_files = ihd.get_insitu_files(date_here)
-
 
         # print(mo.insitu_options)
         if mo.insitu_options['bad_spectra_file_list'] is not None:
@@ -221,6 +230,7 @@ def main():
                 mdb_extract_files.append(ofile)
                 if args.verbose:
                     print(f'[INFO] MDB extract file was created')
+
     nextract_files = len(mdb_extract_files)
     if args.verbose:
         print(f'[INFO] {nextract_files} were created/added')
@@ -242,7 +252,63 @@ def main():
             print(f'[INFO] Spectrum at {bad_time} is invalid')
 
 
+def create_mdb_wisp_file(mo, extract_list, insitu_file):
+    ins_sensor = 'WISP3'
+    time_maxh = mo.insitu_options['time_window'] / 3600
+    mdb_extract_files = []
+    from INSITU_wisp3 import INSITU_WISP3
+    iw = INSITU_WISP3(mo,insitu_file,args.verbose)
 
+    for extract in extract_list:
+        if args.verbose:
+            print(f'[INFO] Working with extract: {extract} *******************')
+        #bad_spectra_times = {}
+        extract_name = os.path.basename(extract_list[extract]['path'])
+        ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
+        if os.path.exists(ofile):
+            from netCDF4 import Dataset
+            import numpy as np
+            dtal = Dataset(ofile)
+            if 'insitu_original_bands' not in dtal.variables:
+                dtal.close()
+                print(f'[ERROR] Error in MDB extract file: {ofile}. Skipping...')
+                continue
+            insitu_bands = np.array(dtal.variables['insitu_original_bands'])
+            vtal = insitu_bands[0]
+            dtal.close()
+            if vtal == -999.0:
+                print(f'[ERROR] Error in MDB extract file. Skipping...')
+                continue
+            mdb_extract_files.append(ofile)
+            print(f'[WARNING] MDB extract file already exits. Skipping...')
+            continue
+        iw.create_mdb_insitu_extract(extract_list[extract]['path'],ofile)
+        b = iw.set_data(extract_list[extract]['time'])
+        iw.close_mdb()
+
+        if os.path.exists(ofile):
+            if not b:
+                os.remove(ofile)
+            else:
+                mdb_extract_files.append(ofile)
+                if args.verbose:
+                    print(f'[INFO] MDB extract file was created')
+
+    nextract_files = len(mdb_extract_files)
+    if args.verbose:
+        print(f'[INFO] {nextract_files} were created/added')
+        print(f'[INFO] Generating MDB extract files----------------------------------------------------------STOP')
+    if nextract_files == 0:
+        print(f'[INFO] Completed. No MDB file was created')
+        return
+
+
+    path_mdb = mo.get_mdb_path()
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
+    concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):
