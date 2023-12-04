@@ -1,3 +1,5 @@
+import os.path
+
 from matplotlib import pyplot as plt
 from matplotlib import image as img
 

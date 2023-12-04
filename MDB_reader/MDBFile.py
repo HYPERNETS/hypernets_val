@@ -44,7 +44,8 @@ class MDBFile:
             self.variables = self.nc.variables
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
-            self.VALID = self.check_structure()
+            self.VALID = True
+            #self.VALID = self.check_structure()
         # except:
         except Exception as e:
             self.VALID = False

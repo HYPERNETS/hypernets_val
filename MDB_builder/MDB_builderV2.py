@@ -41,7 +41,7 @@ def main():
 
     # Option to a list dates
     if args.sitename and args.output and args.listdates:
-        ihd = INSITU_HYPERNETS_DAY(None, None, args.verbose)
+
         sat_extract_dir = None
         if args.sat_extract_dir:
             sat_extract_dir = args.sat_extract_dir
@@ -54,8 +54,13 @@ def main():
             except:
                 print(f'[ERROR] Parameters start date: {args.start_date} and/or end date: {args.end_date} are not in the correct format (YYYY-mm-dd)')
                 return
-
-        ihd.save_list_dates_to_file(args.output, args.sitename, start_date, end_date, sat_extract_dir)
+        if args.sitename=='LAIT':
+            from INSITU_meda import INSITU_MEDA
+            idm = INSITU_MEDA()
+            idm.get_datelist_file(args.output,start_date,end_date)
+        else:
+            ihd = INSITU_HYPERNETS_DAY(None, None, args.verbose)
+            ihd.save_list_dates_to_file(args.output, args.sitename, start_date, end_date, sat_extract_dir)
         return
 
     # option to make single extract concatenation from files in a input path

@@ -1384,9 +1384,9 @@ class MDBPlot:
 
             if file_out is not None:
                 plot.save_fig(file_out)
-                # index_file = indices_files[iparam]
+                index_file = indices_files[iparam]
                 # #print(iparam,index_file,len(files_multiple))
-                # files_multiple[index_file] = file_out
+                files_multiple[index_file] = file_out
                 #files_multiple.append(file_out)
             plot.close_plot()
 
@@ -3228,17 +3228,22 @@ class MDBPlot:
         slope, intercept, r_value, p_value, std_err = stats.linregress(xdatal, ydatal)
 
         self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
-        # self.xregress = []
-        # self.yregress = []
-        # self.xregress.append(0)
-        # self.yregress.append(intercept)
-        # for x in xdatal:
-        #     yr = (x * slope) + intercept
-        #     self.yregress.append(yr)
-        #     self.xregress.append(x)
-        # yrmax = ((maxxy + 1) * slope) + intercept
-        # self.xregress.append(maxxy + 1)
-        # self.yregress.append(yrmax)
+
+        from pylr2 import regress2
+
+        results = regress2(np.array(xdatal,dtype=np.float64), np.array(ydatal,dtype=np.float64), _method_type_2="reduced major axis")
+        print(slope,intercept,r_value)
+        slope = results['slope']
+        intercept = results['intercept']
+        r_value = results['r']
+        std_slope = results['std_slope']
+        std_intercept = results['std_intercept']
+        print(slope,intercept,r_value)
+        self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
+
+        print('---------------------------------')
+
+
 
         self.valid_stats['slope'] = slope
         self.valid_stats['intercept'] = intercept
@@ -3246,8 +3251,8 @@ class MDBPlot:
         self.valid_stats['p_value'] = p_value
         self.valid_stats['std_err'] = std_err
 
-        ref_obs = np.asarray(self.xdata, dtype=np.float)
-        sat_obs = np.asarray(self.ydata, dtype=np.float)
+        ref_obs = np.asarray(self.xdata, dtype=np.float64)
+        sat_obs = np.asarray(self.ydata, dtype=np.float64)
 
         if use_rhow:
             sat_obs = sat_obs * np.pi
