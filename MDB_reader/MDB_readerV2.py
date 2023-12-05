@@ -290,6 +290,53 @@ def get_wl_list_from_file(fwl):
         return None
     return wl_list
 
+def update_sat_extract_file_version(input_file):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    output_file = os.path.join(os.path.dirname(input_file), 'Temp.nc')
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy attributs
+    for at in input_dataset.ncattrs():
+        val = input_dataset.getncattr(at)
+        if at == 'insitu_site_name':
+            at = 'site'
+        if at == 'insitu_lat':
+            at = 'in_situ_lat'
+        if at == 'insitu_lon':
+            at = 'in_situ_lon'
+        ncout.setncattr(at, val)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+        if name=='satellite_PDU':
+            continue
+        newname = name
+        if name=='OZA' or name=='OAA' or name=='SAA' or name=='SZA':
+            newname = f'satellite_{name}'
+
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(newname, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+
+        # copy variable attributes all at once via dictionary
+        ncout[newname].setncatts(input_dataset[name].__dict__)
+
+        ncout[newname][:] = input_dataset[name][:]
+
+    ncout.close()
+    input_dataset.close()
+
+    os.rename(output_file, input_file)
+
+
 def update_mdb_file_version(input_file):
     from netCDF4 import Dataset
     input_dataset = Dataset(input_file)
@@ -1583,14 +1630,20 @@ def main():
         # creating_copy_correcting_attributes(file_in)
 
         #file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_20230315T000000_20231115T235959_HYPSTAR_VEIT.nc'
-        file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_HYPSTARv1_VEIT.nc'
+        #file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_HYPSTARv1_VEIT.nc'
         name_var = 'flag_hypstar'
         flag_values = [1,2]
         flag_meanings = ['HYPSTARv1','HYPSTARv3']
         #creating_copy_with_flag_band(file_in,name_var,flag_values,flag_meanings,1)
-        update_mdb_file_version(file_in)
+        #update_mdb_file_version(file_in)
         # if do_check_times_S3('LPAR'):
         #     return
+
+        input_path = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/GAIT/extracts'
+        for name in os.listdir(input_path):
+            input_file = os.path.join(input_path,name)
+            print(input_file)
+            update_sat_extract_file_version(input_file)
 
         # if do_add_new_flag('MAFR'):
         #     return

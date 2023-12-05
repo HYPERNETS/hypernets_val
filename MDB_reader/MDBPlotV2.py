@@ -3290,6 +3290,11 @@ class MDBPlot:
         # the mean of relative (signed) percent differences
         rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)
 
+        # for idx in range(len(rel_diff)):
+        #     rdif = rel_diff[idx]
+        #     if math.isinf(rdif):
+        #         print('=====))))))))) ',sat_obs[idx],ref_obs[idx])
+
         self.valid_stats['RPD'] = np.mean(rel_diff)
 
         #  the mean of absolute (unsigned) percent differences

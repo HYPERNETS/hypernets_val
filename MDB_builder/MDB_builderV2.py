@@ -57,7 +57,7 @@ def main():
                 return
         if args.sitename == 'LAIT':
             from INSITU_meda import INSITU_MEDA
-            idm = INSITU_MEDA()
+            idm = INSITU_MEDA(None,args.verbose)
             idm.get_datelist_file(args.output, start_date, end_date)
         else:
             ihd = INSITU_HYPERNETS_DAY(None, None, args.verbose)
@@ -147,6 +147,10 @@ def main():
         insitu_file = mo.get_single_insitu_file()
         if insitu_file is not None:
             create_mdb_wisp_file(mo, extract_list, insitu_file)
+        return
+
+    if mo.insitu_type == 'MEDA':
+        create_mdb_meda_file(mo,extract_list)
         return
 
 
@@ -252,6 +256,65 @@ def main():
             print(f'[INFO] Spectrum at {bad_time} is invalid')
 
 
+def create_mdb_meda_file(mo, extract_list):
+    ins_sensor = 'MEDA'
+    mdb_extract_files = []
+    from INSITU_meda import INSITU_MEDA
+    im = INSITU_MEDA(mo,args.verbose)
+
+    for extract in extract_list:
+        if args.verbose:
+            print(f'[INFO] Working with extract: {extract} *******************')
+        #bad_spectra_times = {}
+        extract_name = os.path.basename(extract_list[extract]['path'])
+        ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
+        if os.path.exists(ofile):
+            from netCDF4 import Dataset
+            import numpy as np
+            dtal = Dataset(ofile)
+            if 'insitu_original_bands' not in dtal.variables:
+                dtal.close()
+                print(f'[ERROR] Error in MDB extract file: {ofile}. Skipping...')
+                continue
+            insitu_bands = np.array(dtal.variables['insitu_original_bands'])
+            vtal = insitu_bands[0]
+            dtal.close()
+            if vtal == -999.0:
+                print(f'[ERROR] Error in MDB extract file. Skipping...')
+                continue
+            mdb_extract_files.append(ofile)
+            print(f'[WARNING] MDB extract file already exits. Skipping...')
+            continue
+        create = im.create_mdb_insitu_extract(extract_list[extract]['path'],ofile,extract_list[extract]['time'])
+        if not create:
+            print(f'[WARNING] In situ file is not available for {extract}')
+            continue
+        b = im.set_data(extract_list[extract]['time'])
+        im.close_mdb()
+
+        if os.path.exists(ofile):
+            if not b:
+                os.remove(ofile)
+            else:
+                mdb_extract_files.append(ofile)
+                if args.verbose:
+                    print(f'[INFO] MDB extract file was created')
+
+    nextract_files = len(mdb_extract_files)
+    if args.verbose:
+        print(f'[INFO] {nextract_files} were created/added')
+        print(f'[INFO] Generating MDB extract files----------------------------------------------------------STOP')
+    if nextract_files == 0:
+        print(f'[INFO] Completed. No MDB file was created')
+        return
+
+    path_mdb = mo.get_mdb_path()
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
+    concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
+
 def create_mdb_wisp_file(mo, extract_list, insitu_file):
     ins_sensor = 'WISP3'
     time_maxh = mo.insitu_options['time_window'] / 3600
@@ -316,7 +379,7 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
         print(f'[WARNING] No MDB sat extract files were found. Please review')
         return
     import subprocess
-    nfiles_ref = 100
+    nfiles_ref = 2
     if len(list_files) > nfiles_ref:
         if args.verbose:
             print(f'[INFO] Preparing contatenation of {len(list_files)} files...')
@@ -326,8 +389,8 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
                 print(f'[INFO] Concatening: {icent} / {len(list_files)}')
             indextmp = int(icent / nfiles_ref)
             list_files_here = list_files[icent:icent + nfiles_ref]
-            # if icent == 290:
-            #     print(list_files_here)
+            if icent == 74:
+                print(list_files_here)
             ncout_file_tmp = os.path.join(path_out, f'Temp_{indextmp}.nc')
             list_files_tmp.append(ncout_file_tmp)
             list_files_here.append(ncout_file_tmp)
