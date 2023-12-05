@@ -41,7 +41,11 @@ class INSITU_MEDA(INSITUBASE):
         dataset = Dataset(file_meda)
         time_array = np.array(dataset.variables['timetag'])
         rrs_array = np.array(dataset.variables['rrs'])
-        nobs = len(time_array)
+        if time_array.ndim==0:
+            nobs = 1
+            time_array = np.array([time_array])
+        else:
+            nobs = len(time_array)
         dataset.close()
 
         self.new_MDB.variables['insitu_original_bands'][:] = self.wavelengths[:]
@@ -49,6 +53,7 @@ class INSITU_MEDA(INSITUBASE):
         for index in range(nobs):
             ins_time = sat_time.replace(hour=0,minute=0,second=0,microsecond=0)
             ins_time = ins_time + timedelta(hours=float(time_array[index]))
+            
 
             time_diff = abs((sat_time - ins_time).total_seconds())
             if time_diff < time_max:
