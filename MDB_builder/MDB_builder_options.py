@@ -21,7 +21,8 @@ class MDBBuilderOptions:
         self.insitu_sensors = {
             'HYPERNETS': 'HYPSTAR',
             'AERONET': 'AERONET',
-            'WISP3':'WISP3'
+            'WISP3':'WISP3',
+            'MEDA':'MEDA'
         }
         # insitu path source
         self.insitu_path_source = None

@@ -53,7 +53,7 @@ class INSITU_MEDA(INSITUBASE):
         for index in range(nobs):
             ins_time = sat_time.replace(hour=0,minute=0,second=0,microsecond=0)
             ins_time = ins_time + timedelta(hours=float(time_array[index]))
-            
+
 
             time_diff = abs((sat_time - ins_time).total_seconds())
             if time_diff < time_max:
