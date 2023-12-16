@@ -475,6 +475,8 @@ class MDBFile:
 
 
 
+
+
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
@@ -1944,6 +1946,8 @@ class MDBFile:
     def analyse_mu_temporal_flag(self, onlyvalid, varvalid, name_flag_var, flag_list):
         year_min = self.start_date.year
         year_max = self.end_date.year + 1
+
+
         correct = 1
         if varvalid == 'mu_valid_common':  # number of common mu is divided by the number of ac
             if 'flag_ac' in self.nc.variables:
@@ -1953,11 +1957,13 @@ class MDBFile:
         monthl = []
         for year in range(year_min, year_max):
             for month in range(1, 13):
-                if year == 2023 and month >= 4:
-                    continue
+                # if year == 2023 and month >= 4:
+                #     continue
                 date_here = datetime(year, month, 1)
                 # print(date_here)
                 monthl.append(date_here.strftime('%Y-%m'))
+
+        print(monthl)
 
         flag_var = self.nc.variables[name_flag_var]
         flag_var_array = np.array(flag_var)

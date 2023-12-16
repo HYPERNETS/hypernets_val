@@ -1,6 +1,9 @@
 import os
 import argparse
 import configparser
+
+import pytz
+
 from MDB_builder_options import MDBBuilderOptions
 from SATEXTRACTS_list import SAT_EXTRACTS_LIST
 from INSITU_hypernets import INSITU_HYPERNETS_DAY
@@ -35,9 +38,33 @@ sys.path.append(code_home)
 # import BRDF.brdf_olci as brdf
 from COMMON import common_functions as cfs
 
+def test():
+    print('test')
+    from INSITU_tara import INSITU_TARA
+    im = INSITU_TARA(None, True)
+    from datetime import datetime as dt
+    date_here = dt(2023,4,3)
+    im.retrieve_metadata_from_file(date_here)
+    file_extract = '/mnt/c/DATA_LUIS/TARA_TEST/extracts/S3B_OL_2_WFR____20230403T111113_20230403T111413_20230404T221050_0179_078_037_2160_MAR_O_NT_003_SEN3_extract_549_4638.nc'
+    from netCDF4 import Dataset
+    dataset = Dataset(file_extract)
+    lat_array = dataset.variables['satellite_latitude'][0,:,:]
+    lon_array = dataset.variables['satellite_longitude'][0,:,:]
+    import numpy as np
+    index_time = float(np.array(dataset.variables['satellite_time'][0]))
+    sat_time = dt.fromtimestamp(index_time).replace(tzinfo=pytz.utc)
+    dataset.close()
+    max_time_diff = 180 * 60
+    im.check_match_up_conditions(sat_time,lat_array,lon_array,max_time_diff)
 
+
+    return True
 def main():
     print('[INFO] Creating MDB files!')
+
+    b = test()
+    if b:
+        return
 
     # Option to a list dates
     if args.sitename and args.output and args.listdates:

@@ -202,6 +202,9 @@ class SatExtractOLCI(SatExtract):
                     if args.verbose:
                         print(f'[INFO] Creating band: {extract_band}')
                     var_array = dataset.variables[name_var]
+                    # print(file_path)
+                    # print(name_var)
+                    # print(var_array.shape)
                     extract_var = self.create_2D_variable_general(extract_band, var_array, window)
                     extract_var.description = description
 
@@ -260,11 +263,11 @@ class SatExtractOLCI(SatExtract):
         platform = filename[2]
 
         at = {'sensor': self.sensor, 'satellite': satellite, 'platform': platform, 'res': '',
-              'aco_processor': 'STANDARD', 'proc_version': proc_version_str, 'station_name': '', 'in_situ_lat': -999,
+              'aco_processor': 'STANDARD', 'proc_version': proc_version_str, 'site': '', 'in_situ_lat': -999,
               'in_situ_lon': -999}
 
         if options is not None:
-            at['station_name'] = options['station_name']
+            at['site'] = options['station_name']
             at['in_situ_lat'] = options['in_situ_lat']
             at['in_situ_lon'] = options['in_situ_lon']
             at['res'] = options['resolution']
@@ -1013,6 +1016,10 @@ def get_olci_products_day(path_source, unzip_path, org, wce, lathere, lonhere, d
 
     fproducts = []
     iszipped = []
+
+    if not os.path.exists(path_search):
+        return fproducts,iszipped
+
     cgeo = CHECK_GEO()
 
     for name in os.listdir(path_search):
@@ -1033,6 +1040,11 @@ def get_olci_products_day(path_source, unzip_path, org, wce, lathere, lonhere, d
                 do_zip_here = True
                 path_prod_u = prod_path.split('/')[-1][0:-4]
                 path_prod_u = os.path.join(unzip_path, path_prod_u)
+                if os.path.isdir(path_prod_u):
+                    if len(os.listdir(path_prod_u))==32:
+                        do_zip_here = False
+                        if args.verbose:
+                            print(f'[INFO] Unzipped path {path_prod_u} already exists')
         if do_zip_here:
             with zipfile.ZipFile(prod_path, 'r') as zprod:
                 if args.verbose:
@@ -1081,8 +1093,13 @@ def create_extractv2(path_product, path_output, options):
         print(f'[INFO] Checking in situ  location -> lat: {in_situ_lat}; lon: {in_situ_lon}')
     r, c = check_location_source(path_product, in_situ_lat, in_situ_lon, size_box)
     if r == -1 and c == -1:
-        if args.verbose:
-            print('f[WARNING] File does NOT contains the in situ location! Skipping...')
+        print('f[WARNING] File does NOT contains the in situ location! Skipping...')
+        return
+
+    filename = path_product.split('/')[-1].replace('.', '_') + '_extract_' + f'{r}_{c}' + '.nc'
+    ofname = os.path.join(path_output, filename)
+    if os.path.exists(ofname):
+        print(f'[WARNING] Sat. extract file: {ofname} already exist. Skipping...')
         return
 
     start_idx_y, stop_idx_y, start_idx_x, stop_idx_x = get_window_limits(r, c, size_box)
@@ -1090,8 +1107,7 @@ def create_extractv2(path_product, path_output, options):
     if args.verbose:
         print(f'[INFO] Getting extraction window: {stop_idx_y}-{stop_idx_y}:{start_idx_x}-{stop_idx_x}')
 
-    filename = path_product.split('/')[-1].replace('.', '_') + '_extract_' + station_name + '.nc'
-    ofname = os.path.join(path_output, filename)
+
     if args.verbose:
         print(f'[INFO] Starting extract file: {ofname}')
     newExtract = SatExtractOLCI(ofname, variable_list)
@@ -1899,6 +1915,33 @@ def get_basic_options_from_file_config(options):
     }
     return basic_options
 
+def get_csv_options_from_file_config(options,section):
+
+    if section=='CSV_SELECTION':
+        col_date = 'date'
+        col_lat = 'lat'
+        col_lon = 'lon'
+        col_sep = ';'
+        format_date = '%Y-%m-%dT%H:%M'
+    if section=='MULTIPLE_CSV_SELECTION':
+        col_date = 'timestamp'
+        col_lat = 'lat'
+        col_lon = 'lon'
+        format_date = '%Y-%m-%d %H:%M:%S.%f'
+        col_sep = ','
+
+    if options.has_option(section, 'col_date'):
+        col_date = options[section]['col_date']
+    if options.has_option(section, 'col_lat'):
+        col_lat = options[section]['col_lat']
+    if options.has_option(section, 'col_lon'):
+        col_lon = options[section]['col_lon']
+    if options.has_option(section, 'format_date'):
+        format_date = options[section]['format_date']
+    if options.has_option(section, 'col_sep'):
+        col_sep = options[section]['col_sep']
+
+    return col_date,col_lat,col_lon,format_date,col_sep
 
 def get_basic_options_from_arguments():
     ##parameters with default values
@@ -2082,6 +2125,86 @@ def main():
             print(f'COMPLETED. {ncreated} sat extract files were created')
         return
 
+    ##MULTIPLE CSV FILE SELECTION (FOR TARA METADATA FILES)
+    if options.has_section('MULTIPLE_CSV_SELECTION') and options.has_option('MULTIPLE_CSV_SELECTION','path_csv'):
+        path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
+        if not os.path.isdir(path_csv):
+            print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
+            return
+        col_date, col_lat, col_lon, format_date, col_sep = get_csv_options_from_file_config(options,'MULTIPLE_CSV_SELECTION')
+
+        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+        tmp_path = path_source
+        if args.config_file:
+            if options.has_option('file_path', 'tmp_dir') and options['file_path']['tmp_dir']:
+                tmp_path = options['file_path']['tmp_dir']
+        ncreated = 0
+
+        for name in os.listdir(path_csv):
+            if not name.endswith('csv'):
+                continue
+            namefile = name[:-4]
+            try:
+                file_csv = os.path.join(path_csv,name)
+                df = pd.read_csv(file_csv, sep = col_sep)
+            except:
+                print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
+                return
+
+            for idx, row in df.iterrows():
+                try:
+                    datestr = row[col_date].strip()
+                    datehere = datetime.strptime(datestr, format_date)
+                    lathere = float(row[col_lat])
+                    lonhere = float(row[col_lon])
+                except:
+                    print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
+                    continue
+                fproducts, iszipped = get_olci_products_day(path_source, tmp_path, org, wce, lathere, lonhere, datehere)
+                nproducts = len(fproducts)
+                if nproducts == 0:
+                    if args.verbose:
+                        print(f'[WARNING] No products found for {datehere}')
+                    if args.allow_download:  ##make download in needed
+                        date_list = [datehere]
+                        site = f'site_{idx}'
+                        create_extracts_day_by_day(date_list, satellite_path_source, site, lathere, lonhere, wce,
+                                                   tmp_path,
+                                                   path_out, size_box, make_brdf)
+                        continue
+                    continue
+                insitu_time = datehere.timestamp()
+                insitu_info = [lathere, lonhere, insitu_time]
+                variable_list = None
+
+                for id in range(len(fproducts)):
+                    path_product = fproducts[id]
+                    if args.verbose:
+                        print('---------------------------------------------------')
+                        print(f'[INFO] DATE: {datehere}')
+                        print(f'[INFO] GRANULE: {path_product}')
+                    res_str = path_product.split('/')[-1].split('_')[3]
+                    basic_options['resolution'] = res_str
+                    basic_options['station_name'] = f'{namefile}_{idx}'
+                    basic_options['in_situ_lat'] = lathere
+                    basic_options['in_situ_lon'] = lonhere
+                    basic_options['insitu_info'] = insitu_info
+                    extra_bands = basic_options['extra_bands']
+                    if variable_list is None:
+                        solci = SatExtractOLCI(None, None)
+                        solci.set_variable_list(path_product, extra_bands)
+                        variable_list = solci.variable_list
+                    basic_options['variable_list'] = variable_list
+                    # variable_list = options['variable_list']
+
+                    ofname = create_extractv2(path_product, path_out, basic_options)
+                    if ofname is not None:
+                        if args.verbose:
+                            print(f'Sat extract {ofname} was created')
+                        ncreated = ncreated + 1
+        print('------------------------------')
+        print(f'COMPLETED. {ncreated} sat extract files were created')
+        return
 
     ##MOVING TARGET CSV SELECTION
     if options.has_section('CSV_SELECTION') and options.has_option('CSV_SELECTION', 'path_csv'):
@@ -2089,29 +2212,23 @@ def main():
         if not os.path.exists(path_csv):
             print(f'[ERROR] Path csv {path_csv} was not found')
             return
-        try:
-            df = pd.read_csv(path_csv, ';')
-        except:
-            print(f'[ERROR] File {path_csv} is not a valid csv separated by ;')
-            return
-        col_date = 'date'
-        col_lat = 'lat'
-        col_lon = 'lon'
-        format_date = '%Y-%m-%dT%H:%M'
-        if options.has_option('CSV_SELECTION', 'col_date'):
-            col_date = options['CSV_SELECTION']['col_date']
-        if options.has_option('CSV_SELECTION', 'col_lat'):
-            col_lat = options['CSV_SELECTION']['col_lat']
-        if options.has_option('CSV_SELECTION', 'col_lon'):
-            col_lon = options['CSV_SELECTION']['col_lon']
-        if options.has_option('CSV_SELECTION', 'format_date'):
-            format_date = options['CSV_SELECTION']['format_date']
+        col_date, col_lat, col_lon, format_date, col_sep = get_csv_options_from_file_config(options,
+                                                                                            'CSV_SELECTION')
+
+
         path_source, org, wce, time_start, time_stop = get_find_product_info(options)
         tmp_path = path_source
         if args.config_file:
             if options.has_option('file_path', 'tmp_dir') and options['file_path']['tmp_dir']:
                 tmp_path = options['file_path']['tmp_dir']
         ncreated = 0
+
+        try:
+            df = pd.read_csv(path_csv, col_sep)
+        except:
+            print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
+            return
+
         for idx, row in df.iterrows():
             try:
                 datestr = row[col_date].strip()

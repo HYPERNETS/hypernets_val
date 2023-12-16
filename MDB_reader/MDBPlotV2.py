@@ -392,7 +392,7 @@ class MDBPlot:
         plt.close(hfig)
 
     def plot_temporal_heat_map_fromoptions(self, options_out):
-        # print(options_out)
+        #print(options_out)
         file_out = options_out['file_out']
         files_multiple = []
         if options_out['flag'] is not None:
@@ -424,6 +424,36 @@ class MDBPlot:
                 else:
                     file_out_here = file_out
                 self.plot_heat_map_impl(dfdata, file_out_here, options_out)
+                index_fig = index_fig + 1
+        else:
+            ext = file_out[-4:]
+            file_base = file_out[:-4]
+            output_type = options_out['output_type']
+            multiple_plot = False
+            if len(output_type) > 1:
+                multiple_plot = True
+            index_fig = 1
+            for otype in output_type:
+                onlyvalid = False
+                #varvalid = None
+                if otype == 'valid':
+                    onlyvalid = True
+                    #varvalid = 'mu_valid'
+                if otype == 'valid_common':
+                    onlyvalid = True
+                    #varvalid = 'mu_valid_common'
+                if otype == 'total_mu':
+                    onlyvalid = False
+                    #varvalid = 'mu_valid'
+
+                if multiple_plot:
+                    file_out_here = f'{file_base}_{index_fig}{ext}'
+                    files_multiple.append(file_out_here)
+                else:
+                    file_out_here = file_out
+                print(file_out_here)
+                dfdata = self.mrfile.analyse_mu_temporal(onlyvalid,file_out_here)
+                #self.plot_heat_map_impl(dfdata, file_out_here, options_out)
                 index_fig = index_fig + 1
 
         if options_out['multiple_plot'] is not None:
@@ -496,6 +526,12 @@ class MDBPlot:
                 for icol in range(ncol):
                     pm.plot_image(files_multiple[index], irow, icol)
                     index = index + 1
+
+            # pm.set_text(-1710, 1400, '(a)')
+            # pm.set_text(-210,1400,'(b)')
+            # pm.set_text(1310, 1400, '(c)')
+
+
             # if ntot == 4:
             #     pm.set_text(-150, -50, '(a)')
             #     pm.set_text(1800, -50, '(b)')
@@ -892,6 +928,9 @@ class MDBPlot:
                         color = defaults.get_color_ref(g)
                 xhere = self.xdata[self.groupdata == g]
                 yhere = self.ydata[self.groupdata == g]
+
+                # xhere[xhere<0]=0
+                # yhere[yhere<0]=0
                 # None, None, color, 'gray', 1.5
 
                 if len(markers) == ngroup:
@@ -991,6 +1030,7 @@ class MDBPlot:
 
         # print(min_xy)
         # print(max_xy)
+
         plot.set_limits(min_xy, max_xy)
 
         if options['log_scale']:
@@ -1340,9 +1380,11 @@ class MDBPlot:
             plot.set_xaxis_title(options_out['xlabel'])
             paramv = param
             if param == 'DETER(r2)':
-                paramv = f'r$^2$'
+                paramv = f'R$^2$'
             if param == 'RPD' or param == 'APD':
                 paramv = f'{param}(%)'
+            if param == 'BIAS':
+                paramv = 'bias'
             if param == 'RMSD' or param == 'BIAS':
                 # paramv = f'{param}(sr$^-$$^1$)'
                 scale_factor_str = ''
@@ -1351,14 +1393,14 @@ class MDBPlot:
                     scale_factor_str = f'10$^-$$^{n}$'
                 if options_out['use_rhow']:
                     if n >= 1:
-                        paramv = f'{param} ({scale_factor_str})'
+                        paramv = f'{paramv} ({scale_factor_str})'
                     else:
-                        paramv = param
+                        paramv = paramv
                 else:
                     if n>=1:
-                        paramv = f'{param} ({scale_factor_str} sr$^-$$^1$)'
+                        paramv = f'{paramv} ({scale_factor_str} sr$^-$$^1$)'
                     else:
-                        paramv = f'{param} (sr$^-$$^1$)'
+                        paramv = f'{paramv} (sr$^-$$^1$)'
 
                 #paramv = f'{param} (10$^-$$^3$ sr$^-$$^1$)'
             plot.set_yaxis_title(paramv)
@@ -1385,7 +1427,7 @@ class MDBPlot:
             if file_out is not None:
                 plot.save_fig(file_out)
                 index_file = indices_files[iparam]
-                # #print(iparam,index_file,len(files_multiple))
+                # # #print(iparam,index_file,len(files_multiple))
                 files_multiple[index_file] = file_out
                 #files_multiple.append(file_out)
             plot.close_plot()
@@ -3200,8 +3242,9 @@ class MDBPlot:
         minxy = None
         for x, y in zip(self.xdata, self.ydata):
             if use_log_scale:
-                xdatal.append(math.log10(x))
-                ydatal.append(math.log10(y))
+                if x>0 and y>0:
+                    xdatal.append(math.log10(x))
+                    ydatal.append(math.log10(y))
             else:
                 if np.isnan(x) or np.isnan(y):
                     print(x, y)
@@ -3229,17 +3272,17 @@ class MDBPlot:
 
         self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
 
-        from pylr2 import regress2
-
-        results = regress2(np.array(xdatal,dtype=np.float64), np.array(ydatal,dtype=np.float64), _method_type_2="reduced major axis")
-        print(slope,intercept,r_value)
-        slope = results['slope']
-        intercept = results['intercept']
-        r_value = results['r']
-        std_slope = results['std_slope']
-        std_intercept = results['std_intercept']
-        print(slope,intercept,r_value)
-        self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
+        # from pylr2 import regress2
+        #
+        # results = regress2(np.array(xdatal,dtype=np.float64), np.array(ydatal,dtype=np.float64), _method_type_2="reduced major axis")
+        # print(slope,intercept,r_value)
+        # slope = results['slope']
+        # intercept = results['intercept']
+        # r_value = results['r']
+        # std_slope = results['std_slope']
+        # std_intercept = results['std_intercept']
+        # print(slope,intercept,r_value)
+        # self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
 
         print('---------------------------------')
 

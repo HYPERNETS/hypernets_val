@@ -50,13 +50,13 @@ class PlotOptions:
         for goption in defaults.global_options:
             default = defaults.global_options[goption]['default']
             type = defaults.global_options[goption]['type']
-            self.global_options[goption] = self.get_value_param(section,goption,default,type)
+            self.global_options[goption] = self.get_value_param(section,goption.strip(),default,type)
             if type=='str' and 'values' in defaults.global_options[goption].keys():
                 values = defaults.global_options[goption]['values']
-                if self.global_options[goption] in values:
+                if not self.global_options[goption] in values:
                     print(f'[ERROR] [{section}] {self.global_options[goption]} is not a valid  value for {goption}. Valid values: {values} ')
 
-        # self.output_path = self.get_value_param(section, 'output_path', self.output_path, 'directory')
+        #self.output_path = self.get_value_param(section, 'output_path', self.output_path, 'directory')
         # self.mu_valid_variable = self.get_value_param(section, 'mu_valid_variable', self.mu_valid_variable, 'str')
 
 
@@ -131,9 +131,12 @@ class PlotOptions:
                                                                      'boolean')
         options_out['apply_density'] = self.get_value_param(section, 'apply_density', True, 'boolean')
         options_out['title'] = self.get_value_param(section, 'title', None, 'str')
-        if self.output_path is not None:
-            name_default = options_out['name'] + '.' + self.format_image
-            file_out_default = os.path.join(self.output_path, name_default)
+        print(self.global_options)
+        if self.global_options['output_path'] is not None:
+            name_default = options_out['name'] + '.' + self.global_options['fig_extension']
+            file_out_default = os.path.join(self.global_options['output_path'],name_default)
+            #name_default = options_out['name'] + '.' + self.format_image
+            #file_out_default = os.path.join(self.output_path, name_default)
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str')
         options_out['log_scale'] = self.get_value_param(section, 'log_scale', False, 'boolean')
         options_out['use_rhow'] = self.get_value_param(section, 'use_rhow', False, 'boolean')

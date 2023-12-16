@@ -1,5 +1,6 @@
 import netCDF4
 import numpy as np
+import pytz
 from netCDF4 import Dataset
 from datetime import datetime
 import numpy.ma as ma
@@ -114,11 +115,10 @@ class SatExtract:
         return gvar
 
     def create_satellite_time_variable(self, satellite_start_time):
-
         satellite_time = self.EXTRACT.createVariable('satellite_time', 'f8', ('satellite_id'), fill_value=-999,
                                                      zlib=True, complevel=6)
         # print('Satellite start time es: ',satellite_start_time)
-        satellite_time[0] = float(satellite_start_time.timestamp())
+        satellite_time[0] = float(satellite_start_time.replace(tzinfo=pytz.utc).timestamp())
         satellite_time.units = "Seconds since 1970-1-1"
 
     def create_pdu_variable(self, pdu, sensor):
@@ -215,14 +215,16 @@ class SatExtract:
         satellite_2d_band = self.EXTRACT.createVariable(var_name, 'f4', ('satellite_id', 'rows', 'columns'),
                                                         fill_value=-999.0, zlib=True, complevel=6)
 
-
-        satellite_2d_band[0,:,:] = var_array[0,start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        if len(var_array.shape) == 2:
+            satellite_2d_band[0, :, :] = var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        elif len(var_array.shape) == 3:
+            satellite_2d_band[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
         # array = var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
         # print(array.shape)
         # array = array.filled(-999.0)
         # print(array.shape)
         # satellite_2d_band[:] = array[:]
-        #satellite_2d_band[0, :, :] = [array]
+        # satellite_2d_band[0, :, :] = [array]
 
         return satellite_2d_band
 

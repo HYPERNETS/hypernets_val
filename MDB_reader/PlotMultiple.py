@@ -38,7 +38,7 @@ class PlotMultiple():
         # self.fig.set_axis_off()
 
     def set_text(self, x, y,s):
-        plt.text(x, y, s, fontsize=8,backgroundcolor='w')
+        plt.text(x, y, s, fontsize=12,backgroundcolor='w')
         #plt.text(x, y, s, fontsize=12)
 
     def plot_image(self, file_img, index_row, index_col):
