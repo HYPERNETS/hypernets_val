@@ -194,6 +194,7 @@ class MDBBuilderOptions:
         sat_res = 'RESOLUTION'
         atm_corr = 'STANDARD'
         prefix = None
+        path_org = None
         if self.options.has_option('satellite_options', 'sensor'):
             sat_sensor = self.options['satellite_options']['sensor']
         if self.options.has_option('satellite_options', 'satellite'):
@@ -224,6 +225,9 @@ class MDBBuilderOptions:
             if self.options.has_option('satellite_options','file_name_date_format'):
                 file_name_date_format = self.options['satellite_options']['file_name_date_format']
 
+        if self.options.has_option('satellite_options', 'path_org'):
+            path_org = self.options['satellite_options']['path_org']
+
         if self.verbose:
             print(
                 f'[INFO] Satellite extracts options----------------------------------------------------------------START')
@@ -235,6 +239,7 @@ class MDBBuilderOptions:
             print(f'[INFO] Prefix: {prefix}')
             print(f'[INFO] File name format: {file_name_format}')
             print(f'[INFO] File name date format: {file_name_date_format}')
+            print(f'[INFO] Organization path: {path_org}')
             print(
                 f'[INFO] Satellite extracts options------------------------------------------------------------------END')
 
@@ -246,7 +251,8 @@ class MDBBuilderOptions:
             'ac': atm_corr.upper(),
             'prefix': prefix,
             'file_name_format':file_name_format,
-            'file_name_date_format': file_name_date_format
+            'file_name_date_format': file_name_date_format,
+            'path_org': path_org
         }
 
     def get_insitu_options(self):

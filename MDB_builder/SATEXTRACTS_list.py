@@ -28,6 +28,8 @@ class SAT_EXTRACTS_LIST:
         self.file_name_format = self.boptions.param_sat['file_name_format']
         self.file_name_date_format = self.boptions.param_sat['file_name_date_format']
 
+        self.path_org = self.boptions.param_sat['path_org']
+
     def creating_copy_correction_sattime(self,input_file,output_file,sat_time_new):
         from datetime import timezone
         input_dataset = Dataset(input_file)
@@ -130,7 +132,19 @@ class SAT_EXTRACTS_LIST:
                 dataset.close()
                 print(f'[WARNING] Time was corrected and set as UTC to: {time_check}')
 
+
             time_ref = time_here.strftime('%Y%m%d')
+            if site_here=='SHIPBORNE': #more than one extract
+                index = 1
+                time_ref_base = time_ref
+                time_ref = f'{time_ref_base}_{index}'
+                while time_ref in sat_list.keys():
+                    index = index + 1
+                    time_ref = f'{time_ref_base}_{index}'
+
+
+
+
             sat_list[time_ref] = {
                 'path': fextract,
                 'time': time_here,#.strftime('%Y%m%dT%H%M%S'),

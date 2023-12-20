@@ -129,12 +129,17 @@ class INSITU_TARA(INSITUBASE):
         self.new_MDB.variables['insitu_original_bands'][:] = self.wavelengths[:]
 
         ihere = 0
+        error_metadata_data = False
         for index in self.metadata:
             index_spatial = self.metadata[index]['index_spatial']
             index_temporal = self.metadata[index]['index_temporal']
             #print(index_temporal,index_temporal)
             if index_spatial<max_index_spatial and index_temporal==1:
-                rrs_here = df.iloc[index].values
+                try:
+                    rrs_here = df.iloc[index].values
+                except:
+                    error_metadata_data = True
+                    break
                 self.new_MDB.variables['insitu_Rrs'][0, :, ihere] = rrs_here[:]
                 self.new_MDB.variables['insitu_time'][0, ihere] = np.float64(self.metadata[index]['time'].timestamp())
                 self.new_MDB.variables['insitu_latitude'][0, ihere] = self.metadata[index]['lat']
@@ -147,6 +152,12 @@ class INSITU_TARA(INSITUBASE):
                        name_band = f'insitu_{b}'
                     self.new_MDB.variables[name_band][0, ihere] = self.metadata[index][b]
                 ihere = ihere + 1
+
+        if error_metadata_data:
+            self.new_MDB.close()
+            os.remove(ofile)
+            print(f'[ERROR] Detected disagreement between data and metadata files. Skipped sat. extract')
+            return False
 
         self.new_MDB.close()
 
