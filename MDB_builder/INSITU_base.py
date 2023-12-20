@@ -53,6 +53,35 @@ class INSITUBASE:
 
         #self.new_MDB.close()
 
+
+    def add_shipborne_variables(self):
+        index_spatial = self.new_MDB.createVariable('insitu_spatial_index', 'i2', ('satellite_id', 'insitu_id'),
+                                                      fill_value=-999,
+                                                      zlib=True, complevel=6)
+        index_spatial.long_name = "Distance to the central pixel starting from zero"
+
+        insitu_latitude = self.new_MDB.createVariable('insitu_latitude', 'f8', ('satellite_id', 'insitu_id',), zlib=True,
+                                                  complevel=6, fill_value=-999)
+
+        insitu_latitude.long_name = "In situ latitude"
+
+        insitu_longitude = self.new_MDB.createVariable('insitu_longitude', 'f8', ('satellite_id', 'insitu_id',),
+                                                      zlib=True,
+                                                      complevel=6, fill_value=-999)
+
+        insitu_longitude.long_name = "In situ longitude"
+
+    def add_insitu_variable(self,name_var,data_type,ats):
+        if not name_var.startswith('insitu_'):
+            name_var = f'insitu_{name_var}'
+        fill_value = -999
+        if data_type=='i1':
+            fill_value = -1
+        variable = self.new_MDB.createVariable(name_var,data_type,('satellite_id', 'insitu_id',),zlib=True,complevel=6,fill_value=fill_value)
+        if len(ats)>0:
+            for at in ats:
+                variable.setncattr(at,ats[at])
+
     def copy_nc(self, ifile, ofile):
         with Dataset(ifile) as src:
             dst = Dataset(ofile, 'w', format='NETCDF4')

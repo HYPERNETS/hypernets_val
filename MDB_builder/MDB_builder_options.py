@@ -22,10 +22,12 @@ class MDBBuilderOptions:
             'HYPERNETS': 'HYPSTAR',
             'AERONET': 'AERONET',
             'WISP3':'WISP3',
-            'MEDA':'MEDA'
+            'MEDA':'MEDA',
+            'TARA':'HYPERBOOST'
         }
         # insitu path source
         self.insitu_path_source = None
+        self.insitu_path_metadata = None
 
         # dates
         self.start_date = dt.now().replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -104,6 +106,8 @@ class MDBBuilderOptions:
     def get_insitu_type(self):
         if self.options.has_option('Time_and_sites_selection', 'insitu_type'):
             self.insitu_type = self.options['Time_and_sites_selection']['insitu_type']
+            if self.verbose:
+                print(f'[INFO] In situ type: {self.insitu_type}')
         else:
             print(
                 f'[ERROR] insitu type [Time_and_sites_selection]/[insitu_type] is not defined in the configuration file')
@@ -112,6 +116,8 @@ class MDBBuilderOptions:
     def get_insitu_path_source(self):
         if self.options['file_path']['ins_source_dir']:
             self.insitu_path_source = self.options['file_path']['ins_source_dir']
+            if self.verbose:
+                print(f'[info] In situ path source: {self.insitu_path_source}')
         else:
             print(
                 f'[ERROR] In situ path source [file_path]/[ins_source_dir] is not defined in the configuration file')
@@ -124,6 +130,13 @@ class MDBBuilderOptions:
                 print(f'[ERROR] Insitu path source {self.insitu_path_source} doest not exist and could not be created')
                 self.VALID = False
                 return
+        if self.options['file_path']['ins_source_metadata_dir']:
+            self.insitu_path_metadata = self.options['file_path']['ins_source_metadata_dir']
+            if self.verbose:
+                print(f'[info] In situ metadata source: {self.insitu_path_metadata}')
+            if not os.path.isdir(self.insitu_path_metadata):
+                print(f'[ERROR] In situ path metadata {self.insitu_path_metadata} is defined but it does not exist or it is not valid')
+                self.VALID = False
 
     def get_param_insitu_site(self, cfs):
         if self.options.has_option('Time_and_sites_selection', 'site'):
@@ -144,7 +157,10 @@ class MDBBuilderOptions:
         if in_situ_lat is None and in_situ_lon is None:
             in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(station_name)  # in situ location based on the station name
         if self.verbose:
-            print(f'[INFO] Station name: {station_name} with lat: {in_situ_lat}, long: {in_situ_lon}')
+            if station_name=='SHIPBORNE':
+                print(f'[INFO] Multiple site (shipborne data)')
+            else:
+                print(f'[INFO] Site: {station_name} with lat: {in_situ_lat}, long: {in_situ_lon}')
 
         self.param_insitu = {
             'station_name': station_name,
@@ -218,7 +234,7 @@ class MDBBuilderOptions:
             print(f'[INFO] Satellite atmospheric correction: {atm_corr.upper()}')
             print(f'[INFO] Prefix: {prefix}')
             print(f'[INFO] File name format: {file_name_format}')
-            print(f'[INFO] Fie name date format: {file_name_date_format}')
+            print(f'[INFO] File name date format: {file_name_date_format}')
             print(
                 f'[INFO] Satellite extracts options------------------------------------------------------------------END')
 
@@ -248,6 +264,13 @@ class MDBBuilderOptions:
             'bad_spectra_prefix': self.get_value_param(section,'insitu_bad_spectra_prefix',None,'str'),
             'bad_spectra_format_time': self.get_value_param(section,'insitu_bad_spectra_format_time','%Y%m%dT%H%M%S','str')
         }
+        if self.verbose:
+            print(
+                f'[INFO] In situ options----------------------------------------------------------------START')
+            for key in self.insitu_options:
+                print(f'[INFO] {key}: {self.insitu_options[key]}')
+            print(
+                f'[INFO] In situ options options------------------------------------------------------------------END')
 
     def get_value(self, section, key):
         value = None
@@ -336,7 +359,10 @@ class MDBBuilderOptions:
         ins_sensor = sat_extract_info['ins_sensor']
         ac = sat_extract_info['ac']
         # datetime_creation = sat_extract_info['time_creation']
-        filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{ins_sensor}_{station_name}.nc'
+        if station_name == 'SHIPBORNE':
+            filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{ins_sensor}.nc'
+        else:
+            filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{ins_sensor}_{station_name}.nc'
         filepath = os.path.join(self.path_out, filename)
         return filepath
 

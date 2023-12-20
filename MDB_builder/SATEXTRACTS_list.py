@@ -12,7 +12,7 @@ class SAT_EXTRACTS_LIST:
         self.set_time_default = False
         self.hour_default = 11
         self.minute_default = 0
-        print(self.boptions.insitu_options)
+
         if self.boptions.insitu_options['time_sat_default'] is not None:
 
             str_time = self.boptions.insitu_options['time_sat_default']
@@ -281,7 +281,8 @@ class SAT_EXTRACTS_LIST:
             if fname.upper().find(site_name.upper()) > 0:
                 return site_name
             else:
-                print(f'[WARNING] Site name set to {site_name} despite of not being defined in the extract file')
+                if site_name!='SHIPBORNE':
+                    print(f'[WARNING] Site name set to {site_name} despite of not being defined in the extract file')
                 return site_name
         else:
             if site_here.upper() == site_name.upper():

@@ -62,11 +62,11 @@ def test():
 def main():
     print('[INFO] Creating MDB files!')
 
-    b = test()
-    if b:
-        return
+    # b = test()
+    # if b:
+    #     return
 
-    # Option to a list dates
+    # Option to create a date list (HYPSTAR)
     if args.sitename and args.output and args.listdates:
 
         sat_extract_dir = None
@@ -161,8 +161,8 @@ def main():
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------START')
     slist = SAT_EXTRACTS_LIST(mo, args.verbose)
     extract_list = slist.get_list_as_dict()
-    for e in extract_list:
-        print(e, extract_list[e])
+    # for e in extract_list:
+    #     print(e, extract_list[e])
     if args.verbose:
         print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
 
@@ -179,6 +179,11 @@ def main():
     if mo.insitu_type == 'MEDA':
         create_mdb_meda_file(mo,extract_list)
         return
+
+    if mo.insitu_type == 'TARA':
+        create_mdb_tara_file(mo,extract_list)
+        return
+
 
 
 
@@ -282,6 +287,65 @@ def main():
             print(bad_time)
             print(f'[INFO] Spectrum at {bad_time} is invalid')
 
+
+def create_mdb_tara_file(mo, extract_list):
+
+    from INSITU_tara import INSITU_TARA
+    from netCDF4 import Dataset
+    import numpy as np
+    ins_sensor = 'HyperBOOST'
+    mdb_extract_files = []
+    it = INSITU_TARA(mo,args.verbose)
+    extract_time_prev = None
+    max_time_diff = mo.insitu_options['time_window']
+
+    for extract in extract_list:
+        if args.verbose:
+            print(f'[INFO] Working with extract: {extract} *******************')
+        extract_name = os.path.basename(extract_list[extract]['path'])
+        ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
+        if os.path.exists(ofile):
+            dtal = Dataset(ofile)
+            if 'insitu_original_bands' not in dtal.variables:
+                dtal.close()
+                print(f'[ERROR] Error in MDB extract file: {ofile}. Skipping...')
+                continue
+            insitu_bands = np.array(dtal.variables['insitu_original_bands'])
+            vtal = insitu_bands[0]
+            dtal.close()
+            if vtal == -999.0:
+                print(f'[ERROR] Error in MDB extract file. Skipping...')
+                continue
+            mdb_extract_files.append(ofile)
+            print(f'[WARNING] MDB extract file already exits and added to the list')
+            continue
+
+        extract_time = extract_list[extract]['time']
+        if extract_time!=extract_time_prev:
+            it.retrieve_metadata_from_file(extract_time)
+            extract_time_prev = extract_time
+        create = it.create_mdb_insitu_extract(extract_list[extract]['path'], ofile, extract_list[extract]['time'],max_time_diff)
+
+        if os.path.exists(ofile) and create:
+            mdb_extract_files.append(ofile)
+            if args.verbose:
+                print(f'[INFO] MDB extract file was created and added to the list')
+
+    nextract_files = len(mdb_extract_files)
+    if args.verbose:
+        print(f'[INFO] *******************')
+        print(f'[INFO] {nextract_files} MDB extract files were created/added')
+        print(f'[INFO] Generating MDB extract files----------------------------------------------------------STOP')
+    if nextract_files == 0:
+        print(f'[INFO] Completed. No MDB file was created')
+        return
+
+    path_mdb = mo.get_mdb_path()
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
+    concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
 def create_mdb_meda_file(mo, extract_list):
     ins_sensor = 'MEDA'
