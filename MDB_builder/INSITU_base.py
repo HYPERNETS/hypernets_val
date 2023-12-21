@@ -24,7 +24,7 @@ class INSITUBASE:
         self.new_MDB.createDimension('insitu_original_bands',  n_insitu_bands)
 
         ##TIME VARIABLE
-        insitu_time = self.new_MDB.createVariable('insitu_time', 'f4', ('satellite_id', 'insitu_id',), zlib=True,
+        insitu_time = self.new_MDB.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id',), zlib=True,
                                                   complevel=6)
         insitu_time.units = "Seconds since 1970-1-1"
         insitu_time.description = 'In situ time in ISO 8601 format (UTC).'

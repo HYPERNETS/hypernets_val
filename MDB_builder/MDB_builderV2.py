@@ -470,7 +470,7 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
         print(f'[WARNING] No MDB sat extract files were found. Please review')
         return
     import subprocess
-    nfiles_ref = 2
+    nfiles_ref = 100
     if len(list_files) > nfiles_ref:
         if args.verbose:
             print(f'[INFO] Preparing contatenation of {len(list_files)} files...')

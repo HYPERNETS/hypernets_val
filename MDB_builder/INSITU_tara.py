@@ -144,7 +144,7 @@ class INSITU_TARA(INSITUBASE):
                 self.new_MDB.variables['insitu_time'][0, ihere] = np.float64(self.metadata[index]['time'].timestamp())
                 self.new_MDB.variables['insitu_latitude'][0, ihere] = self.metadata[index]['lat']
                 self.new_MDB.variables['insitu_longitude'][0, ihere] = self.metadata[index]['lon']
-                self.new_MDB.variables['time_difference'][0, ihere] = self.metadata[index]['lon']
+                self.new_MDB.variables['time_difference'][0, ihere] = self.metadata[index]['time_diff']
                 self.new_MDB.variables['insitu_spatial_index'][0, ihere] = self.metadata[index]['index_spatial']
                 for b in self.metadata_options['bands']:
                     name_band = b

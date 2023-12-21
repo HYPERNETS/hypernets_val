@@ -384,16 +384,20 @@ class QC_INSITU:
 
         indices_good = np.argsort(dif_time_good)
 
+
+
         for idx in indices_good:
             id_min_time = idx
             time_dif = dif_time_array[idx]
             time_condition = time_dif < self.time_max
             if time_condition:
+
                 rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
 
                 valid_bands_array = np.array(valid_bands, dtype=bool)
                 rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
                 valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
+                print('CUMPLE TIME CONDITION',valid_bands,rrs_values)
                 # if not valid_values:
                 #     print(rrs_values)
                 #     print('--------')

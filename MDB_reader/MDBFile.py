@@ -18,7 +18,7 @@ from COMMON import common_functions as cfs
 from QC_INSITU import QC_INSITU
 from QC_SAT import QC_SAT
 
-#from skimage import exposure
+# from skimage import exposure
 from matplotlib.colors import ListedColormap
 
 DIMENSION_NAMES = ['satellite_id', 'rows', 'columns', 'satellite_bands', 'insitu_id', 'insitu_original_bands']
@@ -45,7 +45,7 @@ class MDBFile:
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
             self.VALID = True
-            #self.VALID = self.check_structure()
+            # self.VALID = self.check_structure()
         # except:
         except Exception as e:
             self.VALID = False
@@ -326,7 +326,6 @@ class MDBFile:
             # if atrib == 'site' or atrib == 'in_situ_lat' or atrib == 'in_situ_lon':
             #     continue
             if atrib not in self.nc.ncattrs():
-
                 print(f'[ERROR] Attribute: {atrib} is not available in MDB file')
                 check_atrib = False
 
@@ -443,17 +442,26 @@ class MDBFile:
         times_here = self.variables['insitu_time'][index_mu]
         sat_time_here = self.sat_times[index_mu]
 
+        #CHECK IF EXIST SPATIAL INDEX
+        spatial_index = None
+        if 'insitu_spatial_index' in self.variables:
+            spatial_index = self.variables['insitu_spatial_index'][index_mu]
+
         for idx in range(len(times_here)):
             itime = times_here[idx]
 
             if not np.ma.is_masked(itime) and not np.isnan(itime):
-                insitu_time_here = datetime.utcfromtimestamp(float(itime))
 
+                #spectral with spatial_index greater than zero are not considered
+                if spatial_index is not None:
+                    if spatial_index[idx]>0:
+                        time_difference[idx] = np.ma.masked
+                        continue
+                insitu_time_here = datetime.utcfromtimestamp(float(itime))
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
+
                 diff_time = abs(time_difference_prev[idx] - time_diff_here)
-                # if index_mu == 0 and idx == 0:
-                #     print('----------->', sat_time_here, insitu_time_here,time_diff_here,time_difference_prev[idx])
                 if diff_time >= 150:
                     print('[WARNING] Unexplained time difference. Please review sat and insitu times are in utc: ')
                     ssource = self.variables['satellite_PDU'][index_mu]
@@ -473,17 +481,15 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
 
-
-
-
-
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
         else:  ##aunque los datos sean invalidos (time dif>max time dif), obtenemos el mu_insitu_time como referencia
-            # print(time_difference)
+
             ins_time_index = np.argmin(np.abs(time_difference))
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
+            s_index = spatial_index[ins_time_index]
+            #print('Me llega aqui con index_mu igual a: ', index_mu, 'ins time: ',ins_time, 's_index must be zero: ',s_index)
             if np.ma.is_masked(ins_time):  ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
                 mu_insitu_time = sat_time_here
             else:
@@ -892,8 +898,6 @@ class MDBFile:
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
-
-
             if info_mu['status'] < 0:
                 spos = info_mu['status'] * (-1)
                 status_error[spos] = status_error[spos] + 1
@@ -912,7 +916,7 @@ class MDBFile:
             time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
             # if index_mu==0:
             #     print(self.mu_insitu_time,self.mu_sat_time,time_diff)
-            #compability with old mdb
+            # compability with old mdb
             key_site = 'site'
             if key_site not in self.info.keys() and 'insitu_site_name' in self.info.keys():
                 key_site = 'insitu_site_name'
@@ -956,7 +960,6 @@ class MDBFile:
                 #     spos = info_mu['status'] * (-1)
                 #     if spos<=3:
                 #         valid_here_int = -1
-
 
                 row = {
                     'Index': [index_tot],
@@ -1015,7 +1018,7 @@ class MDBFile:
         df_valid.iloc[0].at['Total'] = self.n_mu_total
         df_valid.iloc[0].at['Valid'] = nmu_valid
 
-        for idx in range(1,len(status_error)):
+        for idx in range(1, len(status_error)):
             idxl = idx + 5
             col_name = valid_options[idxl]
             sbase = f'# Invalid match-ups [{col_name}]: '
@@ -1036,8 +1039,6 @@ class MDBFile:
             #         sbase = '# Invalid match-ups [INVALID IN SITU VALUES]: '
             if status_error[idx] > 0:
                 print(f'[INFO] -> {sbase}{status_error[idx]}')
-
-
 
         return nmu_valid, df_valid
 
@@ -1447,7 +1448,8 @@ class MDBFile:
         else:
             return None, None, None
 
-    def get_all_spectra_insitu_sat_with_wlvalues_group(self, scale_factor, wlvalues, flag_name, flag_value, flag_array, group_value, group_array):
+    def get_all_spectra_insitu_sat_with_wlvalues_group(self, scale_factor, wlvalues, flag_name, flag_value, flag_array,
+                                                       group_value, group_array):
         import numpy.ma as ma
         nspectra = self.n_mu_total
         n_bands = len(wlvalues)
@@ -1455,7 +1457,7 @@ class MDBFile:
         sat_spectra_good = ma.zeros((nspectra, n_bands))
         index_here = 0
         for index_mu in range(self.n_mu_total):
-            if group_array[index_mu]!=group_value:
+            if group_array[index_mu] != group_value:
                 continue
             # wl, insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat(index_mu, scale_factor)
             insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat_withwlvalues(index_mu, wlvalues,
@@ -1471,6 +1473,7 @@ class MDBFile:
         insitu_stats = self.get_spectra_stats(insitu_spectra_good)
 
         return sat_stats, insitu_stats
+
     def get_all_spectra_insitu_sat_with_wlvalues(self, scale_factor, wlvalues, flag_name, flag_value, flag_array):
         import numpy.ma as ma
         nspectra = self.n_mu_total
@@ -1773,9 +1776,9 @@ class MDBFile:
             seriesid = flag_options[flag_output]['seriesid']
             seriesoutput = flag_options[flag_output]['seriesoutput']
 
-
             array, nmu, nmacro, nmacrow = self.analyze_sat_flags_advanced_impl(flag_var_name, flag_ref, flag_method,
-                                                                               var_group_name, var_group_val,valid_array)
+                                                                               var_group_name, var_group_val,
+                                                                               valid_array)
 
             parray = (array / self.n_mu_total) * 100
             central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
@@ -1947,7 +1950,6 @@ class MDBFile:
         year_min = self.start_date.year
         year_max = self.end_date.year + 1
 
-
         correct = 1
         if varvalid == 'mu_valid_common':  # number of common mu is divided by the number of ac
             if 'flag_ac' in self.nc.variables:
@@ -2001,8 +2003,9 @@ class MDBFile:
                     dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (1 / correct)
             else:
                 if total_mu:
-                    if mu_valid[idx]>=0:
-                        dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (1 / correct)
+                    if mu_valid[idx] >= 0:
+                        dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (
+                                    1 / correct)
                 else:
                     dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (1 / correct)
         return dfall_month
