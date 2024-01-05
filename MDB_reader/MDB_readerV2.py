@@ -1625,6 +1625,17 @@ def main():
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
+        from BSC_QAA import bsc_qaa_EUMETSAT as qaa
+        #import numpy as np
+        #bands: B1	B2	B3	B4
+        bands_in = [442.7,492.4,559.8,664.6]
+        rrs_in  = [0.002348428, 0.003592771, 0.004582189, 0.001049218]
+        band_out = [570]
+        rrsout = qaa.bsc_qaa(rrs_in,bands_in,band_out)
+        rrsoutpolynominal = 0.000178 + (0.734 * rrs_in[2]) + (63.7 * (rrs_in[2]**2)) - (3.08e3 * (rrs_in[2]**3))
+        print(f'rrs at 560 nm: {rrs_in[2]}')
+        print(f'rrs at 570 nm using band-shifting: {rrsout[0]}')
+        print(f'rrs at 570 nm using polynomial: {rrsoutpolynominal}')
 
         # file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDB_S3B_OLCI_WFR_STANDARD_20230315T000000_20231115T235959_HYPSTAR_VEIT.nc'
         # creating_copy_correcting_attributes(file_in)
@@ -1639,11 +1650,11 @@ def main():
         # if do_check_times_S3('LPAR'):
         #     return
 
-        input_path = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/GAIT/extracts'
-        for name in os.listdir(input_path):
-            input_file = os.path.join(input_path,name)
-            print(input_file)
-            update_sat_extract_file_version(input_file)
+        # input_path = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/GAIT/extracts'
+        # for name in os.listdir(input_path):
+        #     input_file = os.path.join(input_path,name)
+        #     print(input_file)
+        #     update_sat_extract_file_version(input_file)
 
         # if do_add_new_flag('MAFR'):
         #     return

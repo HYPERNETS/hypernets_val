@@ -442,6 +442,48 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
 
     return True
 
+def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out,rrs_var_list):
+    file = extract['file']
+    limits = extract['limits']
+    start_idx_y = limits[0]
+    stop_idx_y = limits[1]
+    start_idx_x = limits[2]
+    stop_idx_x = limits[3]
+    input_dataset = None
+    if variable_list[0].strip()=='*':
+        variable_list = []
+        input_dataset = Dataset(file,'r')
+        for var in input_dataset.variables:
+            if var in rrs_var_list:
+                continue
+            if input_dataset.variables[var].ndim==3:
+                variable_list.append(var)
+        variable_list_out = variable_list
+
+    if input_dataset is None:
+        input_dataset = Dataset(file,'r')
+
+    for idx in range(len(variable_list)):
+        variable_in = variable_list[idx]
+        variable_out = f'satellite_{variable_list_out[idx]}'
+        var_in = input_dataset.variables[variable_in]
+        var_array = ma.array(var_in[:])
+        var_array = np.array(var_array.filled(-999.0))
+
+        if variable_out not in newEXTRACT.EXTRACT.variables:
+            variable = newEXTRACT.create_2D_variable_general(variable_out, var_array, limits)
+        else:
+            variable = newEXTRACT.EXTRACT.variables[variable_out]
+            variable[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+
+        for at in var_in.ncattrs():
+            if at == '_FillValue':
+                continue
+            variable.setncattr(at, var_in.getncattr(at))
+
+    input_dataset.close()
+
+    return newEXTRACT
 
 def add_variable_multiple(newEXTRACT, extract, variable_list, variable_list_out):
     list_files = extract['list_files']
@@ -474,6 +516,47 @@ def add_variable_multiple(newEXTRACT, extract, variable_list, variable_list_out)
 
     return newEXTRACT
 
+def add_reflectance_single(newEXTRACT,extract,wl_list,var_list):
+    if not 'satellite_bands' in newEXTRACT.EXTRACT.dimensions:
+        print(f'[ERROR] Dimension satellite bands is not defined')
+        return
+    global_at = extract['1']['global_at']
+    file = extract['file']
+    limits = extract['limits']
+    start_idx_y = limits[0]
+    stop_idx_y = limits[1]
+    start_idx_x = limits[2]
+    stop_idx_x = limits[3]
+
+    nwl = len(wl_list)
+
+    if len(var_list)!=nwl:
+        return
+
+    if 'satellite_Rrs' in newEXTRACT.EXTRACT.variables:
+        satellite_Rrs = newEXTRACT.EXTRACT.variables['satellite_Rrs']
+    else:
+        satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
+    input_dataset = Dataset(file)
+    for idx in range(nwl):
+        var_name = var_list[idx]
+        variable = input_dataset.variables[var_name]
+        if variable.ndim == 3:
+            bandarray = ma.array(variable[:, :, :])
+            satellite_Rrs[0, idx, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+        elif variable.ndim == 2:
+            bandarray = ma.array(variable[:, :])
+            satellite_Rrs[0, idx, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+
+    input_dataset.close()
+
+    if 'satellite_bands' in newEXTRACT.EXTRACT.variables:
+        satellite_bands = newEXTRACT.EXTRACT.variables['satellite_bands']
+        satellite_bands[:] = wl_list
+    else:
+        newEXTRACT.create_satellite_bands_variable(wl_list)
+
+    return newEXTRACT
 
 def add_reflectance_multiple(newEXTRACT, extract, wl_list):
     if not 'satellite_bands' in newEXTRACT.EXTRACT.dimensions:
@@ -567,7 +650,10 @@ def start_extract(extract, ofname):
     size_box = extract['size_box']
     n_bands = extract['n_bands']
     window = extract['limits']
-    nc_file = extract['list_files'][0]
+    if 'list_files' in extract:
+        nc_file = extract['list_files'][0]
+    elif 'file' in extract:
+        nc_file = extract['file']
 
     # print(global_at['in_situ_lat'], global_at['in_situ_lon'])
 
@@ -1570,7 +1656,7 @@ def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
     return ncreated
 
 
-def get_cmems_product_day(path_source, org, datehere, dataset):
+def get_cmems_product_day_dataset(path_source, org, datehere, dataset):
     path_day = path_source
     if org is not None:
         if org == 'YYYYjjj':
@@ -1584,6 +1670,51 @@ def get_cmems_product_day(path_source, org, datehere, dataset):
         return None
     return file
 
+def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date):
+    path_day = path_source
+    if org is not None:
+        if org == 'YYYYjjj':
+            yearstr = datehere.strftime('%Y')
+            jjjstr = datehere.strftime('%j')
+            path_day = os.path.join(path_source, yearstr, jjjstr)
+    datefile = datehere.strftime(dataset_name_format_date)
+    namefile = dataset_name_file.replace('$DATE$',datefile)
+    file = os.path.join(path_day, f'{namefile}')
+
+    if not os.path.exists(file):
+        if org == 'YYYYjjj':
+            path_year = os.path.join(path_source, yearstr)
+            if not os.path.isdir(path_year):
+                os.mkdir(path_year)
+            if not os.path.isdir(path_day):
+                os.mkdir(path_day)
+
+        ##DONWLOAD
+        cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/OLCI/{namefile} -O {file}'
+        if args.verbose:
+            print(f'[INFO] Trying download with cmd:')
+            print(f'[INFO] {cmd}')
+
+        proc = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        try:
+            outs, errs = proc.communicate(timeout=1800)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            outs, errs = proc.communicate()
+
+    if os.path.exists(file) and os.stat(file).st_size==0:
+        os.remove(file)
+        if org == 'YYYYjjj':
+            if len(os.listdir(path_day))==0:
+               os.rmdir(path_day)
+            if len(os.listdir(path_year))==0:
+               os.rmdir(path_year)
+
+    if not os.path.exists(file):
+        print(f'[WARNING] File: {file} does not exist for date: {datefile}. Skiping...')
+        return None
+
+    return file
 
 def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
                                    dataset_var_list):
@@ -1640,18 +1771,42 @@ def main():
 
         use_single_file = False
         n_bands = 0
-        if options.has_option('CSV_SELECTION', 'dataset'):  ##SINGLE FILE SELECTION
-            dataset = options['CSV_SELECTION']['dataset']
-            use_single_file = True
-        else:  ##MULTIPLE FILE SELECTION
-            dataset_name_file = options['CSV_SELECTION']['dataset_name_file']
-            dataset_name_format_date = options['CSV_SELECTION']['dataset_name_format_date']
-            s = options['CSV_SELECTION']['dataset_var_list']
-            dataset_var_list = [x.strip() for x in s.split(',')]
-            dataset_var_list_out = dataset_var_list
-            if options.has_option('CSV_SELECTION', 'dataset_var_list_out'):
-                s = options['CSV_SELECTION']['dataset_var_list_out']
-                dataset_var_list_out = [x.strip() for x in s.split(',')]
+        if options.has_option('CSV_SELECTION', 'use_single_file'):  ##SINGLE FILE SELECTION
+            usf = options['CSV_SELECTION']['use_single_file']
+            if usf.strip().lower()=='true' or usf.strip()=='1':
+                use_single_file = True
+
+        dataset_name_file = options['CSV_SELECTION']['dataset_name_file']
+        dataset_name_format_date = options['CSV_SELECTION']['dataset_name_format_date']
+        s = options['CSV_SELECTION']['dataset_var_list']
+        dataset_var_list = [x.strip() for x in s.split(',')]
+        dataset_var_list_out = dataset_var_list
+        if options.has_option('CSV_SELECTION', 'dataset_var_list_out'):
+            s = options['CSV_SELECTION']['dataset_var_list_out']
+            dataset_var_list_out = [x.strip() for x in s.split(',')]
+
+        if use_single_file:
+            rrs_list = []
+            rrs_var_list = []
+            is_reflectance = False
+            if options.has_option('CSV_SELECTION','var_rrs_list') and options.has_option('CSV_SELECTION','var_rrs_format'):
+
+                var_rrs_list = options['CSV_SELECTION']['var_rrs_list'].strip()
+                var_rrs_format = options['CSV_SELECTION']['var_rrs_format'].strip()
+                is_reflectance = True
+                for r in var_rrs_list.split(','):
+                    try:
+                        rs = r.strip().replace('.','_')
+                        rrs_here = float(r.strip())
+                        rrs_list.append(rrs_here)
+                        var_here = var_rrs_format.replace('$BAND$',rs)
+                        rrs_var_list.append(var_here)
+                    except:
+                        is_reflectance = False
+                        break
+                if is_reflectance:
+                    n_bands = len(rrs_list)
+        else:
             is_reflectance = True
             for var in dataset_var_list:
                 try:
@@ -1701,6 +1856,8 @@ def main():
         if csv_flags is not None:
             csv_flags_meanings = {}
 
+        print('****************************************************** y luego aqui', is_reflectance)
+
         for idx, row in df.iterrows():
             list = [str(x).strip() for x in row.to_list()]
             line_orig = ";".join(list)
@@ -1743,12 +1900,73 @@ def main():
                             csv_flags_meanings[f] = lflags
 
             if use_single_file:
-                # fproduct = get_cmems_product_day(path_source, org, datehere, dataset)
-                # if fproduct is not None:
-                #     created = launch_create_extract_station(fproduct, options, lathere, lonhere, datehere)
-                #     if created:
-                #         ncreated = ncreated + 1
-                print('TO BE REIMPLEMENTED')
+                fproduct = get_cmems_product_day(path_source, org, datehere, dataset_name_file,dataset_name_format_date)
+                if fproduct is not None:
+                    limits, rc = get_geo_info(options, fproduct, lathere, lonhere)
+                    if limits is not None:
+                        global_at = get_satellite_global_atrib_from_options(options)
+                        datehere_str = datehere.strftime('%Y%m%d')
+                        site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+                        # print(f'[INFO] Site: {site}')
+                        other = None
+                        if csv_flags is not None:
+                            other = {}
+                            for f in csv_flags:
+                                val = row[f].strip()
+                                val = val.replace(' ', '_')
+                                other[f] = val
+
+                        global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, other)
+
+                        ofname = os.path.join(path_output, f'extract_{site}.nc')
+                        cmems_time = '11:00'
+                        if options.has_option('satellite_options', 'satellite_time'):
+                            cmems_time = options['satellite_options']['satellite_time'].strip()
+                        try:
+                            satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}', '%Y%m%dT%H:%M').astimezone(
+                                pytz.utc)
+                        except:
+                            print(f'{cmems_time} is not a valid satellite time option. Skipping')
+                            fcsv_out.write('\n')
+                            fcsv_out.write(f'{line_orig};NaN;-1')
+                            continue
+
+                        if site not in extract_list.keys():
+                            extract_list[site] = {
+                                'ninsitu': 1,
+                                'satellite_time': satellite_time,
+                                'ofname': ofname,
+                                'limits': limits,
+                                'file': fproduct,
+                                'size_box': size_box,
+                                'n_bands': n_bands,
+                                'var_lat': var_lat,
+                                'var_lon': var_lon,
+                                '1': {
+                                    'insitu_time': datehere,
+                                    'global_at': global_at,
+                                }
+                            }
+                            fcsv_out.write('\n')
+                            fcsv_out.write(f'{line_orig};{site}.nc;0')
+                        else:
+                            idx = extract_list[site]['ninsitu'] + 1
+                            fcsv_out.write('\n')
+                            fcsv_out.write(f'{line_orig};{site}.nc;{idx - 1}')
+                            idxs = str(idx)
+                            extract_list[site]['ninsitu'] = idx
+                            extract_list[site][idxs] = {
+                                'insitu_time': datehere,
+                                'global_at': global_at,
+                            }
+                    else:
+                        fcsv_out.write('\n')
+                        fcsv_out.write(f'{line_orig};NaN;-1')
+
+                else:
+                    print(f'[WARNING] Files not found for date: {datehere}. Skipping...')
+                    fcsv_out.write('\n')
+                    fcsv_out.write(f'{line_orig};NaN;-1')
             else:
 
 
@@ -1825,7 +2043,35 @@ def main():
 
         fcsv_out.close()
         if use_single_file:
-            print('NOT IMPLEMENTED')
+            for site in extract_list:
+                extract = extract_list[site]
+                ofname = extract['ofname']
+                ofname_temp = f'{ofname[:-3]}_temp.nc'
+                if os.path.exists(ofname):
+                    newExtract = copy_extract(ofname, ofname_temp)
+                else:
+                    newExtract = start_extract(extract, ofname)
+
+
+                if is_reflectance:
+                    newExtract = add_reflectance_single(newExtract,extract,rrs_list,rrs_var_list)
+
+                newExtract = add_variable_single(newExtract,extract,dataset_var_list,dataset_var_list_out,rrs_var_list)
+
+                nidx = 50
+
+                newExtract = add_insitu_basic_info(newExtract, extract, 1, nidx, csv_flags_meanings)
+
+                nhere = extract['ninsitu']
+                if nhere > 1:
+                    for idx in range(2, nhere + 1):
+                        newExtract = add_insitu_basic_info(newExtract, extract, idx, nidx, csv_flags_meanings)
+                newExtract.close_file()
+
+                if os.path.exists(ofname_temp):
+                    os.rename(ofname_temp, ofname)
+
+
         else:  ##MULTIPLE
             for site in extract_list:
                 extract = extract_list[site]
