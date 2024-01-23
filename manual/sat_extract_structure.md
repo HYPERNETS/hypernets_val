@@ -47,6 +47,6 @@ Table 3: Global attributes included in the satellite extract files.
 
 ***
 
-|[< 2. MDB File Structure](MDB_file_structure.md)| [Table of contents](Index.md) | [2.2 MDB files >](MDB_structure.md) |
+|[< 2. MDB File Structure](MDB_file_structure.md)| [Table of contents](Index.md) | [2.2 MDB files >](MDB_files.md) |
 |:-----------| :------:| -----------:|
 
