@@ -6,9 +6,9 @@
     - [2.2. MDB files](MDB_structure.md)
     - 2.3. MDB results (MDBr) files
     - 2.4. MDB concatenated results (MDBrc) files
-- [3. SAT_extract]
-- [4. MDB_builder]
-- [5. MDB_reader]
+- 3. SAT_extract
+- 4. MDB_builder
+- 5. MDB_reader
     - 5.1. Match-up generation
     - 5.2. Concatenation
     - 5.3. Metrics and plots
