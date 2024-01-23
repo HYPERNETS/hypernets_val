@@ -17,7 +17,7 @@ Table 2: Variables included in the satellite extract files.
 |---|---|---
 |*satellite_bands*|Band wavelengths (nm)|*satellite_bands*
 |*satellite_time*|Overpass time|*satellite_id*
-|*satellite_Rrs*|Satellite-derived Rrs|*satellite_id, satellite_bands, rows, columns*
+|*satellite_Rrs*|Satellite-derived *Rrs*|*satellite_id, satellite_bands, rows, columns*
 |*satellite_latitude*|Latitude|*satellite_id, rows, columns*
 |*satellite_longitude*|Longitude|*satellite_id, rows, columns*
 |*satellite_AOT_0865p50*|Aerosol Optical Thickness|*satellite_id, rows, columns*
