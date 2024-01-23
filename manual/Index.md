@@ -3,8 +3,8 @@
 - [1. Introduction](Introduction.md)
 - [2. MDB file structure](MDB_file_structure.md)
     - [2.1. Satellite extract files](sat_extract_structure.md)
-    - [2.2. MDB files](MDB_structure.md)
-    - 2.3. MDB results (MDBr) files
+    - [2.2. MDB files](MDB_files.md)
+    - [2.3. MDB results (MDBr) files](MDBr_files.md)
     - 2.4. MDB concatenated results (MDBrc) files
 - 3. SAT_extract
 - 4. MDB_builder

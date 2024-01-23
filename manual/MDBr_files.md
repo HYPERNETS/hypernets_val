@@ -60,5 +60,5 @@ Table 7: Variables included in the MDBr files
 
 ***
 
-|[< 2.1 Satellite extract files](sat_extract_structure.md)| [Table of contents](Index.md) | [2.3 MDB results (MDBr) files >](MDBr_files.md) |
+|[< 2.2 MDB files](MDB_files.md)| [Table of contents](Index.md) | [2.4 MDB concatenated results (MDBrc) files >](MDBrc_files.md) |
 |:-----------| :------:| -----------:|
