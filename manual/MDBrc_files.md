@@ -42,17 +42,18 @@ Table 8: Variables included in the MDBrc files
 |*time_difference*|Time difference|*satellite_id*
 
 The new flag variables use the following flags included in the global attributes of the MDBr files:
+
 *flag_ac: satellite_aco_processor*
+
 *flag_site: insitu_site_name*
+
 *flag_satellite: satellite + platform*
+
 *flag_sensor: sensor*
 
 A value is assigned to each flag using 2<sup>n</sup> with *n* being consecutive numbers staring from 0 (i.e. flag values would be 1, 2, 4, 8, etc). 
 
 Global attributes are inherited from the MDBr files (Table 3). In case of attributes used for flagging (*satellite_aco_processor*, *insitu_site_name*, *satellite*, *platform*, *sensor*), as well as *insitu_lat* and *insitu_lon*, attributed values are updated using a list (comma-separated values) with all the values inherited of the MRBr files included in the concatenation. *creation_time* and *description* attributes are also updated. 
-
-
-
 
 ***
 
