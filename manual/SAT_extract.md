@@ -16,8 +16,8 @@ The format of the required source files is NetCDF for all the extracts tools exc
 
 All the extract tools are run using a script passing as argument a configuration file with all the parameters and options:
 
-```
-python sat_extract_OLCI.py -c *extract_config.ini* -v
+```python
+python sat_extract_OLCI.py -c extract_config.ini -v
 ```
 
 ***
