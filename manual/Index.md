@@ -1,4 +1,4 @@
-# HYPERNETS Match-up Database (MDB) - Table of contents
+# HYPERNETS Match-up Database (MDB) User Manual v.1.0
 
 - [1. Introduction](Introduction.md)
 - [2. MDB file structure](MDB_file_structure.md)
