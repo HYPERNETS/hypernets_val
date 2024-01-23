@@ -6,7 +6,7 @@
     - [2.2. MDB files](MDB_files.md)
     - [2.3. MDB results (MDBr) files](MDBr_files.md)
     - [2.4. MDB concatenated results (MDBrc) files](MDBrc_files.md)
-- 3. SAT_extract
+- [3. SAT_extract](SAT_extract.md)
 - 4. MDB_builder
 - 5. MDB_reader
     - 5.1. Match-up generation
