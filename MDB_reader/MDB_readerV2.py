@@ -1,4 +1,7 @@
 import datetime
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pytz
 import os.path
 import sys
@@ -18,8 +21,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument("-m", "--mode", help="Mode",
                     choices=["GENERATEMU", "CONCATENATE", "REMOVEREP", "PLOT", "PLOT_CSV", "COMMONMU", "COMMONMU_NOSAT",
-                             "COMMONMU_INS", "CHECK_WL",
-                             "UPDATE_SAT_WL", "UPDATE_INSITU_WL", "CHECK_SAT_TIME", "TEST"],
+                             "COMMONMU_INS", "CHECK_WL", "UPDATE_SAT_WL", "UPDATE_INSITU_WL", "CHECK_SAT_TIME",
+                             "CHECK_PROTOCOLS", "TEST"],
                     required=True)
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path")
@@ -57,8 +60,6 @@ class MDB_READER():
 
         if self.mfile.df_validation is None:
             nmu_valid, df_valid = self.mfile.prepare_df_validation()
-
-
 
         foutcsv = fout.replace('.nc', '.csv')
         foutcsv = foutcsv.replace('MDBr', 'CSVr')
@@ -123,7 +124,7 @@ class MDB_READER():
                 'fillvalue': -1,
                 'type': 'i1'
             },
-            'mu_valid_complete':{
+            'mu_valid_complete': {
                 'namedf': 'spectrum_complete',
                 'fillvalue': -1,
                 'type': 'i1'
@@ -139,7 +140,6 @@ class MDB_READER():
             self.mfile.prepare_df_mu()
 
         # print(self.mfile.df_mu)
-
 
         for new_var_name in new_variables_sat_mu:
             new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],
@@ -191,6 +191,8 @@ class MDB_READER():
         new_MDB.close()
         if args.verbose:
             print(f'[INFO] Completed')
+
+        return nmu_valid
 
     def set_defaults_olci_wfr_hypstar(self):
         wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8]
@@ -290,6 +292,7 @@ def get_wl_list_from_file(fwl):
         return None
     return wl_list
 
+
 def update_sat_extract_file_version(input_file):
     from netCDF4 import Dataset
     input_dataset = Dataset(input_file)
@@ -313,10 +316,10 @@ def update_sat_extract_file_version(input_file):
             name, (len(dimension) if not dimension.isunlimited() else None))
 
     for name, variable in input_dataset.variables.items():
-        if name=='satellite_PDU':
+        if name == 'satellite_PDU':
             continue
         newname = name
-        if name=='OZA' or name=='OAA' or name=='SAA' or name=='SZA':
+        if name == 'OZA' or name == 'OAA' or name == 'SAA' or name == 'SZA':
             newname = f'satellite_{name}'
 
         fill_value = None
@@ -361,14 +364,14 @@ def update_mdb_file_version(input_file):
 
     add_mu_valid_complete = True
     for name, variable in input_dataset.variables.items():
-        if name=='mu_valid_complete':
+        if name == 'mu_valid_complete':
             add_mu_valid_complete = False
-        if name=='satellite_PDU':
+        if name == 'satellite_PDU':
             continue
-        if name=='insitu_filename':
+        if name == 'insitu_filename':
             continue
         newname = name
-        if name=='OZA' or name=='OAA' or name=='SAA' or name=='SZA':
+        if name == 'OZA' or name == 'OAA' or name == 'SAA' or name == 'SZA':
             newname = f'satellite_{name}'
 
         fill_value = None
@@ -387,10 +390,10 @@ def update_mdb_file_version(input_file):
         var = ncout.createVariable('mu_valid_complete', 'i1', ('satellite_id',), zlib=True, shuffle=True, complevel=6)
         var[:] = 1
 
-
     os.rename(output_file, input_file)
 
-def creating_copy_with_flag_band(input_file,name_var,flag_values,flag_meanings,value_array):
+
+def creating_copy_with_flag_band(input_file, name_var, flag_values, flag_meanings, value_array):
     from netCDF4 import Dataset
     input_dataset = Dataset(input_file)
     output_file = os.path.join(os.path.dirname(input_file), 'Temp.nc')
@@ -424,7 +427,7 @@ def creating_copy_with_flag_band(input_file,name_var,flag_values,flag_meanings,v
 
         ncout[name][:] = input_dataset[name][:]
 
-    var_flag = ncout.createVariable(name_var, 'i4', ('satellite_id',), zlib=True,shuffle=True, complevel=6)
+    var_flag = ncout.createVariable(name_var, 'i4', ('satellite_id',), zlib=True, shuffle=True, complevel=6)
     var_flag.flag_meanings = ' '.join(flag_meanings)
     var_flag.flag_values = flag_values
     var_flag[:] = value_array
@@ -432,22 +435,24 @@ def creating_copy_with_flag_band(input_file,name_var,flag_values,flag_meanings,v
     input_dataset.close()
 
     os.rename(output_file, input_file)
+
+
 def creating_copy_correcting_attributes(input_file):
     from netCDF4 import Dataset
     input_dataset = Dataset(input_file)
-    output_file = os.path.join(os.path.dirname(input_file),'Temp.nc')
+    output_file = os.path.join(os.path.dirname(input_file), 'Temp.nc')
     ncout = Dataset(output_file, 'w', format='NETCDF4')
 
     # copy attributs
     for at in input_dataset.ncattrs():
         val = input_dataset.getncattr(at)
-        if at=='insitu_site_name':
-            at='site'
-        if at=='insitu_lat':
-            at='in_situ_lat'
-        if at=='insitu_lon':
-            at='in_situ_lon'
-        ncout.setncattr(at,val)
+        if at == 'insitu_site_name':
+            at = 'site'
+        if at == 'insitu_lat':
+            at = 'in_situ_lat'
+        if at == 'insitu_lon':
+            at = 'in_situ_lon'
+        ncout.setncattr(at, val)
 
     # copy dimensions
     for name, dimension in input_dataset.dimensions.items():
@@ -464,13 +469,13 @@ def creating_copy_correcting_attributes(input_file):
         # copy variable attributes all at once via dictionary
         ncout[name].setncatts(input_dataset[name].__dict__)
 
-
         ncout[name][:] = input_dataset[name][:]
 
     ncout.close()
     input_dataset.close()
 
-    os.rename(output_file,input_file)
+    os.rename(output_file, input_file)
+
 
 def creating_copy_changing_valid_mu(input_file, output_file, valid_mu, valid_mu_common):
     from netCDF4 import Dataset
@@ -1620,33 +1625,309 @@ def set_id_as_invalid(file_in, list_id):
     return True
 
 
+def do_check_protocols(input_csv):
+    print(f'[INFO] Starting check protocols from {input_csv}')
+    path_output = os.path.dirname(input_csv)
+    import pandas as pd
+    df = pd.read_csv(input_csv, sep=';')
+
+
+    #ref_values = df.iloc[:, 0].drop_duplicates().tolist()
+    ref_values = ['BEFR','VEIT','MAFR','LPAR','GAIT','M1BE']
+    param = 'R2'
+    path_concatenate = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/CONCATENATE'
+    #print(ref_values)
+
+    # time_diff_columns = list(range(15, 181, 15))
+    # df_temporal = pd.DataFrame(data=None, index=ref_values, columns=time_diff_columns)
+    # work for each ref values
+    # for ref in ref_values:
+    #     df_ref = df[df.iloc[:, 0] == ref]
+    #
+    #     for time_diff in time_diff_columns:
+    #         new_params = {'time_diff': time_diff * 60}
+    #         nvalid = 0
+    #         for name in os.listdir(path_concatenate):
+    #             os.remove(os.path.join(path_concatenate, name))
+    #
+    #         for index, row in df_ref.iterrows():
+    #             input_mdb = row.iat[1]
+    #             input_qc = row.iat[2]
+    #             n = get_nvalid(input_mdb, input_qc, new_params,path_concatenate)
+    #             if n >= 0:
+    #                 nvalid = nvalid + n
+    #             else:
+    #                 print('[INFO] No valid match-ups were found')
+    #         if param=='N':
+    #             df_temporal.loc[ref].at[time_diff] = nvalid
+    #         else:
+    #             files_n = []
+    #             for name in os.listdir(path_concatenate):
+    #                 files_n.append(os.path.join(path_concatenate,name))
+    #             if len(files_n)==0:
+    #                 print(f'[ERROR] MDBr files were not created....')
+    #                 return
+    #             if len(files_n)==1:
+    #                 file_mdbrc = files_n[0]
+    #             else:
+    #                 file_mdbrc =  os.path.join(path_concatenate,'MDBrcOutput.nc')
+    #                 concatenate_nc_impl(files_n,path_concatenate,file_mdbrc)
+    #             from MDBPlotV2 import MDBPlot
+    #             mplot = MDBPlot(file_mdbrc)
+    #             mplot.set_data_scatterplot(None,None,None,None,None)
+    #             mplot.compute_statistics(False,False)
+    #             print(mplot.valid_stats)
+    #             df_temporal.loc[ref].at[time_diff] = mplot.valid_stats['DETER(r2)']
+    #             output_file_csv = os.path.join(path_output, 'TemporalVariationR2.csv')
+    #             df_temporal.to_csv(output_file_csv, sep=';')
+    #
+    # output_file_csv = os.path.join(path_output, 'TemporalVariation.csv')
+    # df_temporal.to_csv(output_file_csv, sep=';')
+
+
+
+    # min_valid_columns = list(range(1, 10))
+    # df_spatial = pd.DataFrame(data=None, index=ref_values, columns=min_valid_columns)
+    # # work for each ref values
+    # for ref in ref_values:
+    #     df_ref = df[df.iloc[:, 0] == ref]
+    #     print('------------------------------------------------------------------------------>',ref)
+    #     for min_valid in min_valid_columns:
+    #         new_params = {'n_min_valid': min_valid}
+    #         nvalid = 0
+    #
+    #         for name in os.listdir(path_concatenate):
+    #             os.remove(os.path.join(path_concatenate, name))
+    #
+    #         for index, row in df_ref.iterrows():
+    #             input_mdb = row.iat[1]
+    #             input_qc = row.iat[2]
+    #             n = get_nvalid(input_mdb, input_qc, new_params,path_concatenate)
+    #             if n >= 0:
+    #                 nvalid = nvalid + n
+    #             else:
+    #                 print('[ERROR]')
+    #         if param == 'N':
+    #             df_spatial.loc[ref].at[min_valid] = nvalid
+    #         else:
+    #             files_n = []
+    #             for name in os.listdir(path_concatenate):
+    #                 files_n.append(os.path.join(path_concatenate, name))
+    #             if len(files_n) == 0:
+    #                 print(f'[ERROR] MDBr files were not created....')
+    #                 return
+    #             if len(files_n) == 1:
+    #                 file_mdbrc = files_n[0]
+    #             else:
+    #                 file_mdbrc = os.path.join(path_concatenate, 'MDBrcOutput.nc')
+    #                 concatenate_nc_impl(files_n, path_concatenate, file_mdbrc)
+    #             from MDBPlotV2 import MDBPlot
+    #             mplot = MDBPlot(file_mdbrc)
+    #             mplot.set_data_scatterplot(None, None, None, None, None)
+    #             mplot.compute_statistics(False, False)
+    #             print(mplot.valid_stats)
+    #             df_spatial.loc[ref].at[min_valid] = mplot.valid_stats['DETER(r2)']
+    #             output_file_csv = os.path.join(path_output, 'SpatialVariationR2.csv')
+    #             df_spatial.to_csv(output_file_csv, sep=';')
+
+    #output_file_csv = os.path.join(path_output, 'SpatialVariation.csv')
+    #df_spatial.to_csv(output_file_csv, sep=';')
+
+    ##COMBINING FIGURES
+
+    output_file_csv = os.path.join(path_output, 'TemporalVariation.csv')
+    df_temporal = pd.read_csv(output_file_csv, sep=';')
+    output_file_csv = os.path.join(path_output, 'SpatialVariation.csv')
+    df_spatial = pd.read_csv(output_file_csv, sep=';')
+    output_file_csv = os.path.join(path_output, 'TemporalVariationR2.csv')
+    df_temporalr = pd.read_csv(output_file_csv, sep=';')
+    output_file_csv = os.path.join(path_output, 'SpatialVariationR2.csv')
+    df_spatialr = pd.read_csv(output_file_csv, sep=';')
+
+
+    file_out_t = os.path.join(path_output, 'TemporalVariation.tif')
+    xdefaultst = [120]*6
+    xdefaultss = [9,9,1,9,1,9]
+
+    plot_df_lines(df_temporal,file_out_t,'Maximum time difference (minutes)','# Valid match-ups',xdefaultst,[0,250])
+    file_out_s = os.path.join(path_output, 'SpatialVariation.tif')
+    handles,str_legend = plot_df_lines(df_spatial, file_out_s, 'Mininum number of valid pixels','# Valid match-ups', xdefaultss, [0,300])
+
+    file_out_tr = os.path.join(path_output, 'TemporalVariationR2.tif')
+    plot_df_lines(df_temporalr, file_out_tr, 'Maximum time difference (minutes)',f'R$^2$', xdefaultst, [0.3, 1])
+    file_out_ts = os.path.join(path_output, 'SpatialVariationR2.tif')
+    handles, str_legend = plot_df_lines(df_spatialr, file_out_ts, 'Mininum number of valid pixels',f'R$^2$', xdefaultss, [0.3, 1])
+
+
+
+    file_out = os.path.join('/mnt/c/DATA_LUIS/HYPERNETS_WORK/PUBLICATION/Figures/REVIEW_ROUND_1/Figure13.tif')
+    from PlotMultiple import PlotMultiple
+    pm = PlotMultiple()
+    pm.start_multiple_plot_advanced(2, 2, 12, 9, 0, 0, True)
+    pm.plot_image(file_out_t,0,0)
+    pm.plot_image(file_out_tr, 0, 1)
+    pm.plot_image(file_out_s,1, 0)
+    pm.plot_image(file_out_ts, 1, 1)
+    pm.set_text(-150,0,'(a)')
+    pm.set_text(1600,0, '(b)')
+    pm.set_text(-150, 1300, '(c)')
+    pm.set_text(1600, 1300, '(d)')
+
+
+    pm.set_global_legend(handles,str_legend)
+    pm.save_fig(file_out)
+
+    print('COMPLETED')
+
+
+def plot_df_lines(df, file_out, xlabel, ylabel, xdefaults, yrange):
+    # df = pd.DataFrame()
+    sites = 'BEFR,VEIT,MAFR,LPAR,GAIT,M1BE'
+    sites = sites.split(',')
+    colors = 'blue,red,green,cyan,magenta,orange'
+    colors = colors.split(',')
+
+    from PlotSpectra import PlotSpectra
+    import numpy as np
+    ps = PlotSpectra()
+    ps.close_plot()
+    ps.start_plot()
+    xdata = np.array(df.columns.values[1:], dtype=np.float32)
+    ps.xdata = xdata
+    # idx = 0
+    handles = ['']*len(sites)
+    str_values = ['']*len(sites)
+    for index, row in df.iterrows():
+        y_data = np.array(row.values[1:], dtype=np.float32)
+        site = row.values[0]
+        idx = sites.index(site)
+        color = colors[idx]
+        print(site, idx, color, y_data)
+        h = ps.plot_single_line(y_data, color, 'solid', 1, 'o', 8)
+        handles[idx] = h[0]
+        str_values[idx] = site
+        if len(xdefaults)==len(sites):
+            ihighlight = np.argmin(np.abs(xdefaults[idx]-xdata))
+            #print(xdefaults[idx],ihighlight,xdata[ihighlight],y_data[ihighlight],'???????????????????????')
+            ps.plot_single_marker(xdata[ihighlight],y_data[ihighlight],'o',8,'w',color,1)
+
+        # handles.append(h[0])
+        # str_values.append(site)
+
+    ps.set_y_range(yrange[0], yrange[1])
+    xdata_int = np.array(xdata, dtype=np.int32).tolist()
+    ps.set_xticks(xdata, xdata_int, 0, 11)
+    if yrange[1]>1:
+        yticks_val = np.array(ps.get_yticks(), dtype=np.int32).tolist()
+        ps.set_yticks(ps.get_yticks(), yticks_val, 0, 11)
+    ps.set_grid()
+    ps.set_xaxis_title_f(xlabel, 12)
+    ps.set_yaxis_title_f(ylabel, 12)
+    # if xdefault >= 0:
+    #     plt.axvline(xdefault, color='black', linewidth=1, ls='-')
+
+
+    ps.save_fig(file_out)
+    ps.close_plot()
+
+    return handles,str_values
+
+
+def get_nvalid(input_path, input_qc, new_params,path_concatenate):
+
+    print(f'[INFO] Working with file: {input_path} ---------------------------------------------------------------')
+    # print(input_path,os.path.exists(input_path))
+    reader = MDB_READER(input_path, True)
+    if not reader.mfile.VALID:
+        return -1
+    if not reader.mfile.check_repeated():
+        return -1
+    # if args.verbose:
+    #     print(f'[INFO] Using file: {args.config_file} to set quality control options...')
+    import configparser
+    from QC_OPTIONS import QC_OPTIONS
+    options = configparser.ConfigParser()
+    options.read(input_qc)
+    qco = QC_OPTIONS(options)
+    wllist = qco.get_wllist()
+    check_sat_bands = reader.mfile.check_bands(wllist, 5)
+    if check_sat_bands == -1:
+        return -1
+
+    reader.mfile.set_wl_ref(wllist)
+    reader.mfile.qc_sat.ncdataset = reader.mfile.nc
+    reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat, reader.mfile.nc)
+
+    reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
+    reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu)
+    if reader.mfile.qc_insitu is None:
+        return -1
+    if not reader.mfile.qc_insitu.apply_nir_correction:
+        reader.mfile.qc_insitu.insitu_rrs = reader.mfile.variables['insitu_Rrs_nosc']
+        # if args.verbose:
+        #     print('[INFO] NIR Correction is not applied. Using insitu_Rrs_nosc as input variable')
+
+    ##parametres to be modified with respect to quality control file
+    if 'time_diff' in new_params:
+        reader.mfile.qc_insitu.time_max = new_params['time_diff']
+
+    if 'n_min_valid' in new_params:
+        reader.mfile.qc_sat.min_valid_pixels = new_params['n_min_valid']
+
+    print('---------------------------------------->', reader.mfile.qc_insitu.time_max,
+          reader.mfile.qc_sat.min_valid_pixels)
+
+
+    if path_concatenate is None:
+        nmu_valid, df_valid = reader.mfile.prepare_df_validation()
+    else:
+        name_output = os.path.basename(input_path).replace('MDB','MDBr_TEMPORAL')
+        nmu_valid = reader.create_mdb_results_file(os.path.join(os.path.dirname(input_path),name_output))
+        os.rename(os.path.join(os.path.dirname(input_path),name_output),os.path.join(path_concatenate,name_output))
+
+
+
+    reader.mfile.close()
+
+    return nmu_valid
+
+
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
+        input_file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/publication/revision2/Figure7.jpg'
+        output_file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/publication/production/Figure3.tif'
+        from matplotlib import image as img
+        from matplotlib import pyplot as plt
+        image = img.imread(input_file)
+        plt.imshow(image)
+        plt.axis(False)
+        plt.savefig(output_file, dpi=350, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+
         from BSC_QAA import bsc_qaa_EUMETSAT as qaa
-        #import numpy as np
-        #bands: B1	B2	B3	B4
-        bands_in = [442.7,492.4,559.8,664.6]
-        rrs_in  = [0.002348428, 0.003592771, 0.004582189, 0.001049218]
-        band_out = [570]
-        rrsout = qaa.bsc_qaa(rrs_in,bands_in,band_out)
-        rrsoutpolynominal = 0.000178 + (0.734 * rrs_in[2]) + (63.7 * (rrs_in[2]**2)) - (3.08e3 * (rrs_in[2]**3))
-        print(f'rrs at 560 nm: {rrs_in[2]}')
-        print(f'rrs at 570 nm using band-shifting: {rrsout[0]}')
-        print(f'rrs at 570 nm using polynomial: {rrsoutpolynominal}')
+        # import numpy as np
+        # bands: B1	B2	B3	B4
+        # bands_in = [442.7,492.4,559.8,664.6]
+        # rrs_in  = [0.002348428, 0.003592771, 0.004582189, 0.001049218]
+        # band_out = [570]
+        # rrsout = qaa.bsc_qaa(rrs_in,bands_in,band_out)
+        # rrsoutpolynominal = 0.000178 + (0.734 * rrs_in[2]) + (63.7 * (rrs_in[2]**2)) - (3.08e3 * (rrs_in[2]**3))
+        # print(f'rrs at 560 nm: {rrs_in[2]}')
+        # print(f'rrs at 570 nm using band-shifting: {rrsout[0]}')
+        # print(f'rrs at 570 nm using polynomial: {rrsoutpolynominal}')
 
         # file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDB_S3B_OLCI_WFR_STANDARD_20230315T000000_20231115T235959_HYPSTAR_VEIT.nc'
         # creating_copy_correcting_attributes(file_in)
 
-        #file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_20230315T000000_20231115T235959_HYPSTAR_VEIT.nc'
-        #file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_HYPSTARv1_VEIT.nc'
-        name_var = 'flag_hypstar'
-        flag_values = [1,2]
-        flag_meanings = ['HYPSTARv1','HYPSTARv3']
-        #creating_copy_with_flag_band(file_in,name_var,flag_values,flag_meanings,1)
-        #update_mdb_file_version(file_in)
+        # file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_20230315T000000_20231115T235959_HYPSTAR_VEIT.nc'
+        # file_in = '/mnt/c/DATA_LUIS/S3_VALIDATION_TEAM_MEETING_2023/VEIT/MDBrc__S3AB_OLCI_WFR_STANDARD_HYPSTARv1_VEIT.nc'
+        # name_var = 'flag_hypstar'
+        # flag_values = [1,2]
+        # flag_meanings = ['HYPSTARv1','HYPSTARv3']
+        # creating_copy_with_flag_band(file_in,name_var,flag_values,flag_meanings,1)
+        # update_mdb_file_version(file_in)
         # if do_check_times_S3('LPAR'):
         #     return
 
@@ -1883,6 +2164,10 @@ def main():
 
         return
 
+    if args.mode == 'CHECK_PROTOCOLS' and args.input_path:
+        if os.path.isfile(args.input_path):
+            do_check_protocols(args.input_path)
+
     if args.input_path and args.config_file and (mode == 'UPDATE_SAT_WL' or mode == 'UPDATE_INSITU_WL'):
         fwl = args.config_file
         input_file = args.input_path
@@ -2034,7 +2319,7 @@ def main():
         else:
             ncout_file = os.path.join(input_path, 'MDBrc.nc')
 
-        #ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
+        # ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
         ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'site']
         flag_bands = ['flag_satellite', 'flag_sensor', 'flag_ac', 'flag_site']
         flag_lists = get_flag_lists(input_path, ats_in, flag_bands)

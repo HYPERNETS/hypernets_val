@@ -78,6 +78,7 @@ class QC_OPTIONS:
                 if options_qcsat[option]['type'] == 'dict':
                     val = self.get_value_param_dict(section, option, 'N/A', options_qcsat[option]['keys'])
                 else:
+
                     val = self.get_value_param(section, option, 'N/A', options_qcsat[option]['type'])
             if val is None:
                 options_qcsat[option]['valid'] = -1  # invalid

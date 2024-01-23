@@ -75,7 +75,7 @@ class PlotSpectra():
         self.stats_plot['factor'] = factor
 
     def plot_data(self, ydata, style):
-        h, = plt.plot(self.xdata, ydata,
+        h = plt.plot(self.xdata, ydata,
                  color=style['color'],
                  linestyle=style['linestyle'],
                  linewidth=style['linewidth'],
@@ -98,15 +98,28 @@ class PlotSpectra():
 
         h = self.plot_data(ydata, style)
 
-
-
         return h
 
+    def plot_single_marker(self,xpoint,ypoint,marker,marker_size,color,edge_color,edge_width):
+        plt.plot(xpoint, ypoint,
+                 color=color,
+                 linewidth=0,
+                 marker=marker,
+                 markersize=marker_size,
+                 mec = edge_color,
+                 mew = edge_width)
+
+    def plot_single_bar_series(self,ydata,color,width,offset):
+
+        h = plt.bar(self.xdata+offset,ydata,width,color=color)
+        return h
+
+
     def set_legend(self, str_legend):
-        print(self.legend_options['bbox_to_anchor'])
         plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'])
 
     def set_legend_h(self,handles,str_legend):
+
         plt.legend(handles,str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'],framealpha=self.legend_options['framealpha'])
 
     def set_title(self, title):
@@ -122,6 +135,18 @@ class PlotSpectra():
         if fontsize is None:
             fontsize = 9
         plt.xticks(xticks, xtickvalues, rotation=rotation, fontsize=fontsize)
+
+    def set_xticks_minor(self, xticks, xtickvalues, rotation, fontsize):
+        if rotation is None:
+            rotation = 0
+        if rotation < 0 or rotation > 90:
+            rotation = 0
+        if xtickvalues is None:
+            xtickvalues = xticks
+        if fontsize is None:
+            fontsize = 9
+        plt.xticks(xticks, xtickvalues, minor=True, rotation=rotation, fontsize=fontsize)
+        #plt.xticks([],minor = True)
 
     def set_yticks(self, yticks, ytickvalues, rotation, fontsize):
         if rotation is None:
@@ -151,6 +176,12 @@ class PlotSpectra():
     def set_yaxis_title(self, yaxis_title):
         plt.ylabel(yaxis_title, fontsize=14)
 
+    def set_xaxis_title_f(self, xaxis_title,fontsize):
+        plt.xlabel(xaxis_title, fontsize=fontsize)
+
+    def set_yaxis_title_f(self, yaxis_title,fontsize):
+        plt.ylabel(yaxis_title, fontsize=fontsize)
+
     def save_fig(self, file_out):
         #plt.savefig(file_out, dpi=300)
         if file_out.endswith('.tif'):
@@ -173,6 +204,10 @@ class PlotSpectra():
     def get_y_range(self):
         ymin, ymax = plt.ylim()
         return ymin,ymax
+
+    def plot_text(self, xpos, ypos, str):
+        htext = plt.text(xpos, ypos, str)
+        return htext
 
     def plot_multiple_spectra(self, wavelength, spectra, stats, wlmin, wlmax):
         imin, imax = self.get_imin_imax_from_wavelength(wavelength,wlmin,wlmax)

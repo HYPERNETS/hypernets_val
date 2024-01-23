@@ -76,7 +76,7 @@ class MDBPlot:
                 continue
             options_out = self.get_options(options, plot)
 
-            #print(options_out)
+            # print(options_out)
             if options_out['apply']:
                 self.plot_from_options_impl(options_out)
 
@@ -94,11 +94,11 @@ class MDBPlot:
                         print('me llega aqui...')
                         for wl in options_out['wl_values']:
                             print(wl)
-                            self.set_data_scatterplot(options_out['groupBy'], None, None, wl,options_out)
+                            self.set_data_scatterplot(options_out['groupBy'], None, None, wl, options_out)
 
                             options_out['file_out'] = self.get_file_out_name(file_out_base, wl, None)
                             options_out['title'] = self.get_title(title_base, wl, None, None)
-                            print('-->',options_out['file_out'],options_out['title'])
+                            print('-->', options_out['file_out'], options_out['title'])
                             if len(self.xdata) > 0 and len(self.ydata) > 0:
                                 print(len(self.xdata))
                                 self.plot_scatter_plot(options_out, None, -1, wl)
@@ -121,7 +121,7 @@ class MDBPlot:
                         wl_values = options_out['wl_values']
                         print(f'[INFO] Wavelenthts: {wl_values}')
                         for wl in options_out['wl_values']:
-                            self.set_data_scatterplot(options_out['groupBy'], None, None, wl,options_out)
+                            self.set_data_scatterplot(options_out['groupBy'], None, None, wl, options_out)
                             if len(self.xdata) > 0 and len(self.ydata) > 0:
                                 options_out['title'] = self.get_title(title_base, wl, None, None)
                                 options_out['file_out'] = None
@@ -147,7 +147,7 @@ class MDBPlot:
                             for flag_value in options_out['selectValues']:
 
                                 self.set_data_scatterplot(options_out['groupBy'], options_out['selectBy'], flag_value,
-                                                          wl,options_out)
+                                                          wl, options_out)
                                 flag_here = self.get_flag_flag(flag_value, options_out[flag_name]['flag_values'],
                                                                options_out[flag_name]['flag_meanings'])
                                 options_out['file_out'] = self.get_file_out_name(file_out_base, wl, flag_here)
@@ -158,7 +158,7 @@ class MDBPlot:
 
             if not options_out['selectByWavelength']:
                 if options_out['selectBy'] is None:
-                    self.set_data_scatterplot(options_out['groupBy'], None, None, None,options_out)
+                    self.set_data_scatterplot(options_out['groupBy'], None, None, None, options_out)
                     self.plot_scatter_plot(options_out, None, -1, -1)
                 else:
                     flag_name = options_out['selectBy']
@@ -166,7 +166,7 @@ class MDBPlot:
                         for flag_value in options_out['selectValues']:
                             self.set_data_scatterplot(options_out['groupBy'], options_out['selectBy'], flag_value, None)
                             flag_here = self.get_flag_flag(flag_value, options_out[flag_name]['flag_values'],
-                                                           options_out[flag_name]['flag_meanings'],options_out)
+                                                           options_out[flag_name]['flag_meanings'], options_out)
                             options_out['file_out'] = self.get_file_out_name(file_out_base, None, flag_here)
 
                             options_out['title'] = self.get_title(title_base, None, flag_here, None)
@@ -195,8 +195,9 @@ class MDBPlot:
             self.plot_flag_fromoptions(options_out)
 
         if options_out['type'] == 'temporalheatmap':
-            self.plot_temporal_heat_map_fromoptions(options_out)
-
+            # self.plot_temporal_heat_map_fromoptions(options_out)
+            # self.plot_temporal_lines_fromoptions(options_out)
+            self.plot_multiple_temporal_fromoptions(options_out)
         if options_out['type'] == 'validityplot':
             self.plot_validityplot_fromoptions(options_out)
 
@@ -204,8 +205,6 @@ class MDBPlot:
             self.plot_multiple_plot_from_options(options_out)
 
     def plot_validityplot_fromoptions(self, options_out):
-
-
 
         flag = options_out['flag']
         flag_list = options_out['flag_list']
@@ -216,19 +215,19 @@ class MDBPlot:
 
         fcsv = None
         if options_out['file_csv'] is not None:
-            fcsv = os.path.join(os.path.dirname(self.path_mdbr_file),options_out['file_csv'])
+            fcsv = os.path.join(os.path.dirname(self.path_mdbr_file), options_out['file_csv'])
             if not os.path.isfile(fcsv):
                 fcsv = None
         if fcsv is None:
             ntotal, nvalid, porc = self.mrfile.analyse_mu_flag(flag, flag_list, varvalid)
             self.plot_validityplot_impl(flag_list, ntotal, nvalid, porc, options_out)
         else:
-            self.plot_validityplot_fromcsv(fcsv,flag,flag_list,options_out)
+            self.plot_validityplot_fromcsv(fcsv, flag, flag_list, options_out)
 
-    def plot_validityplot_fromcsv(self,fcsv,flag_name,flag_list,options_out):
+    def plot_validityplot_fromcsv(self, fcsv, flag_name, flag_list, options_out):
         file_out = options_out['file_out']
         import pandas as pd
-        df = pd.read_csv(fcsv,sep=';')
+        df = pd.read_csv(fcsv, sep=';')
         print(df)
         print(flag_list)
         output_type = options_out['output_type']
@@ -261,17 +260,17 @@ class MDBPlot:
             for ot in output_type:
                 rslt_df = df.loc[df[flag_name] == flag]
                 val = rslt_df.iloc[0].at[ot]
-                print(flag,ot,val)
+                print(flag, ot, val)
                 hbar = plt.barh(xval, val, height=heightbyseries, color=colors[icolor])
                 if fl[0] == 0:
                     handles.append(hbar)
-                if ot=='Valid':
+                if ot == 'Valid':
                     # invalid_insitu = rslt_df.iloc[0].at['INVALID IN SITU DATA']
                     # invalid_sat = rslt_df.iloc[0].at['INVALID SAT DATA']
                     # hbar = plt.barh(xval, invalid_insitu, left=val, height=heightbyseries, color='m')
                     # hbar = plt.barh(xval, invalid_sat, left=val+invalid_insitu, height=heightbyseries, color='r')
                     hbarvalidity.append(hbar)
-                    porc = (val / rslt_df.iloc[0].at['Total_mu'])*100
+                    porc = (val / rslt_df.iloc[0].at['Total_mu']) * 100
                     hbarvalidity_values.append(porc)
                 xval = xval + heightbyseries
                 icolor = icolor + 1
@@ -294,6 +293,7 @@ class MDBPlot:
             plt.bar_label(hbar, vals)
 
         plt.xlabel('Number of match-ups', fontsize=12)
+        plt.ylabel(options_out['ylabel'], fontsize=12)
 
         plt.gcf().tight_layout()
         if legend is not None:
@@ -303,7 +303,6 @@ class MDBPlot:
         if file_out is not None:
             plt.savefig(file_out, dpi=300)
         plt.close(hfig)
-
 
     def plot_validityplot_impl(self, flag_list, ntotal, nvalid, porc, options_out):
         file_out = options_out['file_out']
@@ -381,6 +380,7 @@ class MDBPlot:
             plt.bar_label(hbar, vals)
 
         plt.xlabel('Number of match-ups', fontsize=12)
+        plt.ylabel(options_out['ylabel'], fontsize=12)
 
         plt.gcf().tight_layout()
         if legend is not None:
@@ -391,8 +391,170 @@ class MDBPlot:
             plt.savefig(file_out, dpi=300)
         plt.close(hfig)
 
+    def plot_temporal_lines_fromoptions(self, options_out):
+
+        file_out = options_out['file_out']
+        files_multiple = []
+        if options_out['flag'] is not None:
+            print('we are here, flag is not none')
+            flag = options_out['flag']
+            flag_list = options_out['flag_list']
+            ext = file_out[-4:]
+            file_base = file_out[:-4]
+            output_type = options_out['output_type']
+            multiple_plot = False
+            if len(output_type) > 1:
+                multiple_plot = True
+            index_fig = 1
+            for otype in output_type:
+                onlyvalid = False
+                varvalid = None
+                if otype == 'valid':
+                    onlyvalid = True
+                    varvalid = 'mu_valid'
+                    options_out['ylabel'] = '# Valid match-ups'
+                if otype == 'valid_common':
+                    onlyvalid = True
+                    varvalid = 'mu_valid_common'
+                    options_out['ylabel'] = '# Valid match-ups'
+                if otype == 'total_mu':
+                    onlyvalid = False
+                    varvalid = 'mu_valid'
+                    options_out['ylabel'] = '# Total match-ups'
+                dfdata = self.mrfile.analyse_mu_temporal_flag(onlyvalid, varvalid, flag, flag_list)
+                if multiple_plot:
+                    file_out_here = f'{file_base}_{index_fig}{ext}'
+                    files_multiple.append(file_out_here)
+                else:
+                    file_out_here = file_out
+                # self.plot_heat_map_impl(dfdata, file_out_here, options_out)
+
+                # handles,str_legend = self.plot_line_temporal_impl(dfdata,file_out_here,options_out)
+                handles, str_legend = self.plot_bar_temporal_impl(dfdata, file_out_here, options_out)
+                index_fig = index_fig + 1
+
+        else:
+            ext = file_out[-4:]
+            file_base = file_out[:-4]
+            output_type = options_out['output_type']
+            multiple_plot = False
+            if len(output_type) > 1:
+                multiple_plot = True
+            index_fig = 1
+            for otype in output_type:
+                onlyvalid = False
+                # varvalid = None
+                if otype == 'valid':
+                    onlyvalid = True
+                    # varvalid = 'mu_valid'
+                if otype == 'valid_common':
+                    onlyvalid = True
+                    # varvalid = 'mu_valid_common'
+                if otype == 'total_mu':
+                    onlyvalid = False
+                    # varvalid = 'mu_valid'
+
+                if multiple_plot:
+                    file_out_here = f'{file_base}_{index_fig}{ext}'
+                    files_multiple.append(file_out_here)
+                else:
+                    file_out_here = file_out
+                print(file_out_here)
+                dfdata = self.mrfile.analyse_mu_temporal(onlyvalid, file_out_here)
+                # self.plot_heat_map_impl(dfdata, file_out_here, options_out)
+                index_fig = index_fig + 1
+
+        if options_out['multiple_plot'] is not None:
+            from PlotMultiple import PlotMultiple
+            rc = options_out['multiple_plot'].split(',')
+            nrow = int(rc[0].strip())
+            ncol = int(rc[1].strip())
+            ntot = nrow * ncol
+            if ntot == len(files_multiple):
+                pm = PlotMultiple()
+                xfigsize = options_out['xfigsize']
+                yfigsize = options_out['yfigsize']
+                wspace = options_out['widthspace']
+                hspace = options_out['heightspace']
+                pm.start_multiple_plot_advanced(nrow, ncol, xfigsize, yfigsize, wspace, hspace, True)
+                index = 0
+                for irow in range(nrow):
+                    for icol in range(ncol):
+                        pm.plot_image(files_multiple[index], irow, icol)
+                        index = index + 1
+
+                pm.set_text(1800, -50, '(a)')
+                pm.set_text(1800, 1400, '(b)')
+                pm.set_global_legend(handles, str_legend)
+                # file_out = self.get_file_out_flag_param(options_out['file_out'], None, None)
+                pm.save_fig(file_out)
+
+    def plot_multiple_temporal_fromoptions(self, options_out):
+        flag = options_out['flag']
+        flag_list = options_out['flag_list']
+        dfdata_total = self.mrfile.analyse_mu_temporal_flag(False, 'mu_valid', flag, flag_list)
+        dfdata_valid = self.mrfile.analyse_mu_temporal_flag(True, 'mu_valid', flag, flag_list)
+        dfall_month_withnan = dfdata_total.copy()
+        dfall_month_withnan[dfdata_total == 0] = np.nan
+        dfvalid_month_withnan = dfdata_valid.copy()
+        # dfvalid_month_withnan[dfdata_valid == 0] = np.nan
+
+        from PlotMultiple import PlotMultiple
+        pm = PlotMultiple()
+        if len(flag_list)==6:
+            pm.start_multiple_plot_advanced(6, 1, 8, 12, 0.1, 0.1, True)
+        if len(flag_list)==4:
+            pm.start_multiple_plot_advanced(4,1,8,8,0.1,0.1,True)
+        idx = 0
+        nrows = len(dfall_month_withnan)
+        x_data_val = list(dfall_month_withnan.columns)[0:27]
+        x_data_val = [x[2:] for x in x_data_val]
+        x_data_val.append('')
+        x_data_val.append('')
+        x_data_val_empty = ['']*len(x_data_val)
+        # x_data_val = [''] + x_data_val + ['','']
+
+        for index, row in dfall_month_withnan.iterrows():
+            y_data_total = np.array(row[1:27])
+            x_data = np.linspace(0, 25, 26)
+            y_data_valid = np.array(dfvalid_month_withnan.loc[index][1:27])
+            axhere = pm.ax[idx]
+            bar1=axhere.bar(x_data, y_data_total, color='darkblue', edgecolor='black',linewidth=0.5)  # ,marker='o',markersize=10)
+            bar2=axhere.bar(x_data, y_data_valid, color='palegreen', edgecolor='black',linewidth=0.5)  # , marker='o', markersize=10)
+
+            if len(flag_list) == 6:
+                axhere.set_ylim([0, 45])
+                axhere.set_yticks([0, 10, 20, 30, 40], fontsize=11)
+
+            if len(flag_list) == 4:
+                axhere.set_ylim([0, 17])
+                axhere.set_yticks([0, 5, 10, 15], fontsize=11)
+
+
+            x_data_grid = np.linspace(-1, 27, 29) - 0.5
+            axhere.set_xticks(x_data_grid)
+            if idx == (nrows-1):
+                axhere.set_xticks(x_data_grid, x_data_val, rotation=90, fontsize=11, ha='left')
+                axhere.set_xlabel('Year-Month',fontsize=11)
+                handles = [bar1,bar2]
+            else:
+                axhere.set_xticks(x_data_grid, x_data_val_empty)
+            axhere.grid(ls='--')
+            axhere.set_xlim([-1.69, 25.69])
+            axhere.axvline(x_data_grid[0], color='black',linewidth=1,ls='--')
+            axhere.axvline(x_data_grid[12],color='black',linewidth=1,ls='--')
+            axhere.axvline(x_data_grid[24], color='black',linewidth=1,ls='--')
+            ylabel = f'{index}'
+            axhere.set_ylabel(ylabel, fontsize=11)
+            axhere.set_axisbelow(True)
+            idx = idx + 1
+
+        file_out = options_out['file_out']
+        pm.set_global_legend_2(handles,['# All match-ups','# Valid match-ups'])
+        pm.save_fig(file_out)
+
     def plot_temporal_heat_map_fromoptions(self, options_out):
-        #print(options_out)
+        # print(options_out)
         file_out = options_out['file_out']
         files_multiple = []
         if options_out['flag'] is not None:
@@ -435,16 +597,16 @@ class MDBPlot:
             index_fig = 1
             for otype in output_type:
                 onlyvalid = False
-                #varvalid = None
+                # varvalid = None
                 if otype == 'valid':
                     onlyvalid = True
-                    #varvalid = 'mu_valid'
+                    # varvalid = 'mu_valid'
                 if otype == 'valid_common':
                     onlyvalid = True
-                    #varvalid = 'mu_valid_common'
+                    # varvalid = 'mu_valid_common'
                 if otype == 'total_mu':
                     onlyvalid = False
-                    #varvalid = 'mu_valid'
+                    # varvalid = 'mu_valid'
 
                 if multiple_plot:
                     file_out_here = f'{file_base}_{index_fig}{ext}'
@@ -452,8 +614,8 @@ class MDBPlot:
                 else:
                     file_out_here = file_out
                 print(file_out_here)
-                dfdata = self.mrfile.analyse_mu_temporal(onlyvalid,file_out_here)
-                #self.plot_heat_map_impl(dfdata, file_out_here, options_out)
+                dfdata = self.mrfile.analyse_mu_temporal(onlyvalid, file_out_here)
+                # self.plot_heat_map_impl(dfdata, file_out_here, options_out)
                 index_fig = index_fig + 1
 
         if options_out['multiple_plot'] is not None:
@@ -480,6 +642,140 @@ class MDBPlot:
                 # file_out = self.get_file_out_flag_param(options_out['file_out'], None, None)
                 pm.save_fig(file_out)
 
+    def plot_line_temporal_impl(self, dfdata, file_out, options_out):
+        from matplotlib import cm
+        from matplotlib import pyplot as plt
+        import seaborn as sns
+        ext = file_out[-4:]
+        plt.close()
+        h = plt.Figure()
+        cmap = cm.get_cmap('RdYlBu_r')
+        dfall_month_withnan = dfdata.copy()
+        dfall_month_withnan[dfdata == 0] = np.nan
+        vmin = options_out['vmin']
+        vmax = options_out['vmax']
+
+        print(dfall_month_withnan)
+        print('---')
+        from PlotSpectra import PlotSpectra
+        plot = PlotSpectra()
+        plot.close_plot()
+        plot.start_plot()
+        idx = 0
+        print(options_out['line_color'])
+        handles = []
+        str_legend = []
+        for index, row in dfall_month_withnan.iterrows():
+            print(index)
+            y_data = np.array(row[1:27])
+            x_data = np.linspace(0, 25, 26)
+            # print(y_data.shape,x_data.shape)
+            h = self.plot_spectra_line_impl(plot, x_data, y_data, idx, options_out)
+            handles.append(h)
+            str_legend.append(str(index))
+            idx = idx + 1
+
+        ylabel = '# Total match-ups'
+        if 'ylabel' in options_out:
+            ylabel = options_out['ylabel']
+        plot.set_yaxis_title(ylabel)
+        plot.set_yticks(None, None, None, 12)
+        # xticks_size = 12
+        # if len(xdata_plot) == 16 or len(xdata_plot) == 15:
+        #     xticks_size = 10
+        x_data_val = list(dfall_month_withnan.columns)[1:27]
+        plot.set_xticks(x_data, x_data_val, 90, 12)
+        # if len(xdata_plot) == 16 or len(xdata_plot) == 15:
+        #     xticks, xlabels = plot.get_xticks()
+        #     xlabels[8].set_visible(False)
+        plot.set_grid()
+
+        plot.set_tigth_layout()
+        print('File out: ', file_out)
+        if file_out is not None:
+            plot.save_fig(file_out)
+
+        return handles, str_legend
+
+    def plot_bar_temporal_impl(self, dfdata, file_out, options_out):
+        from matplotlib import cm
+        from matplotlib import pyplot as plt
+        import seaborn as sns
+        ext = file_out[-4:]
+        plt.close()
+        h = plt.Figure()
+        cmap = cm.get_cmap('RdYlBu_r')
+        dfall_month_withnan = dfdata.copy()
+        dfall_month_withnan[dfdata == 0] = np.nan
+        vmin = options_out['vmin']
+        vmax = options_out['vmax']
+
+        print(dfall_month_withnan)
+        print('---')
+        from PlotSpectra import PlotSpectra
+        plot = PlotSpectra()
+        plot.close_plot()
+        plot.start_plot()
+        idx = 0
+        print(options_out['line_color'])
+        handles = []
+        str_legend = []
+        width = 1 / 6
+        offset = 0
+        for index, row in dfall_month_withnan.iterrows():
+            # offset = width * idx
+            y_data = np.array(row[1:27])
+            x_data = np.linspace(0, 25, 26)
+            x_data_ticks = x_data - (width / 2)
+            x_data_label = x_data_ticks + 0.5
+            # print(y_data.shape,x_data.shape)
+            # h = self.plot_spectra_line_impl(plot,x_data,y_data,idx,options_out)
+            h = self.plot_bar_impl(plot, x_data, y_data, offset, width, idx, options_out)
+            handles.append(h)
+            str_legend.append(str(index))
+            idx = idx + 1
+            offset = offset + width
+
+        ylabel = '# Total match-ups'
+        if 'ylabel' in options_out:
+            ylabel = options_out['ylabel']
+        plot.set_yaxis_title(ylabel)
+        plot.set_yticks(None, None, None, 12)
+        # xticks_size = 12
+        # if len(xdata_plot) == 16 or len(xdata_plot) == 15:
+        #     xticks_size = 10
+        x_data_val = list(dfall_month_withnan.columns)[1:27]
+        plot.set_xticks(x_data_ticks, x_data_val, 90, 12)
+        # xticks, xlabels = plot.get_xticks()
+        # x_data_pos = []
+        # for xlabel in xlabels:
+        #     posn = list(xlabel.get_position())
+        #     x_data_pos.append(posn)
+        #     xlabel.set_visible(False)
+
+        # for idx in range(len(x_data_val)):
+        #     label = x_data_val[idx]
+        #     xpos = x_data_pos[idx][0]+0.15
+        #     ypos = x_data_pos[idx][1]-6.5
+        #     htext = plot.plot_text(xpos,ypos,label)
+        #     htext.set_rotation(90)
+
+        # plot.set_xticks_minor(x_data_label, x_data_val, 90, 12)
+
+        plot.set_grid()
+
+        # if len(xdata_plot) == 16 or len(xdata_plot) == 15:
+        #     xticks, xlabels = plot.get_xticks()
+        #     xlabels[8].set_visible(False)
+
+        # plot.set_tigth_layout()
+
+        print('File out: ', file_out)
+        if file_out is not None:
+            plot.save_fig(file_out)
+
+        return handles, str_legend
+
     def plot_heat_map_impl(self, dfdata, file_out, options_out):
         from matplotlib import cm
         from matplotlib import pyplot as plt
@@ -492,7 +788,7 @@ class MDBPlot:
         dfall_month_withnan[dfdata == 0] = np.nan
         vmin = options_out['vmin']
         vmax = options_out['vmax']
-        sns.heatmap(dfall_month_withnan, vmin = vmin, vmax = vmax, annot=False, cmap=cmap, linewidths=1, linecolor='black')
+        sns.heatmap(dfall_month_withnan, vmin=vmin, vmax=vmax, annot=False, cmap=cmap, linewidths=1, linecolor='black')
         plt.xlabel('Year-Month')
         plt.ylabel('Site')
         plt.gcf().tight_layout()
@@ -511,7 +807,7 @@ class MDBPlot:
         ncol = int(rc[1].strip())
         ntot = nrow * ncol
 
-        print(ntot,len(files_multiple),file_out)
+        print(ntot, len(files_multiple), file_out)
         print(files_multiple)
 
         if ntot == len(files_multiple):
@@ -527,10 +823,14 @@ class MDBPlot:
                     pm.plot_image(files_multiple[index], irow, icol)
                     index = index + 1
 
+            anot = options_out['anot']
+            if len(anot) > 0:
+                for an in anot:
+                    pm.set_text(anot[an]['x'], anot[an]['y'], anot[an]['sval'])
+
             # pm.set_text(-1710, 1400, '(a)')
             # pm.set_text(-210,1400,'(b)')
             # pm.set_text(1310, 1400, '(c)')
-
 
             # if ntot == 4:
             #     pm.set_text(-150, -50, '(a)')
@@ -560,7 +860,6 @@ class MDBPlot:
                 name_col.append(varname)
                 norig = norig + 1
 
-
         wl_data = np.array(self.mrfile.nc.variables['mu_wavelength'])
         wavelenghts = np.unique(wl_data)
         name_col.append('mu_complete')
@@ -586,53 +885,50 @@ class MDBPlot:
                     flag_values = self.mrfile.nc.variables[name_here].flag_values
                     flag_meanings_list = self.mrfile.nc.variables[name_here].flag_meanings.split(' ')
                     flag_meanings = [x.strip() for x in flag_meanings_list]
-                    if len(flag_meanings)==1:
+                    if len(flag_meanings) == 1:
                         array_here_str[:] = flag_meanings[0]
                     else:
                         for idx in range(len(flag_meanings)):
                             fval = flag_values[idx]
-                            array_here_str[array_here==fval] = flag_meanings[idx]
+                            array_here_str[array_here == fval] = flag_meanings[idx]
                     df_validation[name_here] = array_here_str
                 else:
                     df_validation[name_here] = array_here
             else:
                 df_validation[name_here] = array_here
 
-
-
         sat_data = np.array(self.mrfile.nc.variables['mu_sat_rrs'])
         ins_data = np.array(self.mrfile.nc.variables['mu_ins_rrs'])
         sat_time_data = np.array(self.mrfile.nc.variables['mu_sat_time'])
         fill_default = 3.131919679877832e+37
 
-
-        #ins_time_data = np.array(self.mrfile.nc.variables['mu_ins_time'])
+        # ins_time_data = np.array(self.mrfile.nc.variables['mu_ins_time'])
         mu_id = np.array(self.mrfile.nc.variables['mu_satellite_id'])
         for idx in range(len(sat_data)):
             wl_here = wl_data[idx]
             sat_here = sat_data[idx]
             ins_here = ins_data[idx]
             if use_rhow:
-                sat_here = sat_here*np.pi
-                ins_here = ins_here*np.pi
+                sat_here = sat_here * np.pi
+                ins_here = ins_here * np.pi
             index_here = mu_id[idx]
             ws = f'{wl_here:0.2f}'
             sat_col = f'sat_{ws}'
             ins_col = f'insitu_{ws}'
-            if sat_here==fill_default:
+            if sat_here == fill_default:
                 sat_here = -999.0
-                df_validation.loc[index_here,'mu_complete']=0
-            if ins_here==fill_default:
+                df_validation.loc[index_here, 'mu_complete'] = 0
+            if ins_here == fill_default:
                 ins_here = -999.0
                 df_validation.loc[index_here, 'mu_complete'] = 0
             df_validation.loc[index_here, sat_col] = sat_here
             df_validation.loc[index_here, ins_col] = ins_here
             if options['sat_time_format'] is not None:
-                date_here = dt.utcfromtimestamp(sat_time_data[index_here]).replace(hour=11,minute=0)
+                date_here = dt.utcfromtimestamp(sat_time_data[index_here]).replace(hour=11, minute=0)
                 date_here = date_here.strftime(options['sat_time_format'])
-                df_validation.loc[index_here,'mu_sat_time'] = date_here
+                df_validation.loc[index_here, 'mu_sat_time'] = date_here
                 try:
-                    ins_date_here = int(df_validation.loc[index_here,'mu_ins_time'])
+                    ins_date_here = int(df_validation.loc[index_here, 'mu_ins_time'])
                     ins_date_here_str = dt.fromtimestamp(ins_date_here).strftime(options['sat_time_format'])
                     df_validation.loc[index_here, 'mu_ins_time'] = ins_date_here_str
                 except:
@@ -644,9 +940,7 @@ class MDBPlot:
         # print(file_out)
 
         if only_valid:
-
-            df_validation = df_validation[df_validation['mu_valid']==1][:]
-
+            df_validation = df_validation[df_validation['mu_valid'] == 1][:]
 
         df_validation.to_csv(file_out, sep=';')
 
@@ -759,7 +1053,7 @@ class MDBPlot:
                 table.iloc[index_row].at[col_name] = value
         return table
 
-    def set_data_scatterplot(self, groupBy, selectBy, valSelect, wl_value,options_out):
+    def set_data_scatterplot(self, groupBy, selectBy, valSelect, wl_value, options_out):
         rrs_ins = np.array(self.mrfile.nc.variables['mu_ins_rrs'])
         rrs_sat = np.array(self.mrfile.nc.variables['mu_sat_rrs'])
         id_all = np.array(self.mrfile.nc.variables['mu_satellite_id'])
@@ -856,8 +1150,7 @@ class MDBPlot:
         use_rhow = options['use_rhow']
         if options['include_stats'] or options['regression_line']:
             use_log_scale = options['log_scale']
-            self.compute_statistics(use_log_scale,use_rhow)
-
+            self.compute_statistics(use_log_scale, use_rhow)
 
         ngroup = 1
         str_legend = []
@@ -896,8 +1189,6 @@ class MDBPlot:
             self.xdata = self.xdata * np.pi
             self.ydata = self.ydata * np.pi
 
-
-
         colors = options['color']
         color = colors[0]
         markersizes = options['markersize']
@@ -910,8 +1201,6 @@ class MDBPlot:
         linewidth = linewidths[0]
 
         ngroupReal = 0
-
-
 
         if ngroup > 1:
             nmubygroup = [0] * ngroup
@@ -985,7 +1274,6 @@ class MDBPlot:
             else:
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
 
-
         if options['log_scale']:
             plot.set_log_scale()
             if options['min_xy'] is None:
@@ -1007,7 +1295,6 @@ class MDBPlot:
                     max_x_data = np.max(self.xdata)
                     max_y_data = np.max(self.ydata)
                     max_xy = np.ceil(np.max([max_x_data, max_y_data]))
-
 
             if options['min_xy'] is not None:
                 min_xy = options['min_xy']
@@ -1048,7 +1335,6 @@ class MDBPlot:
         else:
             plot.set_ticks(ticks, options['fontsizeaxis'])
 
-
         if options['individual_axis'] or index == -1:
             plot.set_xaxis_title(options['xlabel'])
             plot.set_yaxis_title(options['ylabel'])
@@ -1061,12 +1347,11 @@ class MDBPlot:
                 plot.set_yticks_labels_off(ticks)
             # if plot.index_row < (plot.nrow - 1):
             #     plot.set_xticks_labels_off(ticks)
-            if plot.index_row==2 and plot.index_col==3:
+            if plot.index_row == 2 and plot.index_col == 3:
                 plot.set_xaxis_title(options['xlabel'])
             else:
                 if plot.index_row < (plot.nrow - 1):
                     plot.set_xticks_labels_off(ticks)
-
 
         plot.set_equal_apect()
 
@@ -1116,11 +1401,11 @@ class MDBPlot:
 
                         if stat == 'r2':
                             val = self.valid_stats['DETER(r2)']
-                            str0 = f'{str0}r\u00b2={val:.2f}'
+                            str0 = f'{str0}R\u00b2={val:.2f}'
                         if stat == 'RMSD' or stat == 'BIAS':
                             val = self.valid_stats[stat]
-                            # if stat == 'BIAS':
-                            #     stat = stat.lower()
+                            if stat == 'BIAS':
+                                stat = stat.lower()
                             str0 = f'{str0}{stat}={val:.1e}'
                         if stat == 'RPD' or stat == 'APD':
                             val = self.valid_stats[stat]
@@ -1131,7 +1416,7 @@ class MDBPlot:
                             # str0 = f'{str0}{wl:.2f} nm'
                     xpos = options['stats_xpos']
                     ypos = options['stats_ypos']
-                    #print('--------->',xpos,ypos)
+                    # print('--------->',xpos,ypos)
                     plot.plot_text(xpos, ypos, str0)
                 else:
                     if index == -1:
@@ -1231,7 +1516,7 @@ class MDBPlot:
                                            options_out[flag_name]['flag_meanings'])
             flags = flag_list
 
-        print(flag_list)
+        #print(flag_list)
 
         wl_list = options_out['wl_values']
         params = list(options_out['params'])
@@ -1249,10 +1534,10 @@ class MDBPlot:
 
         if len(flag_list) == 0 or 'GLOBAL' in flag_list:
             for wl in wl_list:
-                self.set_data_scatterplot(None, None, None, wl,options_out)
-                self.compute_statistics(False,use_rhow)
+                self.set_data_scatterplot(None, None, None, wl, options_out)
+                self.compute_statistics(False, use_rhow)
                 table = self.assign_stats_table_wl(table, indices, params, 'GLOBAL', wl)
-        if len(flag_list)>0:
+        if len(flag_list) > 0:
             for idx in range(len(flag_list)):
                 flag = flag_list[idx]
                 flaga = flag
@@ -1269,21 +1554,21 @@ class MDBPlot:
 
                 legend.append(flaga)
                 flag_value = options_out['selectValues'][idx]
-                if flag_value>=0:
+                if flag_value >= 0:
                     for wl in wl_list:
-                        self.set_data_scatterplot(None, flag_name, flag_value, wl,options_out)
-                        self.compute_statistics(False,use_rhow)
+                        self.set_data_scatterplot(None, flag_name, flag_value, wl, options_out)
+                        self.compute_statistics(False, use_rhow)
                         table = self.assign_stats_table_wl(table, indices, params, flag, wl)
 
         from PlotSpectra import PlotSpectra
-        #print(table)
+        # print(table)
         if options_out['multiple_plot'] is not None:
             from PlotMultiple import PlotMultiple
             rc = options_out['multiple_plot'].split(',')
             nrow = int(rc[0].strip())
             ncol = int(rc[1].strip())
             ntot = nrow * ncol
-            files_multiple = ['']*ntot
+            files_multiple = [''] * ntot
             indices_files = list(range(ntot))
             if options_out['indices_files'] is not None:
                 indices_files = options_out['indices_files']
@@ -1367,7 +1652,7 @@ class MDBPlot:
                             self.plot_spectra_line_impl(plot, xhere, yhere, idx, options_out_oufr)
 
                     if param == params[0]:  # only for the first image
-                        handles.append(h)
+                        handles.append(h[0])
                 file_out = self.get_file_out_flag_param(options_out['file_out'], flag_name, param)
 
             yminf, ymaxf = plot.get_y_range()
@@ -1388,8 +1673,8 @@ class MDBPlot:
             if param == 'RMSD' or param == 'BIAS':
                 # paramv = f'{param}(sr$^-$$^1$)'
                 scale_factor_str = ''
-                n = options_out['scale_factor']/10
-                if n>1:
+                n = int(np.log10(options_out['scale_factor']))
+                if n > 1:
                     scale_factor_str = f'10$^-$$^{n}$'
                 if options_out['use_rhow']:
                     if n >= 1:
@@ -1397,12 +1682,12 @@ class MDBPlot:
                     else:
                         paramv = paramv
                 else:
-                    if n>=1:
+                    if n >= 1:
                         paramv = f'{paramv} ({scale_factor_str} sr$^-$$^1$)'
                     else:
                         paramv = f'{paramv} (sr$^-$$^1$)'
 
-                #paramv = f'{param} (10$^-$$^3$ sr$^-$$^1$)'
+                # paramv = f'{param} (10$^-$$^3$ sr$^-$$^1$)'
             plot.set_yaxis_title(paramv)
             plot.set_yticks(None, None, None, 12)
             xticks_size = 12
@@ -1429,7 +1714,7 @@ class MDBPlot:
                 index_file = indices_files[iparam]
                 # # #print(iparam,index_file,len(files_multiple))
                 files_multiple[index_file] = file_out
-                #files_multiple.append(file_out)
+                # files_multiple.append(file_out)
             plot.close_plot()
 
         if options_out['multiple_plot'] is not None:
@@ -1458,11 +1743,27 @@ class MDBPlot:
                     str_legend = options_out['legend_values']
                 else:
                     str_legend = legend
+
+
                 if len(str_legend) > 0 and len(str_legend) == len(handles):
-                    pm.set_global_legend(handles, str_legend)
+                    if len(str_legend)==8:
+                        pm.set_global_legend_3(handles, str_legend)
+                        pm.set_text(-1100, 1505, 'ACOLITE:')
+                        pm.set_text(-1100, 1605, 'C2RCC:')
+                    else:
+                        pm.set_global_legend_2(handles,str_legend)
                 file_out = self.get_file_out_flag_param(options_out['file_out'], None, None)
 
                 pm.save_fig(file_out)
+
+    def plot_bar_impl(self, plot, xdata_plot, ydata_plot, offset, width, index, options_out):
+        plot.xdata = xdata_plot
+        line_color = options_out['line_color']
+        lc = line_color[0]
+        if 0 <= index < len(line_color):
+            lc = line_color[index]
+        h = plot.plot_single_bar_series(ydata_plot, lc, width, offset)
+        return h
 
     def plot_spectra_line_impl(self, plot, xdata_plot, ydata_plot, index, options_out):
         plot.xdata = xdata_plot
@@ -1736,6 +2037,8 @@ class MDBPlot:
                 if multiple_ymax is not None:
                     if len(flag_values) == len(multiple_ymax):
                         options_out['ymax'] = multiple_ymax[idx]
+                if options_out['multiple_plot'] is not None:
+                    options_out['legend'] = False
                 handles = self.plot_comparison_stats_sat_insitu(options_out, flag_name, flag_value, file_out)
                 files_multiple.append(file_out)
                 # print(file_out)
@@ -1815,7 +2118,7 @@ class MDBPlot:
                     for icol in range(ncol):
                         pm.plot_image(files_multiple[index], irow, icol)
                         index = index + 1
-                #str_legend = ['in situ Rrs', 'satellite Rrs']
+                # str_legend = ['in situ Rrs', 'satellite Rrs']
                 if len(str_legend) > 0:
                     pm.set_global_legend(h_legend, str_legend)
 
@@ -1889,7 +2192,10 @@ class MDBPlot:
         pspectra.stats_style['fill']['framealpha'] = 0.5
         hlinesat = pspectra.plot_stats(sat_stats, imin, imax)
 
-        h_legend = [hlineinsitu, hlinesat]
+
+
+
+        h_legend = [hlineinsitu[0], hlinesat[0]]
 
         xticks_size = 12
 
@@ -1913,11 +2219,11 @@ class MDBPlot:
             if title_here == 'STANDARD':
                 title_here = 'WFR'
             if title_here == 'POLYMER':
-                title_here = 'CMEMS-OLCI'
+                title_here = 'C. CMEMS-OLCI'
             if title_here == 'CCIALL':
-                title_here = 'OC-CCI v.6 (complete time series)'
+                title_here = 'A. OC-CCI v.6 (complete time series)'
             if title_here == 'CCI':
-                title_here = 'OC-CCI v.6 (OLCI period)'
+                title_here = 'B. OC-CCI v.6 (OLCI period)'
             pspectra.set_title(title_here)
         pspectra.set_grid()
         pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
@@ -1947,7 +2253,6 @@ class MDBPlot:
         if flag_name is not None and flag_name in options_out.keys() and 'flag_array' in options_out[flag_name].keys():
             flag_array = options_out[flag_name]['flag_array']
 
-
         if options_out['groupBy'] is not None:
             group_array = np.array(self.mrfile.variables[options_out['groupBy']])
             group_values = options_out['groupValues']
@@ -1959,17 +2264,17 @@ class MDBPlot:
         all_sat_stats = []
         insitu_stats = None
         for gvalue in group_values:
-            sat_stats, insitu_stats_here = self.mrfile.get_all_spectra_insitu_sat_with_wlvalues_group(options_out['scale_factor'],
-                                                                                       wlvalues, flag_name, flag_value,
-                                                                                       flag_array,gvalue,group_array)
+            sat_stats, insitu_stats_here = self.mrfile.get_all_spectra_insitu_sat_with_wlvalues_group(
+                options_out['scale_factor'],
+                wlvalues, flag_name, flag_value,
+                flag_array, gvalue, group_array)
             if insitu_stats is None:
                 insitu_stats = insitu_stats_here
             all_sat_stats.append(sat_stats)
             if options_out['groupBy'] is not None:
                 all_meanings = options_out[options_out['groupBy']]['flag_meanings']
-                all_values =  options_out[options_out['groupBy']]['flag_values'].tolist()
+                all_values = options_out[options_out['groupBy']]['flag_values'].tolist()
                 str_legend.append(all_meanings[all_values.index(gvalue)])
-
 
         pspectra = PlotSpectra()
         if options_out['stat_plot_method'] is not None:
@@ -2020,7 +2325,7 @@ class MDBPlot:
             pspectra.stats_style['fill']['color'] = None
             pspectra.stats_style['fill']['framealpha'] = 0.5
             hline = pspectra.plot_stats(sat_stats, imin, imax)
-            h_legend.append(hline)
+            h_legend.append(hline[0])
 
         str_legend.append('in situ Rrs')
         pspectra.stats_style['central']['color'] = 'black'
@@ -2088,7 +2393,7 @@ class MDBPlot:
         pspectra.set_grid()
         pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
         pspectra.legend_options['framealpha'] = 1
-        #pspectra.set_legend_h(h_legend, str_legend)
+        # pspectra.set_legend_h(h_legend, str_legend)
         pspectra.set_tigth_layout()
         if file_out is None:
             file_out = options_out['file_out']
@@ -2096,7 +2401,7 @@ class MDBPlot:
             pspectra.save_fig(file_out)
         pspectra.close_plot()
 
-        return str_legend,h_legend
+        return str_legend, h_legend
 
     def plot_insitu_spectra_comparison_stats(self, options_out):
         # print(options_out)
@@ -2112,13 +2417,14 @@ class MDBPlot:
         h_legend = []
 
         wavelength = self.mrfile.get_insitu_wl()
-        imin, imax = pspectra.get_imin_imax_from_wavelength(wavelength, options_out['wl_min'],options_out['wl_max'])
+        imin, imax = pspectra.get_imin_imax_from_wavelength(wavelength, options_out['wl_min'], options_out['wl_max'])
 
         ymin = None
         ymax = None
         for flag_value in flag_values:
             wavelength = self.mrfile.get_insitu_wl()
-            spectra_good_flag, stats_flag = self.mrfile.get_flag_insitu_valid_spectra(options_out['scale_factor'],flag_name, flag_value)
+            spectra_good_flag, stats_flag = self.mrfile.get_flag_insitu_valid_spectra(options_out['scale_factor'],
+                                                                                      flag_name, flag_value)
             ymin_flag, ymax_flag = pspectra.get_ymin_ymax_from_stats(stats_flag, imin, imax)
             if ymin is None and ymax is None:
                 ymin = ymin_flag
@@ -2137,7 +2443,6 @@ class MDBPlot:
             # print(pspectra.stats_style['fill']['color'])
             hline = pspectra.plot_stats(stats_flag, imin, imax)
             h_legend.append(hline)
-
 
         if options_out['ymin'] is not None:
             ymin = options_out['ymin']
@@ -2168,7 +2473,6 @@ class MDBPlot:
         valid_ac = None
         if limit_to_valid_ac is not None:
             valid_ac = self.mrfile.obtain_mu_valid_with_ac(options_out['limit_to_valid_ac'])
-
 
         flag_info = self.mrfile.analyze_sat_flags_advanced(flag_options, valid_ac)
 
@@ -2206,7 +2510,7 @@ class MDBPlot:
                 ndata = flag_info[flag][ylabel]
 
                 andata = flag_info[flag]['pmacrow']
-                #andata = flag_info[flag]['ntotalw'] /(17*17*flag_info[flag]['nmu'])
+                # andata = flag_info[flag]['ntotalw'] /(17*17*flag_info[flag]['nmu'])
                 if ndata > 0:
                     data_here = data_figure[name]['data']
                     data_here[iserie - 1] = ndata
@@ -2255,6 +2559,7 @@ class MDBPlot:
             xoutput = (xini + xfin) / 2
             xticks_pos.append(xoutput)
 
+        plt.ylabel('Flag', fontsize=12)
         plt.xlabel(xlabel, fontsize=12)
         plt.yticks(xticks_pos, xticks)
         ax.set_yticks(xticks_minor_pos, minor=True)
@@ -2267,8 +2572,10 @@ class MDBPlot:
         xlim = ax.get_xlim()
         xrange = xlim[1] - xlim[0]
         xmin_new = (-1) * (xrange / 8)
-        if xmin_new>-18:
-            xmin_new = -18
+        if xmin_new > -50:
+            xmin_new = -50 #PARA SENTINEL-3
+        xmin_new = -20 #PARA SENTINEL-2
+
         ax.set_xlim(left=xmin_new)
         xval = 0
         for name in data_figure:
@@ -2361,14 +2668,12 @@ class MDBPlot:
             if options_out['selectBy'] is not None:
                 selectBy = options_out['selectBy']
                 selectValue = options_out['selectValues']
-            self.set_data_scatterplot(options_out['groupBy'], selectBy, selectValue, wl,options_out)
+            self.set_data_scatterplot(options_out['groupBy'], selectBy, selectValue, wl, options_out)
             if len(self.xdata) > 0 and len(self.ydata) > 0:
                 options_out['title'] = self.get_title(title_base, wl, None, None)
                 options_out['file_out'] = None
 
                 self.plot_scatter_plot(options_out, plot_here, index, wl)
-
-
 
                 plot_here.index_col = plot_here.index_col + 1
                 if plot_here.index_col == plot_here.ncol:
@@ -2398,29 +2703,29 @@ class MDBPlot:
             flags = flags + flag_list
         table, indices = self.start_table_wl(flags, params, options_out['wl_values'])
         # global stats, it's always done
-        self.set_data_scatterplot(None, None, None, None,options_out)
+        self.set_data_scatterplot(None, None, None, None, options_out)
         use_rhow = False
         if 'use_rhow' in options_out:
             use_rhow = options_out['use_rhow']
 
-        self.compute_statistics(False,use_rhow)
+        self.compute_statistics(False, use_rhow)
         table = self.assign_stats_table_wl(table, indices, params, 'GLOBAL', None)
         for wl in options_out['wl_values']:
-            self.set_data_scatterplot(None, None, None, wl,options_out)
-            self.compute_statistics(False,use_rhow)
+            self.set_data_scatterplot(None, None, None, wl, options_out)
+            self.compute_statistics(False, use_rhow)
             table = self.assign_stats_table_wl(table, indices, params, 'GLOBAL', wl)
         # results by flag
         if flag_name is not None:
             for idx in range(len(flag_list)):
                 flag = flag_list[idx]
                 flag_value = options_out['selectValues'][idx]
-                self.set_data_scatterplot(None, flag_name, flag_value, None,options_out)
-                self.compute_statistics(False,use_rhow)
+                self.set_data_scatterplot(None, flag_name, flag_value, None, options_out)
+                self.compute_statistics(False, use_rhow)
                 table = self.assign_stats_table_wl(table, indices, params, flag, None)
                 ng = len(flag_list) * len(options_out['wl_values'])
                 for wl in options_out['wl_values']:
-                    self.set_data_scatterplot(None, flag_name, flag_value, wl,options_out)
-                    self.compute_statistics(False,use_rhow)
+                    self.set_data_scatterplot(None, flag_name, flag_value, wl, options_out)
+                    self.compute_statistics(False, use_rhow)
                     table = self.assign_stats_table_wl(table, indices, params, flag, wl)
 
         if options_out['formatted']:
@@ -2454,22 +2759,22 @@ class MDBPlot:
             flags = flags + flag_list
         table, indices = self.start_table(flags, params)
         # global stats, it's always done
-        self.set_data_scatterplot(None, None, None, wl,options_out)
+        self.set_data_scatterplot(None, None, None, wl, options_out)
         use_log_scale = False
         use_rhow = False
         if 'log_scale' in options_out:
             use_log_scale = options_out['log_scale']
         if 'use_rhow' in options_out:
             use_rhow = options_out['use_rhow']
-        self.compute_statistics(use_log_scale,use_rhow)
+        self.compute_statistics(use_log_scale, use_rhow)
         table = self.assign_table(table, indices, params, 'GLOBAL')
         # stats by flag
         if len(flag_list) > 0:
             for idx in range(len(flag_list)):
                 flag = flag_list[idx]
                 flag_value = options_out['selectValues'][idx]
-                self.set_data_scatterplot(None, flag_name, flag_value, wl,options_out)
-                self.compute_statistics(use_log_scale,use_rhow)
+                self.set_data_scatterplot(None, flag_name, flag_value, wl, options_out)
+                self.compute_statistics(use_log_scale, use_rhow)
                 table = self.assign_table(table, indices, params, flag)
 
         if not options_out['file_out'] is None:
@@ -2543,7 +2848,7 @@ class MDBPlot:
                     else:
                         flag_values_config = []
                         for flag_config in flag_list_config:
-                            if flag_config.strip()=='GLOBAL':
+                            if flag_config.strip() == 'GLOBAL':
                                 flag_values_config.append(-1)
                                 continue
                             try:
@@ -2801,7 +3106,7 @@ class MDBPlot:
                         multiple_files.append('')
         options_out['multiple_files'] = multiple_files
 
-        options_out['indices_files'] = self.get_value_param(options,section,'indices_files',None,'intlist')
+        options_out['indices_files'] = self.get_value_param(options, section, 'indices_files', None, 'intlist')
         return options_out
 
     def get_options_spectraplot(self, options, section, options_out):
@@ -3001,6 +3306,18 @@ class MDBPlot:
         options_out['widthspace'] = self.get_value_param(options, section, 'widthspace', 0.1, 'float')
         options_out['heightspace'] = self.get_value_param(options, section, 'heightspace', 0.1, 'float')
 
+        # options to make it as a line
+        line_color = ['black']
+        line_type = ['-']
+        line_width = [1]
+        marker = ['.']
+        marker_size = [10]
+        options_out['line_color'] = self.get_value_param(options, section, 'line_color', line_color, 'strlist')
+        options_out['line_type'] = self.get_value_param(options, section, 'line_type', line_type, 'strlist')
+        options_out['line_width'] = self.get_value_param(options, section, 'line_width', line_width, 'floatlist')
+        options_out['marker'] = self.get_value_param(options, section, 'marker', marker, 'strlist')
+        options_out['marker_size'] = self.get_value_param(options, section, 'marker_size', marker_size, 'floatlist')
+
         return options_out
 
     def get_options_validity_plot(self, options, section, options_out):
@@ -3014,6 +3331,7 @@ class MDBPlot:
             flag_value = None
         options_out['flag'] = flag_value
         options_out['output_type'] = self.get_value_param(options, section, 'output_type', None, 'strlist')
+        options_out['ylabel'] = self.get_value_param(options, section, 'ylabel', 'Site', 'str')
         options_out['flag_list'] = self.get_value_param(options, section, 'flag_list', None, 'strlist')
         options_out['series_color'] = self.get_value_param(options, section, 'series_color', None, 'strlist')
         options_out['series_flag'] = self.get_value_param(options, section, 'series_flag', None, 'strlist')
@@ -3130,7 +3448,7 @@ class MDBPlot:
     def get_flag_list(self, values, allValues, allFlags):
         flag_list = []
         for val in values:
-            if val==-1:
+            if val == -1:
                 flag_list.append('GLOBAL')
             indext = np.where(allValues == val)
             index = indext[0]
@@ -3225,7 +3543,7 @@ class MDBPlot:
 
                 return flag_values, flag_meanings, flag_array
 
-    def compute_statistics(self, use_log_scale,use_rhow):
+    def compute_statistics(self, use_log_scale, use_rhow):
 
         self.valid_stats['N'] = len(self.xdata)
         if self.valid_stats['N'] == 0:
@@ -3242,7 +3560,7 @@ class MDBPlot:
         minxy = None
         for x, y in zip(self.xdata, self.ydata):
             if use_log_scale:
-                if x>0 and y>0:
+                if x > 0 and y > 0:
                     xdatal.append(math.log10(x))
                     ydatal.append(math.log10(y))
             else:
@@ -3286,8 +3604,6 @@ class MDBPlot:
 
         print('---------------------------------')
 
-
-
         self.valid_stats['slope'] = slope
         self.valid_stats['intercept'] = intercept
         self.valid_stats['PCC(r)'] = r_value
@@ -3300,7 +3616,6 @@ class MDBPlot:
         if use_rhow:
             sat_obs = sat_obs * np.pi
             ref_obs = ref_obs * np.pi
-
 
         # sat_avg = np.mean(sat_obs)
         # ref_avg = np.mean(ref_obs)

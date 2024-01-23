@@ -165,7 +165,13 @@ class PlotScatter():
         #self.fig.legend(str_legend, loc='lower center', ncol=len(str_legend),markerscale=2.0,bbox_to_anchor=(0.5,0.04))
         #self.fig.legend(str_legend, loc='lower center', ncol=len(str_legend), markerscale=2.0)
         #self.fig.legend(str_legend, loc='upper center', ncol=len(str_legend))
-        self.fig.legend(str_legend, fontsize=12, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.5, 0))
+        if len(str_legend)==8:
+
+            self.fig.legend(str_legend, fontsize=11, loc='lower center', ncol=4, markerscale=1.5,
+                            bbox_to_anchor=(0.5, -0.015))
+        else:
+
+            self.fig.legend(str_legend, fontsize=11, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.5, -0.015))
 
     def set_title(self, title):
         if self.axhere is None:

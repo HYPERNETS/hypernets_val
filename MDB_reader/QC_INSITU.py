@@ -397,7 +397,7 @@ class QC_INSITU:
                 valid_bands_array = np.array(valid_bands, dtype=bool)
                 rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
                 valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
-                print('CUMPLE TIME CONDITION',valid_bands,rrs_values)
+                #print('CUMPLE TIME CONDITION',valid_bands,rrs_values)
                 # if not valid_values:
                 #     print(rrs_values)
                 #     print('--------')

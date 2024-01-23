@@ -488,7 +488,7 @@ class MDBFile:
 
             ins_time_index = np.argmin(np.abs(time_difference))
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            s_index = spatial_index[ins_time_index]
+            #s_index = spatial_index[ins_time_index]
             #print('Me llega aqui con index_mu igual a: ', index_mu, 'ins time: ',ins_time, 's_index must be zero: ',s_index)
             if np.ma.is_masked(ins_time):  ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
                 mu_insitu_time = sat_time_here
