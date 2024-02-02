@@ -195,7 +195,8 @@ class PlotSpectra():
         plt.gca().set_aspect('equal', adjustable='box')
 
     def set_grid(self):
-        plt.grid(b=True, which='major', color='gray', linestyle='--')
+        #plt.grid(b=True, which='major', color='gray', linestyle='--')
+        plt.grid(which='major', color='gray', linestyle='--',axis='both')
 
     def set_tigth_layout(self):
         plt.gcf().tight_layout()
