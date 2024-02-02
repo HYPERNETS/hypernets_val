@@ -1249,8 +1249,8 @@ class MDBPlot:
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
         else:  # density scatter plot
 
-            xhere = np.asarray(self.xdata, dtype=np.float)
-            yhere = np.asarray(self.ydata, dtype=np.float)
+            xhere = np.asarray(self.xdata, dtype=np.float64)
+            yhere = np.asarray(self.ydata, dtype=np.float64)
 
             # Density
             if options['apply_density']:
