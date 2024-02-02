@@ -29,6 +29,8 @@ parser.add_argument('-i', "--input_path", help="Input MDB path")
 parser.add_argument('-o', "--output", help="Path to output")
 parser.add_argument('-arep', "--allow_repeated", help="Set to allow match-ups on the same date. Only for transects.",
                     action="store_true")
+parser.add_argument('-rmdb', "--reduce_mdbr", help="MDBr should be reduced to only one insitu_id",
+                    action="store_true")
 
 # parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 # parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
@@ -54,7 +56,7 @@ class MDB_READER():
             if start_mdb:
                 self.mfile = MDBFile(path_mdb)
 
-    def create_mdb_results_file(self, fout):
+    def create_mdb_results_file(self, fout, reduce_mdbr):
         if not self.mfile.VALID:
             return
 
@@ -66,7 +68,12 @@ class MDB_READER():
         df_valid.to_csv(foutcsv, sep=';')
 
         ibase = INSITUBASE(None)
-        new_MDB = ibase.copy_nc(self.mfile.file_path, fout)
+
+        if reduce_mdbr:
+            new_MDB = ibase.copy_nc_reduced(self.mfile.file_path, fout)
+        else:
+            new_MDB = ibase.copy_nc(self.mfile.file_path, fout)
+
         new_MDB.createDimension('mu_id', None)
 
         import numpy as np
@@ -142,6 +149,7 @@ class MDB_READER():
         # print(self.mfile.df_mu)
 
         for new_var_name in new_variables_sat_mu:
+            print('Line 155: NEW VAR NAME IS: ', new_var_name)
             new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],
                                              ('satellite_id',),
                                              zlib=True,
@@ -166,6 +174,8 @@ class MDB_READER():
             if fillValue is not None:
                 array = ma.masked_array(array, mask=array == fillValue)
 
+
+
             for idx in range(self.mfile.n_mu_total):
 
                 if new_var_name == 'mu_valid':
@@ -175,6 +185,7 @@ class MDB_READER():
                         val = -1
                     new_var[idx] = [val]
                 else:
+                    #print(idx, '-->', array[idx])
                     new_var[idx] = [array[idx]]
 
         ##validitiy of spectrums
@@ -182,11 +193,14 @@ class MDB_READER():
             print('[INFO] Check validity spectra...')
         new_var = new_MDB.createVariable('insitu_valid', 'i1', ('satellite_id', 'insitu_id'), zlib=True, complevel=6,
                                          fill_value=-1)
-        for index_mu in range(self.mfile.n_mu_total):
-            if (index_mu % 100) == 0 and args.verbose:
-                print(f'[INFO] MU: {index_mu} of {self.mfile.n_mu_total}')
-            validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
-            new_var[index_mu] = validity_spectra[:]
+        if reduce_mdbr:
+            new_var[:,0] = [1.0]
+        else:
+            for index_mu in range(self.mfile.n_mu_total):
+                if (index_mu % 100) == 0 and args.verbose:
+                    print(f'[INFO] MU: {index_mu} of {self.mfile.n_mu_total}')
+                validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
+                new_var[index_mu] = validity_spectra[:]
 
         new_MDB.close()
         if args.verbose:
@@ -975,7 +989,7 @@ def creating_copy_with_new_insitu(reader, file_out, wl_new):
             for idx in range(nwl):
                 wl_here = wl_new[idx]
                 indices_here = indices_new[wl_here]
-                print(name, ':', wl_here, '---->', indices_here, len(indices_here))
+                #print(name, ':', wl_here, '---->', indices_here, len(indices_here))
                 if len(indices_here) == 0:
                     ncout[name][:, idx, :] = fill_value
                 elif len(indices_here) == 1:
@@ -1631,12 +1645,11 @@ def do_check_protocols(input_csv):
     import pandas as pd
     df = pd.read_csv(input_csv, sep=';')
 
-
-    #ref_values = df.iloc[:, 0].drop_duplicates().tolist()
-    ref_values = ['BEFR','VEIT','MAFR','LPAR','GAIT','M1BE']
+    # ref_values = df.iloc[:, 0].drop_duplicates().tolist()
+    ref_values = ['BEFR', 'VEIT', 'MAFR', 'LPAR', 'GAIT', 'M1BE']
     param = 'R2'
     path_concatenate = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/CONCATENATE'
-    #print(ref_values)
+    # print(ref_values)
 
     # time_diff_columns = list(range(15, 181, 15))
     # df_temporal = pd.DataFrame(data=None, index=ref_values, columns=time_diff_columns)
@@ -1684,8 +1697,6 @@ def do_check_protocols(input_csv):
     # output_file_csv = os.path.join(path_output, 'TemporalVariation.csv')
     # df_temporal.to_csv(output_file_csv, sep=';')
 
-
-
     # min_valid_columns = list(range(1, 10))
     # df_spatial = pd.DataFrame(data=None, index=ref_values, columns=min_valid_columns)
     # # work for each ref values
@@ -1730,8 +1741,8 @@ def do_check_protocols(input_csv):
     #             output_file_csv = os.path.join(path_output, 'SpatialVariationR2.csv')
     #             df_spatial.to_csv(output_file_csv, sep=';')
 
-    #output_file_csv = os.path.join(path_output, 'SpatialVariation.csv')
-    #df_spatial.to_csv(output_file_csv, sep=';')
+    # output_file_csv = os.path.join(path_output, 'SpatialVariation.csv')
+    # df_spatial.to_csv(output_file_csv, sep=';')
 
     ##COMBINING FIGURES
 
@@ -1744,37 +1755,36 @@ def do_check_protocols(input_csv):
     output_file_csv = os.path.join(path_output, 'SpatialVariationR2.csv')
     df_spatialr = pd.read_csv(output_file_csv, sep=';')
 
-
     file_out_t = os.path.join(path_output, 'TemporalVariation.tif')
-    xdefaultst = [120]*6
-    xdefaultss = [9,9,1,9,1,9]
+    xdefaultst = [120] * 6
+    xdefaultss = [9, 9, 1, 9, 1, 9]
 
-    plot_df_lines(df_temporal,file_out_t,'Maximum time difference (minutes)','# Valid match-ups',xdefaultst,[0,250])
+    plot_df_lines(df_temporal, file_out_t, 'Maximum time difference (minutes)', '# Valid match-ups', xdefaultst,
+                  [0, 250])
     file_out_s = os.path.join(path_output, 'SpatialVariation.tif')
-    handles,str_legend = plot_df_lines(df_spatial, file_out_s, 'Mininum number of valid pixels','# Valid match-ups', xdefaultss, [0,300])
+    handles, str_legend = plot_df_lines(df_spatial, file_out_s, 'Mininum number of valid pixels', '# Valid match-ups',
+                                        xdefaultss, [0, 300])
 
     file_out_tr = os.path.join(path_output, 'TemporalVariationR2.tif')
-    plot_df_lines(df_temporalr, file_out_tr, 'Maximum time difference (minutes)',f'R$^2$', xdefaultst, [0.3, 1])
+    plot_df_lines(df_temporalr, file_out_tr, 'Maximum time difference (minutes)', f'R$^2$', xdefaultst, [0.3, 1])
     file_out_ts = os.path.join(path_output, 'SpatialVariationR2.tif')
-    handles, str_legend = plot_df_lines(df_spatialr, file_out_ts, 'Mininum number of valid pixels',f'R$^2$', xdefaultss, [0.3, 1])
-
-
+    handles, str_legend = plot_df_lines(df_spatialr, file_out_ts, 'Mininum number of valid pixels', f'R$^2$',
+                                        xdefaultss, [0.3, 1])
 
     file_out = os.path.join('/mnt/c/DATA_LUIS/HYPERNETS_WORK/PUBLICATION/Figures/REVIEW_ROUND_1/Figure13.tif')
     from PlotMultiple import PlotMultiple
     pm = PlotMultiple()
     pm.start_multiple_plot_advanced(2, 2, 12, 9, 0, 0, True)
-    pm.plot_image(file_out_t,0,0)
+    pm.plot_image(file_out_t, 0, 0)
     pm.plot_image(file_out_tr, 0, 1)
-    pm.plot_image(file_out_s,1, 0)
+    pm.plot_image(file_out_s, 1, 0)
     pm.plot_image(file_out_ts, 1, 1)
-    pm.set_text(-150,0,'(a)')
-    pm.set_text(1600,0, '(b)')
+    pm.set_text(-150, 0, '(a)')
+    pm.set_text(1600, 0, '(b)')
     pm.set_text(-150, 1300, '(c)')
     pm.set_text(1600, 1300, '(d)')
 
-
-    pm.set_global_legend(handles,str_legend)
+    pm.set_global_legend(handles, str_legend)
     pm.save_fig(file_out)
 
     print('COMPLETED')
@@ -1795,8 +1805,8 @@ def plot_df_lines(df, file_out, xlabel, ylabel, xdefaults, yrange):
     xdata = np.array(df.columns.values[1:], dtype=np.float32)
     ps.xdata = xdata
     # idx = 0
-    handles = ['']*len(sites)
-    str_values = ['']*len(sites)
+    handles = [''] * len(sites)
+    str_values = [''] * len(sites)
     for index, row in df.iterrows():
         y_data = np.array(row.values[1:], dtype=np.float32)
         site = row.values[0]
@@ -1806,10 +1816,10 @@ def plot_df_lines(df, file_out, xlabel, ylabel, xdefaults, yrange):
         h = ps.plot_single_line(y_data, color, 'solid', 1, 'o', 8)
         handles[idx] = h[0]
         str_values[idx] = site
-        if len(xdefaults)==len(sites):
-            ihighlight = np.argmin(np.abs(xdefaults[idx]-xdata))
-            #print(xdefaults[idx],ihighlight,xdata[ihighlight],y_data[ihighlight],'???????????????????????')
-            ps.plot_single_marker(xdata[ihighlight],y_data[ihighlight],'o',8,'w',color,1)
+        if len(xdefaults) == len(sites):
+            ihighlight = np.argmin(np.abs(xdefaults[idx] - xdata))
+            # print(xdefaults[idx],ihighlight,xdata[ihighlight],y_data[ihighlight],'???????????????????????')
+            ps.plot_single_marker(xdata[ihighlight], y_data[ihighlight], 'o', 8, 'w', color, 1)
 
         # handles.append(h[0])
         # str_values.append(site)
@@ -1817,7 +1827,7 @@ def plot_df_lines(df, file_out, xlabel, ylabel, xdefaults, yrange):
     ps.set_y_range(yrange[0], yrange[1])
     xdata_int = np.array(xdata, dtype=np.int32).tolist()
     ps.set_xticks(xdata, xdata_int, 0, 11)
-    if yrange[1]>1:
+    if yrange[1] > 1:
         yticks_val = np.array(ps.get_yticks(), dtype=np.int32).tolist()
         ps.set_yticks(ps.get_yticks(), yticks_val, 0, 11)
     ps.set_grid()
@@ -1826,15 +1836,13 @@ def plot_df_lines(df, file_out, xlabel, ylabel, xdefaults, yrange):
     # if xdefault >= 0:
     #     plt.axvline(xdefault, color='black', linewidth=1, ls='-')
 
-
     ps.save_fig(file_out)
     ps.close_plot()
 
-    return handles,str_values
+    return handles, str_values
 
 
-def get_nvalid(input_path, input_qc, new_params,path_concatenate):
-
+def get_nvalid(input_path, input_qc, new_params, path_concatenate):
     print(f'[INFO] Working with file: {input_path} ---------------------------------------------------------------')
     # print(input_path,os.path.exists(input_path))
     reader = MDB_READER(input_path, True)
@@ -1874,18 +1882,14 @@ def get_nvalid(input_path, input_qc, new_params,path_concatenate):
     if 'n_min_valid' in new_params:
         reader.mfile.qc_sat.min_valid_pixels = new_params['n_min_valid']
 
-    print('---------------------------------------->', reader.mfile.qc_insitu.time_max,
-          reader.mfile.qc_sat.min_valid_pixels)
-
+    #print('---------------------------------------->', reader.mfile.qc_insitu.time_max,reader.mfile.qc_sat.min_valid_pixels)
 
     if path_concatenate is None:
         nmu_valid, df_valid = reader.mfile.prepare_df_validation()
     else:
-        name_output = os.path.basename(input_path).replace('MDB','MDBr_TEMPORAL')
-        nmu_valid = reader.create_mdb_results_file(os.path.join(os.path.dirname(input_path),name_output))
-        os.rename(os.path.join(os.path.dirname(input_path),name_output),os.path.join(path_concatenate,name_output))
-
-
+        name_output = os.path.basename(input_path).replace('MDB', 'MDBr_TEMPORAL')
+        nmu_valid = reader.create_mdb_results_file(os.path.join(os.path.dirname(input_path), name_output))
+        os.rename(os.path.join(os.path.dirname(input_path), name_output), os.path.join(path_concatenate, name_output))
 
     reader.mfile.close()
 
@@ -2245,6 +2249,11 @@ def main():
         allow_repeated = False
         if args.allow_repeated:
             allow_repeated = True
+
+        reduce_mdbr = False
+        if args.reduce_mdbr:
+            reduce_mdbr = True
+
         input_path = args.input_path
         if not os.path.exists(input_path):
             print(f'[ERROR] Input path {input_path} does not exist')
@@ -2284,13 +2293,16 @@ def main():
             reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu)
             if reader.mfile.qc_insitu is None:
                 return
+            reader.mfile.PI_DIVIDED = reader.mfile.qc_insitu.pi_divided
             if not reader.mfile.qc_insitu.apply_nir_correction:
                 reader.mfile.qc_insitu.insitu_rrs = reader.mfile.variables['insitu_Rrs_nosc']
                 if args.verbose:
                     print('[INFO] NIR Correction is not applied. Using insitu_Rrs_nosc as input variable')
         else:
             reader.set_defaults_olci_wfr_hypstar()
-        reader.create_mdb_results_file(output_path)
+
+        reader.mfile.allow_repeated = allow_repeated
+        reader.create_mdb_results_file(output_path, reduce_mdbr)
         if copy_with_wllist and wllist is not None:
             if args.verbose:
                 print('[INFO] Creating copy with limited number of bands....')

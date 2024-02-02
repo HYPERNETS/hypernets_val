@@ -140,6 +140,8 @@ class MDBFile:
 
         self.PI_DIVIDED = False
         self.var_mu_valid = 'mu_valid'
+        self.allow_repeated = False
+
 
     def check_repeated(self):
         sat_times = np.array(self.sat_times)
@@ -442,25 +444,19 @@ class MDBFile:
         times_here = self.variables['insitu_time'][index_mu]
         sat_time_here = self.sat_times[index_mu]
 
-        #CHECK IF EXIST SPATIAL INDEX
-        spatial_index = None
+        # CHECK IF EXIST SPATIAL INDEX
         if 'insitu_spatial_index' in self.variables:
-            spatial_index = self.variables['insitu_spatial_index'][index_mu]
+            self.qc_insitu.spatial_index_array = self.variables['insitu_spatial_index'][index_mu]
+        else:
+            self.qc_insitu.spatial_index_array = None
 
         for idx in range(len(times_here)):
             itime = times_here[idx]
 
             if not np.ma.is_masked(itime) and not np.isnan(itime):
-
-                #spectral with spatial_index greater than zero are not considered
-                if spatial_index is not None:
-                    if spatial_index[idx]>0:
-                        time_difference[idx] = np.ma.masked
-                        continue
                 insitu_time_here = datetime.utcfromtimestamp(float(itime))
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
-
                 diff_time = abs(time_difference_prev[idx] - time_diff_here)
                 if diff_time >= 150:
                     print('[WARNING] Unexplained time difference. Please review sat and insitu times are in utc: ')
@@ -481,6 +477,8 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
 
+        #print(ins_time_index, time_condition,valid_insitu)
+
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
@@ -488,8 +486,8 @@ class MDBFile:
 
             ins_time_index = np.argmin(np.abs(time_difference))
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            #s_index = spatial_index[ins_time_index]
-            #print('Me llega aqui con index_mu igual a: ', index_mu, 'ins time: ',ins_time, 's_index must be zero: ',s_index)
+            # s_index = spatial_index[ins_time_index]
+            # print('Me llega aqui con index_mu igual a: ', index_mu, 'ins time: ',ins_time, 's_index must be zero: ',s_index)
             if np.ma.is_masked(ins_time):  ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
                 mu_insitu_time = sat_time_here
             else:
@@ -546,6 +544,8 @@ class MDBFile:
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
+        #print(self.valid_insitu)
+
         if rrs_ins_values is not None and self.PI_DIVIDED:
             rrs_ins_values = rrs_ins_values / np.pi
 
@@ -555,6 +555,14 @@ class MDBFile:
             self.mu_curr_ins_rrs = []
             self.mu_curr_sat_rrs_mean = []
             load_info['status'] = -3  # f'IN SITU DATA OUT OF TIME WINDOW'
+
+            # print('---out of time error------------')
+            # print(self.ins_time_index)
+            # print(self.mu_insitu_time, ' versus ', self.mu_sat_time)
+            # print(self.qc_insitu.time_max)
+
+            # print('???????????????????????')
+
             return is_mu_valid, load_info
 
         if not valid_insitu:
@@ -920,6 +928,16 @@ class MDBFile:
             key_site = 'site'
             if key_site not in self.info.keys() and 'insitu_site_name' in self.info.keys():
                 key_site = 'insitu_site_name'
+
+            if mukey in self.mu_dates.keys() and self.allow_repeated:
+                index = 1
+                while index>=1:
+                    mukey = f'{mukey}_{index}'
+                    if mukey in self.mu_dates.keys():
+                        index = index +1
+                    else:
+                        break
+
             if not mukey in self.mu_dates.keys():
                 self.mu_dates[mukey] = {
                     'Index_MU': index_mu,
@@ -2005,7 +2023,7 @@ class MDBFile:
                 if total_mu:
                     if mu_valid[idx] >= 0:
                         dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (
-                                    1 / correct)
+                                1 / correct)
                 else:
                     dfall_month.at[flag_here, date_here_str] = dfall_month.at[flag_here, date_here_str] + (1 / correct)
         return dfall_month

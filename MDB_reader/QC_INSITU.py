@@ -42,6 +42,7 @@ class QC_INSITU:
 
         self.check_indices_by_mu = False
         self.only_complete_spectra = True
+        self.pi_divided = False
 
         ##checking flags and other bands
         self.ncdataset = None
@@ -50,6 +51,8 @@ class QC_INSITU:
 
         # for idendifying bands
         self.msibands = self.get_msi_bands_dict()
+
+
 
     def get_msi_bands_dict(self):
         msibands = {
@@ -101,7 +104,7 @@ class QC_INSITU:
             if index >= 0:
                 self.wl_indices.append(index)
                 for b in self.msibands:
-                    if abs(wl-self.msibands[b]['wl'])<10:
+                    if abs(wl - self.msibands[b]['wl']) < 10:
                         self.msibands[b]['apply'] = True
 
     def start_quality_control(self):
@@ -182,6 +185,8 @@ class QC_INSITU:
 
         # print('---->',self.check_th_other_bands)
 
+
+
     def check_validity_spectrum(self, rrs_values, index_mu, insitu_id):
 
         if rrs_values is None:
@@ -220,10 +225,12 @@ class QC_INSITU:
                 is_angle = self.check_th_other_bands[band_name]['isangle']
 
                 check_condition = False
-                if val_max > val_min:
+                if val_max >= val_min:
                     check_condition = val_min <= val_here <= val_max
                 elif val_max < val_min and is_angle:
                     check_condition = val_here >= val_min or val_here <= val_max
+
+
 
                 if th_type == 'keep' and not check_condition:
                     check = False
@@ -267,8 +274,6 @@ class QC_INSITU:
         if dif_wl[index] > self.maxdifwl:
             index = -1
         return index, wl_index
-
-
 
     def get_insitu_index_mu(self, imu, wl):
         dif_ref = self.maxdifwl
@@ -374,9 +379,12 @@ class QC_INSITU:
         valid_values = False
         id_min_time = -1
         rrs_values = None
+        spectra_with_time_condition = False
 
         dif_time_good = dif_time_array[~dif_time_array.mask]
+
         ngood = len(dif_time_good)
+
         if ngood == 0:
             return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
         if len(dif_time_good.shape) == 2:
@@ -384,23 +392,17 @@ class QC_INSITU:
 
         indices_good = np.argsort(dif_time_good)
 
-
-
         for idx in indices_good:
             id_min_time = idx
             time_dif = dif_time_array[idx]
             time_condition = time_dif < self.time_max
+
             if time_condition:
-
+                spectra_with_time_condition = True
                 rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
-
                 valid_bands_array = np.array(valid_bands, dtype=bool)
                 rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
                 valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
-                #print('CUMPLE TIME CONDITION',valid_bands,rrs_values)
-                # if not valid_values:
-                #     print(rrs_values)
-                #     print('--------')
                 spectrum_complete = np.sum(valid_bands_array) == len(self.wl_list)
                 if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
                     if len(exact_wl_array.shape) == 1:
@@ -410,6 +412,9 @@ class QC_INSITU:
                     rrs_values = bsc_qaa.bsc_qaa(rrs_values, exact_wl, wl_ref)
                 if valid_values:
                     break
+
+        if not valid_values and spectra_with_time_condition:
+            time_condition = True
 
         return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
 
@@ -478,8 +483,6 @@ class QC_INSITU:
                         nnT.mul(np.array(S2srf.iloc[:, a]), axis=0).sum(axis=0) / (sum(np.array(S2srf.iloc[:, a]))))
             rrs_values = np.ma.array(rrs_values)
             rrs_values = rrs_values.flatten()
-
-
 
         return rrs_values, indices, valid_bands
 

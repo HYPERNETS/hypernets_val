@@ -82,6 +82,29 @@ class INSITUBASE:
             for at in ats:
                 variable.setncattr(at,ats[at])
 
+    def copy_nc_reduced(self,ifile,ofile):
+        with Dataset(ifile) as src:
+            dst = Dataset(ofile, 'w', format='NETCDF4')
+            # copy global attributes all at once via dictionary
+            dst.setncatts(src.__dict__)
+            # copy dimensions, setting a longitude of 1 for insitu_id
+            for name, dimension in src.dimensions.items():
+                if name=='insitu_id':
+                    dst.createDimension(name,1)
+                else:
+                    dst.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+            # copy all file data except for the excluded
+            for name, variable in src.variables.items():
+                dst.createVariable(name, variable.datatype, variable.dimensions)
+                # copy variable attributes all at once via dictionary
+                dst[name].setncatts(src[name].__dict__)
+                # copy data for all the variables which does not incluide insitu_id
+                if 'insitu_id' not in variable.dimensions:
+                    dst[name][:] = src[name][:]
+        return dst
+
+
     def copy_nc(self, ifile, ofile):
         with Dataset(ifile) as src:
             dst = Dataset(ofile, 'w', format='NETCDF4')

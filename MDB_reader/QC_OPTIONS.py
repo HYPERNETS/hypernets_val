@@ -209,7 +209,8 @@ class QC_OPTIONS:
                             },
             'band_th_X': {'valid': 0, 'value': None, 'type': 'dict',
                             'keys': {'name_band':'str','th_type':'str','th_min':'float','th_max':'float','isangle':'boolean'}
-                            }
+                            },
+            'pi_divided': {'valid':0,'value':None,'type':'boolean'}
         }
 
         ##---REAMINING OPTIONS----------------
@@ -253,6 +254,9 @@ class QC_OPTIONS:
             elif option == 'apply_nir_correction':
                 qc_insitu.apply_nir_correction = options_qc_insitu[option]['value']
                 print(f'[INFO] Set apply_nir_correction to: {qc_insitu.apply_nir_correction}')
+            elif option == 'pi_divided':
+                qc_insitu.pi_divided = options_qc_insitu[option]['value']
+                print(f'[INFO] Set PI_DIVIDED to: {qc_insitu.pi_divided}')
             elif option == 'check_indices_by_mu':
                 qc_insitu.check_indices_by_mu = options_qc_insitu[option]['value']
                 print(f'[INFO] Set check_indices_by_mu to: {qc_insitu.check_indices_by_mu}')

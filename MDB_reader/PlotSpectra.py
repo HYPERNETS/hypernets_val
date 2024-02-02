@@ -18,7 +18,8 @@ class PlotSpectra():
         self.legend_options = {
             'loc': 'upper left',
             'bbox_to_anchor': (1.0, 1.0),
-            'framealpha': 0.8
+            'framealpha': 0.8,
+            'ncols': 1
         }
 
         self.line_style_default = line_style_default.copy()
@@ -116,7 +117,8 @@ class PlotSpectra():
 
 
     def set_legend(self, str_legend):
-        plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'])
+        print(self.legend_options)
+        plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'], ncol = self.legend_options['ncols'])
 
     def set_legend_h(self,handles,str_legend):
 

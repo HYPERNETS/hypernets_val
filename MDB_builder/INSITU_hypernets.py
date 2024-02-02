@@ -18,7 +18,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             rsync_user = 'hypstar'
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
         # self.base_folder = '/home/hypstar/'
-        self.base_folder = '/waterhypernet/hypstar/processed20230317/'
+        #self.base_folder = '/waterhypernet/hypstar/processed20230317/'
+        self.base_folder = '/waterhypernet/hypstar/processed_v2/'
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
         self.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
@@ -533,9 +534,12 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         folder_date = os.path.join(self.base_folder, site, date_here.strftime('%Y'), date_here.strftime('%m'),
                                    date_here.strftime('%d'))
         self.find_ref = self.find_ref.replace('SITE', site)
+
         cmd = f'{self.ssh_base} {self.url_base} find {folder_date} -name {self.find_ref}'
+
 
         list_files = self.get_list_files(cmd)
         if len(list_files) == 1 and list_files[0] == '':
             return None
+
         return list_files

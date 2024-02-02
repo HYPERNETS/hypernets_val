@@ -13,6 +13,7 @@ parser.add_argument('-site', "--sitename", help="Site name. Only required with -
 parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
+parser.add_argument('-check',"--check_mode", help="Check mode.",action="store_true")
 
 args = parser.parse_args()
 
@@ -25,6 +26,7 @@ def main():
     start_date, end_date = get_dates_from_arg()
     if start_date is None or end_date is None:
         return
+
     output_folder = args.output
     if not os.path.exists(output_folder):
         try:
@@ -33,8 +35,40 @@ def main():
             print(f'[ERROR] Output folder does not exists and could not be created')
             return
     site = args.sitename
+
+    if args.check_mode:
+        print('[INFO] Entering in check mode....')
+        make_check(start_date,end_date,site,output_folder)
+        return
+
+
     make_download(start_date,end_date,site,output_folder)
 
+
+def make_check(start_date,end_date,site,output_folder):
+    ih = INSITU_HYPERNETS_DAY(None, None, args.verbose)
+    #ih.find_ref = 'HYPERNETS_W_SITE_L1C_ALL*'
+    #ih.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
+    output_file = os.path.join(output_folder,f'NFiles_{site}.csv')
+    fout = open(output_file,'w')
+    fout.write('Date;NFilesL1C;NFilesL2A')
+    date_download = start_date
+    while date_download <= end_date:
+        date_download_str = date_download.strftime('%Y-%m-%d')
+        ih.find_ref = '*.jpg'
+        files_l1a = ih.get_files_download(date_download, site)
+        ih.transfer_files_to_output_folder_via_ssh(files_l1a,output_folder)
+        #ih.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
+        # files_l2a = ih.get_files_download(date_download, site)
+        line = f'{date_download_str};{len(files_l1a)};{len(files_l1a)}'
+        fout.write('\n')
+        fout.write(line)
+        if args.verbose:
+            print(f'[INFO] Date: {date_download_str} Files available for download: {len(files_l1a)}')
+
+        date_download = date_download + timedelta(hours=24)
+
+    fout.close()
 
 def make_download(start_date,end_date,site,output_folder):
     ih = INSITU_HYPERNETS_DAY(None,None,args.verbose)
