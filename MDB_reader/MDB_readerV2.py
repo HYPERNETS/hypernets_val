@@ -22,7 +22,7 @@ parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true"
 parser.add_argument("-m", "--mode", help="Mode",
                     choices=["GENERATEMU", "CONCATENATE", "REMOVEREP", "PLOT", "PLOT_CSV", "COMMONMU", "COMMONMU_NOSAT",
                              "COMMONMU_INS", "CHECK_WL", "UPDATE_SAT_WL", "UPDATE_INSITU_WL", "CHECK_SAT_TIME",
-                             "CHECK_PROTOCOLS", "TEST"],
+                             "CHECK_PROTOCOLS", "TEST", "ADDFLAGBAND"],
                     required=True)
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path")
@@ -100,6 +100,7 @@ class MDB_READER():
                 'type': 'f4'
             }
         }
+
         for new_var_name in new_variables:
             new_var = new_MDB.createVariable(new_var_name, new_variables[new_var_name]['type'], ('mu_id',), zlib=True,
                                              complevel=6)
@@ -143,13 +144,24 @@ class MDB_READER():
             }
         }
 
+        if 'insitu_latitude' in self.mfile.variables and 'insitu_longitude' in self.mfile.variables:
+            new_variables_sat_mu['mu_insitu_latitude'] = {
+                'namedf': 'Ins_Lat',
+                'fillvalue': -999.0,
+                'type': 'f4'
+            }
+            new_variables_sat_mu['mu_insitu_longitude'] = {
+                'namedf': 'Ins_Lon',
+                'fillvalue': -999.0,
+                'type': 'f4'
+            }
+
         if self.mfile.df_mu is None:
             self.mfile.prepare_df_mu()
 
-        # print(self.mfile.df_mu)
+        print(self.mfile.df_mu)
 
         for new_var_name in new_variables_sat_mu:
-            print('Line 155: NEW VAR NAME IS: ', new_var_name)
             new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],
                                              ('satellite_id',),
                                              zlib=True,
@@ -174,8 +186,6 @@ class MDB_READER():
             if fillValue is not None:
                 array = ma.masked_array(array, mask=array == fillValue)
 
-
-
             for idx in range(self.mfile.n_mu_total):
 
                 if new_var_name == 'mu_valid':
@@ -185,7 +195,7 @@ class MDB_READER():
                         val = -1
                     new_var[idx] = [val]
                 else:
-                    #print(idx, '-->', array[idx])
+                    # print(idx, '-->', array[idx])
                     new_var[idx] = [array[idx]]
 
         ##validitiy of spectrums
@@ -194,7 +204,7 @@ class MDB_READER():
         new_var = new_MDB.createVariable('insitu_valid', 'i1', ('satellite_id', 'insitu_id'), zlib=True, complevel=6,
                                          fill_value=-1)
         if reduce_mdbr:
-            new_var[:,0] = [1.0]
+            new_var[:, 0] = [1.0]
         else:
             for index_mu in range(self.mfile.n_mu_total):
                 if (index_mu % 100) == 0 and args.verbose:
@@ -989,7 +999,7 @@ def creating_copy_with_new_insitu(reader, file_out, wl_new):
             for idx in range(nwl):
                 wl_here = wl_new[idx]
                 indices_here = indices_new[wl_here]
-                #print(name, ':', wl_here, '---->', indices_here, len(indices_here))
+                # print(name, ':', wl_here, '---->', indices_here, len(indices_here))
                 if len(indices_here) == 0:
                     ncout[name][:, idx, :] = fill_value
                 elif len(indices_here) == 1:
@@ -1882,7 +1892,7 @@ def get_nvalid(input_path, input_qc, new_params, path_concatenate):
     if 'n_min_valid' in new_params:
         reader.mfile.qc_sat.min_valid_pixels = new_params['n_min_valid']
 
-    #print('---------------------------------------->', reader.mfile.qc_insitu.time_max,reader.mfile.qc_sat.min_valid_pixels)
+    # print('---------------------------------------->', reader.mfile.qc_insitu.time_max,reader.mfile.qc_sat.min_valid_pixels)
 
     if path_concatenate is None:
         nmu_valid, df_valid = reader.mfile.prepare_df_validation()
@@ -2231,6 +2241,24 @@ def main():
             reader.mfile.remove_repeated()
         else:
             print(f'[INFO] No repeated ids were found')
+        return
+
+    ##ADDING FLAG BAND TO SINGLE MDB FILE
+    if args.input_path and args.config_file and mode == 'ADDFLAGBAND':
+        print('[INFO] Running option: add flag band')
+        if not os.path.exists(args.input_path):
+            print(f'[ERROR] Input file: {args.input_path} does not exist.')
+            return
+        if not os.path.exists(args.config_file):
+            print(f'[ERROR] Flags configuration file: {args.config_file} does not exist.')
+            return
+        from FlagBuilder import FlagBuilder
+        fbuilder = FlagBuilder(args.input_path, args.config_file, None)
+        if not fbuilder.VALID:
+            return
+        for flag_here in fbuilder.flag_list:
+            fbuilder.create_flag_array(flag_here, True)
+
         return
 
     if args.input_path and mode == 'CHECK_SAT_TIME':

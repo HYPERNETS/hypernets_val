@@ -133,7 +133,8 @@ class MDBFile:
 
         self.df_mu = None
         self.col_names_mu = ['Index_MU', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'satellite', 'platform', 'sensor', 'site',
-                             'ac', 'mu_valid', 'mu_insitu_id', 'spectrum_complete', 'n_good_bands', 'status']
+                             'ac', 'mu_valid', 'mu_insitu_id', 'spectrum_complete', 'n_good_bands', 'Ins_Lat',
+                             'Ins_Lon', 'status']
 
         # variables controlling display images
         self.rgb_bands = [665, 560, 490]
@@ -141,7 +142,6 @@ class MDBFile:
         self.PI_DIVIDED = False
         self.var_mu_valid = 'mu_valid'
         self.allow_repeated = False
-
 
     def check_repeated(self):
         sat_times = np.array(self.sat_times)
@@ -477,7 +477,7 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
 
-        #print(ins_time_index, time_condition,valid_insitu)
+        # print(ins_time_index, time_condition,valid_insitu)
 
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
@@ -544,7 +544,7 @@ class MDBFile:
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
-        #print(self.valid_insitu)
+        # print(self.valid_insitu)
 
         if rrs_ins_values is not None and self.PI_DIVIDED:
             rrs_ins_values = rrs_ins_values / np.pi
@@ -922,6 +922,13 @@ class MDBFile:
 
             mukey = self.get_mu_key()
             time_diff = round(abs((self.mu_sat_time - self.mu_insitu_time).total_seconds() / 3600), 2)
+            ins_lat = -999.0
+            ins_lon = -999.0
+            if 'insitu_latitude' in self.variables and 'insitu_longitude' in self.variables:
+                ins_lat = float(self.variables['insitu_latitude'][index_mu,self.ins_time_index])
+                ins_lon = float(self.variables['insitu_longitude'][index_mu,self.ins_time_index])
+
+
             # if index_mu==0:
             #     print(self.mu_insitu_time,self.mu_sat_time,time_diff)
             # compability with old mdb
@@ -931,10 +938,10 @@ class MDBFile:
 
             if mukey in self.mu_dates.keys() and self.allow_repeated:
                 index = 1
-                while index>=1:
+                while index >= 1:
                     mukey = f'{mukey}_{index}'
                     if mukey in self.mu_dates.keys():
-                        index = index +1
+                        index = index + 1
                     else:
                         break
 
@@ -943,6 +950,8 @@ class MDBFile:
                     'Index_MU': index_mu,
                     'Sat_Time': self.mu_sat_time.strftime('%Y-%m-%d %H:%M'),
                     'Ins_Time': self.mu_insitu_time.strftime('%Y-%m-%d %H:%M'),
+                    'Ins_Lat': ins_lat,
+                    'Ins_Lon': ins_lon,
                     'Time_Diff': time_diff,
                     'satellite': self.info['satellite'].upper(),
                     'platform': self.info['platform'].upper(),
@@ -2115,6 +2124,28 @@ class MDBFile:
         # if file_out is not None:
         #     plt.savefig(file_out, dpi=300)
         # plt.close()
+
+    def get_full_array(self, namevariable):
+        if self.VALID and namevariable in self.variables:
+            return np.array(self.variables[namevariable][:])
+        else:
+            return None
+
+    def get_dims_variable(self, namevariable):
+        if self.VALID and namevariable in self.variables:
+            return self.variables[namevariable].dimensions
+        else:
+            return None
+
+    def get_fill_value(self,namevariable):
+        fillValue = None
+        if self.VALID and namevariable in self.variables:
+            try:
+                fillValue = self.variables[namevariable]._FillValue
+            except:
+                pass
+        return fillValue
+
 
     def close(self):
         if self.VALID:

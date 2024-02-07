@@ -8,6 +8,7 @@ import os
 from scipy import stats
 import math
 import COMMON.common_functions as cfs
+from datetime import datetime as dt
 
 
 class MDBPlot:
@@ -203,6 +204,9 @@ class MDBPlot:
 
         if options_out['type'] == 'multipleplot':
             self.plot_multiple_plot_from_options(options_out)
+
+        if options_out['type'] == 'mapplot':
+            self.plot_map_from_options(options_out)
 
     def plot_validityplot_fromoptions(self, options_out):
 
@@ -501,17 +505,17 @@ class MDBPlot:
 
         from PlotMultiple import PlotMultiple
         pm = PlotMultiple()
-        if len(flag_list)==6:
+        if len(flag_list) == 6:
             pm.start_multiple_plot_advanced(6, 1, 8, 12, 0.1, 0.1, True)
-        if len(flag_list)==4:
-            pm.start_multiple_plot_advanced(4,1,8,8,0.1,0.1,True)
+        if len(flag_list) == 4:
+            pm.start_multiple_plot_advanced(4, 1, 8, 8, 0.1, 0.1, True)
         idx = 0
         nrows = len(dfall_month_withnan)
         x_data_val = list(dfall_month_withnan.columns)[0:27]
         x_data_val = [x[2:] for x in x_data_val]
         x_data_val.append('')
         x_data_val.append('')
-        x_data_val_empty = ['']*len(x_data_val)
+        x_data_val_empty = [''] * len(x_data_val)
         # x_data_val = [''] + x_data_val + ['','']
 
         for index, row in dfall_month_withnan.iterrows():
@@ -519,8 +523,10 @@ class MDBPlot:
             x_data = np.linspace(0, 25, 26)
             y_data_valid = np.array(dfvalid_month_withnan.loc[index][1:27])
             axhere = pm.ax[idx]
-            bar1=axhere.bar(x_data, y_data_total, color='darkblue', edgecolor='black',linewidth=0.5)  # ,marker='o',markersize=10)
-            bar2=axhere.bar(x_data, y_data_valid, color='palegreen', edgecolor='black',linewidth=0.5)  # , marker='o', markersize=10)
+            bar1 = axhere.bar(x_data, y_data_total, color='darkblue', edgecolor='black',
+                              linewidth=0.5)  # ,marker='o',markersize=10)
+            bar2 = axhere.bar(x_data, y_data_valid, color='palegreen', edgecolor='black',
+                              linewidth=0.5)  # , marker='o', markersize=10)
 
             if len(flag_list) == 6:
                 axhere.set_ylim([0, 45])
@@ -530,27 +536,26 @@ class MDBPlot:
                 axhere.set_ylim([0, 17])
                 axhere.set_yticks([0, 5, 10, 15], fontsize=11)
 
-
             x_data_grid = np.linspace(-1, 27, 29) - 0.5
             axhere.set_xticks(x_data_grid)
-            if idx == (nrows-1):
+            if idx == (nrows - 1):
                 axhere.set_xticks(x_data_grid, x_data_val, rotation=90, fontsize=11, ha='left')
-                axhere.set_xlabel('Year-Month',fontsize=11)
-                handles = [bar1,bar2]
+                axhere.set_xlabel('Year-Month', fontsize=11)
+                handles = [bar1, bar2]
             else:
                 axhere.set_xticks(x_data_grid, x_data_val_empty)
             axhere.grid(ls='--')
             axhere.set_xlim([-1.69, 25.69])
-            axhere.axvline(x_data_grid[0], color='black',linewidth=1,ls='--')
-            axhere.axvline(x_data_grid[12],color='black',linewidth=1,ls='--')
-            axhere.axvline(x_data_grid[24], color='black',linewidth=1,ls='--')
+            axhere.axvline(x_data_grid[0], color='black', linewidth=1, ls='--')
+            axhere.axvline(x_data_grid[12], color='black', linewidth=1, ls='--')
+            axhere.axvline(x_data_grid[24], color='black', linewidth=1, ls='--')
             ylabel = f'{index}'
             axhere.set_ylabel(ylabel, fontsize=11)
             axhere.set_axisbelow(True)
             idx = idx + 1
 
         file_out = options_out['file_out']
-        pm.set_global_legend_2(handles,['# All match-ups','# Valid match-ups'])
+        pm.set_global_legend_2(handles, ['# All match-ups', '# Valid match-ups'])
         pm.save_fig(file_out)
 
     def plot_temporal_heat_map_fromoptions(self, options_out):
@@ -993,10 +998,31 @@ class MDBPlot:
             title = title.replace('$WL$', wls)
         if flag is not None:
             title = title.replace('$FLAG$', flag)
-
         if param is not None:
             title = title.replace('$PARAM$', param)
 
+        return title
+
+    def get_title_map(self, title, index_mu, sat_time, time_ini, time_fin, formatSat, formatIns):
+        if title is None:
+            return None
+        if index_mu is None and time_ini is None and time_fin is None and sat_time is None:
+            return title
+        if index_mu is not None:
+            title = title.replace('$INDEX_MU$', f'{index_mu}')
+        if formatSat is None:
+            formatSat = '%Y-%m-%d %H:%M'
+        if formatIns is None:
+            formatIns = '%H:%M'
+        if sat_time is not None:
+            date_str = sat_time.strftime(formatSat)
+            title = title.replace('$SAT_TIME$', date_str)
+        if time_ini is not None:
+            time_ini_str = time_ini.strftime(formatIns)
+            title = title.replace('$TIME_INI$', time_ini_str)
+        if time_fin is not None:
+            time_fin_str = time_fin.strftime(formatIns)
+            title = title.replace('$TIME_FIN$', time_fin_str)
         return title
 
     def start_table_wl(self, flags, params, wl_values):
@@ -1516,7 +1542,7 @@ class MDBPlot:
                                            options_out[flag_name]['flag_meanings'])
             flags = flag_list
 
-        #print(flag_list)
+        # print(flag_list)
 
         wl_list = options_out['wl_values']
         params = list(options_out['params'])
@@ -1744,14 +1770,13 @@ class MDBPlot:
                 else:
                     str_legend = legend
 
-
                 if len(str_legend) > 0 and len(str_legend) == len(handles):
-                    if len(str_legend)==8:
+                    if len(str_legend) == 8:
                         pm.set_global_legend_3(handles, str_legend)
                         pm.set_text(-1100, 1505, 'ACOLITE:')
                         pm.set_text(-1100, 1605, 'C2RCC:')
                     else:
-                        pm.set_global_legend_2(handles,str_legend)
+                        pm.set_global_legend_2(handles, str_legend)
                 file_out = self.get_file_out_flag_param(options_out['file_out'], None, None)
 
                 pm.save_fig(file_out)
@@ -2192,9 +2217,6 @@ class MDBPlot:
         pspectra.stats_style['fill']['framealpha'] = 0.5
         hlinesat = pspectra.plot_stats(sat_stats, imin, imax)
 
-
-
-
         h_legend = [hlineinsitu[0], hlinesat[0]]
 
         xticks_size = 12
@@ -2573,8 +2595,8 @@ class MDBPlot:
         xrange = xlim[1] - xlim[0]
         xmin_new = (-1) * (xrange / 8)
         if xmin_new > -50:
-            xmin_new = -50 #PARA SENTINEL-3
-        xmin_new = -20 #PARA SENTINEL-2
+            xmin_new = -50  # PARA SENTINEL-3
+        xmin_new = -20  # PARA SENTINEL-2
 
         ax.set_xlim(left=xmin_new)
         xval = 0
@@ -2823,45 +2845,64 @@ class MDBPlot:
             options_out = self.get_options_validity_plot(options, section, options_out)
         if options_out['type'] == 'multipleplot':
             options_out = self.get_options_multiple_plot(options, section, options_out)
+        if options_out['type'] == 'mapplot':
+            options_out = self.get_group_options(options, section, options_out)
+            options_out = self.get_select_options(options, section, options_out)
+            options_out = self.get_options_mapplot(options, section, options_out)
+
         return options_out
 
     def get_group_options(self, options, section, options_out):
         options_out['groupBy'] = self.get_value_param(options, section, 'groupBy', None, 'str')
         options_out['groupValues'] = None
         if options_out['groupBy'] is not None:
+            options_out['groupType'] = 'float'
             var_name = options_out['groupBy']
-            if var_name in self.mrfile.nc.variables:
-                options_out['groupType'] = 'float'
-                if var_name.startswith('flag'):
-                    flag_values = self.mrfile.nc.variables[var_name].flag_values
-                    flag_meanings_list = self.mrfile.nc.variables[var_name].flag_meanings.split(' ')
-                    flag_meanings = [x.strip() for x in flag_meanings_list]
-                    options_out[var_name] = {
-                        'flag_values': flag_values,
-                        'flag_meanings': flag_meanings
-                    }
-                    # options_out['groupValues'] = self.get_value_param(options, section, 'groupValues', flag_values,'intlist')
-                    flag_list_config = self.get_value_param(options, section, 'groupValues', None, 'strlist')
-                    if flag_list_config is None:
-                        # print(flag_values)
-                        options_out['groupValues'] = flag_values
-                    else:
-                        flag_values_config = []
-                        for flag_config in flag_list_config:
-                            if flag_config.strip() == 'GLOBAL':
-                                flag_values_config.append(-1)
-                                continue
-                            try:
-                                iflag = flag_meanings.index(flag_config.strip())
-                                flag_values_config.append(flag_values[iflag])
-                            except:
-                                print(f'[WARNING] Flag {flag_config.strip()} is not in the list')
-                        options_out['groupValues'] = flag_values_config
-                    options_out['groupType'] = 'flag'
-                if options_out['groupType'] == 'float':
-                    group_values = list(np.unique(np.array(self.mrfile.nc.variables[var_name])))
-                    options_out['groupValues'] = self.get_value_param(options, section, 'groupValues', group_values,
-                                                                      'floatlist')
+            virtual_flag = False
+            if not var_name in self.mrfile.variables:
+                print(
+                    f'[WARNING] {var_name} is not a variable defined in the MDB file. Checking {var_name} as virtual flag')
+                virtual_flag = True
+                flag_values, flag_meanings, flag_array = self.get_virtual_flag(options, var_name)
+                options_out[var_name] = {
+                    'flag_values': flag_values,
+                    'flag_meanings': flag_meanings,
+                    'flag_array': flag_array
+                }
+                options_out['groupType'] = 'flag'
+                print(f'[INFO] Set virtual flag: {var_name}')
+
+            if var_name.startswith('flag') and not virtual_flag:
+                flag_values = self.mrfile.nc.variables[var_name].flag_values
+                flag_meanings_list = self.mrfile.nc.variables[var_name].flag_meanings.split(' ')
+                flag_meanings = [x.strip() for x in flag_meanings_list]
+                options_out[var_name] = {
+                    'flag_values': flag_values,
+                    'flag_meanings': flag_meanings
+                }
+                options_out['groupType'] = 'flag'
+
+            if options_out['groupType'] == 'flag':
+                flag_list_config = self.get_value_param(options, section, 'groupValues', None, 'strlist')
+                if flag_list_config is None:
+                    options_out['groupValues'] = flag_values
+                else:
+                    flag_values_config = []
+                    for flag_config in flag_list_config:
+                        if flag_config.strip() == 'GLOBAL':
+                            flag_values_config.append(-1)
+                            continue
+                        try:
+                            iflag = flag_meanings.index(flag_config.strip())
+                            flag_values_config.append(flag_values[iflag])
+                        except:
+                            print(f'[WARNING] Flag {flag_config.strip()} is not in the list')
+                    options_out['groupValues'] = flag_values_config
+            if options_out['groupType'] == 'float':
+                group_values = list(np.unique(np.array(self.mrfile.nc.variables[var_name])))
+                options_out['groupValues'] = self.get_value_param(options, section, 'groupValues', group_values,
+                                                                  'floatlist')
+
         return options_out
 
     def get_select_options(self, options, section, options_out):
@@ -2948,6 +2989,27 @@ class MDBPlot:
                 pass
 
         options_out['anot'] = anot
+        return options_out
+
+    def get_options_mapplot(self, options, section, options_out):
+        options_out['var_lat'] = self.get_value_param(options, section, 'var_lat', 'insitu_latitude', 'str')
+        options_out['var_lon'] = self.get_value_param(options, section, 'var_lat', 'insitu_longitude', 'str')
+        options_out['point_size'] = self.get_value_param(options, section, 'point_size', [10], 'floatlist')
+        options_out['point_color'] = self.get_value_param(options, section, 'point_color', ['k'], 'strlist')
+        options_out['point_edge_color'] = self.get_value_param(options, section, 'point_edge_color', [None], 'strlist')
+        options_out['geo_limits'] = self.get_value_param(options, section, 'geo_limits', None, 'floatlist')
+        options_out['selectByExtracts'] = self.get_value_param(options, section, 'selectByExtracts', False, 'boolean')
+        options_out['extracts_to_select'] = self.get_value_param(options, section, 'extracts_to_select', 'valid', 'str')
+        options_out['var_extract'] = self.get_value_param(options, section, 'var_extract', 'mu_valid', 'str')
+        options_out['path_var_extract'] = self.get_value_param(options, section, 'path_var_extract', None, 'str')
+        options_out['extract_list'] = self.get_value_param(options, section, 'extract_list', None, 'intlist')
+        options_out['title'] = self.get_value_param(options, section, 'title', None, 'str')
+        options_out['plot_extracts'] = self.get_value_param(options, section, 'plot_extracts', False, 'boolean')
+        options_out['plot_extract_list'] = self.get_value_param(options, section, 'plot_extract_list', None, 'intlist')
+        if self.output_path is not None:
+            name_default = options_out['name'] + '.' + self.format_image
+            file_out_default = os.path.join(self.output_path, name_default)
+        options_out['file_out'] = self.get_value_param(options, section, 'file_out', file_out_default, 'str')
         return options_out
 
     def get_options_scatterplot(self, options, section, options_out):
@@ -3504,6 +3566,15 @@ class MDBPlot:
         if type_f != 'virtual_flag':
             return flag_values, flag_meanings, flag_array
 
+        if type_v == 'spatial' or type_v == 'temporal' or type_v == 'ranges':
+            from OptionsManager import OptionsManager
+            from FlagBuilder import FlagBuilder
+            fbuilder = FlagBuilder(self.path_mdbr_file, None, options)
+            # options = fbuilder.get_options_dict(var_name)
+            flag_values, flag_meanings, flag_array = fbuilder.create_flag_array(var_name, False)
+
+            return flag_values, flag_meanings, flag_array
+
         if type_v == 'flags_c':
             flag_names = self.get_value_param(options, var_name, 'flag_names', None, 'strlist')
             if flag_names is None:
@@ -3682,3 +3753,347 @@ class MDBPlot:
         self.valid_stats['MAE'] = mae
 
         self.valid_stats['DETER(r2)'] = r_value * r_value
+
+    def plot_map_from_options(self, options_out):
+        print(f'[INFO] Started map plotting...')
+        title_ref = options_out['title']
+        if options_out['selectBy'] is not None:
+            selectValues = options_out['selectValues']
+            selectArray, flag_values, flag_meanings = self.get_flag_array(options_out, 'selectBy')
+            selectArray = selectArray.flatten()
+            for value in selectValues:
+                flag_ref = flag_meanings[flag_values.index(value)]
+                print(f'[INFO] Plot map for {flag_ref}')
+                array_lat, array_lon = self.get_lat_lon_arrays_with_select_value(options_out, selectArray, value)
+                if len(array_lat) == 0 or len(array_lon) == 0:
+                    continue
+                file_out = None
+                if options_out['file_out'] is not None:
+                    file_out_base = options_out['file_out']
+                    file_out = file_out_base[:-4] + f'_{flag_ref}.{self.format_image}'
+                self.plot_map_impl(array_lat, array_lon, file_out, options_out)
+
+        if options_out['selectByExtracts']:
+            mu_list = options_out['extract_list']
+            if mu_list is None:
+                mu_list = [*range(0, self.mrfile.n_mu_total)]
+            extract_mask = self.get_extract_mask(options_out)
+            if options_out['groupBy'] is not None:
+                all_group_array, all_group_values, all_group_meanings = self.get_flag_array(options_out, 'groupBy')
+
+            for imu in mu_list:
+                if extract_mask is not None:
+                    if extract_mask[imu] <= 0:
+                        continue
+
+                array_lat, array_lon, array_group = self.get_lat_lon_arrays_extract(imu, all_group_array)
+                options_out['groupArraySelect'] = array_group
+                if options_out['plot_extracts'] is True:
+                    options_out['plot_extract_list'] = [imu]
+                if len(array_lat) == 0 or len(array_lon) == 0:
+                    continue
+
+                print(f'[INFO] Creating map for extract: {imu}')
+                file_out = None
+                if options_out['file_out'] is not None:
+                    file_out_base = options_out['file_out']
+                    file_out = file_out_base[:-4] + f'_{imu}.{self.format_image}'
+                if title_ref is not None:
+
+                    time_ini = None #dt.utcfromtimestamp(float(self.mrfile.nc.variables['insitu_time'][imu][0]))
+                    time_fin = None
+                    ninsitu = self.mrfile.nc.variables['insitu_time'].shape[1]
+                    for it in range(ninsitu):
+                        t = self.mrfile.nc.variables['insitu_time'][imu][it]
+                        if np.ma.is_masked(t):
+                            break
+                        if self.mrfile.nc.variables['insitu_spatial_index'][imu][it]==0:
+                            time_here = dt.utcfromtimestamp(float(t))
+                            if time_ini is None and time_fin is None:
+                                time_ini = time_here
+                                time_fin = time_here
+                            else:
+                                if time_here<time_ini:
+                                    time_ini = time_here
+                                if time_here>time_fin:
+                                    time_fin = time_here
+
+                    sat_time = self.mrfile.sat_times[imu]
+
+                    options_out['title'] = self.get_title_map(title_ref, imu, sat_time, time_ini, time_fin, None, None)
+                    print(options_out['title'])
+                self.plot_map_impl(array_lat, array_lon, file_out, options_out)
+
+    def get_extract_mask(self, options_out):
+        extracts_to_select = options_out['extracts_to_select']
+        if extracts_to_select == 'all':
+            return None
+        var_extract = options_out['var_extract']
+        extract_mask = None
+        if var_extract in self.mrfile.nc.variables:
+            extract_mask = np.array(self.mrfile.nc.variables[var_extract])
+        else:
+            path_mdb = options_out['path_var_extract']
+
+            if path_mdb is not None and os.path.exists(path_mdb):
+                from netCDF4 import Dataset
+                dset = Dataset(path_mdb, 'r')
+                if var_extract in dset.variables:
+                    extract_mask = np.array(dset.variables[var_extract])
+                dset.close()
+
+        return extract_mask
+
+    # options_var: selectBy or groupBy
+    def get_flag_array(self, options_out, option_var):
+        var_flag = options_out[option_var]
+        if var_flag in self.mrfile.variables:
+            array_flag = np.array(self.mrfile.variables[var_flag][:])
+            flag_values = self.mrfile.variables[var_flag].flag_values
+            flag_meanings = self.mrfile.variables[var_flag].flag_meanings.split(' ')
+        else:  ##previously virtual flag
+            array_flag = options_out[var_flag]['flag_array']
+            flag_values = options_out[var_flag]['flag_values']
+            flag_meanings = options_out[var_flag]['flag_meanings']
+        # array_flag = array_flag.flatten()
+
+        return array_flag, flag_values, flag_meanings
+
+    def get_lat_lon_arrays_with_select_value(self, options_out, array_select, value):
+        var_lat = options_out['var_lat']
+        var_lon = options_out['var_lon']
+        array_lat = np.array(self.mrfile.nc.variables[var_lat]).flatten()
+        array_lon = np.array(self.mrfile.nc.variables[var_lon]).flatten()
+        array_lat = array_lat[array_select == value]
+        array_lon = array_lon[array_select == value]
+        fill_value = self.mrfile.nc.variables[var_lat]._FillValue
+        array_lat = array_lat[array_lat != fill_value]
+        array_lon = array_lon[array_lon != fill_value]
+
+        return array_lat, array_lon
+
+    def get_lat_lon_arrays_extract(self, index_mu, all_group_array):
+        array_lat = np.array(self.mrfile.nc.variables['insitu_latitude'][index_mu, :])
+        array_lon = np.array(self.mrfile.nc.variables['insitu_longitude'][index_mu, :])
+        fill_value = self.mrfile.nc.variables['insitu_latitude']._FillValue
+
+        group_array = None
+        if all_group_array is not None and all_group_array.shape == self.mrfile.nc.variables['insitu_latitude'].shape:
+            group_array = all_group_array[index_mu, :]
+            group_array = group_array[array_lat != fill_value]
+
+        array_lat = array_lat[array_lat != fill_value]
+        array_lon = array_lon[array_lon != fill_value]
+
+        return array_lat, array_lon, group_array
+
+    def get_option_from_list(self, list_values, idx, nvalues):
+        if len(list_values) == nvalues:
+            return list_values[idx]
+        else:
+            return list_values[0]
+
+    def get_polygon_extract(self, index_mu, spatial_index):
+        lat_array = np.array(self.mrfile.variables['satellite_latitude'][index_mu])
+        lon_array = np.array(self.mrfile.variables['satellite_longitude'][index_mu])
+        max_spatial_index = int(np.floor(lat_array.shape[0] / 2))
+        if spatial_index == -1:
+            spatial_index = max_spatial_index
+        if spatial_index > max_spatial_index:
+            return None
+        rcentral = max_spatial_index
+        ccentral = max_spatial_index
+        lat_step = abs(lat_array[rcentral, ccentral] - lat_array[rcentral - 1, ccentral]) * 0.5
+        lon_step = abs(lon_array[rcentral, ccentral] - lon_array[rcentral, ccentral - 1]) * 0.5
+        # dig_step = abs(lat_array[rcentral, ccentral] - lat_array[rcentral - 1, ccentral-1]) * 0.5
+        # print(lat_step,lon_step,dig_step)
+
+        is_pixel_central = False
+        if spatial_index == 0:
+            is_pixel_central = True
+            spatial_index = 1
+
+        r1 = rcentral - spatial_index
+        c1 = ccentral - spatial_index
+        r2 = rcentral - spatial_index
+        c2 = ccentral + spatial_index
+        r3 = rcentral + spatial_index
+        c3 = ccentral + spatial_index
+        r4 = rcentral + spatial_index
+        c4 = ccentral - spatial_index
+
+        if lat_array[r1, c1] < lat_array[r4, c4]:
+            if is_pixel_central:
+                lat1 = lat_array[r1, c1] + lat_step
+                lat4 = lat_array[r4, c4] - lat_step
+            else:
+                lat1 = lat_array[r1, c1] - lat_step
+                lat4 = lat_array[r4, c4] + lat_step
+        else:
+            if is_pixel_central:
+                lat1 = lat_array[r1, c1] - lat_step
+                lat4 = lat_array[r4, c4] + lat_step
+            else:
+                lat1 = lat_array[r1, c1] + lat_step
+                lat4 = lat_array[r4, c4] - lat_step
+
+        if lat_array[r2, c2] < lat_array[r3, c3]:
+            if is_pixel_central:
+                lat2 = lat_array[r2, c2] + lat_step
+                lat3 = lat_array[r3, c3] - lat_step
+            else:
+                lat2 = lat_array[r2, c2] - lat_step
+                lat3 = lat_array[r3, c3] + lat_step
+        else:
+            if is_pixel_central:
+                lat2 = lat_array[r2, c2] - lat_step
+                lat3 = lat_array[r3, c3] + lat_step
+            else:
+                lat2 = lat_array[r2, c2] + lat_step
+                lat3 = lat_array[r3, c3] - lat_step
+
+        if lon_array[r1, c1] < lon_array[r2, c2]:
+            if is_pixel_central:
+                lon1 = lon_array[r1, c1] + lon_step
+                lon2 = lon_array[r2, c2] - lon_step
+            else:
+                lon1 = lon_array[r1, c1] - lon_step
+                lon2 = lon_array[r2, c2] + lon_step
+        else:
+            if is_pixel_central:
+                lon1 = lon_array[r1, c1] - lon_step
+                lon2 = lon_array[r2, c2] + lon_step
+            else:
+                lon1 = lon_array[r1, c1] + lon_step
+                lon2 = lon_array[r2, c2] - lon_step
+
+        if lon_array[r4, c4] < lon_array[r3, c3]:
+            if is_pixel_central:
+                lon4 = lon_array[r4, c4] + lon_step
+                lon3 = lon_array[r3, c3] - lon_step
+            else:
+                lon4 = lon_array[r4, c4] - lon_step
+                lon3 = lon_array[r3, c3] + lon_step
+        else:
+            if is_pixel_central:
+                lon4 = lon_array[r4, c4] - lon_step
+                lon3 = lon_array[r3, c3] + lon_step
+            else:
+                lon4 = lon_array[r4, c4] + lon_step
+                lon3 = lon_array[r3, c3] - lon_step
+
+        lon_array = [lon1, lon2, lon3, lon4, lon1]
+        lat_array = [lat1, lat2, lat3, lat4, lat1]
+
+        return lat_array, lon_array
+
+    def plot_map_impl(self, array_lat, array_lon, file_out, options_out):
+
+        geo_limits = options_out['geo_limits']
+        if geo_limits is None:
+            min_lat = np.min(array_lat)
+            max_lat = np.max(array_lat)
+            min_lon = np.min(array_lon)
+            max_lon = np.max(array_lon)
+            if options_out['plot_extracts'] is True:
+                extract_list = options_out['plot_extract_list']
+                for iextract in extract_list:
+                    lat_line_all, lon_line_all = self.get_polygon_extract(iextract, -1)
+                    min_lat_extract = np.min(np.array(lat_line_all))
+                    max_lat_extract = np.max(np.array(lat_line_all))
+                    min_lon_extract = np.min(np.array(lon_line_all))
+                    max_lon_extract = np.max(np.array(lon_line_all))
+                    if min_lat_extract<min_lat:
+                        min_lat = min_lat_extract
+                    if max_lat_extract>max_lat:
+                        max_lat = max_lat_extract
+                    if min_lon_extract<min_lon:
+                        min_lon = min_lon_extract
+                    if max_lon_extract>max_lon:
+                        max_lon = max_lon_extract
+
+            if abs(max_lat - min_lat) > 1:
+                min_lat = np.floor(min_lat)
+                max_lat = np.ceil(max_lat)
+            else:
+                min_lat = min_lat - 0.01
+                max_lat = max_lat + 0.01
+            if abs(max_lon - min_lon) > 1:
+                min_lon = np.floor(min_lon)
+                max_lon = np.ceil(max_lon)
+            else:
+                min_lon = min_lon - 0.01
+                max_lon = max_lon + 0.01
+
+            geo_limits = [float(min_lat), float(max_lat), float(min_lon), float(max_lon)]
+        extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+
+        print(
+            f'[INFO] Maps limits: Latitude-> {geo_limits[0]} to {geo_limits[1]}; Longitude: {geo_limits[2]} to {geo_limits[3]}')
+        # print(options_out)
+        import cartopy
+        import cartopy.crs as ccrs
+        import matplotlib.pyplot as plt
+        import matplotlib.ticker as mticker
+        ax = plt.axes(projection=ccrs.PlateCarree(), extent=extent)
+        # ax.coastlines(linewidth=0.5)
+        ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+
+        gl = ax.gridlines(linewidth=0.5, linestyle='dotted', draw_labels=True)
+        gl.xlabels_top = False
+        gl.ylabels_right = False
+        # lon_labels = [-15,-10,-5,0,5,10,15,20,25]
+        # gl.xlocator = mticker.FixedLocator(lon_labels)
+
+        # ax.set_yticks(ax.get_yticks())
+        # ax.set_xticks(ax.get_xticks())
+
+        if options_out['groupBy'] is None:
+            color = options_out['point_color'][0]
+            size = options_out['point_size'][0]
+            plt.plot(array_lon.tolist(), array_lat.tolist(), color=color, marker='o', markersize=size, linestyle='none')
+        else:
+            all_group_array, all_group_values, all_group_meanings = self.get_flag_array(options_out, 'groupBy')
+            group_values = options_out['groupValues']
+
+            # print(options_out)
+            if 'groupArraySelect' in options_out:
+                groupArray = options_out['groupArraySelect']
+            else:
+                groupArray = all_group_array
+
+            ngroup = len(group_values)
+            for idx in range(ngroup):
+                gvalue = group_values[idx]
+                ghere = self.get_flag_flag(gvalue, np.array(all_group_values), all_group_meanings)
+                color = self.get_option_from_list(options_out['point_color'], idx, ngroup)
+                size = self.get_option_from_list(options_out['point_size'], idx, ngroup)
+                print(f'[INFO] Plotting group: {ghere} with value: {gvalue} Color: {color}')
+                array_lon_here = array_lon[groupArray == group_values[idx]]
+                array_lat_here = array_lat[groupArray == group_values[idx]]
+                plt.plot(array_lon_here.tolist(), array_lat_here.tolist(), color=color, marker='o', markersize=size,
+                         linestyle='none')
+
+        if options_out['plot_extracts'] is True:
+            extract_list = options_out['plot_extract_list']
+            for iextract in extract_list:
+                lat_line_zero, lon_line_zero = self.get_polygon_extract(iextract, 0)
+                plt.plot(lon_line_zero, lat_line_zero, color='black', linestyle='--', linewidth=0.5)
+                lat_line_all, lon_line_all = self.get_polygon_extract(iextract, -1)
+                plt.plot(lon_line_all, lat_line_all, color='black', linestyle='-', linewidth=0.5)
+
+
+        # plt.show()
+
+        if options_out['title'] is not None:
+            plt.title(options_out['title'])
+
+        # file_out =options_out['file_out']
+        if file_out is not None:
+            if file_out.endswith('.tif'):
+                plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+            else:
+                plt.savefig(file_out, dpi=300, bbox_inches='tight')
+
+        # ax.close()
+        plt.close()

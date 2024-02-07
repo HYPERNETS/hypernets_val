@@ -38,27 +38,29 @@ sys.path.append(code_home)
 # import BRDF.brdf_olci as brdf
 from COMMON import common_functions as cfs
 
+
 def test():
     print('test')
     from INSITU_tara import INSITU_TARA
     im = INSITU_TARA(None, True)
     from datetime import datetime as dt
-    date_here = dt(2023,4,3)
+    date_here = dt(2023, 4, 3)
     im.retrieve_metadata_from_file(date_here)
     file_extract = '/mnt/c/DATA_LUIS/TARA_TEST/extracts/S3B_OL_2_WFR____20230403T111113_20230403T111413_20230404T221050_0179_078_037_2160_MAR_O_NT_003_SEN3_extract_549_4638.nc'
     from netCDF4 import Dataset
     dataset = Dataset(file_extract)
-    lat_array = dataset.variables['satellite_latitude'][0,:,:]
-    lon_array = dataset.variables['satellite_longitude'][0,:,:]
+    lat_array = dataset.variables['satellite_latitude'][0, :, :]
+    lon_array = dataset.variables['satellite_longitude'][0, :, :]
     import numpy as np
     index_time = float(np.array(dataset.variables['satellite_time'][0]))
     sat_time = dt.fromtimestamp(index_time).replace(tzinfo=pytz.utc)
     dataset.close()
     max_time_diff = 180 * 60
-    im.check_match_up_conditions(sat_time,lat_array,lon_array,max_time_diff)
-
+    im.check_match_up_conditions(sat_time, lat_array, lon_array, max_time_diff)
 
     return True
+
+
 def main():
     print('[INFO] Creating MDB files!')
 
@@ -84,7 +86,7 @@ def main():
                 return
         if args.sitename == 'LAIT':
             from INSITU_meda import INSITU_MEDA
-            idm = INSITU_MEDA(None,args.verbose)
+            idm = INSITU_MEDA(None, args.verbose)
             idm.get_datelist_file(args.output, start_date, end_date)
         else:
             ihd = INSITU_HYPERNETS_DAY(None, None, args.verbose)
@@ -177,15 +179,13 @@ def main():
         return
 
     if mo.insitu_type == 'MEDA':
-        create_mdb_meda_file(mo,extract_list)
+        create_mdb_meda_file(mo, extract_list)
         return
 
     if mo.insitu_type == 'TARA':
-        create_mdb_tara_file(mo,extract_list)
+        create_mdb_tara_file(mo, extract_list)
+
         return
-
-
-
 
     ihd = INSITU_HYPERNETS_DAY(mo, None, args.verbose)
     if args.verbose:
@@ -289,14 +289,54 @@ def main():
 
 
 def create_mdb_tara_file(mo, extract_list):
+    from INSITU_tara import INSITU_TARA
+    it = INSITU_TARA(mo, args.verbose)
 
+    date_list = list(extract_list.keys())
+    date_list.sort()
+    mdb_extract_files = []
+    for date in date_list:
+        print(f'[INFO] Working for date: {date} ****************************************************************')
+        date_here = dt.strptime(date,'%Y%m%d')
+        ##checking of the file dates
+        file_metadata = it.get_file_metadata(date_here)
+        if file_metadata is None:
+            print(f'[WARNING] Metadata file for date: {date} is not available. Skipping extracts...')
+            continue
+        file_data = it.get_file_data(date_here)
+        if file_data is None:
+            print(f'[WARNING] Data file for date: {date} is not available. Skipping extracts...')
+            continue
+        extract_list_here = extract_list[date]
+        mdb_extract_files = create_mdb_tara_file_impl(mo, extract_list_here, mdb_extract_files)
+
+    nextract_files = len(mdb_extract_files)
+    if args.verbose:
+        print(f'[INFO] *******************')
+        print(f'[INFO] {nextract_files} MDB extract files were created/added')
+        print(f'[INFO] Generating MDB extract files----------------------------------------------------------STOP')
+    if nextract_files == 0:
+        print(f'[INFO] Completed. No MDB file was created')
+        return
+
+    path_mdb = mo.get_mdb_path()
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
+    concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
+
+
+##all these extracts are associated to the same date, hence to the same metadata and data files.
+def create_mdb_tara_file_impl(mo, extract_list, mdb_extract_files):
     from INSITU_tara import INSITU_TARA
     from netCDF4 import Dataset
     import numpy as np
     ins_sensor = 'HyperBOOST'
-    mdb_extract_files = []
-    it = INSITU_TARA(mo,args.verbose)
-    extract_time_prev = None
+
+    it = INSITU_TARA(mo, args.verbose)
+    metadata_started = False
+
     max_time_diff = mo.insitu_options['time_window']
 
     for extract in extract_list:
@@ -321,42 +361,32 @@ def create_mdb_tara_file(mo, extract_list):
             continue
 
         extract_time = extract_list[extract]['time']
-        if extract_time!=extract_time_prev:
+        if not metadata_started:
             it.retrieve_metadata_from_file(extract_time)
-            extract_time_prev = extract_time
-        create = it.create_mdb_insitu_extract(extract_list[extract]['path'], ofile, extract_list[extract]['time'],max_time_diff)
+            metadata_started = True
+
+
+        create = it.create_mdb_insitu_extract(extract_list[extract]['path'], ofile, extract_list[extract]['time'],
+                                              max_time_diff)
 
         if os.path.exists(ofile) and create:
             mdb_extract_files.append(ofile)
             if args.verbose:
                 print(f'[INFO] MDB extract file was created and added to the list')
 
-    nextract_files = len(mdb_extract_files)
-    if args.verbose:
-        print(f'[INFO] *******************')
-        print(f'[INFO] {nextract_files} MDB extract files were created/added')
-        print(f'[INFO] Generating MDB extract files----------------------------------------------------------STOP')
-    if nextract_files == 0:
-        print(f'[INFO] Completed. No MDB file was created')
-        return
+    return mdb_extract_files
 
-    path_mdb = mo.get_mdb_path()
-    if args.verbose:
-        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
-    concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
-    if args.verbose:
-        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
 def create_mdb_meda_file(mo, extract_list):
     ins_sensor = 'MEDA'
     mdb_extract_files = []
     from INSITU_meda import INSITU_MEDA
-    im = INSITU_MEDA(mo,args.verbose)
+    im = INSITU_MEDA(mo, args.verbose)
 
     for extract in extract_list:
         if args.verbose:
             print(f'[INFO] Working with extract: {extract} *******************')
-        #bad_spectra_times = {}
+        # bad_spectra_times = {}
         extract_name = os.path.basename(extract_list[extract]['path'])
         ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
         if os.path.exists(ofile):
@@ -376,7 +406,7 @@ def create_mdb_meda_file(mo, extract_list):
             mdb_extract_files.append(ofile)
             print(f'[WARNING] MDB extract file already exits. Skipping...')
             continue
-        create = im.create_mdb_insitu_extract(extract_list[extract]['path'],ofile,extract_list[extract]['time'])
+        create = im.create_mdb_insitu_extract(extract_list[extract]['path'], ofile, extract_list[extract]['time'])
         if not create:
             print(f'[WARNING] In situ file is not available for {extract}')
             continue
@@ -406,17 +436,18 @@ def create_mdb_meda_file(mo, extract_list):
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
+
 def create_mdb_wisp_file(mo, extract_list, insitu_file):
     ins_sensor = 'WISP3'
     time_maxh = mo.insitu_options['time_window'] / 3600
     mdb_extract_files = []
     from INSITU_wisp3 import INSITU_WISP3
-    iw = INSITU_WISP3(mo,insitu_file,args.verbose)
+    iw = INSITU_WISP3(mo, insitu_file, args.verbose)
 
     for extract in extract_list:
         if args.verbose:
             print(f'[INFO] Working with extract: {extract} *******************')
-        #bad_spectra_times = {}
+        # bad_spectra_times = {}
         extract_name = os.path.basename(extract_list[extract]['path'])
         ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
         if os.path.exists(ofile):
@@ -436,7 +467,7 @@ def create_mdb_wisp_file(mo, extract_list, insitu_file):
             mdb_extract_files.append(ofile)
             print(f'[WARNING] MDB extract file already exits. Skipping...')
             continue
-        iw.create_mdb_insitu_extract(extract_list[extract]['path'],ofile)
+        iw.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
         b = iw.set_data(extract_list[extract]['time'])
         iw.close_mdb()
 
@@ -455,7 +486,6 @@ def create_mdb_wisp_file(mo, extract_list, insitu_file):
     if nextract_files == 0:
         print(f'[INFO] Completed. No MDB file was created')
         return
-
 
     path_mdb = mo.get_mdb_path()
     if args.verbose:

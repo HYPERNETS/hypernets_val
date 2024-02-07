@@ -135,25 +135,50 @@ class SAT_EXTRACTS_LIST:
 
             time_ref = time_here.strftime('%Y%m%d')
             if site_here=='SHIPBORNE': #more than one extract
-                index = 1
+
                 time_ref_base = time_ref
-                time_ref = f'{time_ref_base}_{index}'
-                while time_ref in sat_list.keys():
-                    index = index + 1
+
+
+                if time_ref_base not in sat_list:
+                    time_ref = f'{time_ref_base}_1'
+                    sat_list[time_ref_base] = {
+                        time_ref: {
+                            'path': fextract,
+                            'time': time_here,  # .strftime('%Y%m%dT%H%M%S'),
+                            'site': site_here,
+                            'sensor': sensor,
+                            'platform': platform,
+                            'ac': ac,
+                            'resolution': resolution
+                        }
+                    }
+                else:
+                    index = 1
                     time_ref = f'{time_ref_base}_{index}'
+                    while time_ref in sat_list[time_ref_base].keys():
+                        index = index + 1
+                        time_ref = f'{time_ref_base}_{index}'
+                    sat_list[time_ref_base][time_ref] = {
+                        'path': fextract,
+                        'time': time_here,  # .strftime('%Y%m%dT%H%M%S'),
+                        'site': site_here,
+                        'sensor': sensor,
+                        'platform': platform,
+                        'ac': ac,
+                        'resolution': resolution
+                    }
 
 
-
-
-            sat_list[time_ref] = {
-                'path': fextract,
-                'time': time_here,#.strftime('%Y%m%dT%H%M%S'),
-                'site': site_here,
-                'sensor': sensor,
-                'platform': platform,
-                'ac': ac,
-                'resolution': resolution
-            }
+            else:
+                sat_list[time_ref] = {
+                    'path': fextract,
+                    'time': time_here,#.strftime('%Y%m%dT%H%M%S'),
+                    'site': site_here,
+                    'sensor': sensor,
+                    'platform': platform,
+                    'ac': ac,
+                    'resolution': resolution
+                }
             nadded = nadded + 1
         if self.verbose:
             print(f'[INFO] Number of extract files added to the list: {nadded} ')
