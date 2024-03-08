@@ -538,7 +538,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         cmd = f'{self.ssh_base} {self.url_base} find {folder_date} -name {self.find_ref}'
 
         list_files = self.get_list_files(cmd)
-        
+
 
         if len(list_files) == 0:
             return None
