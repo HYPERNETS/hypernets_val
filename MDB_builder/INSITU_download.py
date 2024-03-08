@@ -97,6 +97,8 @@ def make_download(start_date, end_date, site, output_folder):
         ih.find_ref = 'HYPERNETS_W_SITE_IMG*jpg'
         files_download_img = ih.get_files_download(date_download, site)
 
+
+
         if files_download_l2 is not None and files_download_img is not None:
             files_download_all = files_download + files_download_l2 + files_download_img
         elif files_download_l2 is None and files_download_img is not None:
@@ -106,19 +108,20 @@ def make_download(start_date, end_date, site, output_folder):
         else:
             files_download_all = files_download
 
+        for f in files_download_all:
+            print(f)
 
-
-        output_folder_site = get_folder_new(output_folder, site)
-        output_folder_date = get_folder_date(output_folder_site, date_download)
-        if output_folder_date is None:
-            print(f'[ERROR] Output folder date does not exist and could not be created')
-            date_download = date_download + timedelta(hours=24)
-            continue
-        if args.verbose:
-            print(f'[INFO] Output folder date: {output_folder_date}')
-            print(f'[INFO] Files available for download: {len(files_download_all)}')
-
-        ih.transfer_files_to_output_folder_via_ssh(files_download_all, output_folder_date)
+        # output_folder_site = get_folder_new(output_folder, site)
+        # output_folder_date = get_folder_date(output_folder_site, date_download)
+        # if output_folder_date is None:
+        #     print(f'[ERROR] Output folder date does not exist and could not be created')
+        #     date_download = date_download + timedelta(hours=24)
+        #     continue
+        # if args.verbose:
+        #     print(f'[INFO] Output folder date: {output_folder_date}')
+        #     print(f'[INFO] Files available for download: {len(files_download_all)}')
+        #
+        # ih.transfer_files_to_output_folder_via_ssh(files_download_all, output_folder_date)
 
         date_download = date_download + timedelta(hours=24)
 

@@ -18,7 +18,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             rsync_user = 'hypstar'
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
         # self.base_folder = '/home/hypstar/'
-        #self.base_folder = '/waterhypernet/hypstar/processed20230317/'
+        # self.base_folder = '/waterhypernet/hypstar/processed20230317/'
         self.base_folder = '/waterhypernet/hypstar/processed_v2/'
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_data/'
@@ -184,26 +184,26 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         # print(inputpath,insitu_time,sat_time,time_diff/3600)
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['time_difference'][0, insitu_idx] = time_diff
-        #self.new_MDB.variables['insitu_filename'][0, insitu_idx] = file_name DEPRECATED
+        # self.new_MDB.variables['insitu_filename'][0, insitu_idx] = file_name DEPRECATED
         wini = 0
         wfin = 1600
         iini = 0
         ifin = 1600
-        if nc_ins.variables['wavelength'].shape[0] < 1600: #== 1537:
+        if nc_ins.variables['wavelength'].shape[0] < 1600:  # == 1537:
             iref = 1600 - nc_ins.variables['wavelength'].shape[0]
             wini = iref
             wfin = 1600
             iini = 0
             ifin = 1600 - iref
-            #print(wini,wfin,iini,ifin)
+            # print(wini,wfin,iini,ifin)
 
         if insitu_idx == 0:
             self.new_MDB.variables['insitu_original_bands'][wini:wfin] = [nc_ins.variables['wavelength'][iini:ifin]]
-            if wini>0:
+            if wini > 0:
                 wlref = self.new_MDB.variables['insitu_original_bands'][wini]
-                for iw in range(wini,-1,-1):
+                for iw in range(wini, -1, -1):
                     self.new_MDB.variables['insitu_original_bands'][iw] = wlref
-                    wlref  = wlref - 0.50
+                    wlref = wlref - 0.50
 
         insitu_rhow_vec = [x for x, in nc_ins.variables['reflectance'][:]]
         insitu_RrsArray = ma.array(insitu_rhow_vec).transpose() / np.pi
@@ -537,9 +537,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         cmd = f'{self.ssh_base} {self.url_base} find {folder_date} -name {self.find_ref}'
 
-
         list_files = self.get_list_files(cmd)
-        if len(list_files) == 1 and list_files[0] == '':
+        
+
+        if len(list_files) == 0:
             return None
 
         return list_files
