@@ -104,6 +104,7 @@ class PlotScatter():
             style['linewidths'] = linewidth
         if self.axhere is None:
             self.set_axhere()
+
         self.axhere.scatter(xdata, ydata,
                             marker=style['marker'],
                             s=style['s'],

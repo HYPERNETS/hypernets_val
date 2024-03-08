@@ -126,7 +126,7 @@ class MDBFile:
         # Variables to make validation...
         self.col_names = ['Index', 'Index_MU', 'Index_Band', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Wavelenght',
                           'Ins_Rrs',
-                          'Sat_Rrs', 'Valid']
+                          'Sat_Rrs', 'Valid','status']
         self.df_validation = None
         self.df_validation_valid = None
         self.mu_dates = {}
@@ -906,6 +906,9 @@ class MDBFile:
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
+
+
+
             if info_mu['status'] < 0:
                 spos = info_mu['status'] * (-1)
                 status_error[spos] = status_error[spos] + 1
@@ -962,7 +965,6 @@ class MDBFile:
                     'mu_insitu_id': self.ins_time_index,
                     'spectrum_complete': spectrum_complete,
                     'n_good_bands': 0,
-                    'status': info_mu['status']
                 }
                 if self.mu_dates[mukey]['ac'] == 'ATMOSPHERIC CORRECTION PROCESSOR: XXX':
                     self.mu_dates[mukey]['ac'] = 'STANDARD'
@@ -999,6 +1001,7 @@ class MDBFile:
                     'Ins_Rrs': [-999],
                     'Sat_Rrs': [-999],
                     'Valid': [valid_here],
+                    'status': [info_mu['status']]
                 }
                 if valid_here:  # self.mu_valid_bands[sat_band_index]:
                     n_good_bands = n_good_bands + 1
@@ -1010,6 +1013,7 @@ class MDBFile:
                 # print(pd.DataFrame.from_dict(row))
                 # print(self.df_validation.columns.values)
                 row_here = pd.DataFrame.from_dict(row)
+
 
                 # print(type(row_here))
                 self.df_validation.iloc[index_tot] = row_here.iloc[0]
@@ -1270,6 +1274,65 @@ class MDBFile:
         spectra_invalid = spectra_all[insitu_valid == 0]
 
         return spectra_selected, spectra_valid, spectra_invalid
+
+    def get_all_insitu_spectra(self,scale_factor,use_rhow,compute_stats):
+        import numpy.ma as ma
+        nspectra = self.n_mu_total * self.n_insitu_day
+        noriginal_bands = len(self.dimensions['insitu_original_bands'])
+        all_spectra = ma.zeros((nspectra, noriginal_bands))
+        all_spectra_validity = np.zeros((nspectra,))
+        var_insitu = self.nc.variables['insitu_Rrs']
+        var_insitu_valid = self.nc.variables['insitu_valid']
+        index_row = 0
+        for index_mu in range(self.n_mu_total):
+            if (index_mu%500)==0:
+                print(f'[INFO] Getting spectra {index_mu} / {self.n_mu_total}')
+            idx_selected = -1
+            if self.nc.variables['mu_valid'][index_mu] == 1:
+                idx_selected = self.nc.variables['mu_insitu_id'][index_mu]
+            for idx in range(self.n_insitu_day):
+                if np.ma.is_masked(self.nc.variables['insitu_time'][index_mu,idx]):
+                    continue
+                all_spectra_validity[index_row] = var_insitu_valid[index_mu,idx]
+                if idx==idx_selected:
+                    all_spectra_validity[index_row] = 2
+                spectra_here = ma.array(var_insitu[index_mu, :, idx]).transpose()
+                if use_rhow:
+                    spectra_here = spectra_here * np.pi
+                if scale_factor is not None:
+                    spectra_here = spectra_here * scale_factor
+                all_spectra[index_row, :] = spectra_here[:]
+                index_row = index_row + 1
+
+        all_spectra = all_spectra[0:index_row, :]
+        all_spectra_validity = all_spectra_validity[0:index_row]
+
+        spectra_stats = None
+        if compute_stats:
+            spectra_good = all_spectra[all_spectra_validity>=1]
+            import statistics as st
+            spectra_avg = ma.mean(spectra_good, axis=0)
+            spectra_std = ma.std(spectra_good, axis=0)
+            indices_max = ma.argmax(spectra_good, axis=0)
+            imax = st.mode(indices_max)
+            spectra_max_real = spectra_good[imax, :]
+            spectra_max = ma.max(spectra_good, axis=0)
+
+            indices_min = ma.argmin(spectra_good, axis=0)
+            imin = st.mode(indices_min)
+            spectra_mim_real = spectra_good[imin, :]
+            spectra_min = ma.min(spectra_good, axis=0)
+
+            spectra_stats = {
+                'avg': spectra_avg,
+                'std': spectra_std,
+                'spectra_min_real': spectra_mim_real,
+                'spectra_max_real': spectra_max_real,
+                'spectra_min': spectra_min,
+                'spectra_max': spectra_max,
+            }
+
+        return all_spectra,all_spectra_validity,spectra_stats
 
     def get_all_insitu_valid_spectra(self, scale_factor):
         import numpy.ma as ma

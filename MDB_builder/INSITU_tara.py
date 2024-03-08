@@ -15,12 +15,15 @@ class INSITU_TARA(INSITUBASE):
             self.path_tara_metadata = mdb_options.insitu_path_metadata
             self.path_tara_data = mdb_options.insitu_path_source
         else:
-            self.path_tara_metadata = '/mnt/c/DATA_LUIS/TARA_TEST/insitu_data/So-Rad_meta'
+            self.path_tara_metadata = '/mnt/c/DATA_LUIS/TARA_TEST/insitu_data/So-Rad_meta_V2'
 
 
 
 
         self.mdb_options = mdb_options
+
+
+
         self.verbose = verbose
         self.new_MDB = None
 
@@ -44,50 +47,73 @@ class INSITU_TARA(INSITUBASE):
                 'gps_speed': {
                     'type': 'f4',
                     'long_name': 'GPS speed',
-                    'units': 'knots'
+                    'units': 'knots',
+                    'available': True
                 },
                 'tilt_avg': {
                     'type': 'f4',
                     'long_name': 'Average tilt angle',
-                    'units': 'degrees'
+                    'units': 'degrees',
+                    'available': True
                 },
                 'tilt_std': {
                     'type': 'f4',
                     'long_name': 'Standard deviation of tilt angle',
-                    'units': 'degrees'
+                    'units': 'degrees',
+                    'available': True
                 },
                 'rel_view_az': {
                     'type': 'f4',
                     'long_name': 'Relative view azimuth angle',
-                    'units': 'degrees'
+                    'units': 'degrees',
+                    'available': True
                 },
                 'q_1': {
                     'type': 'i1',
-                    'long_name': 'Quality Mask 1 (0: INVALID, 1: VALID)'
+                    'long_name': 'Quality Mask 1 (0: INVALID, 1: VALID)',
+                    'available': True
                 },
                 'q_2': {
                     'type': 'i1',
-                    'long_name': 'Quality Mask 2 (0: INVALID, 1: VALID)'
+                    'long_name': 'Quality Mask 2 (0: INVALID, 1: VALID)',
+                    'available': True
                 },
                 'q_3': {
                     'type': 'i1',
-                    'long_name': 'Quality Mask 3 (0: INVALID, 1: VALID)'
+                    'long_name': 'Quality Mask 3 (0: INVALID, 1: VALID)',
+                    'available': True
                 },
                 'q_4': {
                     'type': 'i1',
-                    'long_name': 'Quality Mask 4 (0: INVALID, 1: VALID)'
+                    'long_name': 'Quality Mask 4 (0: INVALID, 1: VALID)',
+                    'available': True
                 },
                 'q_5': {
                     'type': 'i1',
-                    'long_name': 'Quality Mask 5 (0: INVALID, 1: VALID)'
+                    'long_name': 'Quality Mask 5 (0: INVALID, 1: VALID)',
+                    'available': True
                 }
 
             }
         }
 
+
+        self.update_options()
+
+        #print(self.metadata_options)
         self.metadata = {}
 
         self.wavelengths = None
+
+    def update_options(self):
+        if not self.mdb_options.options.has_section('tara_options'):
+            return
+        for option in self.data_options:
+            if self.mdb_options.options.has_option('tara_options',option):
+                self.data_options[option] = self.mdb_options.options['tara_options'][option]
+        for option in self.metadata_options:
+            if self.mdb_options.options.has_option('tara_options', option):
+                self.metadata_options[option] = self.mdb_options.options['tara_options'][option]
 
     def create_mdb_insitu_extract(self, extract_path, ofile, extract_time, max_time_diff):
         from netCDF4 import Dataset
@@ -129,10 +155,13 @@ class INSITU_TARA(INSITUBASE):
         self.add_shipborne_variables()
         if 'bands' in self.metadata_options:
             for band in self.metadata_options['bands']:
+                if not self.metadata_options['bands'][band]['available']:
+                    continue
                 ats = {}
                 for at in self.metadata_options['bands'][band]:
-                    if at == 'type':
+                    if at == 'type' or at=='available':
                         continue
+
                     ats[at] = self.metadata_options['bands'][band][at]
 
                 self.add_insitu_variable(band, self.metadata_options['bands'][band]['type'], ats)
@@ -161,6 +190,8 @@ class INSITU_TARA(INSITUBASE):
                 self.new_MDB.variables['time_difference'][0, ihere] = self.metadata[index]['time_diff']
                 self.new_MDB.variables['insitu_spatial_index'][0, ihere] = self.metadata[index]['index_spatial']
                 for b in self.metadata_options['bands']:
+                    if not self.metadata_options['bands'][b]['available']:
+                        continue
                     name_band = b
                     if not b.startswith('insitu_'):
                         name_band = f'insitu_{b}'
@@ -230,8 +261,10 @@ class INSITU_TARA(INSITUBASE):
             df = pd.read_csv(file_metadata, sep=self.metadata_options['col_sep'])
         except:
             return
+        col_names = df.columns.tolist()
 
         for index, row in df.iterrows():
+            print(row)
             self.metadata[index] = {
                 'lat': row[self.metadata_options['col_lat']],
                 'lon': row[self.metadata_options['col_lon']],
@@ -242,7 +275,10 @@ class INSITU_TARA(INSITUBASE):
                 'time_diff': -1
             }
             for b in self.metadata_options['bands']:
-                self.metadata[index][b] = float(row[b])
+                if b in col_names:
+                    self.metadata[index][b] = float(row[b])
+                else:
+                    self.metadata_options['bands'][b]['available'] = False
 
             # print(self.metadata[index])
 
@@ -253,6 +289,41 @@ class INSITU_TARA(INSITUBASE):
     #         self.metadata[index]['index_spatial'] = -1
     #         self.metadata[index]['index_temporal'] = -1
     #         self.metadata[index]['time_diff'] = -1
+
+    def get_time_distribution_from_metadata(self,date_here,date_ini,date_fin):
+        self.retrieve_metadata_from_file(date_here)
+        if len(self.metadata)==0:
+            print('no data')
+            return None
+        date_ref = date_here.replace(hour=0,minute=0,second=0,tzinfo=pytz.UTC)
+        # min_times = np.linspace(0,85500,96)
+        # max_times = np.linspace(900,86400,96)
+        distributions = np.zeros((96,4)) #0: total #1: q_3, #2:q4 #3 q5
+        summary = np.zeros((4,))
+        for index in self.metadata:
+            withinrange = False
+            itime = self.metadata[index]['time']
+            if date_ini <= itime <= date_fin:
+                withinrange = True
+                summary[0] = summary[0]+1
+            dif = (itime-date_ref).total_seconds()
+            index_h = int(np.floor(dif/900.0))
+            distributions[index_h,0] = distributions[index_h,0]+1
+
+            if self.metadata[index]['q_3']==1:
+                distributions[index_h, 1] = distributions[index_h, 1] + 1
+                if withinrange:
+                    summary[1] = summary[1] + 1
+            if self.metadata[index]['q_4']==1:
+                distributions[index_h, 2] = distributions[index_h, 2] + 1
+                if withinrange:
+                    summary[2] = summary[2] + 1
+            if self.metadata[index]['q_5']==1:
+                distributions[index_h, 3] = distributions[index_h, 3] + 1
+                if withinrange:
+                    summary[3] = summary[3] + 1
+
+        return distributions,summary
 
 
     def get_file_metadata(self, date_here):

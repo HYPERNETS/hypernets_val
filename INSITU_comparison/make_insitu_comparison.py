@@ -5,6 +5,7 @@ from datetime import timedelta
 import sys
 import INSITU_comparison
 from INSITU_comparison import INSITUCOMPARISON
+from INSITU_plots import INSITU_plots
 
 code_home = os.path.dirname(os.path.dirname(INSITU_comparison.__file__))
 sys.path.append(code_home)
@@ -23,7 +24,7 @@ parser.add_argument('-c', "--config_file", help="Config File.")
 #                     action="store_true")
 # parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 # parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
-# parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
+parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
 args = parser.parse_args()
@@ -31,10 +32,10 @@ args = parser.parse_args()
 
 def make_concatenation():
     path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
-    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230323_20231031.nc'
+    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20231004.nc'
     files_append = []
-    start_date = dt(2023, 3, 23)
-    end_date = dt(2023, 10, 31)
+    start_date = dt(2023, 4, 25)
+    end_date = dt(2023, 10, 4)
     date_here = start_date
     while date_here <= end_date:
         file_comparison = get_file_comparison_date(path_out, date_here, False)
@@ -46,20 +47,21 @@ def make_concatenation():
 
 def create_multiple_comparison_files():
     print(f'[INFO] Started in situ comparison...')
-    path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
-    start_date = dt(2023, 3, 23)
+    #path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
+    start_date = dt(2023, 3, 24)
     end_date = dt(2023, 10, 31)
     date_here = start_date
     while date_here <= end_date:
         date_here_str = date_here.strftime('%Y-%m-%d')
+        print(f'[INFO] -----------------------------------------------------------------------------------------------')
         print(f'[INFO] Working with date: {date_here_str}')
         create_comparison_file_date(date_here)
-        # add_mu_to_file(date_here)
+        ##add_mu_to_file_date(date_here)##-> only for test a specific date
         date_here = date_here + timedelta(hours=24)
 
 
 def create_comparison_file_date(date_here):
-    print(f'[INFO] Started in situ comparison for a specific date...')
+    print(f'[INFO] --> Started in situ comparison')
     path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
     # date_here = dt(2023, 9, 26)
     aeronet_file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_AAOT.LWN_lev20_15.nc'
@@ -73,14 +75,18 @@ def create_comparison_file_date(date_here):
     areader = AERONETReader(aeronet_file)
     ic = INSITUCOMPARISON(file_comparison)
     ic.start_file_w()
+    print(f'[INFO] --> Creating AERONET_OC variables...')
     baeronet = ic.create_aeronet_variables(areader, date_here)
     if not baeronet:
         print(f'[ERROR] Comparison file for date: {date_here} could not be done. ')
         os.remove(file_comparison)
         return
+    print(f'[INFO] --> Creating HYPSTAR variables...')
     ic.create_hypstar_variables(path_hypstar_date, date_here)
+    print(f'[INFO] --> Creating HYPSTAR to AERONET variables..')
     ic.create_hypstar_to_aeronet_variables()
     ic.close_file_w()
+    print(f'[INFO] --> Completed')
 
 
 # if create is True, create the output folder
@@ -94,6 +100,7 @@ def get_folder_date(path_out, date_here):
     else:
         return None
 
+
 def add_mu_to_file_date(date_here):
     path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
     # date_here = dt(2023, 9, 26)
@@ -101,11 +108,11 @@ def add_mu_to_file_date(date_here):
     if file_comparison is not None:
         add_mu_to_file(file_comparison)
 
-def add_mu_to_file(file_comparison):
 
+def add_mu_to_file(file_comparison):
     if file_comparison is None:
         return
-    print(f'[INFO] Working with file: {file_comparison}')
+    print(f'[INFO] Adding match-ups to file: {file_comparison}')
     ic = INSITUCOMPARISON(file_comparison)
     ic.add_match_ups_to_file(11)
 
@@ -114,13 +121,24 @@ def make_plots():
     # path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
     # date_here = dt(2023, 9, 26)
     # file_comparison = get_file_comparison_date(path_out, date_here, False)
-    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230323_20231031.nc'
-    print(file_comparison)
 
+    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20231004.nc'
+
+    file_config = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/config_plot.ini'
+    import configparser
+    options = configparser.ConfigParser()
+    options.read(file_config)
     ic = INSITUCOMPARISON(file_comparison)
-    #ic.plot_scatterplot(None)
+    iplots = INSITU_plots(ic)
+    iplots.plot_from_options(options)
+
+
+    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
+    # ic.plot_spectra_stats()
+
+    # ic.plot_scatterplot(None)
     # ic.plot_all_scatterplots_wl()
-    ic.plot_all_spectra()
+    #ic.plot_all_spectra()
     # ic.plot_rho_scatterplot()
 
 
@@ -148,6 +166,7 @@ def get_file_comparison_date(path_out, date_here, to_create):
 def create_dir(path):
     if not os.path.isdir(path):
         os.mkdir(path)
+
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):
     if len(list_files) == 0:
@@ -208,10 +227,11 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
         if err:
             print(f'[ERROR]{err}')
 
-        if not args.nodelfiles:
-            [os.remove(f) for f in list_files[:-1]]
+        # if not args.nodelfiles:
+        #     [os.remove(f) for f in list_files[:-1]]
     if args.verbose:
         print(f'[INFO] Concatenated MDB file created: {ncout_file}')
+
 
 def check_angles():
     print('checking')
@@ -220,39 +240,41 @@ def check_angles():
     start_date = dt(2023, 3, 23)
     end_date = dt(2023, 10, 31)
     date_here = start_date
-    file_out = os.path.join(path_out,'Azimuth_angles.csv')
-    fout = open(file_out,'w')
+    file_out = os.path.join(path_out, 'Azimuth_angles.csv')
+    fout = open(file_out, 'w')
     fout.write('Date;Time;ViewingAzimuthAngle;PointAzimuthAngle')
     while date_here <= end_date:
         date_here_str = date_here.strftime('%Y-%m-%d')
 
         print(f'[INFO] Working with date: {date_here_str}')
-        folder = get_folder_date(path_out,date_here)
+        folder = get_folder_date(path_out, date_here)
         for name in os.listdir(folder):
-            if name.find('L2A')>0:
-                file = os.path.join(folder,name)
+            if name.find('L2A') > 0:
+                file = os.path.join(folder, name)
                 dataset = Dataset(file)
                 vaa = float(dataset.variables['viewing_azimuth_angle'][0])
                 paa = float(dataset.variables['pointing_azimuth_angle'][0])
                 time_stamp = float(dataset.variables['acquisition_time'][0])
                 time_here = dt.utcfromtimestamp(time_stamp)
                 time_here_str = time_here.strftime('%H:%M')
-                #time_here_str = date_here.strftime(dt.utcfromtimestamp(float(dataset.variables['acquisition_time'][0])))
-                line  = f'{date_here_str};{time_here_str};{vaa};{paa}'
+                # time_here_str = date_here.strftime(dt.utcfromtimestamp(float(dataset.variables['acquisition_time'][0])))
+                line = f'{date_here_str};{time_here_str};{vaa};{paa}'
                 print(line)
                 fout.write('\n')
                 fout.write(line)
-                #print(date_here_str,dataset.variables['viewing_azimuth_angle'][0],dataset.variables['pointing_azimuth_angle'][0])
+                # print(date_here_str,dataset.variables['viewing_azimuth_angle'][0],dataset.variables['pointing_azimuth_angle'][0])
                 dataset.close()
         date_here = date_here + timedelta(hours=24)
     fout.close()
+
+
 def check_hypstar_qf():
     print('checking')
-    #file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/09/26/HYPERNETS_W_VEIT_L1C_ALL_20230926T0700_20240116T1733_270_v2.0.nc'
+    # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/09/26/HYPERNETS_W_VEIT_L1C_ALL_20230926T0700_20240116T1733_270_v2.0.nc'
 
     file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_AAOT.LWN_lev20_15.nc'
 
-    #file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/2023/04/19/COMPARISON_20230419.nc'
+    # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/2023/04/19/COMPARISON_20230419.nc'
     from netCDF4 import Dataset
     import numpy as np
     dset = Dataset(file)
@@ -275,14 +297,14 @@ def check_hypstar_qf():
 
 # %%
 if __name__ == '__main__':
-    #multiple_dates
+    # multiple_dates
     ##1. Create files
     #create_multiple_comparison_files()
     ##2. Concatenate
     #make_concatenation()
     ##3. Add mu
-    #file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230323_20231031.nc'
-    #add_mu_to_file(file_out)
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20231004.nc'
+    # add_mu_to_file(file_out)
 
     ## example for a specific date
     # date_here = dt(2023, 9, 26)
@@ -290,8 +312,8 @@ if __name__ == '__main__':
     # add_mu_to_file_date(date_here)
 
     ##PLOTING
-    #make_plots()
+    make_plots()
 
     ##CHECKING HYPSTAR QF (TEST)
-    check_hypstar_qf()
-    #check_angles()
+    # check_hypstar_qf()
+    # check_angles()

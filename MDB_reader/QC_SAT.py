@@ -135,7 +135,7 @@ class QC_SAT:
     def update_pi_correct(self, wl_list_rhow, type):
         for wl in wl_list_rhow:
             idx = self.get_index_sat_from_wlvalue(wl)
-            if idx >= 0 and type==1:
+            if idx >= 0 and type == 1:
                 self.pi_multiplied[idx] = True
             if idx >= 0 and type == 2:
                 self.pi_divided[idx] = True
@@ -325,7 +325,6 @@ class QC_SAT:
 
             cond_stats = self.do_check_statistics()
 
-
             if cond_stats:
                 valid_mu = True
             for idx in range(len(indexes_bands)):
@@ -345,12 +344,12 @@ class QC_SAT:
         land = self.compute_flag_masks(index_mu)
 
         nv = self.NTP - np.sum(self.flag_mask)
-        #print(index_mu,np.sum(land))
+        # print(index_mu,np.sum(land))
         # if index_mu==0:
         #     print('After flag mask: ',nv)
         self.compute_invalid_masks(index_mu)
         nv = self.NTP - np.sum(self.flag_mask)
-        #print(index_mu,'After invalid: ',nv)
+        # print(index_mu,'After invalid: ',nv)
         # if index_mu == 0:
         #     print('After Invalid: ', nv)
         self.compute_th_masks(index_mu)
@@ -380,10 +379,11 @@ class QC_SAT:
         for flag_band in self.info_flag.keys():
             flag_mask_here, land_here = self.compute_flag_mask_impl(index_mu, flag_band)
 
-            ##CHAMBELA
-            if flag_mask_here is not None:
-                central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions_inner(3)
-                flag_mask_here[r_s:r_e, c_s:c_e] = 1
+            #CHAMBELAc
+            # if flag_mask_here is not None:
+            #     print('aplica la chambella')
+            #     central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions_inner(3)
+            #     flag_mask_here[r_s:r_e, c_s:c_e] = 1
                 # invalid = None
                 # if self.ncdataset.platform=='A':
                 #     invalid = [24]
@@ -393,15 +393,11 @@ class QC_SAT:
                 #     if index_mu in invalid:
                 #         flag_mask_here[:,:] = 1
 
-
-
             if flag_mask_here is not None:
                 flag_mask = np.add(flag_mask, flag_mask_here)
             if land_here is not None:
                 land = np.add(land, land_here)
             self.info_flag[flag_band]['nflagged'] = np.sum(flag_mask)
-
-
 
         if self.flag_mask is None:
             self.flag_mask = flag_mask
@@ -436,8 +432,6 @@ class QC_SAT:
             th_mask['n_masked'] = n_masked
             self.th_masks[idx] = th_mask
             mask_thershold = mask_thershold + mask_thershold_here
-
-
 
         if self.flag_mask is None:
             self.flag_mask = mask_thershold
@@ -633,7 +627,6 @@ class QC_SAT:
             #         print(l,ftal)
             flag_mask[np.where(flag_mask != 0)] = 1
 
-
             # if self.info_flag[flag_band][
             #     'ac_processor'] == 'C2RCC' and not flag_band == 'satellite_WQSF':  # C2RCC FLAGS
             #     valuePE = np.uint64(2147483648)
@@ -689,7 +682,7 @@ class QC_SAT:
         c_e = central_c + int(np.floor(self.window_size / 2)) + 1  # ending col
         return central_r, central_c, r_s, r_e, c_s, c_e
 
-    def get_dimensions_inner(self,wsize):
+    def get_dimensions_inner(self, wsize):
         # Dimensions
         nrows = self.satellite_rrs.shape[2]
         ncols = self.satellite_rrs.shape[3]

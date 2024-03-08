@@ -63,7 +63,7 @@ class MDB_READER():
         if self.mfile.df_validation is None:
             nmu_valid, df_valid = self.mfile.prepare_df_validation()
 
-        foutcsv = fout.replace('.nc', '.csv')
+        foutcsv = fout.replace('.nc', '_summary.csv')
         foutcsv = foutcsv.replace('MDBr', 'CSVr')
         df_valid.to_csv(foutcsv, sep=';')
 
@@ -140,7 +140,7 @@ class MDB_READER():
             'mu_insitu_id': {
                 'namedf': 'mu_insitu_id',
                 'fillvalue': -1,
-                'type': 'i1'
+                'type': 'i2'
             }
         }
 
@@ -159,7 +159,13 @@ class MDB_READER():
         if self.mfile.df_mu is None:
             self.mfile.prepare_df_mu()
 
-        print(self.mfile.df_mu)
+        foutcsv = fout.replace('.nc', '.csv')
+        foutcsv = foutcsv.replace('MDBr', 'CSVr')
+        status = self.mfile.df_validation[self.mfile.df_validation['Index_Band'] == 0]['status']
+        status_array = np.array(status)
+        self.mfile.df_mu['status'][:] = status_array
+
+        self.mfile.df_mu.to_csv(foutcsv, sep=';')
 
         for new_var_name in new_variables_sat_mu:
             new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],
@@ -204,11 +210,32 @@ class MDB_READER():
         new_var = new_MDB.createVariable('insitu_valid', 'i1', ('satellite_id', 'insitu_id'), zlib=True, complevel=6,
                                          fill_value=-1)
         if reduce_mdbr:
-            new_var[:, 0] = [1.0]
+            array_mu_insitu_id = np.array(self.mfile.df_mu.loc[:, new_variables_sat_mu['mu_insitu_id']['namedf']])
+
+            for var_name in new_MDB.variables:
+                if var_name.startswith(
+                        'insitu') and var_name != 'insitu_valid' and var_name != 'insitu_original_bands' and var_name != 'insitu_Rrs':
+                    for index_mu in range(self.mfile.n_mu_total):
+                        insitu_id_here = array_mu_insitu_id[index_mu]
+                        new_MDB.variables[var_name][index_mu, 0] = self.mfile.nc.variables[var_name][
+                            index_mu, insitu_id_here]
+            for index_mu in range(self.mfile.n_mu_total):
+                insitu_id_here = array_mu_insitu_id[index_mu]
+                new_MDB.variables['insitu_Rrs'][index_mu, :, 0] = self.mfile.nc.variables['insitu_Rrs'][index_mu, :,
+                                                                  insitu_id_here]
+
+            # for index_mu in range(self.mfile.n_mu_total):
+            #     insitu_id_here = array_mu_insitu_id[index_mu]
+            #     if (index_mu % 100) == 0 and args.verbose:
+            #         print(f'[INFO] Checking spectra validity for mu {index_mu} of {self.mfile.n_mu_total} -> {insitu_id_here}')
+            #     validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
+            #     new_var[index_mu] = validity_spectra[insitu_id_here]
+            #     new_MDB.variables['mu_insitu_id'][index_mu] = [0]
+
         else:
             for index_mu in range(self.mfile.n_mu_total):
                 if (index_mu % 100) == 0 and args.verbose:
-                    print(f'[INFO] MU: {index_mu} of {self.mfile.n_mu_total}')
+                    print(f'[INFO] Checking spectra validity for mu : {index_mu} of {self.mfile.n_mu_total}')
                 validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
                 new_var[index_mu] = validity_spectra[:]
 
@@ -1100,6 +1127,131 @@ def creating_copy_with_valid_indices(reader, file_out, indices_sat_valid):
     return True
 
 
+# satellite: S3 or S2
+def creating_copy_mdb_publication(file_in, file_out, satellite):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(file_in)
+    ncout = Dataset(file_out, 'w', format='NETCDF4')
+    for at in input_dataset.ncattrs():
+        val = input_dataset.getncattr(at)
+        if val == 'olci':
+            val = 'OLCI'
+        if at == 'insitu_site_name':
+            at = 'site'
+        if at == 'insitu_lat':
+            at = 'in_situ_lat'
+        if at == 'insitu_lon':
+            at = 'in_situ_lon'
+        if satellite == 'S2' and at == 'satellite_proc_version':
+            val = ''
+        if at.startswith('satellite_ws'):
+            continue
+        if at.startswith('satellite_S'):
+            continue
+        if at.startswith('satellite_V'):
+            continue
+
+        ncout.setncattr(at, val)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+
+        if name == 'insitu_filename':
+            continue
+        if name == 'satellite_PDU':
+            continue
+        name_new = name
+        if name == 'insitu_solar_azimuth_angle':
+            name_new = 'insitu_SAA'
+        if name == 'insitu_solar_zenith_angle':
+            name_new = 'insitu_SZA'
+        if name == 'insitu_viewing_azimuth_angle':
+            name_new = 'insitu_OAA'
+        if name == 'insitu_viewing_zenith_angle':
+            name_new = 'insitu_OZA'
+        if name == 'OAA':
+            name_new = 'satellite_OAA'
+        if name == 'OZA':
+            name_new = 'satellite_OZA'
+        if name == 'SAA':
+            name_new = 'satellite_SAA'
+        if name == 'SZA':
+            name_new = 'satellite_SZA'
+
+        if name == 'satellite_WQSF' and satellite == 'S2':
+            name_new = 'satellite_IdePix'
+
+        print('Var: ', name_new)
+        datatype = variable.datatype
+        if name == 'insitu_time':
+            datatype = 'f8'
+        if name == 'satellite_WQSF':
+            datatype = 'u8'
+
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        if name == 'satellite_WQSF':
+            ncout.createVariable(name_new, datatype, variable.dimensions, zlib=True, shuffle=True, complevel=6)
+        else:
+            ncout.createVariable(name_new, datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                                 shuffle=True, complevel=6)
+
+        # copy variable attributes all at once via dictionary
+        if name_new == 'insitu_Rrs':
+            ncout[name_new].short_name = 'remote_sensing_reflectance'
+            ncout[name_new].long_name = 'Remote-Sensing reflectance of the water column at the surface'
+            ncout[name_new].units = 'sr-1'
+        elif name_new == 'insitu_Rrs_nosc':
+            ncout[name_new].short_name = 'remote_sensing_reflectance_nosc'
+            ncout[
+                name_new].long_name = 'Remote-Sensing reflectance of the water column at the surface without correction for the NIR similarity spectrum (see Ruddick et al., 2006)'
+            ncout[name_new].units = 'sr-1'
+        else:
+            for at in input_dataset[name].ncattrs():
+                if at == '_FillValue':
+                    continue
+
+                at_new = at
+                if at == 'description':
+                    at_new = 'long_name'
+                if at == 'standard_name':
+                    at_new = 'short_name'
+                if at == 'flag_mask':
+                    at_new = 'flag_masks'
+                if at == 'flag_values':
+                    at_new = 'flag_masks'
+                val = input_dataset[name].getncattr(at)
+                ncout[name_new].setncattr(at_new, val)
+
+            if name == 'insitu_original_bands':
+                ncout[name_new].units = 'nm'
+            if name == 'insitu_time':
+                ncout[name_new].long_name = 'In situ time in ISO 8601 format.'
+                ncout[name_new].units = 'Seconds since 1970-01-01 00:00:00 UTC'
+            if name == 'satellite_time':
+                ncout[name_new].long_name = 'Satellite time in ISO 8601 format.'
+                ncout[name_new].units = 'Seconds since 1970-01-01 00:00:00 UTC'
+            if name == 'satellite_bands':
+                ncout[name_new].long_name = 'Satellite bands in nm.'
+
+            if name_new == 'satellite_IdePix':
+                ncout[name_new].long_name = 'IdePix Pixel Classification Flag Dataset'
+
+            # ncout[name_new].setncatts(input_dataset[name].__dict__)
+
+        ncout[name_new][:] = input_dataset[name][:]
+
+    ncout.close()
+    input_dataset.close()
+
+    return True
+
+
 def getting_common_matchups():
     # getting common match-ups
     dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/CONTATENATED_WITHOUT_COMMON_MATCHUPS'
@@ -1906,21 +2058,164 @@ def get_nvalid(input_path, input_qc, new_params, path_concatenate):
     return nmu_valid
 
 
+def plot_distribution_times(date_here, title):
+    dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/TIME_DISTRIBUTION'
+    date_here = date_here.replace(tzinfo=pytz.utc)
+    date_here_str = date_here.strftime('%Y%m%d%H%M')
+    file_out = os.path.join(dir_base, f'TimeDistribution_{date_here_str}.tif')
+    from MDB_builder.INSITU_tara import INSITU_TARA
+    itara = INSITU_TARA(None, True)
+    from datetime import timedelta
+    date_ini = date_here - timedelta(hours=2)
+    date_fin = date_here + timedelta(hours=2)
+    date_ini = date_ini.replace(tzinfo=pytz.utc)
+    date_fin = date_fin.replace(tzinfo=pytz.utc)
+    distributions, summary = itara.get_time_distribution_from_metadata(date_here, date_ini, date_fin)
+    # x_data = np.linspace(450,85950,96)
+    x_data = np.linspace(0, 95, 96)
+    x_ticks = list(range(0, 24))
+    x_data_ticks = [0] * 24
+    idx = 0
+    for hour in range(24):
+        x_data_ticks[hour] = x_data[idx]
+        idx = idx + 4
+
+    y_data_total = distributions[:, 0]
+    y_data_q3 = distributions[:, 1]
+    y_data_q4 = distributions[:, 2]
+    y_data_q5 = distributions[:, 3]
+
+    bar1 = plt.bar(x_data, y_data_total, color='darkblue', edgecolor='black',
+                   linewidth=0, width=1)  # ,marker='o',markersize=10)
+    bar2 = plt.bar(x_data, y_data_q3, color='palegreen', edgecolor='black',
+                   linewidth=0, width=1)  # , marker='o', markersize=10)
+    bar3 = plt.bar(x_data, y_data_q4, color='lime', edgecolor='black',
+                   linewidth=0, width=1)  # , marker='o', markersize=10)
+    bar4 = plt.bar(x_data, y_data_q5, color='green', edgecolor='black',
+                   linewidth=0, width=1)  # , marker='o', markersize=10)
+    plt.xticks(x_data_ticks, x_ticks, rotation=90)
+
+    ylim = plt.gca().get_ylim()
+
+    date_ref = date_here.replace(hour=0, minute=0, second=0, tzinfo=pytz.utc)
+
+    x_sat_time = (date_here - date_ref).total_seconds() / 900.0
+    x_sat_time_ini = (date_ini - date_ref).total_seconds() / 900.0
+    x_sat_time_fin = (date_fin - date_ref).total_seconds() / 900.0
+    plt.vlines(x_sat_time, ylim[0], ylim[1], linestyles='-', colors='red', linewidths=1.5)
+    plt.vlines(x_sat_time_ini, ylim[0], ylim[1], linestyles='--', colors='red', linewidths=1.5)
+    plt.vlines(x_sat_time_fin, ylim[0], ylim[1], linestyles='--', colors='red', linewidths=1.5)
+    plt.xlabel('Hour')
+    plt.ylabel('Number of spectra')
+    plt.legend([bar1, bar2, bar3, bar4],
+               [f'Total({int(summary[0])})', f'q_3({int(summary[1])})', f'q_4({int(summary[2])})',
+                f'q_5({int(summary[3])})'])
+    plt.title(title)
+    plt.xlim([20, 68])
+    # plt.grid(axis='y')
+
+    # plt.xlim([20000,60000])
+
+    plt.savefig(file_out, dpi=300)
+    plt.close()
+
+    return summary
+
+
+def convert_tara_files():
+    import pandas as pd
+    from datetime import datetime as dt
+    dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/insitu_data/HyperPro-Orig'
+    dir_meta = '/mnt/c/DATA_LUIS/TARA_TEST/insitu_data/HyperPro_meta'
+    dir_rad = '/mnt/c/DATA_LUIS/TARA_TEST/insitu_data/HyperPro-Rad'
+
+    for name in os.listdir(dir_base):
+        if name.endswith('b.csv'):
+            continue
+        fcsv = os.path.join(dir_base, name)
+        df = pd.read_csv(fcsv, sep=',')
+        # lat_array = np.array(df['Latitude'])
+        # lon_array = np.array(df['Longitude'])
+        # day = df['Day']
+        # time = df['Time']
+        # fmeta = os.path.join(dir_meta,name)
+        # fwmeta = open(fmeta,'w')
+        # fwmeta.write('lat,lon,timestamp')
+        # for idx in range(len(day)):
+        #     datetime_str = f'{day[idx]} {time[idx]}'
+        #     datetime = dt.strptime(datetime_str,'%Y-%m-%d %H:%M:%S')
+        #     datatime_n = datetime.strftime('%Y-%m-%d %H:%M:%S.%f')
+        #     line = f'{lat_array[idx]},{lon_array[idx]},{datatime_n}'
+        #     fwmeta.write('\n')
+        #     fwmeta.write(line)
+        # fwmeta.close()
+        frad = os.path.join(dir_rad, name)
+        fwrad = open(frad, 'w')
+        col_names = df.columns.tolist()[4:]
+        wl_values = [float(x[4:]) for x in col_names]
+        first_line = ",".join([str(x) for x in wl_values])
+        first_line = f'#{first_line}'
+        fwrad.write(first_line)
+
+        for index, row in df.iterrows():
+            rad_values = np.array(row[4:]).tolist()
+            rad_values_str = ",".join([str(x) for x in rad_values])
+            fwrad.write('\n')
+            fwrad.write(rad_values_str)
+
+        fwrad.close()
+
+
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
-        input_file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/publication/revision2/Figure7.jpg'
-        output_file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/publication/production/Figure3.tif'
-        from matplotlib import image as img
-        from matplotlib import pyplot as plt
-        image = img.imread(input_file)
-        plt.imshow(image)
-        plt.axis(False)
-        plt.savefig(output_file, dpi=350, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
 
-        from BSC_QAA import bsc_qaa_EUMETSAT as qaa
+        # convert_tara_files()
+
+        ##convert mdb format
+        satellite = 'S2'
+        path_in = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/PUBLICATION/proof/ZenodoMDB'
+        path_output = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/PUBLICATION/proof/ZenodoMDB_final'
+        for name in os.listdir(path_in):
+            file_in = os.path.join(path_in, name)
+            file_out = os.path.join(path_output, name)
+            if name.startswith(f'MDB_{satellite}'):
+                print('---------------> ', name)
+                creating_copy_mdb_publication(file_in, file_out, 'S2')
+
+        # from datetime import datetime as dt
+        # date_tal = dt(2023,4,5,10,18)
+        # file_csv = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/SatelliteDates.csv'
+        # file_out = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/SatelliteDates_out.csv'
+        # f1 = open(file_csv, 'r')
+        # fw = open(file_out, 'w')
+        # for line in f1:
+        #     if line.strip().startswith('Satellite'):
+        #         line_out = f'{line.strip()};NTotal;N_q_1;N_q_2;N_q_3'
+        #         fw.write(line_out)
+        #         continue
+        #     values = [x.strip() for x in line.split(';')]
+        #     date_here = dt.strptime(values[1], '%Y-%m-%d %H:%M')
+        #     title = f'{values[0]} {values[1]}'
+        #     summary = plot_distribution_times(date_here, title)
+        #     line_out = f'{line.strip()};{int(summary[0])};{int(summary[1])};{int(summary[2])};{int(summary[3])}'
+        #     fw.write('\n')
+        #     fw.write(line_out)
+        # f1.close()
+        # fw.close()
+
+        # input_file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/publication/revision2/Figure7.jpg'
+        # output_file = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION/publication/production/Figure3.tif'
+        # from matplotlib import image as img
+        # from matplotlib import pyplot as plt
+        # image = img.imread(input_file)
+        # plt.imshow(image)
+        # plt.axis(False)
+        # plt.savefig(output_file, dpi=350, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+        #
+        # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import numpy as np
         # bands: B1	B2	B3	B4
         # bands_in = [442.7,492.4,559.8,664.6]
@@ -2456,20 +2751,21 @@ def main():
         if not os.path.isdir(output_path):
             print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
 
-        # from MDBPlotV3 import MDBPlot
-        # mplot = MDBPlot(input_path)
-        # mplot.plot_from_options_file(config_file)
+        from MDBPlotV3 import MDBPlot
+        mplot = MDBPlot(input_path)
+        mplot.plot_from_options_file(config_file)
         # mplot.output_path = output_path
         #
 
-        from MDBPlotV2 import MDBPlot
-        import configparser
-        mplot = MDBPlot(input_path)
-        options = configparser.ConfigParser()
-        options.read(config_file)
-        # print(mplot.VALID)
-        mplot.set_global_options(options)
-        mplot.plot_from_options(options)
+        ##WITH MDBPlotV2
+        # from MDBPlotV2 import MDBPlot
+        # import configparser
+        # mplot = MDBPlot(input_path)
+        # options = configparser.ConfigParser()
+        # options.read(config_file)
+        # # print(mplot.VALID)
+        # mplot.set_global_options(options)
+        # mplot.plot_from_options(options)
 
         # path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS'
         # from PlotMultiple import PlotMultiple

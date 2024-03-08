@@ -121,8 +121,7 @@ class PlotSpectra():
         plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'], ncol = self.legend_options['ncols'])
 
     def set_legend_h(self,handles,str_legend):
-
-        plt.legend(handles,str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'],framealpha=self.legend_options['framealpha'])
+        plt.legend(handles,str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'],framealpha=self.legend_options['framealpha'], ncol = self.legend_options['ncols'])
 
     def set_title(self, title):
         plt.title(title)
@@ -273,6 +272,10 @@ class PlotSpectra():
             self.plot_data(stats['spectra_max'][imin:imax], self.stats_style['minmax'])
 
         return h
+
+    def plot_iqr_basic(self,y1,y2,color):
+        plt.fill_between(self.xdata,y1,y2,facecolor=color,alpha=0.5)
+
     def get_ymin_ymax_from_stats(self,stats,imin,imax):
         y1 = stats['avg'][imin:imax] - (2 * stats['std'][imin:imax])
         y2 = stats['avg'][imin:imax] + (2 * stats['std'][imin:imax])

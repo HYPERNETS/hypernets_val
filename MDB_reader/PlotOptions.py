@@ -12,15 +12,13 @@ class PlotOptions:
             options.read(config_file)
 
         self.options = options
-        self.output_path = None
-
-
 
         ##GLOBAL OPTIONS
-        self.global_options = {}#defaults.global_option
-        self.mu_valid_variable = 'mu_valid'
-        self.format_image = 'png'
-        self.image_resolution = 300
+        self.global_options = {}
+        # self.mu_valid_variable = 'mu_valid'
+        # self.format_image = 'png'
+        # self.image_resolution = 300
+        # self.output_path = None
 
         self.valid_stats = {
             'N': 0,
@@ -43,50 +41,55 @@ class PlotOptions:
             'MAE': 0.0
         }
 
-
     def set_global_options(self):
         section = 'GLOBAL_OPTIONS'
         self.global_options = {}
         for goption in defaults.global_options:
             default = defaults.global_options[goption]['default']
             type = defaults.global_options[goption]['type']
-            self.global_options[goption] = self.get_value_param(section,goption.strip(),default,type)
-            if type=='str' and 'values' in defaults.global_options[goption].keys():
-                values = defaults.global_options[goption]['values']
-                if not self.global_options[goption] in values:
-                    print(f'[ERROR] [{section}] {self.global_options[goption]} is not a valid  value for {goption}. Valid values: {values} ')
+            potential_values = None
+            if 'values' in defaults.global_options[goption].keys():
+                potential_values = defaults.global_options[goption]['values']
+            self.global_options[goption] = self.get_value_param(section, goption, default, type, potential_values)
+            # if type=='str' and 'values' in defaults.global_options[goption].keys():
+            #     values = defaults.global_options[goption]['values']
+            #     if not self.global_options[goption] in values:
+            #         print(f'[ERROR] [{section}] {self.global_options[goption]} is not a valid  value for {goption}. Valid values: {values} ')
 
-        #self.output_path = self.get_value_param(section, 'output_path', self.output_path, 'directory')
+        # self.output_path = self.get_value_param(section, 'output_path', self.output_path, 'directory')
         # self.mu_valid_variable = self.get_value_param(section, 'mu_valid_variable', self.mu_valid_variable, 'str')
-
 
     def get_list_figures(self):
         sections = self.options.sections()
         list_figures = []
         for s in sections:
-            apply = self.get_value_param(s, 'apply', False, 'boolean')
+            apply = self.get_value_param(s, 'apply', False, 'boolean', None)
             if apply:
                 list_figures.append(s)
         return list_figures
 
-
     def get_options(self, section):
-        options_out = {'apply': self.get_value_param(section, 'apply', False, 'boolean')}
+        options_out = {'apply': self.get_value_param(section, 'apply', False, 'boolean', None)}
         if not options_out['apply']:
-            return options_out
-        options_out['type'] = self.get_value_param(section, 'type', None, 'str')
+            return None
+        options_out['type'] = self.get_value_param(section, 'type', None, 'str', defaults.type_list)
         if options_out['type'] is None:
-            return options_out
+            return None
         options_out['name'] = section
+        if self.global_options['output_path'] is not None:
+            name_default = options_out['name'] + '.' + self.global_options['fig_extension']
+            file_out_default = os.path.join(self.global_options['output_path'], name_default)
+        options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str', None)
 
-
-        options_out['multiple_plot'] = self.get_value_param(section, 'multiple_plot', None, 'str')
+        # options_out['multiple_plot'] = self.get_value_param(section, 'multiple_plot', None, 'str')
         # if options_out['type'] == 'csvtable':
         #     options_out = self.get_options_csv(section,options_out)
         if options_out['type'] == 'scatterplot':
-            # options_out = self.get_group_options(section, options_out)
-            # options_out = self.get_select_options(section, options_out)
+            print(f'[INFO] Plot type: scatterplot')
             options_out = self.get_options_scatterplot(section, options_out)
+        if options_out['type'] == 'spectraplot':
+            options_out = self.get_options_spectraplot(section, options_out)
+
         if options_out['type'].startswith('statstable'):
             options_out = self.get_options_csv_statstable(section, options_out)
         # if options_out['type'] == 'statswlplot':
@@ -100,6 +103,9 @@ class PlotOptions:
         #     options_out = self.get_select_options(section, options_out)
         # if options_out['type'] == 'flagplot':
         #     options_out = self.get_options_flag(section, options_out)
+
+        for option in options_out:
+            print(option, '->', options_out[option])
 
         return options_out
 
@@ -116,7 +122,108 @@ class PlotOptions:
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str')
         return options_out
 
+    def get_options_spectraplot(self, section, options_out):
+
+        doptions = defaults.get_options_spectraplots()
+
+        for option in doptions:
+            pvalues = None
+            if 'values' in doptions[option]:
+                pvalues = doptions[option]['values']
+            options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
+                                                       doptions[option]['type'], pvalues)
+        return options_out
+
     def get_options_scatterplot(self, section, options_out):
+        doptions = defaults.get_options_satterplots()
+        for option in doptions:
+            pvalues = None
+            if 'values' in doptions[option]:
+                pvalues = doptions[option]['values']
+
+            options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
+                                                       doptions[option]['type'], pvalues)
+
+        if options_out['type_scatterplot'] == 'chla' or options_out['type_scatterplot'] == 'kd':  ##CHANGE DEFAULTS
+            if self.get_value(section, 'units') is None:
+                options_out['units'] = defaults.units_default[options_out['type_scatterplot']]
+            if self.get_value(section, 'scale_factor') is None:
+                options_out['scale_factor'] = 1
+            if self.get_value(section, 'log_scale') is None:
+                options_out['log_scale'] = True
+        if options_out['type_scatterplot'] == 'rrs' and options_out['use_rhow']:
+            if self.get_value(section, 'units') is None:
+                options_out['units'] = defaults.units_default['rhow']
+            if self.get_value(section, 'scale_factor') is None:
+                options_out['scale_factor'] = 1
+        if options_out['xlabel'] is None:
+            options_out['xlabel'] = defaults.get_label_scatterplot('x', options_out['type_scatterplot'],
+                                                                   options_out['use_rhow'], options_out['scale_factor'])
+        if options_out['ylabel'] is None:
+            options_out['ylabel'] = defaults.get_label_scatterplot('y', options_out['type_scatterplot'],
+                                                                   options_out['use_rhow'], options_out['scale_factor'])
+
+        options_out['scale_factor_str'] = defaults.get_scale_factor_str(options_out['scale_factor'])
+
+        if options_out['groupBy'] is not None:
+            if self.get_value(section, 'edgecolor') is None:
+                options_out['edgecolor'] = ['black']
+            if self.get_value(section, 'linewidth') is None:
+                options_out['linewidth'] = [0.25]
+        density_plots = False
+        if options_out['groupBy'] is None and options_out['apply_density']:
+            if not options_out['selectByWavelength'] and not options_out['apply_wavelength_color']:
+                density_plots = True
+            if options_out['selectByWavelength']:
+                density_plots = True
+        if density_plots:
+            if self.get_value(section, 'edgecolor') is None:
+                options_out['edgecolor'] = ['blue']
+            if self.get_value(section, 'linewidth') is None:
+                options_out['linewidth'] = [0]
+
+        if options_out['include_stats']:
+            stat_list = options_out['stat_list']
+            for stat in stat_list:
+                if stat.upper() == 'WL':
+                    continue
+                elif stat.upper() == 'EQUATION':
+                    type_regression = options_out['type_regression'].upper()
+                    val_format_slope = self.get_value(section, f'SLOPE_{type_regression}_FORMAT')
+                    if val_format_slope is None:
+                        val_format_slope = defaults.valid_stats[f'SLOPE_{type_regression}']['format']
+                    options_out[f'SLOPE_{type_regression}_FORMAT'] = val_format_slope.strip()
+
+                    val_format_offset = self.get_value(section, f'OFFSET_{type_regression}_FORMAT')
+                    if val_format_offset is None:
+                        val_format_offset = defaults.valid_stats[f'OFFSET_{type_regression}']['format']
+                    options_out[f'OFFSET_{type_regression}_FORMAT'] = val_format_offset.strip()
+                else:
+                    val_format = self.get_value(section, f'{stat}_FORMAT')
+                    val_nameplot = self.get_value(section, f'{stat}_NAMEPLOT')
+                    if val_format is None:
+                        val_format = defaults.valid_stats[stat.upper()]['format']
+                    if val_nameplot is None:
+                        val_nameplot = stat.upper()
+                        if 'name_plot' in defaults.valid_stats[stat.upper()]:
+                            val_nameplot = defaults.valid_stats[stat.upper()]['name_plot']
+
+                    options_out[f'{stat.upper()}_FORMAT'] = val_format.strip()
+                    options_out[f'{stat.upper()}_NAMEPLOT'] = val_nameplot.strip()
+
+        if options_out['log_scale']:
+            if options_out['min_xy'] is None:
+                options_out['min_xy'] = 0.1
+                if options_out['type_scatterplot'] == 'kd':
+                    options_out['min_xy'] = 0.01
+            if options_out['max_xy'] is None:
+                options_out['max_xy'] = 100
+                if options_out['type_scatterplot'] == 'kd':
+                    options_out['max_xy'] = 10
+
+        return options_out
+
+    def get_options_scatterplot_deprecated(self, section, options_out):
 
         options_out['type_scatterplot'] = self.get_value_param(section, 'type_scatterplot', 'rrs', 'str')
 
@@ -131,12 +238,12 @@ class PlotOptions:
                                                                      'boolean')
         options_out['apply_density'] = self.get_value_param(section, 'apply_density', True, 'boolean')
         options_out['title'] = self.get_value_param(section, 'title', None, 'str')
-        print(self.global_options)
+        #print(self.global_options)
         if self.global_options['output_path'] is not None:
             name_default = options_out['name'] + '.' + self.global_options['fig_extension']
-            file_out_default = os.path.join(self.global_options['output_path'],name_default)
-            #name_default = options_out['name'] + '.' + self.format_image
-            #file_out_default = os.path.join(self.output_path, name_default)
+            file_out_default = os.path.join(self.global_options['output_path'], name_default)
+            # name_default = options_out['name'] + '.' + self.format_image
+            # file_out_default = os.path.join(self.output_path, name_default)
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str')
         options_out['log_scale'] = self.get_value_param(section, 'log_scale', False, 'boolean')
         options_out['use_rhow'] = self.get_value_param(section, 'use_rhow', False, 'boolean')
@@ -202,12 +309,20 @@ class PlotOptions:
             value = self.options[section][key]
         return value
 
-    def get_value_param(self, section, key, default, type):
+    def get_value_param(self, section, key, default, type, potential_values):
         value = self.get_value(section, key)
         if value is None:
             return default
         if type == 'str':
-            return value
+            if potential_values is None:
+                return value
+            else:
+                if value.lower() in potential_values:
+                    return value
+                else:
+                    print(
+                        f'[ERROR] [{section}] {value} is not a valid  value for {key}. Valid values: {potential_values} ')
+                    return default
         if type == 'file':
             if not os.path.exists(value.strip()):
                 return default
@@ -261,3 +376,49 @@ class PlotOptions:
                 vals = vals.strip()
                 list.append(int(vals))
             return list
+
+        if type == 'linestyle':
+            list_str = value.split(',')
+            if len(list_str) != 5:
+                print(
+                    f'[WARNING] {section}-{key} is not valid, it should be defined as a line style with 5 comma-separated values:')
+                print(f'[WARNING] line_color,marker,marker_size,line_style,line_size')
+                print(f'[WARNING] Using default line style for {section}-{key}')
+                return default
+            try:
+                marker_size = float(list_str[2].strip())
+                line_size = float(list_str[4].strip())
+                marker = list_str[1].strip()
+                if marker.lower() == 'none':
+                    marker = None
+                style = {
+                    'line_color': list_str[0].strip(),
+                    'marker': marker,
+                    'marker_size': marker_size,
+                    'line_style': list_str[3].strip(),
+                    'line_size': line_size
+                }
+                return style
+
+            except:
+                print(f'[WARNING] {section}-{key} is not valid line style, using default style')
+                return default
+
+        if type=='fillstyle':
+            list_str = value.split(',')
+            if len(list_str) != 2:
+                print(
+                    f'[WARNING] {section}-{key} is not valid, it should be defined as a fill style with 2 comma-separated values:')
+                print(f'[WARNING] color, alpha')
+                print(f'[WARNING] Using default fill style for {section}-{key}')
+                return default
+            try:
+                alpha = float(list_str[1].strip())
+                style  = {
+                    'color': list_str[0].strip(),
+                    'alpha': alpha
+                }
+                return style
+            except:
+                print(f'[WARNING] {section}-{key} is not valid fill style, using default style')
+                return default

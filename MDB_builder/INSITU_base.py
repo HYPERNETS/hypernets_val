@@ -1,4 +1,4 @@
-from netCDF4 import Dataset
+
 
 
 class INSITUBASE:
@@ -83,6 +83,7 @@ class INSITUBASE:
                 variable.setncattr(at,ats[at])
 
     def copy_nc_reduced(self,ifile,ofile):
+        from netCDF4 import Dataset
         with Dataset(ifile) as src:
             dst = Dataset(ofile, 'w', format='NETCDF4')
             # copy global attributes all at once via dictionary
@@ -106,6 +107,7 @@ class INSITUBASE:
 
 
     def copy_nc(self, ifile, ofile):
+        from netCDF4 import Dataset
         with Dataset(ifile) as src:
             dst = Dataset(ofile, 'w', format='NETCDF4')
             # copy global attributes all at once via dictionary
