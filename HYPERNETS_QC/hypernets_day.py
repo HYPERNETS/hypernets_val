@@ -81,9 +81,11 @@ class HYPERNETS_DAY():
             if name.find('IMG')>0 and name.endswith('jpg'):
 
                 sequence_ref = name.split('_')[4]
+                print('estmos aqui', name, sequence_ref)
                 try:
                     list_seq_refs.index(sequence_ref)
                     if sequence_ref not in self.files_dates.keys():
+                        print('caso 1')
                         self.files_dates[sequence_ref] = {
                             'file_l2': None,
                             'file_l1': None,
@@ -92,12 +94,16 @@ class HYPERNETS_DAY():
                         }
                     else:
                         file_images = self.files_dates[sequence_ref]['file_images']
+                        print('caso 2',file_images)
                         if file_images is None:
+                            print('caso 3.1')
                             file_images = [os.path.join(date_folder,name)]
                         else:
+                            print('caso 3.2')
                             file_images.append(os.path.join(date_folder.name))
                         self.files_images[sequence_ref]['file_images'] = file_images
                 except:
+                    print('hay un error aqui')
                     pass
 
 
