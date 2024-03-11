@@ -9,11 +9,18 @@ from hypernets_day_file import HYPERNETS_DAY_FILE
 
 class HYPERNETS_DAY():
 
-    def __init__(self, path_data):
+    def __init__(self, path_data,path_output):
         if path_data is not None:
             self.path_data = path_data
         else:
             self.path_data = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR'
+        if path_output is not None:
+            self.path_output = path_output
+        else:
+            self.path_output = self.path_data
+
+
+        
         rsync_user = 'hypstar'
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
         self.base_folder = '/waterhypernet/hypstar/processed_v2/'
@@ -59,7 +66,7 @@ class HYPERNETS_DAY():
                     self.transfer_file_ssh(f'{ssh_path}/{name_l1}', file_l1)
 
     def get_file_date_complete(self, site, date_here):
-        folder_date = self.get_folder_date(site, date_here)
+        folder_date = self.get_output_folder_date(site, date_here)
         if folder_date is None:
             return None
         date_here_str = date_here.strftime('%Y%m%d')
@@ -328,6 +335,29 @@ class HYPERNETS_DAY():
             return folder_date
         else:
             return None
+
+    def get_output_folder_date(self,site, date_here):
+        folder_site = os.path.join(self.path_output, site)
+        folder_year = os.path.join(folder_site, date_here.strftime('%Y'))
+        folder_month = os.path.join(folder_year, date_here.strftime('%m'))
+        folder_date = os.path.join(folder_month, date_here.strftime('%d'))
+        self.create_if_not_exists(folder_site)
+        self.create_if_not_exists(folder_year)
+        self.create_if_not_exists(folder_month)
+        self.create_if_not_exists(folder_date)
+
+        if os.path.exists(folder_date):
+            return folder_date
+        else:
+            return None
+
+    def create_if_not_exists(self,folder):
+        if not os.path.exists(folder):
+            try:
+                os.mkdir(folder)
+            except:
+                pass
+
 
     def get_ssh_path(self, site, date_here, sequence_folder):
         year_str = date_here.strftime('%Y')

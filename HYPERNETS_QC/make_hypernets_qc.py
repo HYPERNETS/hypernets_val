@@ -7,17 +7,19 @@ parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode", choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES'], required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
+parser.add_argument('-i', "--input_path", help="Input path")
+parser.add_argument('-o', "--output_path", help="Output path")
 parser.add_argument('-site', "--site_name", help="Site name")
 # parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
 args = parser.parse_args()
 
-def make_report_files(site,start_date,end_date):
+def make_report_files(input_path,output_path,site,start_date,end_date):
     if args.verbose:
         print(f'[INFO] Started making report')
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    hday = HYPERNETS_DAY(None)
+    hday = HYPERNETS_DAY(input_path,output_path)
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
@@ -36,14 +38,14 @@ def make_report_files(site,start_date,end_date):
         #hdayfile.get_flags_sequence()
         #hdayfile.get_title()
         #hdayfile.save_report_image(False)
-        #create_daily_pdf_report(site,work_date)
+        #create_daily_pdf_report(input_path,output_path,site,work_date)
         work_date = work_date + timedelta(hours=24)
 
-def create_daily_pdf_report(site,date_here):
+def create_daily_pdf_report(input_path,output_path,site,date_here):
     import os
     from matplotlib.backends.backend_pdf import PdfPages
     from matplotlib import pyplot as plt
-    hday = HYPERNETS_DAY(None)
+    hday = HYPERNETS_DAY(input_path,output_path)
     folder_day = hday.get_folder_date(site,date_here)
     date_here_str = date_here.strftime('%Y%m%d')
     file_pdf = os.path.join(folder_day,f'Report_{site}_{date_here_str}.pdf')
@@ -67,12 +69,12 @@ def create_daily_pdf_report(site,date_here):
 
 
 
-def make_get_files(site, start_date, end_date):
+def make_get_files(input_path,output_path,site, start_date, end_date):
     if args.verbose:
         print(f'[INFO] Started getting files')
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    hday = HYPERNETS_DAY(None)
+    hday = HYPERNETS_DAY(input_path,output_path)
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
@@ -81,12 +83,13 @@ def make_get_files(site, start_date, end_date):
         work_date = work_date + timedelta(hours=24)
 
 
-def make_create_dayfiles(site, start_date,end_date):
+def make_create_dayfiles(input_path,output_path,site, start_date,end_date):
     if args.verbose:
         print(f'[INFO] Started creating files')
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    hday = HYPERNETS_DAY(None)
+
+    hday = HYPERNETS_DAY(input_path,output_path)
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
@@ -138,15 +141,27 @@ def main():
     site = 'VEIT'
     if args.site_name:
         site = args.site_name
+    input_path = None
+    output_path = None
+
+    if args.input_path:
+        input_path = args.input_path
+        if args.verbose:
+            print(f'[INFO] Input path set to: {input_path}')
+    if args.output_path:
+        output_path = args.output_path
+        if args.verbose:
+            print(f'[INFO] Output path set to: {output_path}')
+
 
     if args.mode == 'GETFILES':
-        make_get_files(site, start_date, end_date)
+        make_get_files(input_path,output_path,site, start_date, end_date)
 
     if args.mode == 'REPORTDAYFILES':
-        make_report_files(site,start_date,end_date)
+        make_report_files(input_path,output_path,site,start_date,end_date)
 
     if args.mode == 'CREATEDAYFILES':
-        make_create_dayfiles(site,start_date,end_date)
+        make_create_dayfiles(input_path,output_path,site,start_date,end_date)
 
 # %%
 if __name__ == '__main__':
