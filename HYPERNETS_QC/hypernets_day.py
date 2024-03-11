@@ -79,6 +79,7 @@ class HYPERNETS_DAY():
                 except:
                     pass
             if name.find('IMG')>0 and name.endswith('jpg'):
+
                 sequence_ref = name.split('_')[4]
                 try:
                     list_seq_refs.index(sequence_ref)
@@ -91,7 +92,10 @@ class HYPERNETS_DAY():
                         }
                     else:
                         file_images = self.files_dates[sequence_ref]['file_images']
-                        file_images.append(os.path.join(date_folder.name))
+                        if file_images is None:
+                            file_images = [os.path.join(date_folder,name)]
+                        else:
+                            file_images.append(os.path.join(date_folder.name))
                         self.files_images[sequence_ref]['file_images'] = file_images
                 except:
                     pass
