@@ -18,7 +18,9 @@ class HYPERNETS_DAY():
             self.path_output = path_output
         else:
             self.path_output = self.path_data
-
+        print(f'[INFO] Started HYPERNETS_DAY with:')
+        print(f'[INFO] ->Input path data: {self.path_data}')
+        print(f'[INFO] ->Output path data: {self.path_output}')
 
 
         rsync_user = 'hypstar'
@@ -252,6 +254,8 @@ class HYPERNETS_DAY():
                 name = file_img.split('/')[-1]
                 name_s = name.split('_')
                 ref = name_s[6]
+                if ref not in rgb_variables.keys():
+                    continue
                 var_name = rgb_variables[ref]['name_var']
                 variable = self.dataset_w.variables[var_name]
 
