@@ -79,13 +79,10 @@ class HYPERNETS_DAY():
                 except:
                     pass
             if name.find('IMG')>0 and name.endswith('jpg'):
-
                 sequence_ref = name.split('_')[4]
-                print('estmos aqui', name, sequence_ref)
                 try:
                     list_seq_refs.index(sequence_ref)
                     if sequence_ref not in self.files_dates.keys():
-                        print('caso 1')
                         self.files_dates[sequence_ref] = {
                             'file_l2': None,
                             'file_l1': None,
@@ -94,16 +91,12 @@ class HYPERNETS_DAY():
                         }
                     else:
                         file_images = self.files_dates[sequence_ref]['file_images']
-                        print('caso 2',file_images)
                         if file_images is None:
-                            print('caso 3.1')
                             file_images = [os.path.join(date_folder,name)]
                         else:
-                            print('caso 3.2')
                             file_images.append(os.path.join(date_folder,name))
                         self.files_dates[sequence_ref]['file_images'] = file_images
                 except:
-                    print('hay un error aqui')
                     pass
 
 
@@ -310,6 +303,8 @@ class HYPERNETS_DAY():
             if level == 2:
                 file = self.files_dates[seq]['file_l2']
                 prename = 'l2'
+            if file is None:
+                continue
             print(f'[INFO] Set level{level} data for sequence {seq}')
             dataset = Dataset(file)
             for var_name in dataset.variables:
@@ -347,6 +342,8 @@ class HYPERNETS_DAY():
         for idx in range(len(seq_list)):
             seq = seq_list[idx]
             if not self.files_dates[seq]['valid']:
+                continue
+            if self.files_dates[seq]['file_images'] is None:
                 continue
             print(f'[INFO] Saving RGB images for sequence: {seq}')
             for file_img in self.files_dates[seq]['file_images']:
