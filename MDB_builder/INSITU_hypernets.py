@@ -297,6 +297,14 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             os.mkdir(path_day)
         return path_day
 
+    def get_sequences_day_ssh(self,sitename,date_here):
+        year_str = date_here.strftime('%Y')
+        month_str = date_here.strftime('%m')
+        day_str = date_here.strftime('%d')
+        cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
+        sequence_list = self.get_list_sequence_folders(cmd)
+        return sequence_list
+
     def get_files_day_ssh(self, sat_time, dotransfer):
         if self.verbose:
             print(f'[INFO] =====================================================================')
@@ -538,7 +546,6 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         cmd = f'{self.ssh_base} {self.url_base} find {folder_date} -name {self.find_ref}'
 
         list_files = self.get_list_files(cmd)
-
 
         if len(list_files) == 0:
             return None

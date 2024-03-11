@@ -34,6 +34,8 @@ class HYPERNETS_DAY():
         self.files_dates = {}
         self.dataset_w = None
 
+
+
     def get_files_date(self, site, date_here):
         self.files_dates = {}
         date_folder = self.get_folder_date(site, date_here)
@@ -44,6 +46,7 @@ class HYPERNETS_DAY():
         if len(list_sequences)==0:
             print(f'[WARNING] No sequences found for date: {date_here}')
             return
+
         for name in os.listdir(date_folder):
             if name.find('L2A_REF') > 0:
                 sequence_ref = name.split('_')[5]
