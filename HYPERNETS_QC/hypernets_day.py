@@ -100,7 +100,7 @@ class HYPERNETS_DAY():
                             file_images = [os.path.join(date_folder,name)]
                         else:
                             print('caso 3.2')
-                            file_images.append(os.path.join(date_folder.name))
+                            file_images.append(os.path.join(date_folder,name))
                         self.files_images[sequence_ref]['file_images'] = file_images
                 except:
                     print('hay un error aqui')
