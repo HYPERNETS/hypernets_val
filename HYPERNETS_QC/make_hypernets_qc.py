@@ -10,8 +10,11 @@ parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdat
 parser.add_argument('-i', "--input_path", help="Input path")
 parser.add_argument('-o', "--output_path", help="Output path")
 parser.add_argument('-site', "--site_name", help="Site name")
-# parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
+# parser.add_argument('-ndel', "--nodelfiles", help="Do not delete temp files.", action="store_true")
+parser.add_argument("-ndw", "--nodownload", help="No download (for launching without connection with RBINS).", action="store_true")
+parser.add_argument("-ow", "--overwrite", help="Overwrite output file(s).", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
+
 
 args = parser.parse_args()
 
@@ -94,12 +97,25 @@ def make_create_dayfiles(input_path,output_path,site, start_date,end_date):
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
             print(f'[INFO] Date: {work_date}')
-        hday.get_files_date(site, work_date)
+        if args.nodownload:
+            hday.get_files_date_nodownload(site,work_date)
+        else:
+            hday.get_files_date(site, work_date)
+
         if len(hday.files_dates)==0:
-            print(f'[WARNING] Skipping date...')
+            print(f'[WARNING] No data files found for the sequences on date: {work_date}. Skipping...')
             work_date = work_date + timedelta(hours=24)
             continue
-        hday.start_file_date_complete(site, work_date, True)
+
+        if args.verbose:
+            print(f'[INFO] Number of sequences: {len(hday.files_dates)}')
+        nseq = hday.start_file_date_complete(site, work_date, args.overwrite)
+        if nseq<0:
+            work_date = work_date + timedelta(hours=24)
+            continue
+        else:
+            if args.verbose:
+                print(f'[INFO] Valid sequences: {nseq}')
         hday.set_data(site, work_date)
         hday.close_datafile_complete()
         work_date = work_date + timedelta(hours=24)
