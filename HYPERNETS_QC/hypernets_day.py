@@ -20,7 +20,7 @@ class HYPERNETS_DAY():
             self.path_output = self.path_data
 
 
-        
+
         rsync_user = 'hypstar'
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
         self.base_folder = '/waterhypernet/hypstar/processed_v2/'
@@ -39,6 +39,9 @@ class HYPERNETS_DAY():
             return
 
         list_sequences = self.get_sequences_date(site, date_here)
+        if len(list_sequences)==0:
+            print(f'[WARNING] No sequences found for date: {date_here}')
+            return
         for name in os.listdir(date_folder):
             if name.find('L2A_REF') > 0:
                 sequence_ref = name.split('_')[5]

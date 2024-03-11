@@ -95,6 +95,10 @@ def make_create_dayfiles(input_path,output_path,site, start_date,end_date):
             print(f'--------------------------------------------------------------------------------------------------')
             print(f'[INFO] Date: {work_date}')
         hday.get_files_date(site, work_date)
+        if len(hday.files_dates)==0:
+            print(f'[WARNING] Skipping date...')
+            work_date = work_date + timedelta(hours=24)
+            continue
         hday.start_file_date_complete(site, work_date, True)
         hday.set_data(site, work_date)
         hday.close_datafile_complete()
