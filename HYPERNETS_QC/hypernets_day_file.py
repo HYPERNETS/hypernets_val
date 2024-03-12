@@ -13,13 +13,17 @@ from COMMON import Class_Flags_OLCI
 
 class HYPERNETS_DAY_FILE():
 
-    def __init__(self, file_nc):
+    def __init__(self, file_nc, path_images):
         self.VALID = True
         if not os.path.exists(file_nc):
             self.VALID = False
         if file_nc is None:
             self.VALID = False
         self.file_nc = file_nc
+        self.path_images = path_images
+        if self.path_images is None:
+            self.path_images = os.path.dirname(self.file_nc)
+        self.path_images_date = None
         self.sequences = []
         self.format_img = '.png'
         if self.VALID:
@@ -35,7 +39,11 @@ class HYPERNETS_DAY_FILE():
         sequences = []
         dataset = Dataset(self.file_nc)
         seq_var = dataset.variables['sequence_ref']
-        for val in seq_var:
+        for idx in range(len(seq_var)):
+            val = seq_var[idx]
+            if np.ma.is_masked(val):
+                sequences.append(None)
+                continue
             time = dt.utcfromtimestamp(float(val))
             sequences.append(time.strftime('%Y%m%dT%H%M'))
         dataset.close()
@@ -65,10 +73,9 @@ class HYPERNETS_DAY_FILE():
         if apply_nosc:
             variable = 'l1_reflectance_nosc'
         dataset = Dataset(self.file_nc)
-        reflectance = np.array(dataset.variables[variable][self.isequence, self.ref_wl_idx,:])
+        reflectance = np.array(dataset.variables[variable][self.isequence, self.ref_wl_idx, :])
         dataset.close()
         return reflectance
-
 
     def angle_rad_level1(self, flag):
         if flag == 'sza':
@@ -98,8 +105,10 @@ class HYPERNETS_DAY_FILE():
             median_op_angle = median_op_angle - 360
         angle_labels = np.arange(0, 361, 45)
         angle_label = angle_labels[int(np.argmin(np.abs(angle_labels - median_op_angle)))]
-        if angle_label == 360 or angle_label == 0:
-            angle_label = 315
+        if angle_label == 270:
+            angle_label = 225
+        if angle_label == 90:
+            angle_label = 135
         angle = (angle * np.pi) / 180
         return angle, angle_label
 
@@ -122,10 +131,10 @@ class HYPERNETS_DAY_FILE():
         dataset = Dataset(self.file_nc)
         epsilon = dataset.variables['l2_epsilon'][self.isequence]
         rho = dataset.variables['l2_rhof'][self.isequence]
-        raa = dataset.variables['l1_rhof_raa'][self.isequence,0]
-        sza = dataset.variables['l1_rhof_sza'][self.isequence,0]
+        raa = dataset.variables['l1_rhof_raa'][self.isequence, 0]
+        sza = dataset.variables['l1_rhof_sza'][self.isequence, 0]
         vza = dataset.variables['l1_rhof_vza'][self.isequence, 0]
-        ws = dataset.variables['l1_rhof_wind'][self.isequence,0]
+        ws = dataset.variables['l1_rhof_wind'][self.isequence, 0]
         dataset.close()
         str = f'epsilon={epsilon:.4f};rho={rho:.4f}(raa={raa:.1f};sza={sza:.1f};vza={vza:.1f};ws={ws:.2f})'
         return str
@@ -158,13 +167,83 @@ class HYPERNETS_DAY_FILE():
             time = dt.utcfromtimestamp(float(val))
             time_str = time.strftime('%Y%m%dT%H%M')
             name_file_img = f'{prefix}_{seq_here}_{time_str}_{suffix}'
-            file_img = os.path.join(os.path.dirname(self.file_nc), name_file_img)
-            if not os.path.exists(file_img):
-                file_img = None
+            if self.path_images_date is not None:
+                file_img = os.path.join(self.path_images_date, name_file_img)
+                if not os.path.exists(file_img):
+                    file_img = None
 
         title = f'{flag}(az={var.oaa};zn={var.oza})'
         dataset.close()
         return file_img, title
+
+    def set_path_images_date(self, site, date_here):
+        folder_date = os.path.join(self.path_images, site, date_here.strftime('%Y'), date_here.strftime('%m'),
+                                   date_here.strftime('%d'))
+        if os.path.exists(folder_date):
+            self.path_images_date = folder_date
+        else:
+            self.path_images_date = folder_date
+
+    def get_water_images(self, site, date_here, time_min, time_max, interval_minutes):
+        if time_min is None:
+            time_min = '0600'
+        if time_max is None:
+            time_max = '1700'
+        if interval_minutes is None:
+            interval_minutes = 20
+        self.set_path_images_date(site, date_here)
+        from datetime import timedelta
+        date_here_str = date_here.strftime('%Y%m%d')
+        date_here_min = dt.strptime(f'{date_here_str}T{time_min}', '%Y%m%dT%H%M')
+        date_here_max = dt.strptime(f'{date_here_str}T{time_max}', '%Y%m%dT%H%M')
+        date_here = date_here_min
+        water_images = {}
+        while date_here <= date_here_max:
+            date_here_str = date_here.strftime('%Y%m%dT%H%M')
+            water_images[date_here_str] = {
+                'file_img': None,
+                'title': None
+            }
+            date_here = date_here + timedelta(minutes=interval_minutes)
+
+        dataset = Dataset(self.file_nc)
+        img_var = dataset.variables['pictures_water_rad']
+        for idx in range(len(img_var)):
+
+            val = img_var[idx]
+            if np.ma.is_masked(val):
+                continue
+            self.isequence = idx
+            file_img, title = self.get_img_file('water_rad')
+            seq = self.sequences[self.isequence]
+            print(idx, seq, file_img)
+            if seq in water_images.keys():
+                water_images[seq]['file_img'] = file_img
+                paa = float(dataset.variables['l2_pointing_azimuth_angle'][idx])
+                sza = float(dataset.variables['l2_solar_zenith_angle'][idx])
+                saa = float(dataset.variables['l2_solar_azimuth_angle'][idx])
+                title = f'{seq} (sza={sza:.1f};paa={paa:.1f};saa={saa:.1f})'
+                title = f'{seq} (paa={paa:.1f})'
+                water_images[seq]['title'] = title
+        dataset.close()
+        for tal in water_images:
+            print(tal, '->', water_images[tal]['file_img'], '->', water_images[tal]['title'])
+        return water_images
+
+    def plot_water_images(self, wimages):
+        file_out_base = os.path.join(os.path.dirname(self.file_nc), f'DayComparison_202304023_20230425')
+        nimages = len(wimages)
+        pm = PlotMultiple()
+        nrow = nimages
+        ncol = 2
+        pm.start_multiple_plot_advanced(nrow, ncol, 5, 12, 0, 0.35, True)
+        index_row = 0
+        for wimage in wimages:
+            pm.plot_image_title(wimages[wimage]['file_1'], index_row, 0, wimages[wimage]['title_1'])
+            pm.plot_image_title(wimages[wimage]['file_2'], index_row, 1, wimages[wimage]['title_2'])
+            index_row = index_row + 1
+        pm.save_fig(f'{file_out_base}.{self.format_img}')
+        pm.close_plot()
 
     def save_img_files(self, multiple_plot):
         flags = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
@@ -178,6 +257,7 @@ class HYPERNETS_DAY_FILE():
         index_col = 0
         for flag in flags:
             file_img, title = self.get_img_file(flag)
+
             if index_col == ncol:
                 index_col = 0
                 index_row = index_row + 1
@@ -195,7 +275,8 @@ class HYPERNETS_DAY_FILE():
 
     def save_spectra_files(self, multiple_plot):
         file_out_base = os.path.join(os.path.dirname(self.file_nc), f'Spectra_{self.isequence}')
-        flags = ['irradiance', 'downwelling_radiance', 'upwelling_radiance', 'water_leaving_radiance', 'reflectance_nosc','reflectance']
+        flags = ['irradiance', 'downwelling_radiance', 'upwelling_radiance', 'water_leaving_radiance',
+                 'reflectance_nosc', 'reflectance']
         if multiple_plot:
             pm = PlotMultiple()
             nrow = 2
@@ -218,7 +299,8 @@ class HYPERNETS_DAY_FILE():
 
     def save_angle_files(self, multiple_plot):
         file_out_base = os.path.join(os.path.dirname(self.file_nc), f'Angles_{self.isequence}')
-        flags = ['sza_nosc', 'saa_nosc', 'paa_nosc','sza', 'saa', 'paa']
+        flags = ['sza_nosc', 'saa_nosc', 'paa_nosc', 'sza', 'saa', 'paa']
+
         if multiple_plot:
             pm = PlotMultiple()
             nrow = 2
@@ -240,17 +322,19 @@ class HYPERNETS_DAY_FILE():
 
     def save_report_image(self, delete_images, overwrite):
         print(f'[INFO] Sequence {self.isequence}: SEQ{self.sequences[self.isequence]}')
+        if self.sequences[self.isequence] is None:
+            return
         file_out = os.path.join(os.path.dirname(self.file_nc), f'ReportImage_{self.isequence}{self.format_img}')
         if os.path.exists(file_out) and not overwrite:
             return
         file_angle = os.path.join(os.path.dirname(self.file_nc), f'Angles_{self.isequence}_all{self.format_img}')
-        if not os.path.isfile(file_angle):
+        if not os.path.isfile(file_angle) or (os.path.isfile(file_angle) and overwrite):
             self.save_angle_files(True)
         file_img = os.path.join(os.path.dirname(self.file_nc), f'CameraImages_{self.isequence}_all{self.format_img}')
-        if not os.path.isfile(file_img):
+        if not os.path.isfile(file_img) or (os.path.isfile(file_img) and overwrite):
             self.save_img_files(True)
         file_spectra = os.path.join(os.path.dirname(self.file_nc), f'Spectra_{self.isequence}_all{self.format_img}')
-        if not os.path.exists(file_spectra):
+        if not os.path.exists(file_spectra) or (os.path.isfile(file_spectra) and overwrite):
             self.save_spectra_files(True)
         pm = PlotMultiple()
         nrow = 3
@@ -267,7 +351,7 @@ class HYPERNETS_DAY_FILE():
         pm.get_axes(1, 0).set_title(str_flag_list, fontsize=12)
         pm.plot_image(file_angle, 1, 0)
         info_l2 = self.get_info_l2()
-        pm.get_axes(2,0).set_title(info_l2,fontsize=12)
+        pm.get_axes(2, 0).set_title(info_l2, fontsize=12)
         pm.plot_image(file_spectra, 2, 0)
 
         pm.save_fig(file_out)
@@ -284,17 +368,25 @@ class HYPERNETS_DAY_FILE():
         angle_rad, angle_label = self.angle_rad(angle_flag)
         angle_rad_l1 = self.angle_rad_level1(angle_flag)
 
+        reflectance_ref[reflectance_ref < 1e-5] = 1e-5
+        reflectance_ref_l1[reflectance_ref_l1 < 1e-5] = 1e-5
+
         if self.valid_sequences is None:
             self.get_valid_flags()
 
-        ax_here.scatter(angle_rad_l1, reflectance_ref_l1, marker='s', color='gray', s=8)
-
+        ax_here.set_rscale('log')
+        ax_here.set_rlim((1e-5, 1))
+        ax_here.set_rticks([1e-4, 1e-3, 1e-2, 1e-1, 1])
+        ax_here.set_theta_zero_location("N")
+        ax_here.set_theta_direction(-1)
         ax_here.scatter(angle_rad[self.valid_sequences == 0], reflectance_ref[self.valid_sequences == 0], marker='o',
                         s=8, color='green')
+
         ax_here.scatter(angle_rad[self.valid_sequences > 0], reflectance_ref[self.valid_sequences > 0], marker='o', s=8,
                         color='red')
 
-        ax_here.scatter(angle_rad[self.isequence], reflectance_ref[self.isequence], marker='s', color='blue')
+        ax_here.scatter(angle_rad_l1[:], reflectance_ref_l1[:], marker='s', s=8, color='gray')
+        ax_here.scatter(angle_rad[self.isequence], reflectance_ref[self.isequence], marker='s', s=12, color='blue')
 
         val = (angle_rad[self.isequence] * 180) / np.pi
         if apply_nosc:
@@ -306,10 +398,14 @@ class HYPERNETS_DAY_FILE():
         if angle_flag == 'sza':
             ax_here.set_thetamin(0)
             ax_here.set_thetamax(90)
-        if angle_flag == 'saa':
+            ax_here.set_xticks((np.pi * np.array([0, 15, 30, 45, 60, 75, 90]) / 180))
+            ax_here.set_rticks([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1])
+        if angle_flag == 'saa' or angle_flag == 'paa':
             ax_here.set_rlabel_position(angle_label)
-        if angle_flag == 'paa':
-            ax_here.set_rlabel_position(angle_label)
+            # if angle_label==225:
+            #     labels = ax_here.yticklabels()
+            #     print(labels)
+
         ax_here.tick_params(axis='x', labelsize=10)
         ax_here.tick_params(axis='y', labelsize=10)
 
@@ -345,16 +441,14 @@ class HYPERNETS_DAY_FILE():
         dataset = Dataset(self.file_nc)
         # print(flag)
         spectra = np.array(dataset.variables[l1_variable][self.isequence, :, :]).transpose()
-        spectra_l2 =None
+        spectra_l2 = None
         if l2_variable in dataset.variables:
-            spectra_l2 = np.array(dataset.variables[l2_variable][self.isequence,:]).transpose()
+            spectra_l2 = np.array(dataset.variables[l2_variable][self.isequence, :]).transpose()
         wavelength = np.array(dataset.variables['wavelength'])
         for ispectra in range(spectra.shape[0]):
             ax_here.plot(wavelength, spectra[ispectra, :], color='gray', linewidth=0.5)
         if spectra_l2 is not None:
             ax_here.plot(wavelength, spectra_l2, color='black', linewidth=0.25)
-
-
 
         ax_here.set_xlabel('Wavelength(nm)', fontsize=7)
         ax_here.set_ylabel(info[flag]['ylabel'], fontsize=7)

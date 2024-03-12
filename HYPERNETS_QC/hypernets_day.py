@@ -152,7 +152,7 @@ class HYPERNETS_DAY():
         if file_date is None:
             return None
         if os.path.exists(file_date):
-            return HYPERNETS_DAY_FILE(file_date)
+            return HYPERNETS_DAY_FILE(file_date,self.path_data)
         else:
             return None
 

@@ -147,7 +147,8 @@ class PlotMultiple():
             # plt.savefig(file_out, dpi=300,bbox_inches='tight',transparency=False,facecolor='white',pil_kwargs={"compression": "tiff_lzw"})
             # plt.savefig(file_out, dpi=300, bbox_inches='tight', transparency=False, facecolor='white',pil_kwargs={"compression": "tiff_lzw"})
         else:
-            plt.savefig(file_out, dpi=300, bbox_inches='tight', transparency=False, facecolor='white')
+            #plt.savefig(file_out, dpi=300, bbox_inches='tight', transparency=False, facecolor='white')
+            plt.savefig(file_out, dpi=300, bbox_inches='tight', facecolor='white')
         # plt.savefig(file_out, dpi=300)
 
     def close_plot(self):

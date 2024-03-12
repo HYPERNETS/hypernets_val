@@ -1690,7 +1690,7 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
                 os.mkdir(path_day)
 
         ##DONWLOAD
-        cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/OLCI/{namefile} -O {file}'
+        cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/MSI/{namefile} -O {file}'
         if args.verbose:
             print(f'[INFO] Trying download with cmd:')
             print(f'[INFO] {cmd}')
