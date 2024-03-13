@@ -40,17 +40,15 @@ class PlotMultiple():
     def start_multiple_plot_polar(self, nrow, ncol, xfigsize, yfigsize, wspace, hspace, frameon):
         self.nrow = nrow
         self.ncol = ncol
-        self.fig, self.ax = plt.subplots(nrow, ncol,figsize=(xfigsize, yfigsize), frameon=frameon,
-                                         gridspec_kw={'wspace': wspace, 'hspace': hspace},subplot_kw={'projection':'polar'})
-
+        self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(xfigsize, yfigsize), frameon=frameon,
+                                         gridspec_kw={'wspace': wspace, 'hspace': hspace},
+                                         subplot_kw={'projection': 'polar'})
 
     def set_text(self, x, y, s):
         plt.text(x, y, s, fontsize=10, backgroundcolor='w')
         # plt.text(x, y, s, fontsize=12)
 
-
-
-    def get_axes(self,index_row,index_col):
+    def get_axes(self, index_row, index_col):
         if self.nrow > 1 and self.ncol > 1:
             axhere = self.ax[index_row, index_col]
         elif self.nrow == 1 and self.ncol > 1:
@@ -58,7 +56,6 @@ class PlotMultiple():
         if self.nrow > 1 and self.ncol == 1:
             axhere = self.ax[index_row]
         return axhere
-
 
     def plot_blank(self, index_row, index_col):
         if self.nrow > 1 and self.ncol > 1:
@@ -69,7 +66,7 @@ class PlotMultiple():
             axhere = self.ax[index_row]
         axhere.axis('off')
 
-    def plot_blank_with_title(self,index_row,index_col,title):
+    def plot_blank_with_title(self, index_row, index_col, title):
         if self.nrow > 1 and self.ncol > 1:
             axhere = self.ax[index_row, index_col]
         elif self.nrow == 1 and self.ncol > 1:
@@ -83,6 +80,47 @@ class PlotMultiple():
         if title is not None:
             axhere.set_title(title)
 
+    def plot_image_hypernets(self,file_img,index_row,index_col,title):
+
+        if self.nrow > 1 and self.ncol > 1:
+            axhere = self.ax[index_row, index_col]
+        elif self.nrow == 1 and self.ncol > 1:
+            axhere = self.ax[index_col]
+        if self.nrow > 1 and self.ncol == 1:
+            axhere = self.ax[index_row]
+
+
+        from PIL import Image
+        image = Image.open(file_img)
+        rimage = image.rotate(270,expand=True)
+
+        axhere.imshow(rimage)
+
+        w, h = rimage.size
+
+
+
+        #print(w,h)
+        ##central lines
+        axhere.axvline(w/2,color='red',linewidth=0.5)
+        axhere.axhline(h/2,color='red',linewidth=0.5)
+
+        #central point
+        # axhere.axvline(w / 2, 0.48,0.52,color='red', linewidth=0.25)
+        # axhere.axhline(h / 2, 0.48, 0.52, color='red', linewidth=0.25)
+        #
+        # ##grid
+        # incremx = int(w/3)
+        # incremy = int(h/3)
+        # for x in range(0,w,incremx):
+        #     axhere.axvline(x, color='red', linewidth=0.5)
+        # for y in range(0,h,incremy):
+        #     axhere.axhline(y, color='red', linewidth=0.5)
+        #
+        if title is not None:
+            axhere.set_title(title)
+        axhere.set_xticks([])
+        axhere.set_yticks([])
 
 
     def plot_image_title(self, file_img, index_row, index_col, title):
@@ -101,7 +139,6 @@ class PlotMultiple():
             axhere.set_title(title)
         axhere.set_xticks([])
         axhere.set_yticks([])
-
 
     def plot_image(self, file_img, index_row, index_col):
         image = img.imread(file_img)
@@ -147,7 +184,7 @@ class PlotMultiple():
             # plt.savefig(file_out, dpi=300,bbox_inches='tight',transparency=False,facecolor='white',pil_kwargs={"compression": "tiff_lzw"})
             # plt.savefig(file_out, dpi=300, bbox_inches='tight', transparency=False, facecolor='white',pil_kwargs={"compression": "tiff_lzw"})
         else:
-            #plt.savefig(file_out, dpi=300, bbox_inches='tight', transparency=False, facecolor='white')
+            # plt.savefig(file_out, dpi=300, bbox_inches='tight', transparency=False, facecolor='white')
             plt.savefig(file_out, dpi=300, bbox_inches='tight', facecolor='white')
         # plt.savefig(file_out, dpi=300)
 

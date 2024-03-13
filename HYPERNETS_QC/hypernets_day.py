@@ -145,6 +145,7 @@ class HYPERNETS_DAY():
             return None
         date_here_str = date_here.strftime('%Y%m%d')
         file_date = os.path.join(folder_date, f'HYPERNETES_W_DAY_{date_here_str}.nc')
+
         return file_date
 
     def get_hypernets_day_file(self, site, date_here):
@@ -335,8 +336,8 @@ class HYPERNETS_DAY():
             '003': {'name_var':'pictures_sky_irr_1','check_at':False},
             '006': {'name_var':'pictures_sky_rad_1','check_at':False},
             '009': {'name_var':'pictures_water_rad','check_at':False},
-            '012': {'name_var':'pictures_sky_irr_2','check_at':False},
-            '015': {'name_var':'pictures_sky_rad_2','check_at':False},
+            '012': {'name_var':'pictures_sky_rad_2','check_at':False},
+            '015': {'name_var':'pictures_sky_irr_2','check_at':False},
             '016': {'name_var':'pictures_sun','check_at':False}
         }
         for idx in range(len(seq_list)):

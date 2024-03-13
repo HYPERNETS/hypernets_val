@@ -252,7 +252,7 @@ class HYPERNETS_DAY_FILE():
             pm = PlotMultiple()
             nrow = 2
             ncol = 3
-            pm.start_multiple_plot_advanced(nrow, ncol, 10, 5.2, 0, 0.15, True)
+            pm.start_multiple_plot_advanced(nrow, ncol, 10, 7.0, 0.1, 0.15, True)
         index_row = 0
         index_col = 0
         for flag in flags:
@@ -264,7 +264,8 @@ class HYPERNETS_DAY_FILE():
             # print(f'{flag}->{index_row} {index_col}')
             if multiple_plot:
                 if file_img is not None:
-                    pm.plot_image_title(file_img, index_row, index_col, title)
+                    # pm.plot_image_title(file_img,index_row,index_col,title)
+                    pm.plot_image_hypernets(file_img, index_row, index_col, title)
                 else:
                     pm.plot_blank_with_title(index_row, index_col, title)
 

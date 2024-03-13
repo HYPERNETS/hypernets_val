@@ -18,24 +18,25 @@ parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true"
 
 args = parser.parse_args()
 
+
 def test():
     import os
     from netCDF4 import Dataset
     import numpy as np
-    start_date = dt(2023,10,1)
-    end_date = dt(2023,10,10)
+    start_date = dt(2023, 10, 1)
+    end_date = dt(2023, 10, 10)
     work_date = start_date
     path = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/QUALITY_CONTROL/VEIT'
-    output_file = os.path.join(path,'VEIT_20241001_20241010')
-    f1 = open(output_file,'w')
+    output_file = os.path.join(path, 'VEIT_20241001_20241010')
+    f1 = open(output_file, 'w')
     f1.write('TimeSeq;sza;saa;paa;epsilon')
-    while work_date<=end_date:
+    while work_date <= end_date:
         yearstr = work_date.strftime('%Y')
         monthstr = work_date.strftime('%m')
         daystr = work_date.strftime('%d')
         datestr = work_date.strftime('%Y%m%d')
         name_file = f'HYPERNETES_W_DAY_{datestr}.nc'
-        path_date = os.path.join(path,yearstr,monthstr,daystr,name_file)
+        path_date = os.path.join(path, yearstr, monthstr, daystr, name_file)
         if os.path.exists(path_date):
             dataset = Dataset(path_date)
             seq_ref = dataset.variables['sequence_ref'][:]
@@ -57,12 +58,10 @@ def test():
         work_date = work_date + timedelta(hours=24)
     f1.close()
     return True
-def make_report_files(input_path, output_path, site, start_date, end_date):
-    if args.verbose:
-        print(f'[INFO] Started making report')
-    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    hday = HYPERNETS_DAY(input_path, output_path)
 
+
+def test_2():
+    print('test2')
     # work_date = dt(2023,10,5)
     # hdayfile = hday.get_hypernets_day_file(site, work_date)
     # hdayfile.set_path_images_date(site, work_date)
@@ -94,6 +93,14 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
     # for wd in wimages:
     #     print(wd,wimages[wd])
     # hdayfile.plot_water_images(wimages)
+
+
+def make_report_files(input_path, output_path, site, start_date, end_date):
+    if args.verbose:
+        print(f'[INFO] Started making report')
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, output_path)
+
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
@@ -101,12 +108,16 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         hdayfile = hday.get_hypernets_day_file(site, work_date)
         if hdayfile is None:
             print(f'[WARNING] HYPERNETS day file for date {work_date} is not available. Skipping...')
-        hdayfile.set_path_images_date(site,work_date)
+            work_date = work_date + timedelta(hours=24)
+            continue
+        hdayfile.set_path_images_date(site, work_date)
 
         for isequence in range(len(hdayfile.sequences)):
             hdayfile.isequence = isequence
-            hdayfile.save_report_image(args.nodelfiles, args.overwrite)
-                #hdayfile.save_angle_files(True)
+            if isequence==0:
+                hdayfile.save_img_files(True)
+            # hdayfile.save_report_image(args.nodelfiles, args.overwrite)
+            # hdayfile.save_angle_files(True)
 
         # hdayfile.save_img_files(True)
         # hdayfile.save_spectra_files(True)
@@ -227,9 +238,9 @@ def get_start_and_end_dates():
 
 def main():
     print('STARTED')
-    b = test()
-    if b:
-        return
+    # b = test()
+    # if b:
+    #     return
     start_date, end_date = get_start_and_end_dates()
     if start_date is None:
         return
@@ -238,8 +249,6 @@ def main():
         site = args.site_name
     input_path = None
     output_path = None
-
-
 
     if args.input_path:
         input_path = args.input_path
@@ -258,8 +267,6 @@ def main():
 
     if args.mode == 'REPORTDAYFILES':
         make_report_files(input_path, output_path, site, start_date, end_date)
-
-
 
 
 # %%
