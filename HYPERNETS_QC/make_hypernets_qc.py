@@ -10,6 +10,7 @@ parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdat
 parser.add_argument('-i', "--input_path", help="Input path")
 parser.add_argument('-o', "--output_path", help="Output path")
 parser.add_argument('-site', "--site_name", help="Site name")
+parser.add_argument('-ndays', "--ndays_interval", help="Interval days between start date and end date")
 parser.add_argument('-ndel', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-ndw", "--nodownload", help="No download (for launching without connection with RBINS).",
                     action="store_true")
@@ -100,6 +101,9 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         print(f'[INFO] Started making report')
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
     hday = HYPERNETS_DAY(input_path, output_path)
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
 
     while work_date <= end_date:
         if args.verbose:
@@ -108,15 +112,15 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         hdayfile = hday.get_hypernets_day_file(site, work_date)
         if hdayfile is None:
             print(f'[WARNING] HYPERNETS day file for date {work_date} is not available. Skipping...')
-            work_date = work_date + timedelta(hours=24)
+            work_date = work_date + timedelta(hours=interval)
             continue
         hdayfile.set_path_images_date(site, work_date)
 
         for isequence in range(len(hdayfile.sequences)):
             hdayfile.isequence = isequence
-            if isequence==0:
-                hdayfile.save_img_files(True)
-            # hdayfile.save_report_image(args.nodelfiles, args.overwrite)
+            # if isequence==0:
+            #     hdayfile.save_report_image(site,args.nodelfiles, args.overwrite)
+            hdayfile.save_report_image(site,args.nodelfiles, args.overwrite)
             # hdayfile.save_angle_files(True)
 
         # hdayfile.save_img_files(True)
@@ -126,7 +130,7 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         # hdayfile.get_title()
         # hdayfile.save_report_image(False)
         # create_daily_pdf_report(input_path,output_path,site,work_date)
-        work_date = work_date + timedelta(hours=24)
+        work_date = work_date + timedelta(hours=interval)
 
 
 def create_daily_pdf_report(input_path, output_path, site, date_here):
@@ -156,12 +160,12 @@ def create_daily_pdf_report(input_path, output_path, site, date_here):
     pdf.close()
 
 
-def make_get_files(input_path, output_path, site, start_date, end_date):
+def make_get_files(input_path, site, start_date, end_date):
     if args.verbose:
         print(f'[INFO] Started getting files')
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    hday = HYPERNETS_DAY(input_path, output_path)
+    hday = HYPERNETS_DAY(input_path, None)
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
@@ -174,7 +178,9 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     if args.verbose:
         print(f'[INFO] Started creating files')
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
     hday = HYPERNETS_DAY(input_path, output_path)
     while work_date <= end_date:
         if args.verbose:
@@ -187,21 +193,21 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
 
         if len(hday.files_dates) == 0:
             print(f'[WARNING] No data files found for the sequences on date: {work_date}. Skipping...')
-            work_date = work_date + timedelta(hours=24)
+            work_date = work_date + timedelta(hours=interval)
             continue
 
         if args.verbose:
             print(f'[INFO] Number of sequences: {len(hday.files_dates)}')
         nseq = hday.start_file_date_complete(site, work_date, args.overwrite)
         if nseq < 0:
-            work_date = work_date + timedelta(hours=24)
+            work_date = work_date + timedelta(hours=interval)
             continue
         else:
             if args.verbose:
                 print(f'[INFO] Valid sequences: {nseq}')
         hday.set_data(site, work_date)
         hday.close_datafile_complete()
-        work_date = work_date + timedelta(hours=24)
+        work_date = work_date + timedelta(hours=interval)
 
     # hday = HYPERNETS_DAY(None)
     # hday.get_files_date(site, date_here)
@@ -260,7 +266,7 @@ def main():
             print(f'[INFO] Output path set to: {output_path}')
 
     if args.mode == 'GETFILES':
-        make_get_files(input_path, output_path, site, start_date, end_date)
+        make_get_files(input_path, site, start_date, end_date)
 
     if args.mode == 'CREATEDAYFILES':
         make_create_dayfiles(input_path, output_path, site, start_date, end_date)

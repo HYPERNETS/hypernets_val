@@ -139,11 +139,11 @@ class HYPERNETS_DAY_FILE():
         str = f'epsilon={epsilon:.4f};rho={rho:.4f}(raa={raa:.1f};sza={sza:.1f};vza={vza:.1f};ws={ws:.2f})'
         return str
 
-    def get_title(self):
+    def get_title(self,site):
         date_time_here = dt.strptime(self.sequences[self.isequence], '%Y%m%dT%H%M')
         date_str = date_time_here.strftime('%Y-%m-%d')
         time_str = date_time_here.strftime('%H:%M')
-        title = f'SEQ{self.sequences[self.isequence]} - {date_str} {time_str} - {self.isequence + 1}/{len(self.sequences)}'
+        title = f'{site} {self.sequences[self.isequence]} - {date_str} {time_str} - {self.isequence + 1}/{len(self.sequences)}'
         return title
 
     # flag: name_variable, sky_irr_1, sky_irr_2, sky_rad_1, sky_rad_1, water_rad, sun
@@ -247,7 +247,10 @@ class HYPERNETS_DAY_FILE():
 
     def save_img_files(self, multiple_plot):
         flags = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
-        file_out_base = os.path.join(os.path.dirname(self.file_nc), f'CameraImages_{self.isequence}')
+        dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
+        if not os.path.exists(dir_img):
+            os.mkdir(dir_img)
+        file_out_base = os.path.join(dir_img, f'CameraImages_{self.isequence}')
         if multiple_plot:
             pm = PlotMultiple()
             nrow = 2
@@ -267,7 +270,7 @@ class HYPERNETS_DAY_FILE():
                     # pm.plot_image_title(file_img,index_row,index_col,title)
                     pm.plot_image_hypernets(file_img, index_row, index_col, title)
                 else:
-                    pm.plot_blank_with_title(index_row, index_col, title)
+                    pm.plot_blank_with_title(index_row, index_col, title[:9])
 
             index_col = index_col + 1
         if multiple_plot:
@@ -275,7 +278,10 @@ class HYPERNETS_DAY_FILE():
             pm.close_plot()
 
     def save_spectra_files(self, multiple_plot):
-        file_out_base = os.path.join(os.path.dirname(self.file_nc), f'Spectra_{self.isequence}')
+        dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
+        if not os.path.exists(dir_img):
+            os.mkdir(dir_img)
+        file_out_base = os.path.join(dir_img, f'Spectra_{self.isequence}')
         flags = ['irradiance', 'downwelling_radiance', 'upwelling_radiance', 'water_leaving_radiance',
                  'reflectance_nosc', 'reflectance']
         if multiple_plot:
@@ -299,7 +305,10 @@ class HYPERNETS_DAY_FILE():
             pm.close_plot()
 
     def save_angle_files(self, multiple_plot):
-        file_out_base = os.path.join(os.path.dirname(self.file_nc), f'Angles_{self.isequence}')
+        dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
+        if not os.path.exists(dir_img):
+            os.mkdir(dir_img)
+        file_out_base = os.path.join(dir_img, f'Angles_{self.isequence}')
         flags = ['sza_nosc', 'saa_nosc', 'paa_nosc', 'sza', 'saa', 'paa']
 
         if multiple_plot:
@@ -321,27 +330,30 @@ class HYPERNETS_DAY_FILE():
             pm.save_fig(f'{file_out_base}_all{self.format_img}')
             pm.close_plot()
 
-    def save_report_image(self, delete_images, overwrite):
+    def save_report_image(self, site,delete_images, overwrite):
         print(f'[INFO] Sequence {self.isequence}: SEQ{self.sequences[self.isequence]}')
         if self.sequences[self.isequence] is None:
             return
-        file_out = os.path.join(os.path.dirname(self.file_nc), f'ReportImage_{self.isequence}{self.format_img}')
+        file_out = os.path.join(os.path.dirname(self.file_nc), f'{site}_{self.sequences[self.isequence]}_Report{self.format_img}')
         if os.path.exists(file_out) and not overwrite:
             return
-        file_angle = os.path.join(os.path.dirname(self.file_nc), f'Angles_{self.isequence}_all{self.format_img}')
+        dir_img = os.path.join(os.path.dirname(self.file_nc),'IMG')
+        if not os.path.exists(dir_img):
+            os.mkdir(dir_img)
+        file_angle = os.path.join(dir_img, f'Angles_{self.isequence}_all{self.format_img}')
         if not os.path.isfile(file_angle) or (os.path.isfile(file_angle) and overwrite):
             self.save_angle_files(True)
-        file_img = os.path.join(os.path.dirname(self.file_nc), f'CameraImages_{self.isequence}_all{self.format_img}')
+        file_img = os.path.join(dir_img, f'CameraImages_{self.isequence}_all{self.format_img}')
         if not os.path.isfile(file_img) or (os.path.isfile(file_img) and overwrite):
             self.save_img_files(True)
-        file_spectra = os.path.join(os.path.dirname(self.file_nc), f'Spectra_{self.isequence}_all{self.format_img}')
+        file_spectra = os.path.join(dir_img, f'Spectra_{self.isequence}_all{self.format_img}')
         if not os.path.exists(file_spectra) or (os.path.isfile(file_spectra) and overwrite):
             self.save_spectra_files(True)
         pm = PlotMultiple()
         nrow = 3
         ncol = 1
         pm.start_multiple_plot_advanced(nrow, ncol, 10, 18, 0.1, 0.1, True)
-        pm.get_axes(0, 0).set_title(self.get_title(), fontsize=20)
+        pm.get_axes(0, 0).set_title(self.get_title(site), fontsize=20)
         pm.plot_image(file_img, 0, 0)
         flag_list = self.get_flags_sequence()
         if len(flag_list) == 0:
@@ -357,6 +369,12 @@ class HYPERNETS_DAY_FILE():
 
         pm.save_fig(file_out)
         pm.close_plot()
+
+        if delete_images:
+            for name in os.listdir(dir_img):
+                file_here = os.path.join(dir_img,name)
+                os.remove(file_here)
+            os.remove(dir_img)
 
     def plot_angle(self, flag, ax_here):
         angle_flag = flag.split('_')[0]

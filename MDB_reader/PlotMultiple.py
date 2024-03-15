@@ -98,25 +98,17 @@ class PlotMultiple():
 
         w, h = rimage.size
 
+        ##central point
+        axhere.axvline(w / 2, 0.48,0.52,color='red', linewidth=0.25)
+        axhere.axhline(h / 2, 0.48, 0.52, color='red', linewidth=0.25)
+        ##grid
+        incremx = int(w/4)
+        incremy = int(h/4)
+        for x in range(0,w,incremx):
+            axhere.axvline(x, color='red', linewidth=0.5)
+        for y in range(0,h,incremy):
+            axhere.axhline(y, color='red', linewidth=0.5)
 
-
-        #print(w,h)
-        ##central lines
-        axhere.axvline(w/2,color='red',linewidth=0.5)
-        axhere.axhline(h/2,color='red',linewidth=0.5)
-
-        #central point
-        # axhere.axvline(w / 2, 0.48,0.52,color='red', linewidth=0.25)
-        # axhere.axhline(h / 2, 0.48, 0.52, color='red', linewidth=0.25)
-        #
-        # ##grid
-        # incremx = int(w/3)
-        # incremy = int(h/3)
-        # for x in range(0,w,incremx):
-        #     axhere.axvline(x, color='red', linewidth=0.5)
-        # for y in range(0,h,incremy):
-        #     axhere.axhline(y, color='red', linewidth=0.5)
-        #
         if title is not None:
             axhere.set_title(title)
         axhere.set_xticks([])
