@@ -233,7 +233,7 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
         print(f'[INFO] Started summary files with options: {options}')
 
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    hday = HYPERNETS_DAY(input_path, output_path)
+    hday = HYPERNETS_DAY(None, input_path)
     interval = 24
     if args.ndays_interval:
         interval = 24 * int(args.ndays_interval)
