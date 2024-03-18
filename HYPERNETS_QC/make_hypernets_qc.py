@@ -1,15 +1,21 @@
+import os.path
+import shutil
 from datetime import datetime as dt
 from datetime import timedelta
 import argparse
 from hypernets_day import HYPERNETS_DAY
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
-parser.add_argument('-m', "--mode", choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES'], required=True)
+parser.add_argument('-m', "--mode", choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES'],
+                    required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
+parser.add_argument('-st', "--start_time", help="Start time. (HH:MM)")
+parser.add_argument('-et', "--end_time", help="End time. (HH:MM)")
 parser.add_argument('-i', "--input_path", help="Input path")
 parser.add_argument('-o', "--output_path", help="Output path")
 parser.add_argument('-site', "--site_name", help="Site name")
+parser.add_argument('-sopt', "--summary_options", help="Summary options,separated by '_': csv,nc,copy")
 parser.add_argument('-ndays', "--ndays_interval", help="Interval days between start date and end date")
 parser.add_argument('-ndel', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-ndw", "--nodownload", help="No download (for launching without connection with RBINS).",
@@ -120,7 +126,7 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             hdayfile.isequence = isequence
             # if isequence==0:
             #     hdayfile.save_report_image(site,args.nodelfiles, args.overwrite)
-            hdayfile.save_report_image(site,args.nodelfiles, args.overwrite)
+            hdayfile.save_report_image(site, args.nodelfiles, args.overwrite)
             # hdayfile.save_angle_files(True)
 
         # hdayfile.save_img_files(True)
@@ -222,6 +228,47 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     # red_array = np.array(img.getdata(0)).reshape(img.size).astype(np.uint8)
 
 
+def make_summary_files(input_path, output_path, site, start_date, end_date, start_time, end_time, options):
+    if args.verbose:
+        print(f'[INFO] Started summary files with options: {options}')
+
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, output_path)
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+
+    if not os.path.isdir(output_path):
+        try:
+            os.mkdir(output_path)
+        except:
+            print(f'[ERROR] Output path {output_path} is not a valid directory and could not be created')
+            return
+
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+        hdayfile = hday.get_hypernets_day_file(site, work_date)
+        if hdayfile is None:
+            print(f'[WARNING] HYPERNETS day file for date {work_date} is not available. Skipping...')
+            work_date = work_date + timedelta(hours=interval)
+            continue
+        work_time_str = work_date.strftime('%Y-%m-%d')
+        start_work_time = dt.strptime(f'{work_time_str}T{start_time}','%Y-%m-%dT%H:%M')
+        end_work_time = dt.strptime(f'{work_time_str}T{end_time}', '%Y-%m-%dT%H:%M')
+        sequences,range = hdayfile.get_sequences_interval(start_work_time,end_work_time)
+        if 'copy' in options:
+            report_files = hdayfile.get_report_files_interval(sequences,site,start_time,end_time)
+            if args.verbose:
+                print(f'[INFO] -> Copy {len(report_files)} report files')
+            if len(report_files)>0:
+                for rinfile in report_files:
+                    routfile = os.path.join(output_path,os.path.basename(rinfile))
+                    shutil.copy(rinfile,routfile)
+        work_date = work_date + timedelta(hours=interval)
+
+
 def get_start_and_end_dates():
     start_date = dt.now()
     if args.start_date:
@@ -242,6 +289,25 @@ def get_start_and_end_dates():
     return start_date, end_date
 
 
+def get_start_and_end_times():
+    start_time = '00:00'
+    end_time = '23:59'
+    if args.start_time:
+        try:
+            start_time_p = dt.strptime(args.start_time, '%H:%M')
+            start_time = start_time_p.strftime('%H:%M')
+        except:
+            pass
+    if args.end_time:
+        try:
+            end_time_p = dt.strptime(args.end_time, '%H:%M')
+            end_time = end_time_p.strftime('%H:%M')
+        except:
+            pass
+
+    return start_time, end_time
+
+
 def main():
     print('STARTED')
     # b = test()
@@ -250,6 +316,8 @@ def main():
     start_date, end_date = get_start_and_end_dates()
     if start_date is None:
         return
+    start_time, end_time = get_start_and_end_times()
+
     site = 'VEIT'
     if args.site_name:
         site = args.site_name
@@ -265,6 +333,10 @@ def main():
         if args.verbose:
             print(f'[INFO] Output path set to: {output_path}')
 
+    summary_options = ['copy']
+    if args.summary_options:
+        summary_options = args.summary_options.split('_')
+
     if args.mode == 'GETFILES':
         make_get_files(input_path, site, start_date, end_date)
 
@@ -273,6 +345,9 @@ def main():
 
     if args.mode == 'REPORTDAYFILES':
         make_report_files(input_path, output_path, site, start_date, end_date)
+
+    if args.mode == 'SUMMARYFILES':
+        make_summary_files(input_path, output_path, site, start_date, end_date, start_time, end_time, summary_options)
 
 
 # %%

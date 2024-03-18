@@ -17,11 +17,9 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if rsync_user is None:
             rsync_user = 'hypstar'
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
-        # self.base_folder = '/home/hypstar/'
-        # self.base_folder = '/waterhypernet/hypstar/processed20230317/'
         self.base_folder = '/waterhypernet/hypstar/processed_v2/'
         self.ssh_base = 'ssh -X -Y -p 9022'
-        self.ls_base = 'ls processed_data/'
+        self.ls_base = 'ls processed_v2/'
         self.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
 
         self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'

@@ -117,11 +117,6 @@ def make_download(start_date, end_date, site, output_folder):
             else:
                 files_download_all = files_download_all + files_download_img
 
-
-
-
-
-
         output_folder_site = get_folder_new(output_folder, site)
         output_folder_date = get_folder_date(output_folder_site, date_download)
         if output_folder_date is None:

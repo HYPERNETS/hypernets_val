@@ -49,6 +49,39 @@ class HYPERNETS_DAY_FILE():
         dataset.close()
         return sequences
 
+    def get_sequences_interval(self,start_time,end_time):
+        if self.sequences is None:
+            self.get_sequences()
+        sequences_here = []
+        range_here = None
+        if len(self.sequences) == 0:
+            return sequences_here
+        for iseq in range(len(self.sequences)):
+            seq = self.sequences[iseq]
+            if seq is None:
+                continue
+            time_seq = dt.strptime(seq,'%Y%m%dT%H%M')
+            if start_time <= time_seq <= end_time:
+                sequences_here.append(seq)
+                if range_here is None:
+                    range_here = [iseq,iseq]
+                else:
+                    range_here[1] = iseq
+
+        return sequences_here,range_here
+
+    def get_report_files_interval(self,sequences_here,site,start_time,end_time):
+        if sequences_here is None:
+            sequences_here,range_here = self.get_sequences_interval(start_time,end_time)
+        report_files = []
+        if len(sequences_here)==0:
+            return report_files
+        for seq in sequences_here:
+            file_out = os.path.join(os.path.dirname(self.file_nc),f'{site}_{seq}_Report{self.format_img}')
+            if os.path.exists(file_out):
+                report_files.append(file_out)
+        return report_files
+
     def get_ref_wl_idx(self):
         dataset = Dataset(self.file_nc)
         wavelength = np.array(dataset.variables['wavelength'][:])
