@@ -3,6 +3,9 @@ import shutil
 from datetime import datetime as dt
 from datetime import timedelta
 import argparse
+
+import pandas as pd
+
 from hypernets_day import HYPERNETS_DAY
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
@@ -233,6 +236,7 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
         print(f'[INFO] Started summary files with options: {options}')
 
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+
     hday = HYPERNETS_DAY(None, input_path)
     interval = 24
     if args.ndays_interval:
@@ -244,6 +248,13 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
         except:
             print(f'[ERROR] Output path {output_path} is not a valid directory and could not be created')
             return
+
+    start_date_str = start_date.strftime('%Y%m%d')
+    end_date_str = end_date.strftime('%Y%m%d')
+    dataset_w = None
+    index_w = 0
+    df_csv = None
+    col_names_csv = None
 
     while work_date <= end_date:
         if args.verbose:
@@ -257,7 +268,7 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
         work_time_str = work_date.strftime('%Y-%m-%d')
         start_work_time = dt.strptime(f'{work_time_str}T{start_time}','%Y-%m-%dT%H:%M')
         end_work_time = dt.strptime(f'{work_time_str}T{end_time}', '%Y-%m-%dT%H:%M')
-        sequences,range = hdayfile.get_sequences_interval(start_work_time,end_work_time)
+        sequences,sequence_indices = hdayfile.get_sequences_interval(start_work_time,end_work_time)
         if 'copy' in options:
             report_files = hdayfile.get_report_files_interval(sequences,site,start_time,end_time)
             if args.verbose:
@@ -266,9 +277,29 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
                 for rinfile in report_files:
                     routfile = os.path.join(output_path,os.path.basename(rinfile))
                     shutil.copy(rinfile,routfile)
+        if 'nc' in options and sequence_indices is not None:
+            if dataset_w is None:
+                file_nc = os.path.join(output_path,f'Comparison_{site}_{start_date_str}_{end_date_str}.nc')
+                dataset_w = hdayfile.start_dataset_w(file_nc)
+            print('Setting data->',len(sequence_indices))
+            dataset_w = hdayfile.set_data_dataset_w(dataset_w,sequence_indices,index_w)
+            index_w = index_w + len(sequence_indices)
+
+        if 'csv' in options and sequence_indices is not None:
+            if col_names_csv is None:
+                col_names_csv = hdayfile.get_csv_col_names()
+                df_csv = hdayfile.get_dataframe_lines(sequence_indices,col_names_csv)
+            else:
+                df_here = hdayfile.get_dataframe_lines(sequence_indices,col_names_csv)
+                df_csv = pd.concat([df_csv,df_here])
+
         work_date = work_date + timedelta(hours=interval)
 
-
+    if df_csv is not None:
+        file_csv = os.path.join(output_path,f'Comparison_{site}_{start_date_str}_{end_date_str}.csv')
+        df_csv.to_csv(file_csv,sep=';')
+    if dataset_w is not None:
+        dataset_w.close()
 def get_start_and_end_dates():
     start_date = dt.now()
     if args.start_date:

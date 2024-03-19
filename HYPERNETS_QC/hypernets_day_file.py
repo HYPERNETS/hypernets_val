@@ -53,7 +53,7 @@ class HYPERNETS_DAY_FILE():
         if self.sequences is None:
             self.get_sequences()
         sequences_here = []
-        range_here = None
+        sequences_indices = None
         if len(self.sequences) == 0:
             return sequences_here
         for iseq in range(len(self.sequences)):
@@ -63,12 +63,12 @@ class HYPERNETS_DAY_FILE():
             time_seq = dt.strptime(seq,'%Y%m%dT%H%M')
             if start_time <= time_seq <= end_time:
                 sequences_here.append(seq)
-                if range_here is None:
-                    range_here = [iseq,iseq]
+                if sequences_indices is None:
+                    sequences_indices = [iseq]
                 else:
-                    range_here[1] = iseq
+                    sequences_indices.append(iseq)
 
-        return sequences_here,range_here
+        return sequences_here,sequences_indices
 
     def get_report_files_interval(self,sequences_here,site,start_time,end_time):
         if sequences_here is None:
@@ -518,3 +518,95 @@ class HYPERNETS_DAY_FILE():
                 print(f'[INFO] {flag}-> N/Av')
             else:
                 print(f'[INFO] {flag}->{file_img}->{os.path.exists(file_img)}')
+
+    def start_dataset_w(self,file_out):
+        dataset_w = Dataset(file_out,'w',format='NETCDF4')
+        dataset_r = Dataset(self.file_nc)
+        #copy attributes
+        dataset_w.setncatts(dataset_r.__dict__)
+
+        # copy dimensions
+        for name, dimension in dataset_r.dimensions.items():
+            dataset_w.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+        # copy all file data except for the excluded
+        for name, variable in dataset_r.variables.items():
+            dataset_w.createVariable(name, variable.datatype, variable.dimensions)
+            # copy variable attributes all at once via dictionary
+            dataset_w[name].setncatts(dataset_r[name].__dict__)
+
+            if name=='wavelength' or name=='bandwidth':
+                dataset_w[name][:] = dataset_r[name][:]
+
+        dataset_r.close()
+        return dataset_w
+
+    def set_data_dataset_w(self,dataset_w,sindices,index_w):
+        dini = index_w
+        dfin = index_w + len(sindices)
+        dataset_r = Dataset(self.file_nc)
+        for variable in dataset_w.variables:
+            if variable=='wavelength' or variable=='bandwidth':
+                continue
+            ndim = len(dataset_w[variable].shape)
+            if ndim==1:
+                dataset_w[variable][dini:dfin] = dataset_r[variable][sindices]
+            elif ndim==2:
+                dataset_w[variable][dini:dfin,:] = dataset_r[variable][sindices,:]
+            elif ndim==3:
+                dataset_w[variable][dini:dfin, :, :] = dataset_r[variable][sindices, :,:]
+
+        dataset_r.close()
+        return dataset_w
+
+    def get_csv_col_names(self):
+        col_names = ['sequence_ref']
+        dataset_r = Dataset(self.file_nc)
+        for var in dataset_r.variables:
+            if var.startswith('l2'):
+                ndim = len(dataset_r.variables[var].shape)
+                if ndim==1:
+                    col_names.append(var[3:])
+
+        col_names = col_names + ['rhow_nosc_800','rhow_800','rhow_nosc_350_450','rhow_350_450','isequence','file_nc']
+
+        dataset_r.close()
+
+        return col_names
+
+    def get_dataframe_lines(self,sindices,col_names):
+        import pandas as pd
+        if self.sequences is None:
+            self.sequences = self.get_sequences()
+        dataset_r = Dataset(self.file_nc)
+        data  = {}
+        for c in col_names:
+            if c=='file_nc':
+                data[c] = [self.file_nc]*len(sindices)
+            elif c=='isequence':
+                data[c] = sindices
+            elif c=='sequence_ref':
+                data[c] = [self.sequences[idx] for idx in sindices]
+            elif c.startswith('rhow'):
+                lc = c.split('_')
+                if lc[1]=='nosc':
+                    wl_ini = float(lc[2])
+                    variable = 'l2_reflectance_nosc'
+                else:
+                    wl_ini = float(lc[1])
+                    variable = 'l2_reflectance'
+                wl_fin = float(lc[-1])
+                wls = np.array(dataset_r.variables['wavelength'][:])
+                i_ini = np.argmin(np.abs(wl_ini-wls))
+                i_fin = np.argmin(np.abs(wl_fin - wls))+1
+                reflectance = dataset_r.variables[variable][sindices,i_ini:i_fin]
+                data[c] = np.mean(reflectance,axis=1)
+            else:
+                variable = f'l2_{c}'
+                data[c] = np.array(dataset_r.variables[variable][sindices])
+
+        dataset_r.close()
+
+        df = pd.DataFrame(data)
+        return df
+
