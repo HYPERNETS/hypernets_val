@@ -276,6 +276,8 @@ def make_flagged_nc_from_csv(config_file):
 
     df = pd.read_csv(input_csv, sep=';')
 
+
+
     file_nc_prev = ''
     dataset_w = None
     hdayfile = None
@@ -349,8 +351,8 @@ def get_flag_array(indices, df, flags, flag):
         data_flag_array = np.array(data_flag).astype(np.int64)
     except:
         for idx in range(len(flags[flag]['values'])):
-            val = flags[flag]['values'][idx]
-            meaning = flags[flag]['meanings'][idx]
+            val = int((flags[flag]['values'][idx]).strip())
+            meaning = flags[flag]['meanings'][idx].strip()
             data_flag[data_flag == meaning] = val
         data_flag_array = np.array(data_flag).astype(np.int64)
 
