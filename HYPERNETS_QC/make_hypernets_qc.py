@@ -10,7 +10,8 @@ import pandas as pd
 from hypernets_day import HYPERNETS_DAY
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
-parser.add_argument('-m', "--mode", choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES','NCFROMCSV'],
+parser.add_argument('-m', "--mode",
+                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -232,6 +233,7 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     # red_array_orig = np.array(img.getdata(0)).reshape(img.size)
     # red_array = np.array(img.getdata(0)).reshape(img.size).astype(np.uint8)
 
+
 def make_flagged_nc_from_csv(config_file):
     if args.verbose:
         print(f'[INFO] Started concatenaded nc file from csv using configuration file: {config_file}')
@@ -244,7 +246,7 @@ def make_flagged_nc_from_csv(config_file):
         print(f'[ERROR] Basic section should be included in the configuration file')
         return
     input_csv = None
-    if options.has_option('basic','input_csv'):
+    if options.has_option('basic', 'input_csv'):
         input_csv = options['basic']['input_csv'].strip()
     if input_csv is None:
         print(f'[ERROR] input_csv should be included in the basic section of the configuration file')
@@ -253,7 +255,7 @@ def make_flagged_nc_from_csv(config_file):
         print(f'[ERROR] File {input_csv} does not exist')
         return
 
-    if options.has_option('basic','output_path'):
+    if options.has_option('basic', 'output_path'):
         output_path = options['basic']['output_path'].strip()
     else:
         output_path = os.path.dirname(input_csv)
@@ -272,10 +274,7 @@ def make_flagged_nc_from_csv(config_file):
     name_csv = name_csv[:-4]
     file_nc = os.path.join(output_path, f'CSV_NC_{name_csv}.nc')
 
-    df = pd.read_csv(input_csv,sep=';')
-
-
-
+    df = pd.read_csv(input_csv, sep=';')
 
     file_nc_prev = ''
     dataset_w = None
@@ -283,31 +282,30 @@ def make_flagged_nc_from_csv(config_file):
     sindices = []
     pindices = []
     index_w = 0
-    for index,row in df.iterrows():
+    for index, row in df.iterrows():
         file_nc_here = str(row[col_file_nc])
         if not os.path.exists(file_nc_here):
             continue
         isequence = int(row[col_isequence])
 
-
-        if file_nc_here!=file_nc_prev:
-            if dataset_w is not None:##set data
-                dataset_w = hdayfile.set_data_dataset_w(dataset_w,sindices,index_w)
+        if file_nc_here != file_nc_prev:
+            if dataset_w is not None:  ##set data
+                dataset_w = hdayfile.set_data_dataset_w(dataset_w, sindices, index_w)
                 for flag in flags:
                     print(pindices)
                     print(flags)
                     print(flag)
-                    flag_array = get_flag_array(pindices,df,flags,flag)
+                    flag_array = get_flag_array(pindices, df, flags, flag)
                     print(flag_array)
-                    dataset_w = hdayfile.set_data_flag(dataset_w,index_w,flag,flag_array)
+                    dataset_w = hdayfile.set_data_flag(dataset_w, index_w, flag, flag_array)
                 index_w = index_w + len(sindices)
                 hdayfile = HYPERNETS_DAY_FILE(file_nc_here, None)
                 sindices = [isequence]
                 pindices = [int(index)]
             else:
-                hdayfile = HYPERNETS_DAY_FILE(file_nc_here,None)
+                hdayfile = HYPERNETS_DAY_FILE(file_nc_here, None)
                 dataset_w = hdayfile.start_dataset_w(file_nc)
-                dataset_w = hdayfile.add_flag_variables(dataset_w,flags)
+                dataset_w = hdayfile.add_flag_variables(dataset_w, flags)
                 sindices = [isequence]
                 pindices = [int(index)]
             file_nc_prev = file_nc_here
@@ -317,6 +315,7 @@ def make_flagged_nc_from_csv(config_file):
 
     if dataset_w is not None:
         dataset_w.close()
+
 
 def get_flags(options):
     flags = {}
@@ -339,7 +338,12 @@ def get_flags(options):
             index = index + 1
     return flags
 
-def get_flag_array(indices,df,flags,flag):
+
+def get_flag_array(indices, df, flags, flag):
+    print('Columna: ',df.columns)
+    print('Indices: ',indices)
+    print(type(indices))
+    print('Flag',flag)
     data_flag = df.loc[indices, flag]
     try:
         data_flag_array = np.array(data_flag).astype(np.int64)
@@ -351,6 +355,7 @@ def get_flag_array(indices,df,flags,flag):
         data_flag_array = np.array(data_flag).astype(np.int64)
 
     return data_flag_array
+
 
 def make_summary_files(input_path, output_path, site, start_date, end_date, start_time, end_time, options):
     if args.verbose:
@@ -387,40 +392,42 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
             work_date = work_date + timedelta(hours=interval)
             continue
         work_time_str = work_date.strftime('%Y-%m-%d')
-        start_work_time = dt.strptime(f'{work_time_str}T{start_time}','%Y-%m-%dT%H:%M')
+        start_work_time = dt.strptime(f'{work_time_str}T{start_time}', '%Y-%m-%dT%H:%M')
         end_work_time = dt.strptime(f'{work_time_str}T{end_time}', '%Y-%m-%dT%H:%M')
-        sequences,sequence_indices = hdayfile.get_sequences_interval(start_work_time,end_work_time)
+        sequences, sequence_indices = hdayfile.get_sequences_interval(start_work_time, end_work_time)
         if 'copy' in options:
-            report_files = hdayfile.get_report_files_interval(sequences,site,start_time,end_time)
+            report_files = hdayfile.get_report_files_interval(sequences, site, start_time, end_time)
             if args.verbose:
                 print(f'[INFO] -> Copy {len(report_files)} report files')
-            if len(report_files)>0:
+            if len(report_files) > 0:
                 for rinfile in report_files:
-                    routfile = os.path.join(output_path,os.path.basename(rinfile))
-                    shutil.copy(rinfile,routfile)
+                    routfile = os.path.join(output_path, os.path.basename(rinfile))
+                    shutil.copy(rinfile, routfile)
         if 'nc' in options and sequence_indices is not None:
             if dataset_w is None:
-                file_nc = os.path.join(output_path,f'Comparison_{site}_{start_date_str}_{end_date_str}.nc')
+                file_nc = os.path.join(output_path, f'Comparison_{site}_{start_date_str}_{end_date_str}.nc')
                 dataset_w = hdayfile.start_dataset_w(file_nc)
-            print('Setting data->',len(sequence_indices))
-            dataset_w = hdayfile.set_data_dataset_w(dataset_w,sequence_indices,index_w)
+            print('Setting data->', len(sequence_indices))
+            dataset_w = hdayfile.set_data_dataset_w(dataset_w, sequence_indices, index_w)
             index_w = index_w + len(sequence_indices)
 
         if 'csv' in options and sequence_indices is not None:
             if col_names_csv is None:
                 col_names_csv = hdayfile.get_csv_col_names()
-                df_csv = hdayfile.get_dataframe_lines(sequence_indices,col_names_csv)
+                df_csv = hdayfile.get_dataframe_lines(sequence_indices, col_names_csv)
             else:
-                df_here = hdayfile.get_dataframe_lines(sequence_indices,col_names_csv)
-                df_csv = pd.concat([df_csv,df_here])
+                df_here = hdayfile.get_dataframe_lines(sequence_indices, col_names_csv)
+                df_csv = pd.concat([df_csv, df_here])
 
         work_date = work_date + timedelta(hours=interval)
 
     if df_csv is not None:
-        file_csv = os.path.join(output_path,f'Comparison_{site}_{start_date_str}_{end_date_str}.csv')
-        df_csv.to_csv(file_csv,sep=';')
+        file_csv = os.path.join(output_path, f'Comparison_{site}_{start_date_str}_{end_date_str}.csv')
+        df_csv.to_csv(file_csv, sep=';')
     if dataset_w is not None:
         dataset_w.close()
+
+
 def get_start_and_end_dates():
     start_date = dt.now()
     if args.start_date:
@@ -503,6 +510,7 @@ def main():
 
     if args.mode == 'NCFROMCSV':
         make_flagged_nc_from_csv(args.config_path)
+
 
 # %%
 if __name__ == '__main__':
