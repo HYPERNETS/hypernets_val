@@ -559,6 +559,8 @@ class HYPERNETS_DAY_FILE():
         for variable in dataset_w.variables:
             if variable=='wavelength' or variable=='bandwidth':
                 continue
+            if variable not in dataset_r.variables:##for flag variables
+                continue
             ndim = len(dataset_w[variable].shape)
             if ndim==1:
                 dataset_w[variable][dini:dfin] = dataset_r[variable][sindices]
