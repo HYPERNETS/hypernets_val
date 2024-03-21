@@ -268,7 +268,6 @@ def make_flagged_nc_from_csv(config_file):
     col_file_nc = 'file_nc'
     col_isequence = 'isequence'
     flags = get_flags(options)
-    print(flags)
     name_csv = input_csv.split('/')[-1]
     name_csv = name_csv[:-4]
     file_nc = os.path.join(output_path, f'CSV_NC_{name_csv}.nc')
@@ -295,7 +294,11 @@ def make_flagged_nc_from_csv(config_file):
             if dataset_w is not None:##set data
                 dataset_w = hdayfile.set_data_dataset_w(dataset_w,sindices,index_w)
                 for flag in flags:
+                    print(pindices)
+                    print(flags)
+                    print(flag)
                     flag_array = get_flag_array(pindices,df,flags,flag)
+                    print(flag_array)
                     dataset_w = hdayfile.set_data_flag(dataset_w,index_w,flag,flag_array)
                 index_w = index_w + len(sindices)
                 hdayfile = HYPERNETS_DAY_FILE(file_nc_here, None)
