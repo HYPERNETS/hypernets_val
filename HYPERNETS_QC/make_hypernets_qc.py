@@ -351,7 +351,7 @@ def get_flag_array(indices, df, flags, flag):
         data_flag_array = np.array(data_flag).astype(np.int64)
     except:
         for idx in range(len(flags[flag]['values'])):
-            val = int((flags[flag]['values'][idx]).strip())
+            val = flags[flag]['values'][idx]
             meaning = flags[flag]['meanings'][idx].strip()
             data_flag[data_flag == meaning] = val
         data_flag_array = np.array(data_flag).astype(np.int64)
