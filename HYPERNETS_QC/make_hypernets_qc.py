@@ -4,12 +4,13 @@ from datetime import datetime as dt
 from datetime import timedelta
 import argparse
 
+import numpy as np
 import pandas as pd
 
 from hypernets_day import HYPERNETS_DAY
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
-parser.add_argument('-m', "--mode", choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES'],
+parser.add_argument('-m', "--mode", choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES','NCFROMCSV'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -17,6 +18,7 @@ parser.add_argument('-st', "--start_time", help="Start time. (HH:MM)")
 parser.add_argument('-et', "--end_time", help="End time. (HH:MM)")
 parser.add_argument('-i', "--input_path", help="Input path")
 parser.add_argument('-o', "--output_path", help="Output path")
+parser.add_argument('-c', "--config_path", help="Configuration file path")
 parser.add_argument('-site', "--site_name", help="Site name")
 parser.add_argument('-sopt', "--summary_options", help="Summary options,separated by '_': csv,nc,copy")
 parser.add_argument('-ndays', "--ndays_interval", help="Interval days between start date and end date")
@@ -230,6 +232,122 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     # red_array_orig = np.array(img.getdata(0)).reshape(img.size)
     # red_array = np.array(img.getdata(0)).reshape(img.size).astype(np.uint8)
 
+def make_flagged_nc_from_csv(config_file):
+    if args.verbose:
+        print(f'[INFO] Started concatenaded nc file from csv using configuration file: {config_file}')
+
+    import configparser
+    from hypernets_day_file import HYPERNETS_DAY_FILE
+    options = configparser.ConfigParser()
+    options.read(config_file)
+    if not options.has_section('basic'):
+        print(f'[ERROR] Basic section should be included in the configuration file')
+        return
+    input_csv = None
+    if options.has_option('basic','input_csv'):
+        input_csv = options['basic']['input_csv'].strip()
+    if input_csv is None:
+        print(f'[ERROR] input_csv should be included in the basic section of the configuration file')
+        return
+    if not os.path.exists(input_csv):
+        print(f'[ERROR] File {input_csv} does not exist')
+        return
+
+    if options.has_option('basic','output_path'):
+        output_path = options['basic']['output_path'].strip()
+    else:
+        output_path = os.path.dirname(input_csv)
+    if not os.path.isdir(output_path):
+        try:
+            os.mkdir(output_path)
+        except:
+            print(f'[ERROR] Output path {output_path} does not exist')
+            return
+
+    col_sequence = 'sequence_ref'
+    col_file_nc = 'file_nc'
+    col_isequence = 'isequence'
+    flags = get_flags(options)
+    print(flags)
+    name_csv = input_csv.split('/')[-1]
+    name_csv = name_csv[:-4]
+    file_nc = os.path.join(output_path, f'CSV_NC_{name_csv}.nc')
+
+    df = pd.read_csv(input_csv,sep=';')
+
+
+
+
+    file_nc_prev = ''
+    dataset_w = None
+    hdayfile = None
+    sindices = []
+    pindices = []
+    index_w = 0
+    for index,row in df.iterrows():
+        file_nc_here = str(row[col_file_nc])
+        if not os.path.exists(file_nc_here):
+            continue
+        isequence = int(row[col_isequence])
+
+
+        if file_nc_here!=file_nc_prev:
+            if dataset_w is not None:##set data
+                dataset_w = hdayfile.set_data_dataset_w(dataset_w,sindices,index_w)
+                for flag in flags:
+                    flag_array = get_flag_array(pindices,df,flags,flag)
+                    dataset_w = hdayfile.set_data_flag(dataset_w,index_w,flag,flag_array)
+                index_w = index_w + len(sindices)
+                hdayfile = HYPERNETS_DAY_FILE(file_nc_here, None)
+                sindices = [isequence]
+                pindices = [int(index)]
+            else:
+                hdayfile = HYPERNETS_DAY_FILE(file_nc_here,None)
+                dataset_w = hdayfile.start_dataset_w(file_nc)
+                dataset_w = hdayfile.add_flag_variables(dataset_w,flags)
+                sindices = [isequence]
+                pindices = [int(index)]
+            file_nc_prev = file_nc_here
+        else:
+            sindices.append(isequence)
+            pindices.append(int(index))
+
+    if dataset_w is not None:
+        dataset_w.close()
+
+def get_flags(options):
+    flags = {}
+    if options.has_section('flags'):
+        index = 0
+        while options.has_option('flags', f'flag_{index}.name'):
+            name = options['flags'][f'flag_{index}.name'].strip()
+            flag_values = []
+            flag_meanings = []
+            if options.has_option('flags', f'flag_{index}.values'):
+                flag_values_str = options['flags'][f'flag_{index}.values'].strip()
+                flag_values = [int(x) for x in flag_values_str.split(',')]
+            if options.has_option('flags', f'flag_{index}.values'):
+                flag_meanings_str = options['flags'][f'flag_{index}.meanings'].strip()
+                flag_meanings = [str(x) for x in flag_meanings_str.split(',')]
+            flags[name] = {
+                'values': flag_values,
+                'meanings': flag_meanings
+            }
+            index = index + 1
+    return flags
+
+def get_flag_array(indices,df,flags,flag):
+    data_flag = df.loc[indices, flag]
+    try:
+        data_flag_array = np.array(data_flag).astype(np.int64)
+    except:
+        for idx in range(len(flags[flag]['values'])):
+            val = flags[flag]['values'][idx]
+            meaning = flags[flag]['meanings'][idx]
+            data_flag[data_flag == meaning] = val
+        data_flag_array = np.array(data_flag).astype(np.int64)
+
+    return data_flag_array
 
 def make_summary_files(input_path, output_path, site, start_date, end_date, start_time, end_time, options):
     if args.verbose:
@@ -380,6 +498,8 @@ def main():
     if args.mode == 'SUMMARYFILES':
         make_summary_files(input_path, output_path, site, start_date, end_date, start_time, end_time, summary_options)
 
+    if args.mode == 'NCFROMCSV':
+        make_flagged_nc_from_csv(args.config_path)
 
 # %%
 if __name__ == '__main__':

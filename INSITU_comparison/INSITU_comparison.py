@@ -640,9 +640,9 @@ class INSITUCOMPARISON:
             date_str = time.strftime('%Y-%m-%d')
             time_str = time.strftime('%H:%M')
             time_diff = float(self.dataset_w.variables['mu_time_diff'][imu])
-            line = f'{date_str};{time_str};{time_diff};{float(self.dataset_w.variables[xvariable][iday, ix])};{float(self.dataset_w.variables[yvariable][iday, ix])}'
-
-            print(line)
+            # line = f'{date_str};{time_str};{time_diff};{float(self.dataset_w.variables[xvariable][iday, ix])};{float(self.dataset_w.variables[yvariable][iday, ix])}'
+            #
+            # print(line)
 
             if self.dataset_w.variables[xvariable].ndim == 3:
                 self.xdata[ispectra] = float(self.dataset_w.variables[xvariable][iday, ix, 0])
@@ -717,9 +717,9 @@ class INSITUCOMPARISON:
         self.close_file_w()
 
     def plot_spectra_stats(self):
-        file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Lt.tif'
+        file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Lw.tif'
 
-        legend = ['HYPSTAR - Lt', 'AERONET-OC - Lt']
+        legend = ['HYPSTAR - Lw', 'AERONET-OC - Lw']
         self.plot_spectra_impl(file_out, legend, None)
 
     def plot_all_spectra(self):

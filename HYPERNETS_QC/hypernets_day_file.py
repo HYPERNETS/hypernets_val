@@ -541,6 +541,17 @@ class HYPERNETS_DAY_FILE():
         dataset_r.close()
         return dataset_w
 
+    def add_flag_variables(self,dataset_w,flags):
+        for flag in flags:
+            var_name = flag
+            if not var_name.startswith('flag_'):
+                var_name = f'flag_{flag}'
+            var = dataset_w.createVariable(var_name,'i8',('series',))
+            var[:] = 0
+            var.flag_values = flags[flag]['values']
+            var.flag_meanings = ' '.join(flags[flag]['meanings'])
+        return dataset_w
+
     def set_data_dataset_w(self,dataset_w,sindices,index_w):
         dini = index_w
         dfin = index_w + len(sindices)
@@ -557,6 +568,16 @@ class HYPERNETS_DAY_FILE():
                 dataset_w[variable][dini:dfin, :, :] = dataset_r[variable][sindices, :,:]
 
         dataset_r.close()
+        return dataset_w
+
+    def set_data_flag(self,dataset_w,index_w,flag,flag_array):
+        dini = index_w
+        dfin = index_w + len(flag_array)
+        var_name = flag
+        if not var_name.startswith('flag_'):
+            var_name = f'flag_{flag}'
+        if var_name in dataset_w.variables:
+            dataset_w[var_name][dini:dfin] = flag_array[:]
         return dataset_w
 
     def get_csv_col_names(self):

@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 from datetime import datetime as dt
 from datetime import timedelta
 import sys
@@ -32,10 +33,10 @@ args = parser.parse_args()
 
 def make_concatenation():
     path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
-    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20231004.nc'
+    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20230625.nc'
     files_append = []
     start_date = dt(2023, 4, 25)
-    end_date = dt(2023, 10, 4)
+    end_date = dt(2023, 6, 25)
     date_here = start_date
     while date_here <= end_date:
         file_comparison = get_file_comparison_date(path_out, date_here, False)
@@ -122,19 +123,20 @@ def make_plots():
     # date_here = dt(2023, 9, 26)
     # file_comparison = get_file_comparison_date(path_out, date_here, False)
 
-    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20231004.nc'
+    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20230625.nc'
 
     file_config = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/config_plot.ini'
     import configparser
     options = configparser.ConfigParser()
     options.read(file_config)
     ic = INSITUCOMPARISON(file_comparison)
-    iplots = INSITU_plots(ic)
-    iplots.plot_from_options(options)
+    # iplots = INSITU_plots(ic)
+    # iplots.plot_from_options(options)
 
 
-    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
-    # ic.plot_spectra_stats()
+    #ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
+    ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
+    ic.plot_spectra_stats()
 
     # ic.plot_scatterplot(None)
     # ic.plot_all_scatterplots_wl()
@@ -295,6 +297,23 @@ def check_hypstar_qf():
     #     path_date = get_folder_date(path_out,date_here)
 
 
+def do_test():
+
+    csv_file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/QUALITY_CONTROL/VEIT/PERIOD_VALID_1/Comparison_VEIT_20230425_20230629.csv'
+    path = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/QUALITY_CONTROL/VEIT/PERIOD_VALID_1'
+    import pandas as pd
+    df = pd.read_csv(csv_file,sep=';')
+    for index,row in df.iterrows():
+        folder = os.path.join(path,row['FOLDER'])
+        name_seq = row['sequence_ref']
+        name_img = f'VEIT_{name_seq}_Report.png'
+        file_img = os.path.join(path,name_img)
+        file_out = os.path.join(folder,name_img)
+        if not os.path.exists(file_img):
+            print('error')
+        shutil.copy(file_img,file_out)
+
+
 # %%
 if __name__ == '__main__':
     # multiple_dates
@@ -303,7 +322,7 @@ if __name__ == '__main__':
     ##2. Concatenate
     #make_concatenation()
     ##3. Add mu
-    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20231004.nc'
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20230625.nc'
     # add_mu_to_file(file_out)
 
     ## example for a specific date
@@ -312,8 +331,10 @@ if __name__ == '__main__':
     # add_mu_to_file_date(date_here)
 
     ##PLOTING
-    make_plots()
+    #make_plots()
 
     ##CHECKING HYPSTAR QF (TEST)
     # check_hypstar_qf()
     # check_angles()
+
+    do_test()
