@@ -18,6 +18,19 @@ class OptionsManager():
         # self.options = configparser.ConfigParser()
         # self.options.read(config_file)
 
+    def get_virtual_flag_list(self):
+        if self.options is None:
+            return None
+        slist = self.options.sections()
+        sfinal = []
+        for flag in slist:
+            if self.options.has_option(flag, 'type'):
+                if self.options[flag]['type'] == 'virtual_flag':
+                    sfinal.append(flag)
+        if len(sfinal) == 0:
+            sfinal = None
+        return sfinal
+
     def get_section_list(self, exclude_flags):
         if self.options is None:
             return None
@@ -37,33 +50,66 @@ class OptionsManager():
     def read_options_as_dict(self, section, poptions):
         options_dict = {}
         type = None
-        use_pow2_flags = True
+        use_pow2_flags = False
+
+        if self.options.has_option(section, 'type'):
+            type = self.read_option(section, 'type', 'type', poptions, -1, use_pow2_flags)
+        if type is None and self.options.has_option(section, 'typevirtual'):  ##typevirtual overwrites type
+            type = self.read_option(section, 'typevirtual', 'typevirtual', poptions, -1, use_pow2_flags)
+        if self.options.has_option(section, 'use_pow2_flags'):
+            use_pow2_flags = self.options[section]['use_pow2_flags']
+        options_dict = self.assign_options(options_dict, 'type', type)
+        options_dict = self.assign_options(options_dict, 'use_pow2_flags', use_pow2_flags)
+
         for opt in poptions:
+            if opt == 'type' or opt == 'typevirtual' or opt == 'use_pow2_flags':
+                continue
+
             if type is not None and 'type_group' in poptions[opt]:
+
                 if poptions[opt]['type_group'] != type:
                     continue
+
+
             if not opt.find('_index') >= 0:
                 if self.options.has_option(section, opt):
-                    value = self.read_option(section, opt, opt, poptions, -1,use_pow2_flags)
+                    value = self.read_option(section, opt, opt, poptions, -1, use_pow2_flags)
                     options_dict = self.assign_options(options_dict, opt, value)
-                    if opt == 'type' or opt == 'typevirtual':
-                        type = options_dict[opt]
-                    if opt == 'use_pow2_flags':
-                        use_pow2_flags = options_dict[opt]
                 else:
                     if 'default' in poptions[opt].keys():
                         options_dict[opt] = poptions[opt]['default']
             else:
-                idx = 0
-                has_option = True
-                while has_option:
-                    opt_here = opt.replace('_index', f'_{idx}')
-                    if self.options.has_option(section, opt_here):
-                        value = self.read_option(section, opt, opt_here, poptions, idx,use_pow2_flags)
-                        options_dict = self.assign_options(options_dict, opt_here, value)
-                    else:
-                        has_option = False
-                    idx = idx + 1
+                if opt.find('_indexm')>=0:
+                    idx = 0
+                    has_option = True
+                    while has_option:
+                        inner_idx = 0
+                        has_inner = True
+                        while has_inner:
+                            opt_here = opt.replace('_indexm', f'_{idx}_{inner_idx}')
+                            #print(opt_here,idx, inner_idx)
+                            if self.options.has_option(section, opt_here):
+                                value = self.read_option(section, opt, opt_here, poptions, idx, use_pow2_flags)
+
+                                options_dict = self.assign_options(options_dict, opt_here, value)
+                                inner_idx = inner_idx + 1
+                            else:
+                                has_inner = False
+                            if inner_idx==0:
+                                has_option = False
+                        idx = idx + 1
+                else:
+                    idx = 0
+                    has_option = True
+                    while has_option:
+                        opt_here = opt.replace('_index', f'_{idx}')
+                        if self.options.has_option(section, opt_here):
+                            value = self.read_option(section, opt, opt_here, poptions, idx, use_pow2_flags)
+                            options_dict = self.assign_options(options_dict, opt_here, value)
+                        else:
+                            has_option = False
+                        idx = idx + 1
+
 
         return options_dict
 
@@ -78,7 +124,7 @@ class OptionsManager():
                 options_dict[keys[0]] = {keys[1]: value}
         return options_dict
 
-    def read_option(self, section, opt, opt_here, poptions, idx,use_pow2_flags):
+    def read_option(self, section, opt, opt_here, poptions, idx, use_pow2_flags):
         default = None
         if 'default' in poptions[opt].keys():
             default = poptions[opt]['default']
@@ -88,48 +134,62 @@ class OptionsManager():
             if value not in poptions[opt]['list_values']:
                 value = None
 
-
         if poptions[opt]['type_param'] == 'strlist':
-            #use_pow2_vflags = poptions[opt]['user_pow2_vflags']
-            value = self.get_strlist_as_dict(value, opt, idx,use_pow2_flags)
+            # use_pow2_vflags = poptions[opt]['user_pow2_vflags']
+            value = self.get_strlist_as_dict(value, opt, idx, use_pow2_flags)
+
 
         return value
 
-    def get_strlist_as_dict(self, values, opt, idx,use_pow2_flags):
+    def get_strlist_as_dict(self, values, opt, idx, use_pow2_flags):
         if opt == 'flag_spatial_index':
-            return self.get_dict_flag_spatial_index(values, idx,use_pow2_flags)
-        if opt == 'flag_ranges_index':
-            return self.get_dict_flag_ranges_index(values,idx,use_pow2_flags)
+            return self.get_dict_flag_spatial_index(values, idx, use_pow2_flags)
+        if opt.startswith('flag_ranges_index'):
+            return self.get_dict_flag_ranges_index(values, idx, use_pow2_flags)
         return values
 
-    def get_dict_flag_ranges_index(self, values,idx, use_pow2_flags):
+    def get_dict_flag_ranges_index(self, values, idx, use_pow2_flags):
         value_dict = {}
         if use_pow2_flags:
             fvalue = int(math.pow(2, idx))
         else:
             fvalue = int(idx + 1)
-        if len(values) == 2:
-            value_dict = {
-                'is_default': True,
-                'flag_name': values[1],
-                'flag_value': fvalue
-            }
         if len(values) == 3:
             value_dict = {
-                'is_default': False,
-                'flag_name': values[2],
+                'flag_var': values[0],
+                'is_default': True,
+                'flag_name': values[1],
                 'flag_value': fvalue,
-                'min_range': float(values[0]),
-                'max_range': float(values[1])
+                'flag_condition': 'and'
             }
+        if len(values) >= 4:
+            try:
+                minV = float(values[2])
+            except:
+                minV = None
+            try:
+                maxV = float(values[3])
+            except:
+                maxV = None
+            value_dict = {
+                'is_default': False,
+                'flag_var': values[0],
+                'flag_name': values[1],
+                'flag_value': fvalue,
+                'min_range': minV,
+                'max_range': maxV,
+                'flag_condition': 'and'
+            }
+            if len(values)==5:
+                value_dict['flag_condition']=values[4]
         return value_dict
 
-    def get_dict_flag_spatial_index(self, values, idx,use_pow2_flags):
+    def get_dict_flag_spatial_index(self, values, idx, use_pow2_flags):
         value_dict = {}
         if use_pow2_flags:
             fvalue = int(math.pow(2, idx))
         else:
-            fvalue = int(idx+1)
+            fvalue = int(idx + 1)
 
         if len(values) == 2:
             value_dict = {

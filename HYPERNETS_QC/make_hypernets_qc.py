@@ -11,7 +11,7 @@ from hypernets_day import HYPERNETS_DAY
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
-                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV'],
+                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV','PLOT'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -232,6 +232,44 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     # img = Image.open(file_rgb)
     # red_array_orig = np.array(img.getdata(0)).reshape(img.size)
     # red_array = np.array(img.getdata(0)).reshape(img.size).astype(np.uint8)
+
+
+def plot_from_options(input_path,config_file):
+    if not os.path.exists(config_file):
+        print(f'[ERROR] Plot configuration file: {config_file} does not exist. ')
+        return
+
+    if args.verbose:
+        print(f'[INFO] Started plotting from file: {input_path}')
+    import configparser
+    from hypernets_day_file import HYPERNETS_DAY_FILE
+    options = configparser.ConfigParser()
+    options.read(config_file)
+    hfile = HYPERNETS_DAY_FILE(input_path,None)
+    from MDB_reader.PlotOptions import PlotOptions
+    poptions = PlotOptions(options, None)
+    poptions.set_global_options()
+
+
+    from MDB_reader.FlagBuilder import FlagBuilder
+    fbuilder = FlagBuilder(input_path,None,options)
+    hfile.flag_builder = fbuilder
+
+
+    # print('************************************************************************')
+    # print(virtual_flags_options)
+    # for virtual_flag in virtual_flags_options:
+    #     array, flag_names, flag_values = fbuilder.create_flag_array_ranges_v2(virtual_flags_options[virtual_flag])
+    #     print(array.shape)
+
+
+    list_figures = poptions.get_list_figures()
+    # print(list_figures)
+    for figure in list_figures:
+        print('------------------------------------------------------------------------------------------')
+        print(f'[INFO] Starting figure: {figure}')
+        options_figure = poptions.get_options(figure)
+        hfile.plot_from_options_impl(options_figure)
 
 
 def make_flagged_nc_from_csv(config_file):
@@ -513,6 +551,8 @@ def main():
     if args.mode == 'NCFROMCSV':
         make_flagged_nc_from_csv(args.config_path)
 
+    if args.mode == 'PLOT':
+        plot_from_options(input_path,args.config_path)
 
 # %%
 if __name__ == '__main__':

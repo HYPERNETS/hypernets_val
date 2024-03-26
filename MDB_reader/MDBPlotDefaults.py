@@ -432,6 +432,25 @@ options_select = {
     }
 }
 
+options_time = {
+    'start_date': {
+        'default': None,
+        'type': 'date'
+    },
+    'end_date': {
+        'default': None,
+        'type': 'date'
+    },
+    'start_time':{
+        'default': None,
+        'type': 'time'
+    },
+    'end_time':{
+        'default': None,
+        'type': 'time'
+    }
+}
+
 options_scatterplots = {
     'type_scatterplot':{
         'default':'rrs',
@@ -551,7 +570,15 @@ options_spectraplots = {
     'type_rrs':{
         'default':'comparison_sat_insitu',
         'type':'str',
-        'values': ['ins','sat','mu_ins','mu_comparison','comparison_sat_insitu','comparison_sat']
+        'values': ['ins','sat','mu_ins','mu_comparison','comparison_sat_insitu','comparison_sat','user_defined']
+    },
+    'wl_variable':{
+        'default': None,
+        'type': 'str'
+    },
+    'y_variable':{
+        'default': None,
+        'type': 'str'
     },
     'wl_min':{
         'default': None,
@@ -607,6 +634,26 @@ options_spectraplots = {
     'line_style':{
         'default': line_style_default,
         'type': 'linestyle'
+    },
+    'line_color':{
+        'default': [line_style_default['line_color']],
+        'type': 'strlist'
+    },
+    'marker':{
+        'default': [line_style_default['marker']],
+        'type': 'strlist'
+    },
+    'marker_size':{
+        'default': [line_style_default['marker_size']],
+        'type': 'floatlist'
+    },
+    'line_type':{
+        'default': [line_style_default['line_style']],
+        'type': 'strlist'
+    },
+    'line_size': {
+        'default': [line_style_default['line_size']],
+        'type': 'strlist'
     },
     'valid_line_style':{
         'default': valid_line_style_default,
@@ -683,6 +730,10 @@ def get_options_spectraplots():
         options[op] = options_multiple_plot[op]
     for op in options_select:
         options[op] = options_select[op]
+    for op in options_group:
+        options[op] = options_group[op]
+    for op in options_time:
+        options[op] = options_time[op]
     return options
 
 def get_options_satterplots():

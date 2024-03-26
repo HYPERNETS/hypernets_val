@@ -1,12 +1,12 @@
 import pytz
 
-from MDBFile import MDBFile
+from MDB_reader.MDBFile import MDBFile
 import os
 import numpy as np
 from datetime import datetime as dt
 from netCDF4 import Dataset
 import configparser
-from OptionsManager import OptionsManager
+from MDB_reader.OptionsManager import OptionsManager
 import math
 
 
@@ -17,8 +17,15 @@ class FlagBuilder:
         self.mfile = None
         self.VALID = False
         if path_mdb_file is not None and os.path.isfile(path_mdb_file):
-            self.mfile = MDBFile(path_mdb_file)
-            self.VALID = self.mfile.VALID
+            try:
+                self.mfile = MDBFile(path_mdb_file)
+                self.VALID = self.mfile.VALID
+            except:
+                print(
+                    f'[WARNING] {path_mdb_file} is not a MDB file, it will be used a regular NetCDF file, some functions could not work')
+                self.mfile = None
+                self.nc_file = path_mdb_file
+                self.VALID = True
 
         if not self.VALID:
             print(f'[ERROR] {path_mdb_file} is not a valid MDB file')
@@ -40,7 +47,7 @@ class FlagBuilder:
             'type': {'type_param': 'str', 'list_values': ['spatial', 'temporal', 'ranges']},
             'typevirtual': {'type_param': 'str', 'list_values': ['spatial', 'temporal', 'ranges']},
             'use_pow2_vflags': {'type_param': 'boolean', 'default': False},
-            'var_limit_to_valid': {'type_param':'str','default':None},
+            'var_limit_to_valid': {'type_param': 'str', 'default': None},
             'limit_to_central_pixel': {'type_param': 'boolean', 'default': False},
             'flag_spatial_index': {'type_group': 'spatial', 'type_param': 'strlist'},
             'lat_variable': {'type_group': 'spatial', 'type_param': 'str', 'default': 'insitu_latitude'},
@@ -49,19 +56,30 @@ class FlagBuilder:
             'time_ini': {'type_group': 'temporal', 'type_param': 'str', 'default': None},
             'time_fin': {'type_group': 'temporal', 'type_param': 'str', 'default': None},
             'time_flag_type': {'type_group': 'temporal', 'type_param': 'str', 'default': 'ranges',
-                               'list_values': ['ranges', 'yearjday', 'yearmonth', 'jday', 'month','yearmonthday','monthday','flag_satellite_yearmonthday']},
+                               'list_values': ['ranges', 'yearjday', 'yearmonth', 'jday', 'month', 'yearmonthday',
+                                               'monthday', 'flag_satellite_yearmonthday']},
             'var_ranges': {'type_group': 'ranges', 'type_param': 'str'},
-            'flag_ranges_index': {'type_group': 'ranges', 'type_param': 'strlist'}
+            'flag_ranges_indexm': {'type_group': 'ranges', 'type_param': 'strlist'}
         }
+
+    def get_virtual_flag_list(self):
+        return self.omanager.get_virtual_flag_list()
+
+    def get_virtual_flags_options(self):
+        vf_options = {}
+        fl = self.get_virtual_flag_list()
+        if fl is not None:
+            for f in fl:
+                vf_options[f] = self.get_options_dict(f)
+        return vf_options
 
     def get_options_dict(self, flag_ref):
         options_dict = self.omanager.read_options_as_dict(flag_ref, self.flag_options)
-        print(options_dict)
         return options_dict
 
     def create_flag_array(self, flag_ref, create_copy):
         options_dict = self.omanager.read_options_as_dict(flag_ref, self.flag_options)
-        #print(options_dict)
+        # print(options_dict)
         type = options_dict['type']
         if type is None:
             type = options_dict['typevirtual']
@@ -83,6 +101,67 @@ class FlagBuilder:
                 self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_names, dims)
 
         return flag_values, flag_names, array
+
+    def create_flag_array_ranges_v2(self, options_dict):
+        default_value = 0
+        flag_names = []
+        flag_values = []
+        fl_info = {}
+        array = None
+        dataset = Dataset(self.nc_file)
+        for fl in options_dict:
+            if fl.startswith('flag_ranges'):
+                if options_dict[fl]['is_default']:
+                    default_value = int(options_dict[fl]['flag_value'])
+                flag_values.append(options_dict[fl]['flag_value'])
+                flag_names.append(options_dict[fl]['flag_name'])
+                value_s = str(options_dict[fl]['flag_value'])
+                if value_s not in fl_info.keys():
+                    fl_info[value_s] = [fl]
+                else:
+                    fl_info[value_s].append(fl)
+                if array is None:
+                    r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
+                    array = r_array.copy().astype(np.int64)
+
+        array[:] = default_value
+
+        for svalue in fl_info:
+            value = int(svalue)
+            nranges = len(fl_info[svalue])
+            if nranges == 1:
+                fl = fl_info[svalue][0]
+                r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
+                v_min = options_dict[fl]['min_range']
+                v_max = options_dict[fl]['max_range']
+                if v_min is not None and v_max is not None:
+                    array[np.logical_and(r_array >= v_min, r_array <= v_max)] = value
+                elif v_min is None and v_max is not None:
+                    array[r_array <= v_max] = value
+                elif v_min is not None and v_max is None:
+                    array[r_array >= v_min] = value
+            else:
+                array_check = np.zeros(array.shape)
+                for fl in fl_info[svalue]:
+                    r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
+                    v_min = options_dict[fl]['min_range']
+                    v_max = options_dict[fl]['max_range']
+
+                    if v_min is not None and v_max is not None:
+                        array_check[np.logical_and(r_array >= v_min, r_array <= v_max)] = array_check[np.logical_and(
+                            r_array >= v_min, r_array <= v_max)] + 1
+                    elif v_min is None and v_max is not None:
+                        array_check[r_array <= v_max] = array_check[r_array <= v_max] + 1
+                    elif v_min is not None and v_max is None:
+                        array_check[r_array >= v_min] = array_check[r_array <= v_max] + 1
+                condition = options_dict[fl]['flag_condition']
+                if condition=='and':
+                    array[array_check == nranges] = value
+                elif condition=='or':
+                    array[array_check>0] = value
+        dataset.close()
+
+        return array, flag_names, flag_values
 
     def create_flag_array_ranges(self, options_dict):
         var_ranges = options_dict['var_ranges']
@@ -141,7 +220,7 @@ class FlagBuilder:
         array1Dcentral = None
         if options_dict['limit_to_central_pixel']:
             array_central = self.mfile.get_full_array('insitu_spatial_index')
-            if array_central.shape==orig_shape:
+            if array_central.shape == orig_shape:
                 if len(orig_shape) > 1:
                     array1Dcentral = array_central.flatten()
                 else:
@@ -152,7 +231,7 @@ class FlagBuilder:
         var_limit_to_valid = options_dict['var_limit_to_valid']
         if var_limit_to_valid is not None:
             array_valid = self.mfile.get_full_array(var_limit_to_valid)
-            if array_valid.shape==orig_shape:
+            if array_valid.shape == orig_shape:
                 if len(orig_shape) > 1:
                     array1Dvalid = array_valid.flatten()
                 else:
@@ -165,7 +244,7 @@ class FlagBuilder:
         time_ini = None
         time_fin = None
         if options_dict['time_ini'] is not None and options_dict['time_fin'] is not None:
-            time_ini = dt.strptime(options_dict['time_ini'],'%Y-%m-%d %H:%M').replace(tzinfo=pytz.utc)
+            time_ini = dt.strptime(options_dict['time_ini'], '%Y-%m-%d %H:%M').replace(tzinfo=pytz.utc)
             time_fin = dt.strptime(options_dict['time_fin'], '%Y-%m-%d %H:%M').replace(tzinfo=pytz.utc)
         fvalue = 0
         for idx in range(len(array1D)):
@@ -176,16 +255,16 @@ class FlagBuilder:
                 continue
 
             if array1Dvalid is not None:
-                if array1Dvalid[idx]!=1:
+                if array1Dvalid[idx] != 1:
                     continue
 
             if array1Dcentral is not None:
-                if array1Dcentral[idx]!=0:
+                if array1Dcentral[idx] != 0:
                     continue
             time_here = dt.utcfromtimestamp(val).replace(tzinfo=pytz.utc)
 
             if time_ini is not None and time_fin is not None:
-                if time_here<time_ini or time_here>time_fin:
+                if time_here < time_ini or time_here > time_fin:
                     continue
             # if time_ini is not None and time_fin is not None:
             #     if time_ini < time_here < time_fin:
@@ -203,7 +282,6 @@ class FlagBuilder:
                 time_here_str = time_here.strftime('%Y-%m-%d')
             elif flag_type == 'monthday':
                 time_here_str = time_here.strftime('%m-%d')
-
 
             if flag_type.startswith('flag_satellite'):
                 array_flag_satellite = self.mfile.get_full_array('flag_satellite')

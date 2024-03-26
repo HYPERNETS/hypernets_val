@@ -15,8 +15,8 @@ sys.path.append(code_home)
 import COMMON.Class_Flags_OLCI as flag
 from COMMON import common_functions as cfs
 
-from QC_INSITU import QC_INSITU
-from QC_SAT import QC_SAT
+from MDB_reader.QC_INSITU import QC_INSITU
+from MDB_reader.QC_SAT import QC_SAT
 
 # from skimage import exposure
 from matplotlib.colors import ListedColormap

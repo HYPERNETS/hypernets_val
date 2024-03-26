@@ -1,5 +1,5 @@
 import os.path
-import MDBPlotDefaults as defaults
+import MDB_reader.MDBPlotDefaults as defaults
 
 
 class PlotOptions:
@@ -79,6 +79,8 @@ class PlotOptions:
         if self.global_options['output_path'] is not None:
             name_default = options_out['name'] + '.' + self.global_options['fig_extension']
             file_out_default = os.path.join(self.global_options['output_path'], name_default)
+        else:
+            file_out_default = None
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str', None)
 
         # options_out['multiple_plot'] = self.get_value_param(section, 'multiple_plot', None, 'str')
@@ -315,9 +317,9 @@ class PlotOptions:
             return default
         if type == 'str':
             if potential_values is None:
-                return value
+                return value.strip()
             else:
-                if value.lower() in potential_values:
+                if value.strip().lower() in potential_values:
                     return value
                 else:
                     print(
@@ -421,4 +423,22 @@ class PlotOptions:
                 return style
             except:
                 print(f'[WARNING] {section}-{key} is not valid fill style, using default style')
+                return default
+
+        if type=='date':
+            from datetime import datetime as dt
+            try:
+                date = dt.strptime(value.strip(),'%Y-%m-%d')
+                return date
+            except:
+                return default
+        if type=='time':
+            from datetime import datetime as dt
+            val = value.strip()
+            try:
+                val_check = dt.now().strftime('%Y-%m-%d')
+                val_check = f'{val_check}T{val}'
+                dt.strptime(val_check, '%Y-%m-%dT%H:%M')
+                return val
+            except:
                 return default

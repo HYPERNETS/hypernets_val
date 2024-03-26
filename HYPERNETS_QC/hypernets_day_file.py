@@ -35,6 +35,8 @@ class HYPERNETS_DAY_FILE():
         self.ref_wl_idx = -1
         self.rho = r'ρ$_w$'
 
+        self.flag_builder  = None
+
     def get_sequences(self):
         sequences = []
         dataset = Dataset(self.file_nc)
@@ -49,7 +51,47 @@ class HYPERNETS_DAY_FILE():
         dataset.close()
         return sequences
 
-    def get_sequences_interval(self,start_time,end_time):
+    ##methods for multiple dates. start_date and end_date are dt objects, start_time and end_time with format %H:%M
+    ##these parameters are retrieved from options_figures using check_dates_times
+    def get_sequences_range(self, start_date, end_date, start_time, end_time):
+        if start_date is None and end_date is None and start_time is None and end_time is None:
+            return None,None
+        if self.sequences is None:
+            self.get_sequences()
+        sequences_here = []
+        sequences_indices = None
+        for iseq in range(len(self.sequences)):
+            seq = self.sequences[iseq]
+            if seq is None:
+                continue
+            time_seq = dt.strptime(seq, '%Y%m%dT%H%M')
+            if start_time is not None or end_time is not None:
+                date_seq_str = time_seq.strftime('%Y-%m-%d')
+            if start_date is not None:
+                if time_seq<start_date:
+                    continue
+            if end_date is not None:
+                end_date = end_date.replace(hour=23,minute=59,second=59)
+                if time_seq>end_date:
+                    continue
+            if start_time is not None:
+                start_time_ref = dt.strptime(f'{date_seq_str}T{start_time}','%Y-%m-%dT%H:%M')
+                if time_seq<start_time_ref:
+                    continue
+            if end_time is not None:
+                end_time_ref = dt.strptime(f'{date_seq_str}T{end_time}', '%Y-%m-%dT%H:%M')
+                if time_seq>end_time_ref:
+                    continue
+            sequences_here.append(seq)
+            if sequences_indices is None:
+                sequences_indices = [iseq]
+            else:
+                sequences_indices.append(iseq)
+
+        return sequences_here, sequences_indices
+
+    ##method only if file is for a specific data
+    def get_sequences_interval(self, start_time, end_time):
         if self.sequences is None:
             self.get_sequences()
         sequences_here = []
@@ -60,7 +102,7 @@ class HYPERNETS_DAY_FILE():
             seq = self.sequences[iseq]
             if seq is None:
                 continue
-            time_seq = dt.strptime(seq,'%Y%m%dT%H%M')
+            time_seq = dt.strptime(seq, '%Y%m%dT%H%M')
             if start_time <= time_seq <= end_time:
                 sequences_here.append(seq)
                 if sequences_indices is None:
@@ -68,16 +110,16 @@ class HYPERNETS_DAY_FILE():
                 else:
                     sequences_indices.append(iseq)
 
-        return sequences_here,sequences_indices
+        return sequences_here, sequences_indices
 
-    def get_report_files_interval(self,sequences_here,site,start_time,end_time):
+    def get_report_files_interval(self, sequences_here, site, start_time, end_time):
         if sequences_here is None:
-            sequences_here,range_here = self.get_sequences_interval(start_time,end_time)
+            sequences_here, range_here = self.get_sequences_interval(start_time, end_time)
         report_files = []
-        if len(sequences_here)==0:
+        if len(sequences_here) == 0:
             return report_files
         for seq in sequences_here:
-            file_out = os.path.join(os.path.dirname(self.file_nc),f'{site}_{seq}_Report{self.format_img}')
+            file_out = os.path.join(os.path.dirname(self.file_nc), f'{site}_{seq}_Report{self.format_img}')
             if os.path.exists(file_out):
                 report_files.append(file_out)
         return report_files
@@ -172,7 +214,7 @@ class HYPERNETS_DAY_FILE():
         str = f'epsilon={epsilon:.4f};rho={rho:.4f}(raa={raa:.1f};sza={sza:.1f};vza={vza:.1f};ws={ws:.2f})'
         return str
 
-    def get_title(self,site):
+    def get_title(self, site):
         date_time_here = dt.strptime(self.sequences[self.isequence], '%Y%m%dT%H%M')
         date_str = date_time_here.strftime('%Y-%m-%d')
         time_str = date_time_here.strftime('%H:%M')
@@ -363,14 +405,15 @@ class HYPERNETS_DAY_FILE():
             pm.save_fig(f'{file_out_base}_all{self.format_img}')
             pm.close_plot()
 
-    def save_report_image(self, site,delete_images, overwrite):
+    def save_report_image(self, site, delete_images, overwrite):
         print(f'[INFO] Sequence {self.isequence}: SEQ{self.sequences[self.isequence]}')
         if self.sequences[self.isequence] is None:
             return
-        file_out = os.path.join(os.path.dirname(self.file_nc), f'{site}_{self.sequences[self.isequence]}_Report{self.format_img}')
+        file_out = os.path.join(os.path.dirname(self.file_nc),
+                                f'{site}_{self.sequences[self.isequence]}_Report{self.format_img}')
         if os.path.exists(file_out) and not overwrite:
             return
-        dir_img = os.path.join(os.path.dirname(self.file_nc),'IMG')
+        dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
         if not os.path.exists(dir_img):
             os.mkdir(dir_img)
         file_angle = os.path.join(dir_img, f'Angles_{self.isequence}_all{self.format_img}')
@@ -405,7 +448,7 @@ class HYPERNETS_DAY_FILE():
 
         if delete_images:
             for name in os.listdir(dir_img):
-                file_here = os.path.join(dir_img,name)
+                file_here = os.path.join(dir_img, name)
                 os.remove(file_here)
             os.remove(dir_img)
 
@@ -519,10 +562,10 @@ class HYPERNETS_DAY_FILE():
             else:
                 print(f'[INFO] {flag}->{file_img}->{os.path.exists(file_img)}')
 
-    def start_dataset_w(self,file_out):
-        dataset_w = Dataset(file_out,'w',format='NETCDF4')
+    def start_dataset_w(self, file_out):
+        dataset_w = Dataset(file_out, 'w', format='NETCDF4')
         dataset_r = Dataset(self.file_nc)
-        #copy attributes
+        # copy attributes
         dataset_w.setncatts(dataset_r.__dict__)
 
         # copy dimensions
@@ -535,44 +578,44 @@ class HYPERNETS_DAY_FILE():
             # copy variable attributes all at once via dictionary
             dataset_w[name].setncatts(dataset_r[name].__dict__)
 
-            if name=='wavelength' or name=='bandwidth':
+            if name == 'wavelength' or name == 'bandwidth':
                 dataset_w[name][:] = dataset_r[name][:]
 
         dataset_r.close()
         return dataset_w
 
-    def add_flag_variables(self,dataset_w,flags):
+    def add_flag_variables(self, dataset_w, flags):
         for flag in flags:
             var_name = flag
             if not var_name.startswith('flag_'):
                 var_name = f'flag_{flag}'
-            var = dataset_w.createVariable(var_name,'i8',('series',))
+            var = dataset_w.createVariable(var_name, 'i8', ('series',))
             var[:] = 0
             var.flag_values = flags[flag]['values']
             var.flag_meanings = ' '.join(flags[flag]['meanings'])
         return dataset_w
 
-    def set_data_dataset_w(self,dataset_w,sindices,index_w):
+    def set_data_dataset_w(self, dataset_w, sindices, index_w):
         dini = index_w
         dfin = index_w + len(sindices)
         dataset_r = Dataset(self.file_nc)
         for variable in dataset_w.variables:
-            if variable=='wavelength' or variable=='bandwidth':
+            if variable == 'wavelength' or variable == 'bandwidth':
                 continue
-            if variable not in dataset_r.variables:##for flag variables
+            if variable not in dataset_r.variables:  ##for flag variables
                 continue
             ndim = len(dataset_w[variable].shape)
-            if ndim==1:
+            if ndim == 1:
                 dataset_w[variable][dini:dfin] = dataset_r[variable][sindices]
-            elif ndim==2:
-                dataset_w[variable][dini:dfin,:] = dataset_r[variable][sindices,:]
-            elif ndim==3:
-                dataset_w[variable][dini:dfin, :, :] = dataset_r[variable][sindices, :,:]
+            elif ndim == 2:
+                dataset_w[variable][dini:dfin, :] = dataset_r[variable][sindices, :]
+            elif ndim == 3:
+                dataset_w[variable][dini:dfin, :, :] = dataset_r[variable][sindices, :, :]
 
         dataset_r.close()
         return dataset_w
 
-    def set_data_flag(self,dataset_w,index_w,flag,flag_array):
+    def set_data_flag(self, dataset_w, index_w, flag, flag_array):
         dini = index_w
         dfin = index_w + len(flag_array)
         var_name = flag
@@ -588,31 +631,32 @@ class HYPERNETS_DAY_FILE():
         for var in dataset_r.variables:
             if var.startswith('l2'):
                 ndim = len(dataset_r.variables[var].shape)
-                if ndim==1:
+                if ndim == 1:
                     col_names.append(var[3:])
 
-        col_names = col_names + ['rhow_nosc_800','rhow_800','rhow_nosc_350_450','rhow_350_450','isequence','file_nc']
+        col_names = col_names + ['rhow_nosc_800', 'rhow_800', 'rhow_nosc_350_450', 'rhow_350_450', 'isequence',
+                                 'file_nc']
 
         dataset_r.close()
 
         return col_names
 
-    def get_dataframe_lines(self,sindices,col_names):
+    def get_dataframe_lines(self, sindices, col_names):
         import pandas as pd
         if self.sequences is None:
             self.sequences = self.get_sequences()
         dataset_r = Dataset(self.file_nc)
-        data  = {}
+        data = {}
         for c in col_names:
-            if c=='file_nc':
-                data[c] = [self.file_nc]*len(sindices)
-            elif c=='isequence':
+            if c == 'file_nc':
+                data[c] = [self.file_nc] * len(sindices)
+            elif c == 'isequence':
                 data[c] = sindices
-            elif c=='sequence_ref':
+            elif c == 'sequence_ref':
                 data[c] = [self.sequences[idx] for idx in sindices]
             elif c.startswith('rhow'):
                 lc = c.split('_')
-                if lc[1]=='nosc':
+                if lc[1] == 'nosc':
                     wl_ini = float(lc[2])
                     variable = 'l2_reflectance_nosc'
                 else:
@@ -620,10 +664,10 @@ class HYPERNETS_DAY_FILE():
                     variable = 'l2_reflectance'
                 wl_fin = float(lc[-1])
                 wls = np.array(dataset_r.variables['wavelength'][:])
-                i_ini = np.argmin(np.abs(wl_ini-wls))
-                i_fin = np.argmin(np.abs(wl_fin - wls))+1
-                reflectance = dataset_r.variables[variable][sindices,i_ini:i_fin]
-                data[c] = np.mean(reflectance,axis=1)
+                i_ini = np.argmin(np.abs(wl_ini - wls))
+                i_fin = np.argmin(np.abs(wl_fin - wls)) + 1
+                reflectance = dataset_r.variables[variable][sindices, i_ini:i_fin]
+                data[c] = np.mean(reflectance, axis=1)
             else:
                 variable = f'l2_{c}'
                 data[c] = np.array(dataset_r.variables[variable][sindices])
@@ -633,3 +677,251 @@ class HYPERNETS_DAY_FILE():
         df = pd.DataFrame(data)
         return df
 
+    def plot_from_options_impl(self, options_figure):
+        if not options_figure['apply']:
+            return
+        if options_figure['type'] == 'spectraplot' and options_figure['type_rrs'] == 'user_defined':
+            self.plot_spectra_plot_from_options(options_figure)
+
+
+    def plot_angle_plot_from_options(self,options_figure):
+        options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
+        dataset = Dataset(self.file_nc)
+        angle_variable = np.array(dataset.variables[options_figure['wl_variable']])
+
+    def plot_spectra_plot_from_options(self, options_figure):
+        options_figure = self.check_gs_options_impl(options_figure,'groupBy','groupType','groupValues')
+        #print(options_figure)
+        dataset = Dataset(self.file_nc)
+        wavelength = np.array(dataset.variables[options_figure['wl_variable']])
+        y_variable = options_figure['y_variable']
+        #spectra = np.array(dataset.variables[y_variable][:, :])
+        spectra = np.array(dataset.variables[y_variable][:, :,2])
+        fill_value = dataset.variables[y_variable]._FillValue
+        spectra_check = np.where(spectra == fill_value, 1, 0)
+        spectra_check = np.sum(spectra_check, axis=1)
+
+
+
+        sequences_here,sequence_indices = self.get_sequences_range(options_figure['start_date'],options_figure['end_date'],options_figure['start_time'],options_figure['end_time'])
+        if sequence_indices is not None:
+            spectra_check[sequence_indices] = spectra_check[sequence_indices]+100
+            spectra_check = np.where(spectra_check==100,0,1)
+
+        spectra = spectra[spectra_check == 0, :]
+
+        dataset.close()
+
+        ngroup = 1
+        #str_legend = []
+        groupValues = None
+        groupArray = None
+        if 'groupValues' in options_figure.keys():
+            groupValues = options_figure['groupValues']
+        if groupValues is not None:
+            ngroup = len(groupValues)
+
+        str_legend = []
+        handles = []
+        if ngroup > 1 and options_figure['legend']:
+            str_legend = self.get_str_legend(options_figure)
+        if ngroup>1:
+            groupArray, all_flag_values, all_flag_meanings = self.get_gs_array(options_figure,
+                                                                               options_figure['groupBy'],
+                                                                               options_figure['groupType'])
+            groupArray = groupArray[spectra_check==0]
+
+        from MDB_reader.PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = wavelength
+
+        line_color = options_figure['line_color']
+        marker = options_figure['marker']
+        marker_size =  options_figure['marker_size']
+        line_type = options_figure['line_type']
+        line_size = options_figure['line_size']
+        if ngroup>1:
+            if len(line_color)!=ngroup:##assing default colors
+                line_color = [line_color[0]]*ngroup
+                for idx in range(ngroup):
+                    line_color[idx] = self.get_color_default(idx,0,ngroup)
+            if len(marker)!=ngroup:
+                marker = [marker[0]] * ngroup
+            if len(marker_size)!=ngroup:
+                marker_size = [marker_size[0]] * ngroup
+            if len(line_type)!=ngroup:
+                line_type = [line_type[0]] * ngroup
+            if len(line_size)!=ngroup:
+                line_size = [line_size[0]] * ngroup
+
+            for idx in range(ngroup):
+                val = groupValues[idx]
+                hline = pspectra.plot_single_line(spectra[groupArray==val,:].transpose(),line_color[idx],line_type[idx],line_size[idx],marker[idx],marker_size[idx])
+                if len(hline)>0:
+                    handles.append(hline[0])
+        if len(str_legend)>0:
+            if len(handles)==0:
+                pspectra.set_legend(str_legend)
+            else:
+                pspectra.set_legend_h(handles,str_legend)
+        pspectra.set_y_range(0,10)
+        if options_figure['file_out'] is not None:
+            file_out = options_figure['file_out']
+            pspectra.save_fig(file_out)
+        pspectra.close_plot()
+
+
+    def get_str_legend(self, options):
+        if options['legend_values'] is not None:
+            return options['legend_values']
+        str_legend = []
+        groupValues = options['groupValues']
+        if groupValues is not None:
+            ngroup = len(groupValues)
+            if ngroup > 1:
+                if options['groupType'] == 'float' or options['groupType'] == 'wavelength':
+                    for g in groupValues:
+                        str_legend.append(f'{g:.2f}')
+                if options['groupType'] == 'flag':
+                    flag_name = options['groupBy']
+                    str_legend = self.get_flag_list(groupValues, options[flag_name]['flag_values'],
+                                                    options[flag_name]['flag_meanings'])
+                    if 'FUB' in str_legend:
+                        index = str_legend.index('FUB')
+                        if index >= 0:
+                            str_legend[index] = 'S3 FUB-CSIRO'
+                    if 'STANDARD' in str_legend:
+                        index = str_legend.index('STANDARD')
+                        if index >= 0:
+                            str_legend[index] = 'WFR'
+                    if 'POLYMER' in str_legend:
+                        index = str_legend.index('POLYMER')
+                        if index >= 0:
+                            str_legend[index] = 'CMEMS-OLCI'
+                    if 'CCIALL' in str_legend:
+                        index = str_legend.index('CCIALL')
+                        if index >= 0:
+                            str_legend[index] = 'OC-CCI v.6 (complete time series)'
+                    if 'CCI' in str_legend:
+                        index = str_legend.index('CCI')
+                        if index >= 0:
+                            str_legend[index] = 'OC-CCI v.6 (OLCI period)'
+
+        return str_legend
+
+    def get_flag_list(self, values, allValues, allFlags):
+        flag_list = []
+        for val in values:
+            if val == -1:
+                flag_list.append('GLOBAL')
+            indext = np.where(np.array(allValues) == val)
+            index = indext[0]
+            if len(index) == 1:
+                indexf = index[0]
+                flag_list.append(allFlags[indexf])
+        return flag_list
+    def get_gs_array(self,options_figure,by,type):
+        dataset = Dataset(self.file_nc)
+        if type == 'float':
+            array_flag = np.array(dataset.variables[by])
+            all_flag_values = None
+            all_flag_meanings = None
+        else:
+            if by in dataset.variables:
+                array_flag = np.array(dataset.variables[by][:])
+                all_flag_values = dataset.variables[by].flag_values
+                all_flag_meanings = dataset.variables[by].flag_meanings.split(' ')
+            else:  ##previously built as a virtual flag
+                array_flag = options_figure[by]['flag_array']
+                all_flag_values = options_figure[by]['flag_values']
+                all_flag_meanings = options_figure[by]['flag_meanings']
+        dataset.close()
+
+        return array_flag,all_flag_values,all_flag_meanings
+
+    def check_gs_options_impl(self, options_figure, by, type, values):
+        dataset = Dataset(self.file_nc)
+        var_group_name = options_figure[by]
+        if options_figure[type] == 'flag':
+            if var_group_name in dataset.variables:
+                flag_values = dataset.variables[var_group_name].flag_values
+                flag_meanings_list = dataset.variables[var_group_name].flag_meanings.split(' ')
+                flag_meanings = [x.strip() for x in flag_meanings_list]
+                options_figure[var_group_name] = {
+                    'flag_values': flag_values,
+                    'flag_meanings': flag_meanings
+                }
+            else:  ##virtual flag
+                virtual_flags_options = self.flag_builder.get_virtual_flags_options()
+                array, flag_meanings, flag_values = self.flag_builder.create_flag_array_ranges_v2(virtual_flags_options[var_group_name])
+                options_figure[var_group_name] = {
+                    'flag_values': flag_values,
+                    'flag_meanings': flag_meanings,
+                    'flag_array': array
+                }
+
+            if options_figure[values] is None:
+                options_figure[values] = flag_values
+            else:
+                flag_list_config = options_figure[values]
+                flag_values_config = []
+                for flag_config in flag_list_config:
+                    if flag_config.strip() == 'GLOBAL':
+                        flag_values_config.append(-1)
+                        continue
+                    try:
+                        iflag = flag_meanings.index(flag_config.strip())
+                        flag_values_config.append(flag_values[iflag])
+                    except:
+                        print(f'[WARNING] Flag {flag_config.strip()} is not in the list')
+                        return None
+                options_figure[values] = flag_values_config
+
+        if options_figure[type] == 'float':
+            if var_group_name not in dataset.variables:
+                return None
+            all_group_values = np.unique(np.array(dataset.variables[var_group_name]))
+            if options_figure[values] is None:
+                options_figure[values] = list(all_group_values)
+            else:
+                group_values_given = options_figure[values]
+                group_values = []
+                for val in group_values_given:
+                    imin = np.argmin(np.abs(val - all_group_values))
+                    if abs(val - all_group_values[imin]) < 0.1:
+                        group_values.append((all_group_values[imin]))
+                    else:
+                        print(f'[WARNING] Value {val} is not in the variable {var_group_name}')
+                        return None
+                options_figure[values] = group_values
+        dataset.close()
+        return options_figure
+
+    def get_color_default(self,value, min, max):
+        nvalues = (max-min)+1
+        colors_default = ['Blue', 'Red', 'Green', 'm', 'Cyan', 'Orange', 'Yellow']
+        if nvalues<6:
+            index = value-min
+            print('index',index,'-->',colors_default[index])
+            return colors_default[index]
+        import matplotlib as mpl
+        cm = mpl.colormaps['jet']
+        return cm((value - min) / (max - min))
+
+    def get_virtual_flag(self, options, var_name):
+        flag_values = None
+        flag_meanings = None
+        flag_array = None
+        # type_f = self.get_value_param(options, var_name, 'type', None, 'str')
+        # type_v = self.get_value_param(options, var_name, 'typevirtual', 'flags_c', 'str')
+        # if type_f != 'virtual_flag':
+        #     return flag_values, flag_meanings, flag_array
+        #
+        # if type_v == 'spatial' or type_v == 'temporal' or type_v == 'ranges':
+        #     #from OptionsManager import OptionsManager
+        #     from MDB_reader.FlagBuilder import FlagBuilder
+        #     fbuilder = FlagBuilder(self.path_nc, None, options)
+        #     # options = fbuilder.get_options_dict(var_name)
+        #     flag_values, flag_meanings, flag_array = fbuilder.create_flag_array(var_name, False)
+        #
+        #     return flag_values, flag_meanings, flag_array
