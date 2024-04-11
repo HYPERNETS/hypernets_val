@@ -8,7 +8,7 @@ import numpy as np
 import numpy.ma as ma
 import math
 from scipy import stats
-from pylr2 import regress2
+
 from ComparisonOptions import ComparisonOptions
 
 
@@ -482,6 +482,7 @@ class INSITUCOMPARISON:
         self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope_I, intercept_I, minxy, maxxy)
 
         # type II regression
+        from pylr2 import regress2
         results = regress2(np.array(xdatal, dtype=np.float64), np.array(ydatal, dtype=np.float64),
                            _method_type_2="reduced major axis")
         slope = results['slope']
