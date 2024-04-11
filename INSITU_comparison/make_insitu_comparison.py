@@ -31,7 +31,7 @@ parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true"
 args = parser.parse_args()
 
 
-def make_concatenation():
+def make_concatenation_test():
     path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
     file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20230625.nc'
     files_append = []
@@ -43,7 +43,37 @@ def make_concatenation():
         if file_comparison is not None:
             files_append.append(file_comparison)
         date_here = date_here + timedelta(hours=24)
-    concatenate_nc_impl(files_append, path_out, file_out)
+
+
+def make_concatenation(path_out, file_out, start_dates, end_dates):
+    files_append = []
+
+    for idate in range(len(start_dates)):
+        files_append = get_files_concatenation(files_append, path_out, start_dates[idate], end_dates[idate])
+
+    if len(files_append)>1:
+        if args.verbose:
+            print(f'[INFO] Concatenating: {len(files_append)}')
+        concatenate_nc_impl(files_append, path_out, file_out)
+    else:
+        if args.verbose:
+            print(f'[INFO] Less than 1 files were retrieved for concatenation. Operation cancelled')
+
+
+def get_files_concatenation(files_append, path_out, start_date, end_date):
+    if args.verbose:
+        print(f'[INFO] Getting files from {start_date} to {end_date}')
+    date_here = start_date
+    nfiles = 0
+    while date_here <= end_date:
+        file_comparison = get_file_comparison_date(path_out, date_here, False)
+        if file_comparison is not None:
+            files_append.append(file_comparison)
+            nfiles = nfiles + 1
+        date_here = date_here + timedelta(hours=24)
+    if args.verbose:
+        print(f'[INFO] Files retrieved: {nfiles} Total: {len(files_append)}')
+    return files_append
 
 
 def create_multiple_comparison_files(start_date, end_date, aeronet_file, path_hypstar, path_out, overwrite):
@@ -422,25 +452,104 @@ def get_options_comparison(config_file):
     return options_dict
 
 
+def get_options_concat(config_file):
+    if not os.path.exists(config_file):
+        print(f'[ERROR] Config file: {config_file} does not exist')
+        return None
+    import configparser
+    try:
+        options = configparser.ConfigParser()
+        options.read(config_file)
+    except:
+        print(f'[ERROR] Parse error reading config file: {config_file}')
+        return None
+    section = 'concatenation'
+    required_options = ['path_comparison', 'file_out', 'start_date', 'end_date']
+    options_dict = {}
+    for roption in required_options:
+        if not options.has_option(section, roption):
+            print(f'[ERROR] Option {roption} is required in {section} section of the config file: {config_file}')
+            return None
+        options_dict[roption] = options[section][roption].strip()
+
+    if not os.path.isdir(options_dict['path_comparison']):
+        print(f'[ERROR] {options_dict["path_comparison"]} is not a valid directory or does not exist')
+        return None
+
+    file_out = options_dict['file_out']
+    if os.path.exists(file_out):
+        print(f'[ERRR] File out {file_out} already exists. Please use other output file name')
+        return None
+    path_out = os.path.dirname(file_out)
+    name_out = os.path.basename(file_out)
+    if not name_out.endswith('.nc'):
+        print(f'[ERROR] file_out name {name_out} should be a .nc file')
+        return None
+    if not os.path.isdir(path_out):
+        try:
+            os.mkdir(path_out)
+        except:
+            print(f'[ERROR] {path_out} is not a valid directory and could not be created')
+            return None
+
+    start_dates_str = [x.strip() for x in options_dict['start_date'].split(',')]
+    end_dates_str = [x.strip() for x in options_dict['end_date'].split(',')]
+    if len(start_dates_str) != len(end_dates_str):
+        print(f'[ERROR] Number of start_date options should be equal to number of end_date options')
+        return None
+    start_dates = [None] * len(start_dates_str)
+    end_dates = [None] * len(end_dates_str)
+
+    for idx in range(len(start_dates_str)):
+        try:
+            start_dates[idx] = dt.strptime(start_dates_str[idx], '%Y-%m-%d')
+        except:
+            print(f'[ERROR] Start date {start_dates_str[idx]} is not in the correct format %Y-%m-%d')
+            return None
+        try:
+            end_dates[idx] = dt.strptime(end_dates_str[idx], '%Y-%m-%d')
+        except:
+            print(f'[ERROR] End date {end_dates_str[idx]} is not in the correct format %Y-%m-%d')
+            return None
+        if end_dates[idx] < start_dates[idx]:
+            print(f'[ERROR] End date {end_dates[idx]} should be greater or equal to start date {start_dates[idx]}')
+            return None
+
+    options_dict['start_date'] = start_dates
+    options_dict['end_date'] = end_dates
+
+    return options_dict
+
+
 def main():
     if args.mode == 'COMPARISON':
         if not args.config_file:
             print(f'[ERROR] Config file is compulsory for option: {args.mode}')
             return
         options = get_options_comparison(args.config_file)
-        if options is  None:
+        if options is None:
             return
         create_multiple_comparison_files(options['start_date'], options['end_date'], options['aeronet_file'],
                                          options['path_hypstar'], options['path_out'], options['overwrite'])
+
+    if args.mode == 'CONCAT':
+        if not args.config_file:
+            print(f'[ERROR] Config file is compulsory for option: {args.mode}')
+            return
+        options = get_options_concat(args.config_file)
+        if options is None:
+            return
+        make_concatenation(options['path_comparison'],options['file_out'],options['start_date'],options['end_date'])
+
     elif args.mode == 'TEST':
-        #file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/05/05/HYPERNETS_W_VEIT_L2A_REF_20230505T1540_20240118T1418_270_v2.0.nc'
-        #file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/2023/05/05/COMPARISON_20230505.nc'
+        # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/05/05/HYPERNETS_W_VEIT_L2A_REF_20230505T1540_20240118T1418_270_v2.0.nc'
+        # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/2023/05/05/COMPARISON_20230505.nc'
         file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20240406_AAOT.LWN_lev20_15.nc'
         from netCDF4 import Dataset
         dataset = Dataset(file)
         for name in dataset.variables:
             print(name)
-        #print(dataset.variables['HYPSTAR_epsilon'][:])
+        # print(dataset.variables['HYPSTAR_epsilon'][:])
         # print(dataset.variables['rhof'])
         dataset.close()
         # do_test()

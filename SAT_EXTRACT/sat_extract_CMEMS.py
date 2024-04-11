@@ -608,6 +608,8 @@ def add_insitu_basic_info(newEXTRACT, extract, id, nid, csv_flag_menings):
     ids = str(id)
     satellite_time = extract['satellite_time']
     insitu_time = extract[ids]['insitu_time']
+
+
     global_at = extract[ids]['global_at']
     insitu_lat = global_at['in_situ_lat']
     insitu_lon = global_at['in_situ_lon']
@@ -1742,6 +1744,21 @@ def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file
         return None
 
 
+def get_satellite_time_from_global_attributes(fproduct):
+    dataset = Dataset(fproduct)
+    if 'time_coverage_start' in dataset.ncattrs() and 'time_coverage_end' in dataset.ncattrs():
+        try:
+            start_date = dt.strptime(dataset.time_coverage_start,'%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+            end_date = dt.strptime(dataset.time_coverage_end, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+            sat_time = (start_date.timestamp()+end_date.timestamp())/2
+            sat_time = dt.utcfromtimestamp(sat_time).replace(tzinfo=pytz.utc)
+            return sat_time
+
+        except:
+            return None
+    dataset.close()
+    return None
+
 def main():
     print('[INFO] Creating satellite extracts')
 
@@ -1856,7 +1873,7 @@ def main():
         if csv_flags is not None:
             csv_flags_meanings = {}
 
-        print('****************************************************** y luego aqui', is_reflectance)
+        #print('****************************************************** y luego aqui', is_reflectance)
 
         for idx, row in df.iterrows():
             list = [str(x).strip() for x in row.to_list()]
@@ -1867,14 +1884,14 @@ def main():
                     try:
                         datetimerow = f'{row[col_date].strip()}T{row[col_time].strip()}'
                         format_datetime = f'{format_date}T{format_time}'
-                        datehere = dt.strptime(datetimerow, format_datetime).astimezone(pytz.utc)
+                        datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
                     except:
                         pass
                 if datehere is None:
                     datetimerow = row[col_date].strip()
                     format_datetime = format_date
-                    datehere = dt.strptime(datetimerow, format_datetime).astimezone(pytz.utc)
-                    datehere = datehere.replace(hour=12, minute=0, second=0).astimezone(pytz.utc)
+                    datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
+                    datehere = datehere.replace(hour=12, minute=0, second=0).replace(tzinfo=pytz.utc)
             except:
                 print(f'[WARNING] Row {idx} is not valid. Date/Time could not be parsed. Skipping...')
                 fcsv_out.write('\n')
@@ -1902,7 +1919,9 @@ def main():
             if use_single_file:
                 fproduct = get_cmems_product_day(path_source, org, datehere, dataset_name_file,dataset_name_format_date)
                 if fproduct is not None:
+
                     limits, rc = get_geo_info(options, fproduct, lathere, lonhere)
+
                     if limits is not None:
                         global_at = get_satellite_global_atrib_from_options(options)
                         datehere_str = datehere.strftime('%Y%m%d')
@@ -1922,14 +1941,16 @@ def main():
                         cmems_time = '11:00'
                         if options.has_option('satellite_options', 'satellite_time'):
                             cmems_time = options['satellite_options']['satellite_time'].strip()
-                        try:
-                            satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}', '%Y%m%dT%H:%M').astimezone(
-                                pytz.utc)
-                        except:
-                            print(f'{cmems_time} is not a valid satellite time option. Skipping')
-                            fcsv_out.write('\n')
-                            fcsv_out.write(f'{line_orig};NaN;-1')
-                            continue
+
+                        satellite_time = get_satellite_time_from_global_attributes(fproduct)
+                        if satellite_time is None:
+                            try:
+                                satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}', '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
+                            except:
+                                print(f'{cmems_time} is not a valid satellite time option. Skipping')
+                                fcsv_out.write('\n')
+                                fcsv_out.write(f'{line_orig};NaN;-1')
+                                continue
 
                         if site not in extract_list.keys():
                             extract_list[site] = {
@@ -1999,6 +2020,7 @@ def main():
                         try:
                             satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}', '%Y%m%dT%H:%M').astimezone(
                                 pytz.utc)
+                            print(satellite_time)
                         except:
                             print(f'{cmems_time} is not a valid satellite time option. Skipping')
                             fcsv_out.write('\n')
