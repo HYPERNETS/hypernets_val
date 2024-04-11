@@ -1692,8 +1692,11 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
             if not os.path.isdir(path_day):
                 os.mkdir(path_day)
 
+        folder_cmd = 'OLCI'
+        if namefile.find('OLCI')<0:
+            folder_cmd = 'MSI'
         ##DONWLOAD
-        cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/MSI/{namefile} -O {file}'
+        cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/{folder_cmd}/{namefile} -O {file}'
         if args.verbose:
             print(f'[INFO] Trying download with cmd:')
             print(f'[INFO] {cmd}')
