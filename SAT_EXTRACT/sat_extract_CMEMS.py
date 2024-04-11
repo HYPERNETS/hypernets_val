@@ -13,7 +13,8 @@ import numpy as np
 import subprocess
 
 # import user defined functions from other .py
-code_home = os.path.abspath('../')
+import sat_extract
+code_home = os.path.dirname(os.path.dirname(sat_extract.__file__))
 sys.path.append(code_home)
 from SAT_EXTRACT.sat_extract import SatExtract
 import COMMON.common_functions as cfs
