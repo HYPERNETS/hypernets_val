@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import numpy.ma as ma
 import pandas
@@ -51,9 +53,34 @@ class QC_INSITU:
 
         # for idendifying bands
         self.msibands = self.get_msi_bands_dict()
+        self.olcibands = self.get_olci_bands_dict()
 
 
-
+    def get_olci_bands_dict(self):
+        olcibands = {
+            'Oa01': {'wl':400,'apply':False},
+            'Oa02': {'wl': 412.5, 'apply': False},
+            'Oa03': {'wl': 442.5, 'apply': False},
+            'Oa04': {'wl': 490, 'apply': False},
+            'Oa05': {'wl': 510, 'apply': False},
+            'Oa06': {'wl': 560, 'apply': False},
+            'Oa07': {'wl': 620, 'apply': False},
+            'Oa08': {'wl': 665, 'apply': False},
+            'Oa09': {'wl': 673.75, 'apply': False},
+            'Oa10': {'wl': 681.25, 'apply': False},
+            'Oa11': {'wl': 708.75, 'apply': False},
+            'Oa12': {'wl': 753.75, 'apply': False},
+            'Oa13': {'wl': 761.25, 'apply': False},
+            'Oa14': {'wl': 764.375, 'apply': False},
+            'Oa15': {'wl': 767.5, 'apply': False},
+            'Oa16': {'wl': 778.75, 'apply': False},
+            'Oa17': {'wl': 865, 'apply': False},
+            'Oa18': {'wl': 885, 'apply': False},
+            'Oa19': {'wl': 900, 'apply': False},
+            'Oa20': {'wl': 940, 'apply': False},
+            'Oa21': {'wl': 1020, 'apply': False},
+        }
+        return olcibands
     def get_msi_bands_dict(self):
         msibands = {
             'B1': {'wl': 443, 'apply': False},
@@ -99,6 +126,7 @@ class QC_INSITU:
         self.wl_list = wlreflist
         self.wl_indices = []
         self.msibands = self.get_msi_bands_dict()
+        self.olcibands = self.get_olci_bands_dict()
         for wl in self.wl_list:
             index, wl_index = self.get_insitu_index(wl)
             if index >= 0:
@@ -106,6 +134,9 @@ class QC_INSITU:
                 for b in self.msibands:
                     if abs(wl - self.msibands[b]['wl']) < 10:
                         self.msibands[b]['apply'] = True
+                for b in self.olcibands:
+                    if abs(wl - self.olcibands[b]['wl']) < 2:
+                        self.olcibands[b]['apply'] = True
 
     def start_quality_control(self):
         self.thersholds = {}
@@ -469,7 +500,9 @@ class QC_INSITU:
             valid_bands = np.invert(ma.getmaskarray(rrs_values)).tolist()
 
         # implementation of spectral response function here
-        if self.srf is not None:
+
+        ##csv sentinel2 srf
+        if self.srf is not None and self.srf.endswith('.csv'):
             import pandas as pd
             S2srf = pd.read_csv(self.srf)
             bands = self.insitu_bands[:]
@@ -483,6 +516,32 @@ class QC_INSITU:
                         nnT.mul(np.array(S2srf.iloc[:, a]), axis=0).sum(axis=0) / (sum(np.array(S2srf.iloc[:, a]))))
             rrs_values = np.ma.array(rrs_values)
             rrs_values = rrs_values.flatten()
+
+        ##olci3 nc4 srf
+        if self.srf is not None and self.srf.endswith('.nc4'):
+            from netCDF4 import Dataset
+            import pandas as pd
+            bands = self.insitu_bands[:]
+            olci_bands = list(self.olcibands.keys())
+            df = pd.DataFrame(data=spectra, index=bands)
+
+            dataset = Dataset(self.srf)
+
+            wl_values = np.array(dataset.variables['mean_spectral_response_function_wavelength'])
+            msrf = np.array(dataset.variables['mean_spectral_response_function'])
+            nwl = wl_values.shape[0]
+
+            rrs_values = []
+            for iwl in range(nwl):
+                band = olci_bands[iwl]
+                if self.olcibands[band]['apply']:
+                    nnT = self.reindex_and_interpolate(df,wl_values[iwl,:])
+                    nnT_new = nnT.mul(np.array(msrf[iwl,:]),axis=0).sum(axis=0)/np.sum(np.array(msrf[iwl,:]))
+                    rrs_values.append(nnT_new.loc[0])
+
+
+
+            dataset.close()
 
         return rrs_values, indices, valid_bands
 

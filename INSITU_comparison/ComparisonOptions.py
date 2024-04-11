@@ -14,7 +14,7 @@ class ComparisonOptions:
         return spectral_variables
 
     def hypstar_l2_single_variables(self):
-        single_variables = ['rhof','n_total_scans','n_valid_scans','quality_flag','pointing_azimuth_angle','solar_azimuth_angle','solar_zenith_angle','viewing_azimuth_angle','viewing_zenith_angle']
+        single_variables = ['rhof','n_total_scans','n_valid_scans','quality_flag','pointing_azimuth_angle','solar_azimuth_angle','solar_zenith_angle','viewing_azimuth_angle','viewing_zenith_angle','epsilon']
         return single_variables
 
     def hypstar_l1_single_variables(self):

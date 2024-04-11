@@ -245,6 +245,11 @@ class PlotSpectra():
 
     def plot_stats(self,stats,imin, imax):
 
+        if imin is None:
+            imin = 0
+        if imax is None:
+            imax = len(stats['avg'])
+
         stat_central = self.stats_plot['central'] #avg or median
         stat_dispersion = self.stats_plot['dispersion'] #std o iqr
         #h = self.plot_data(stats['avg'][imin:imax], self.stats_style['central'])

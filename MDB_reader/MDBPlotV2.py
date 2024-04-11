@@ -3074,8 +3074,8 @@ class MDBPlot:
             unitsdefault = r'm$^-$$^1$'
             sfdefault = 1
             options_out['log_scale'] = True
-        xlabeldefault = defaults.xlabel_default
-        ylabeldefault = defaults.ylabel_default
+        xlabeldefault = defaults.xlabel_wl_default
+        ylabeldefault = defaults.ylabel_rrs_scaled
         options_out['scale_factor'] = self.get_value_param(options, section, 'scale_factor', sfdefault, 'float')
         options_out['xlabel'] = self.get_value_param(options, section, 'xlabel', xlabeldefault, 'str')
         options_out['ylabel'] = self.get_value_param(options, section, 'ylabel', ylabeldefault, 'str')
@@ -3140,7 +3140,7 @@ class MDBPlot:
         options_out['file_out'] = self.get_value_param(options, section, 'file_out', file_out_default, 'str')
         options_out['title'] = self.get_value_param(options, section, 'title', None, 'str')
         xlabeldefault = defaults.xlabel_wl_default
-        ylabeldefault = defaults.ylabel_default
+        ylabeldefault = defaults.ylabel_rrs_scaled
         options_out['xlabel'] = self.get_value_param(options, section, 'xlabel', xlabeldefault, 'str')
         options_out['ylabel'] = self.get_value_param(options, section, 'ylabel', ylabeldefault, 'str')
         line_color = ['black']
@@ -3686,17 +3686,17 @@ class MDBPlot:
 
         self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
 
-        # from pylr2 import regress2
-        #
-        # results = regress2(np.array(xdatal,dtype=np.float64), np.array(ydatal,dtype=np.float64), _method_type_2="reduced major axis")
-        # print(slope,intercept,r_value)
-        # slope = results['slope']
-        # intercept = results['intercept']
-        # r_value = results['r']
-        # std_slope = results['std_slope']
-        # std_intercept = results['std_intercept']
-        # print(slope,intercept,r_value)
-        # self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
+        from pylr2 import regress2
+
+        results = regress2(np.array(xdatal,dtype=np.float64), np.array(ydatal,dtype=np.float64), _method_type_2="reduced major axis")
+        print(slope,intercept,r_value)
+        slope = results['slope']
+        intercept = results['intercept']
+        r_value = results['r']
+        std_slope = results['std_slope']
+        std_intercept = results['std_intercept']
+        print(slope,intercept,r_value)
+        self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
 
         print('---------------------------------')
 

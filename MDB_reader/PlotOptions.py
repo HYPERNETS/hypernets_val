@@ -1,5 +1,5 @@
 import os.path
-import MDB_reader.MDBPlotDefaults as defaults
+import MDBPlotDefaults as defaults
 
 
 class PlotOptions:

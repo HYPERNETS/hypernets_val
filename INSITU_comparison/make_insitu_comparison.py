@@ -14,7 +14,7 @@ code_aeronet = os.path.join(os.path.dirname(code_home), 'aeronet')
 sys.path.append(code_aeronet)
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
-
+parser.add_argument('-m', "--mode", help="Mode.", choices=["COMPARISON", "CONCAT", "GENERATEMU", "TEST"])
 parser.add_argument('-c', "--config_file", help="Config File.")
 # parser.add_argument('-o', "--output",help="Output ")
 # parser.add_argument('-edir', "--sat_extract_dir",
@@ -25,7 +25,7 @@ parser.add_argument('-c', "--config_file", help="Config File.")
 #                     action="store_true")
 # parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 # parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
-parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
+# parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
 args = parser.parse_args()
@@ -46,48 +46,94 @@ def make_concatenation():
     concatenate_nc_impl(files_append, path_out, file_out)
 
 
-def create_multiple_comparison_files():
-    print(f'[INFO] Started in situ comparison...')
-    #path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
-    start_date = dt(2023, 3, 24)
-    end_date = dt(2023, 10, 31)
+def create_multiple_comparison_files(start_date, end_date, aeronet_file, path_hypstar, path_out, overwrite):
+    # path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
+    # start_date = dt(2023, 3, 24)
+    # end_date = dt(2023, 10, 31)
+    if args.verbose:
+        print(f'[INFO] Started in situ comparison...')
+        print(f'[INFO] > AERONET-NC file: {aeronet_file}')
+        print(f'[INFO] > HYPSTAR input path: {path_hypstar}')
+        print(f'[INFO] > Output path: {path_out}')
+        print(f'[INFO] > Start date: {start_date.strftime("%Y-%m-%d")}')
+        print(f'[INFO] > End date: {start_date.strftime("%Y-%m-%d")}')
+        print(f'[INFO] > Overwrite: {overwrite}')
     date_here = start_date
     while date_here <= end_date:
         date_here_str = date_here.strftime('%Y-%m-%d')
-        print(f'[INFO] -----------------------------------------------------------------------------------------------')
-        print(f'[INFO] Working with date: {date_here_str}')
-        create_comparison_file_date(date_here)
+        if args.verbose:
+            print(
+                f'[INFO] -----------------------------------------------------------------------------------------------')
+            print(f'[INFO] Working with date: {date_here_str}')
+        create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out, overwrite)
         ##add_mu_to_file_date(date_here)##-> only for test a specific date
         date_here = date_here + timedelta(hours=24)
 
 
-def create_comparison_file_date(date_here):
-    print(f'[INFO] --> Started in situ comparison')
-    path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
-    # date_here = dt(2023, 9, 26)
-    aeronet_file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_AAOT.LWN_lev20_15.nc'
-    path_hypstar = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT'
+def create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out, overwrite):
+    # path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
+    # # date_here = dt(2023, 9, 26)
+    # aeronet_file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_AAOT.LWN_lev20_15.nc'
+    # path_hypstar = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT'
+
+    if not os.path.exists(aeronet_file):
+        ##it shouldn't arrive here, file is checked before
+        print(f'[ERROR] Aeronet file {aeronet_file} does not exist')
+        return
 
     file_comparison = get_file_comparison_date(path_out, date_here, True)
 
+    if os.path.exists(file_comparison) and not overwrite:
+        print(f'[WARNING] Comparison file {file_comparison} already exist. Skipping...')
+        return
+
     path_hypstar_date = get_folder_date(path_hypstar, date_here)
+    if not check_hypstar_files(path_hypstar_date, date_here):
+        date_here_str = date_here.strftime('%Y-%m%-%d')
+        print(f'[WARNING] Hyptar files are not available for date: {date_here_str}')
+        return
+
+    if args.verbose:
+        print(f'[INFO] --> Started comparison file: {file_comparison}')
 
     from base.anet_nc_reader import AERONETReader
     areader = AERONETReader(aeronet_file)
     ic = INSITUCOMPARISON(file_comparison)
+
     ic.start_file_w()
-    print(f'[INFO] --> Creating AERONET_OC variables...')
+    if args.verbose:
+        print(f'[INFO] --> Creating AERONET_OC variables...')
     baeronet = ic.create_aeronet_variables(areader, date_here)
     if not baeronet:
         print(f'[ERROR] Comparison file for date: {date_here} could not be done. ')
         os.remove(file_comparison)
         return
-    print(f'[INFO] --> Creating HYPSTAR variables...')
+    if args.verbose:
+        print(f'[INFO] --> Creating HYPSTAR variables...')
     ic.create_hypstar_variables(path_hypstar_date, date_here)
-    print(f'[INFO] --> Creating HYPSTAR to AERONET variables..')
+    if args.verbose:
+        print(f'[INFO] --> Creating HYPSTAR to AERONET variables..')
     ic.create_hypstar_to_aeronet_variables()
     ic.close_file_w()
-    print(f'[INFO] --> Completed')
+    if args.verbose:
+        print(f'[INFO] --> Completed')
+
+
+def check_hypstar_files(path_day, date_here):
+    import pytz
+    from netCDF4 import Dataset
+    time_ini = date_here.replace(tzinfo=pytz.utc, hour=0, minute=0, second=0).timestamp()
+    time_end = date_here.replace(tzinfo=pytz.utc, hour=23, minute=59, second=59).timestamp()
+    for name in os.listdir(path_day):
+        if name.find('L2A_REF') < 0:
+            continue
+        file_here = os.path.join(path_day, name)
+        dataset = Dataset(file_here, 'r')
+        time_stamp = float(dataset.variables['acquisition_time'][0])
+        if time_ini <= time_stamp <= time_end:
+            dataset.close()
+            return True
+    return False
 
 
 # if create is True, create the output folder
@@ -133,14 +179,13 @@ def make_plots():
     # iplots = INSITU_plots(ic)
     # iplots.plot_from_options(options)
 
-
-    #ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
+    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
     ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
     ic.plot_spectra_stats()
 
     # ic.plot_scatterplot(None)
     # ic.plot_all_scatterplots_wl()
-    #ic.plot_all_spectra()
+    # ic.plot_all_spectra()
     # ic.plot_rho_scatterplot()
 
 
@@ -298,29 +343,115 @@ def check_hypstar_qf():
 
 
 def do_test():
-
     csv_file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/QUALITY_CONTROL/VEIT/PERIOD_VALID_1/Comparison_VEIT_20230425_20230629.csv'
     path = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/QUALITY_CONTROL/VEIT/PERIOD_VALID_1'
     import pandas as pd
-    df = pd.read_csv(csv_file,sep=';')
-    for index,row in df.iterrows():
-        folder = os.path.join(path,row['FOLDER'])
+    df = pd.read_csv(csv_file, sep=';')
+    for index, row in df.iterrows():
+        folder = os.path.join(path, row['FOLDER'])
         name_seq = row['sequence_ref']
         name_img = f'VEIT_{name_seq}_Report.png'
-        file_img = os.path.join(path,name_img)
-        file_out = os.path.join(folder,name_img)
+        file_img = os.path.join(path, name_img)
+        file_out = os.path.join(folder, name_img)
         if not os.path.exists(file_img):
             print('error')
-        shutil.copy(file_img,file_out)
+        shutil.copy(file_img, file_out)
+
+
+def get_options_comparison(config_file):
+    if not os.path.exists(config_file):
+        print(f'[ERROR] Config file: {config_file} does not exist')
+        return None
+    import configparser
+    try:
+        options = configparser.ConfigParser()
+        options.read(config_file)
+    except:
+        print(f'[ERROR] Parse error reading config file: {config_file}')
+        return None
+    section = 'comparison_files'
+    if not options.has_section(section):
+        print(f'[ERROR] Section {section} is required in the config file: {config_file}')
+        return None
+
+    required_options = ['aeronet_file', 'path_hypstar', 'path_out', 'start_date', 'end_date']
+    options_dict = {}
+    for roption in required_options:
+        if not options.has_option(section, roption):
+            print(f'[ERROR] Option {roption} is required in {section} section of the config file: {config_file}')
+            return None
+        options_dict[roption] = options[section][roption].strip()
+
+    if not os.path.isfile(options_dict['aeronet_file']):
+        print(f'[ERROR] {options_dict["aeronet_file"]} is not a valid file or does not exist')
+        return None
+    if not os.path.isdir(options_dict['path_hypstar']):
+        print(f'[ERROR] {options_dict["path_hypstar"]} is not a valid directory or does not exist')
+        return None
+    if not os.path.isdir(options_dict['path_out']):
+        try:
+            os.mkdir(options_dict['path_out'])
+        except:
+            print(f'[ERROR] {options_dict["path_out"]} is not a valid directory and could not be created')
+            return None
+    try:
+        start_date = dt.strptime(options_dict['start_date'], '%Y-%m-%d')
+    except:
+        print(f'[ERROR] Start date {options_dict["start_date"]} is not in the correct format %Y-%m-%d')
+        return None
+    try:
+        end_date = dt.strptime(options_dict['end_date'], '%Y-%m-%d')
+    except:
+        print(f'[ERROR] End date {options_dict["end_date"]} is not in the correct format %Y-%m-%d')
+        return None
+    if end_date < start_date:
+        print(
+            f'[ERROR] End date {options_dict["end_date"]} should be greater or equal to start date {options_dict["start_date"]}')
+        return None
+    options_dict['start_date'] = start_date
+    options_dict['end_date'] = end_date
+
+    options_dict['overwrite'] = False
+    if options.has_option(section, 'overwrite'):
+        sval = options[section]['overwrite'].strip().lower()
+        strue = ['true', 't', '1']
+        if sval in strue:
+            options_dict['overwrite'] = True
+
+    return options_dict
+
+
+def main():
+    if args.mode == 'COMPARISON':
+        if not args.config_file:
+            print(f'[ERROR] Config file is compulsory for option: {args.mode}')
+            return
+        options = get_options_comparison(args.config_file)
+        if options is  None:
+            return
+        create_multiple_comparison_files(options['start_date'], options['end_date'], options['aeronet_file'],
+                                         options['path_hypstar'], options['path_out'], options['overwrite'])
+    elif args.mode == 'TEST':
+        #file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/05/05/HYPERNETS_W_VEIT_L2A_REF_20230505T1540_20240118T1418_270_v2.0.nc'
+        #file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/2023/05/05/COMPARISON_20230505.nc'
+        file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20240406_AAOT.LWN_lev20_15.nc'
+        from netCDF4 import Dataset
+        dataset = Dataset(file)
+        for name in dataset.variables:
+            print(name)
+        #print(dataset.variables['HYPSTAR_epsilon'][:])
+        # print(dataset.variables['rhof'])
+        dataset.close()
+        # do_test()
 
 
 # %%
 if __name__ == '__main__':
     # multiple_dates
     ##1. Create files
-    #create_multiple_comparison_files()
+    # create_multiple_comparison_files()
     ##2. Concatenate
-    #make_concatenation()
+    # make_concatenation()
     ##3. Add mu
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20230625.nc'
     # add_mu_to_file(file_out)
@@ -331,10 +462,10 @@ if __name__ == '__main__':
     # add_mu_to_file_date(date_here)
 
     ##PLOTING
-    #make_plots()
+    # make_plots()
 
     ##CHECKING HYPSTAR QF (TEST)
     # check_hypstar_qf()
     # check_angles()
 
-    do_test()
+    main()

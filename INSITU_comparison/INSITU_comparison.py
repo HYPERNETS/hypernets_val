@@ -145,6 +145,8 @@ class INSITUCOMPARISON:
 
         return True
 
+
+
     def create_hypstar_variables(self, path_day, date_here):
 
         ##checking files and times
@@ -169,6 +171,8 @@ class INSITUCOMPARISON:
             if nominal_wavelengths is None:
                 nominal_wavelengths = np.array(dataset.variables['wavelength'][:])
             dataset.close()
+
+
 
         ##create hypstar variables
         dim_wavelenght = 'HYPSTAR_wavelength'

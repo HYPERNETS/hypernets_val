@@ -1251,6 +1251,36 @@ def creating_copy_mdb_publication(file_in, file_out, satellite):
 
     return True
 
+def creating_copy_with_convolution(file_in, file_out, array_new):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(file_in)
+    ncout = Dataset(file_out, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(input_dataset.__dict__)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+    # copy variables
+    for name, variable in input_dataset.variables.items():
+        fill_value = None
+        if '_FillValue' in list(input_dataset.ncattrs()):
+            fill_value = variable._FillValue
+        # print(name)
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        if name=='mu_ins_rrs':
+            ncout[name][:] = array_new[:]
+        else:
+            ncout[name][:] = input_dataset[name][:]
+    input_dataset.close()
+    ncout.close()
 
 def getting_common_matchups():
     # getting common match-ups
@@ -2166,24 +2196,211 @@ def convert_tara_files():
         fwrad.close()
 
 
+def apply_spectra_convolution():
+    print('started')
+    file_nc = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/ALLSITES/MDBrc_S3AB_ALLSITES_OLCI_WFR.nc'
+
+    # file_nc = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/M1BE/MDBrc_S3AB_M1BE_WFR.nc'
+    from netCDF4 import Dataset
+    from QC_INSITU import QC_INSITU
+    dataset = Dataset(file_nc)
+    qc_insitu = QC_INSITU(dataset.variables['insitu_Rrs'], dataset.variables['insitu_original_bands'])
+    qc_insitu_nosc = QC_INSITU(dataset.variables['insitu_Rrs_nosc'], dataset.variables['insitu_original_bands'])
+    sat_wl = np.array(dataset.variables['satellite_bands'])
+    qc_insitu.set_wllist_using_wlref(sat_wl)
+    qc_insitu_nosc.set_wllist_using_wlref(sat_wl)
+    sat_id = -1
+    # insitu_id = -1
+
+    sites = ['BEFR', 'GAIT', 'LPAR', 'M1BE', 'MAFR', 'VEIT']
+    sats = ['S3A', 'S3B']
+    sites_dict = {}
+    for site in sites:
+        file_site = f'/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/{site}/MDBrc_S3AB_{site}_WFR.nc'
+        dataset_site = Dataset(file_site)
+        # sat_wl = np.array(dataset_site.variables['satellite_bands'])
+        insitu_wl = np.array(dataset_site.variables['insitu_original_bands'])
+        sat_insitu_indices = []
+        for wl in sat_wl:
+            index = np.argmin(np.abs(wl - insitu_wl))
+            sat_insitu_indices.append(index)
+            # print(wl,'->',index)
+        if site == 'LPAR':
+            sat_insitu_indices[10] = 809
+            sat_insitu_indices[12] = 950
+        if site == 'MAFR':
+            sat_insitu_indices[10] = 808
+            # sat_insitu_indices[12] = 950
+        if site == 'M1BE':
+            sat_insitu_indices[9] = 753
+            sat_insitu_indices[12] = 949
+        if site == 'GAIT':
+            sat_insitu_indices[9] = 752
+        sites_dict[site] = {
+            'sat_insitu_indices': sat_insitu_indices,
+            'insitu_wl': insitu_wl
+        }
+        dataset_site.close()
+
+    for site in sites:
+        print(site, sites_dict[site]['sat_insitu_indices'])
+
+    array_out = dataset.variables['mu_ins_rrs'][:]
+    array_new = array_out.copy()
+
+    for idx, sat_id_here in enumerate(dataset.variables['mu_satellite_id']):
+        if idx==0 or (idx%100)==0:
+            print('-->',idx)
+        insitu_id_here = dataset.variables['mu_insitu_id'][sat_id_here]
+        index_site = int(np.log2(dataset.variables['flag_site'][sat_id_here]))
+        index_sat = int(np.log2(dataset.variables['flag_satellite'][sat_id_here]))
+        site = sites[index_site]
+        sat = sats[index_sat]
+        qc_insitu.insitu_bands = sites_dict[site]['insitu_wl']
+        qc_insitu_nosc.insitu_bands = sites_dict[site]['insitu_wl']
+        if sat == 'S3A':
+            qc_insitu.srf = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/S3A_OL_SRF_20160713_mean_rsr.nc4'
+            qc_insitu_nosc.srf = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/S3A_OL_SRF_20160713_mean_rsr.nc4'
+        elif sat == 'S3B':
+            qc_insitu.srf = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/S3B_OL_SRF_0_20180109_mean_rsr.nc4'
+            qc_insitu_nosc.srf = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/S3B_OL_SRF_0_20180109_mean_rsr.nc4'
+
+        if sat_id_here != sat_id:
+            sat_id = sat_id_here
+            insitu_id = insitu_id_here
+            rrs_values, indices, valid_bands = qc_insitu.get_spectrum_for_mu_and_index_insitu(sat_id, insitu_id)
+            rrs_values_nosc, indices_nosc, valid_bands_nosc = qc_insitu_nosc.get_spectrum_for_mu_and_index_insitu(
+                sat_id, insitu_id)
+
+        if dataset.variables['mu_valid'][sat_id] == 1:
+            wl = dataset.variables['mu_wavelength'][idx]
+            iwl = np.argmin(np.abs(wl - sat_wl))
+            index = iwl
+            # sat_insitu_indices = sites_dict[site]['sat_insitu_indices']
+            # index = sat_insitu_indices[iwl]
+            if site == 'BEFR' or site == 'VEIT' or site == 'GAIT':
+                rrs_here = rrs_values[index]
+            else:
+                rrs_here = rrs_values_nosc[index]
+            # rrs_prev = dataset.variables['mu_ins_rrs'][idx]
+            array_new[idx] = rrs_here
+            # diff = rrs_here - rrs_prev
+            # # if diff > 0.0000001:
+            # #     print(site, sat, idx, index, '-->', sat_id, insitu_id, wl, rrs_prev, rrs_here, diff)
+            # print(site, sat, idx, index, '-->', sat_id, insitu_id, wl, rrs_prev, rrs_here, diff)
+
+    # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/ALLSITES/ComparisonWithoutWithConvolution.csv'
+    # f1 = open(file_out,'w')
+    # f1.write('Withoout;WithConvolution')
+    # for idx, rrs_prev in enumerate(dataset.variables['mu_ins_rrs']):
+    #     rrs_new = array_new[idx]
+    #     line=f'{rrs_prev};{rrs_new}'
+    #     f1.write('\n')
+    #     f1.write(line)
+    # f1.close()
+        # diff = abs(rrs_prev-rrs_new)
+
+    dataset.close()
+
+    print('Creating copy...')
+    file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/ALLSITES/MDBrc_S3AB_ALLSITES_OLCI_WFR_WITHCONVOLUTION.nc'
+    creating_copy_with_convolution(file_nc,file_out,array_new)
+    print('Completed')
+
+def do_image_with_centro():
+    file_img = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/01_090_0000_0_0000.jpg'
+    file_out = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/01_090_0000_0_0000_grid.png'
+    from PIL import Image
+    from matplotlib import pyplot as plt
+    image = Image.open(file_img)
+    #rimage = image.rotate(270, expand=True)
+    rimage = image.transpose(Image.ROTATE_270)
+
+    plt.imshow(rimage)
+
+    w, h = rimage.size
+
+    ##central point
+    plt.axvline(w / 2, 0.48, 0.52, color='red', linewidth=0.25)
+    plt.axhline(h / 2, 0.48, 0.52, color='red', linewidth=0.25)
+    ##grid
+    incremx = int(w / 4)
+    incremy = int(h / 4)
+    for x in range(0, w, incremx):
+        plt.axvline(x, color='red', linewidth=0.5)
+    for y in range(0, h, incremy):
+        plt.axhline(y, color='red', linewidth=0.5)
+
+    plt.xticks([])
+    plt.yticks([])
+
+    plt.savefig(file_out,bbox_inches='tight',dpi=300)
+
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
+        #do_image_with_centro()
 
+        from BSC_QAA import bsc_qaa_EUMETSAT as qaa
+        import MDBFile
+        code_home = os.path.dirname(os.path.dirname(MDBFile.__file__))
+        # # code_home = os.path.abspath('../')
+        sys.path.append(code_home)
+        code_aeronet = os.path.join(os.path.dirname(code_home), 'aeronet')
+        sys.path.append(code_aeronet)
+        print(code_aeronet)
+        from base.anet_nc_reader import AERONETReader
+        aeronet_file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_Gloria.LWN_lev20_15.nc'
+        areader = AERONETReader(aeronet_file)
+        all_rrs = areader.extract_rrs(False)
+        all_wl = areader.extract_spectral_data('Exact_Wavelengths',False)
+
+        print(all_rrs.shape,all_wl.shape)
+
+        rrs_input = all_rrs[2325,:]
+        wl_input = all_wl[2325,:]
+        print(rrs_input)
+        print(wl_input)
+        rrs_in = [0.004897506441920996, 0.006124403327703476, 0.009032594971358776, 0.011597496457397938,
+                  0.01306516770273447, 0.0037191512528806925, 0.00033687229733914137, 0.00010173415648750961]
+        bands_in = [411.29998779296875, 442.0, 491.3999938964844, 530.7000122070312, 551.9000244140625, 668.5,
+                 869.4000244140625, 1017.2999877929688]
+        print(len(rrs_in),len(bands_in))
+        nominal_wl = areader.get_all_nominal_wl()
+        print(nominal_wl)
+
+        ##for a single band out
+        bands_out = [412]
+        rrs_out = qaa.bsc_qaa(rrs_in, bands_in, bands_out)
+        print(f'Original wavelength: {bands_in[0]} Output wavelength: {bands_out[0]} Wl diff: {abs(bands_in[0]-bands_out[0])}')
+        print(f'Original rrs: {rrs_in[0]} Output rrs: {rrs_out[0]}')
+
+        #for CMEMS multi bands
+        bands_out = [412,443,490,510,555,670]
+        rrs_out = qaa.bsc_qaa(rrs_in, bands_in, bands_out)
+        for iwl,wl in enumerate(bands_out):
+            band_input_ref = bands_in[np.argmin(np.abs(np.array(bands_in)-wl))]
+            diff_wl = abs(wl-band_input_ref)
+            if diff_wl<=5:
+                print(f'Band shifting from {band_input_ref} nm to {wl} nm. Rrs: {rrs_in[iwl]} -> {rrs_out[iwl]}')
+            else:
+                print(f'Band shifting from {band_input_ref} nm to {wl} nm. Rrs: {rrs_in[iwl]} -> {rrs_out[iwl]} WARNING: {diff_wl} is higher than 5 nm. It should not be used for validation')
+
+            #print(rrs_out)
         # convert_tara_files()
 
         ##convert mdb format
-        satellite = 'S2'
-        path_in = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/PUBLICATION/proof/ZenodoMDB'
-        path_output = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/PUBLICATION/proof/ZenodoMDB_final'
-        for name in os.listdir(path_in):
-            file_in = os.path.join(path_in, name)
-            file_out = os.path.join(path_output, name)
-            if name.startswith(f'MDB_{satellite}'):
-                print('---------------> ', name)
-                creating_copy_mdb_publication(file_in, file_out, 'S2')
+        # satellite = 'S2'
+        # path_in = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/PUBLICATION/proof/ZenodoMDB'
+        # path_output = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/PUBLICATION/proof/ZenodoMDB_final'
+        # for name in os.listdir(path_in):
+        #     file_in = os.path.join(path_in, name)
+        #     file_out = os.path.join(path_output, name)
+        #     if name.startswith(f'MDB_{satellite}'):
+        #         print('---------------> ', name)
+        #         creating_copy_mdb_publication(file_in, file_out, 'S2')
 
         # from datetime import datetime as dt
         # date_tal = dt(2023,4,5,10,18)
@@ -2751,21 +2968,22 @@ def main():
         if not os.path.isdir(output_path):
             print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
 
-        from MDBPlotV3 import MDBPlot
-        mplot = MDBPlot(input_path)
-        mplot.plot_from_options_file(config_file)
+        # from MDBPlotV3 import MDBPlot
+        # mplot = MDBPlot(input_path)
+        # mplot.plot_from_options_file(config_file)
+
         # mplot.output_path = output_path
         #
 
         ##WITH MDBPlotV2
-        # from MDBPlotV2 import MDBPlot
-        # import configparser
-        # mplot = MDBPlot(input_path)
-        # options = configparser.ConfigParser()
-        # options.read(config_file)
-        # # print(mplot.VALID)
-        # mplot.set_global_options(options)
-        # mplot.plot_from_options(options)
+        from MDBPlotV2 import MDBPlot
+        import configparser
+        mplot = MDBPlot(input_path)
+        options = configparser.ConfigParser()
+        options.read(config_file)
+        # print(mplot.VALID)
+        mplot.set_global_options(options)
+        mplot.plot_from_options(options)
 
         # path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS'
         # from PlotMultiple import PlotMultiple

@@ -6,6 +6,7 @@ import argparse
 
 import numpy as np
 import pandas as pd
+import __init__
 
 from hypernets_day import HYPERNETS_DAY
 

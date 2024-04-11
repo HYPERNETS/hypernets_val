@@ -126,6 +126,7 @@ class FlagBuilder:
 
         array[:] = default_value
 
+
         for svalue in fl_info:
             value = int(svalue)
             nranges = len(fl_info[svalue])
