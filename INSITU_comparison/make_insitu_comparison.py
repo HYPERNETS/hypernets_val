@@ -89,7 +89,7 @@ def create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out,
 
     path_hypstar_date = get_folder_date(path_hypstar, date_here)
     if not check_hypstar_files(path_hypstar_date, date_here):
-        date_here_str = date_here.strftime('%Y-%m%-%d')
+        date_here_str = date_here.strftime('%Y-%m-%d')
         print(f'[WARNING] Hyptar files are not available for date: {date_here_str}')
         return
 
@@ -133,6 +133,7 @@ def check_hypstar_files(path_day, date_here):
         if time_ini <= time_stamp <= time_end:
             dataset.close()
             return True
+    print(f'[WARNING] HYPSTAR files were not found in folder {path_day} for date {date_here.strftime("%Y-%m-%d")}')
     return False
 
 
