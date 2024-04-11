@@ -117,6 +117,11 @@ def make_download(start_date, end_date, site, output_folder):
             else:
                 files_download_all = files_download_all + files_download_img
 
+        if files_download_all is None:
+            print(f'[WARNING] Files are not available for downloading. Skipping date: {date_download}')
+            date_download = date_download + timedelta(hours=24)
+            continue
+
         output_folder_site = get_folder_new(output_folder, site)
         output_folder_date = get_folder_date(output_folder_site, date_download)
         if output_folder_date is None:
