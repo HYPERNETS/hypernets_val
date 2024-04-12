@@ -1679,6 +1679,7 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
         if org == 'YYYYjjj':
             yearstr = datehere.strftime('%Y')
             jjjstr = datehere.strftime('%j')
+            path_year = os.path.join(path_source,yearstr)
             path_day = os.path.join(path_source, yearstr, jjjstr)
     datefile = datehere.strftime(dataset_name_format_date)
     namefile = dataset_name_file.replace('$DATE$',datefile)
