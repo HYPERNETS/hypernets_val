@@ -802,8 +802,11 @@ class INSITUCOMPARISON:
         self.dataset_w = Dataset(self.path_nc, 'r')
         wl_list = np.array(self.dataset_w.variables['AERONET_nominal_wavelengths'][:])
         self.close_file_w()
-        for wl in wl_list:
-            self.plot_scatterplot(wl)
+        xvariables  = ['mu_HYPSTAR_TO_AERONET_Li_mean','mu_HYPSTAR_TO_AERONET_Lt_mean','mu_HYPSTAR_TO_AERONET_Lw']
+        yvariables = ['mu_AERONET_Li_mean', 'mu_AERONET_Lt_mean', 'mu_AERONET_Lw']
+        for idx in range(len(xvariables)):
+            for wl in wl_list:
+                self.plot_scatterplot(wl,xvariables[idx],yvariables[idx],'mu_wavelength')
 
     def get_wl_list(self, wlvariable):
         self.dataset_w = Dataset(self.path_nc, 'r')
@@ -838,8 +841,9 @@ class INSITUCOMPARISON:
 
         self.plot_scatterplot('rho')
 
-    def plot_scatterplot(self, wl):
-        path_plots = '/mnt/c/DATA_LUIS/ESA-POP_WORK/Technical_Meeting_2024Jan31'
+    def plot_scatterplot(self, wl, xvariable, yvariable,wlvariable):
+
+        path_plots = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS'
         marker = 'o'
         markersize = 20
         edgecolor = None
@@ -859,14 +863,15 @@ class INSITUCOMPARISON:
             min_xy = None
             max_xy = None
             ticks = None
-            if wl is None or wl < 600:
-                min_xy = 0
-                max_xy = 3
-                ticks = [0, 0.5, 1, 1.5, 2, 2.5, 3]
-            if wl > 600:  # and wl<700:
-                min_xy = 0
-                max_xy = 0.6
-                ticks = [0, 0.2, 0.4, 0.6]
+            # if wl is None or wl < 600:
+            #     min_xy = 0
+            #     max_xy = 3
+            #     ticks = [0, 0.5, 1, 1.5, 2, 2.5, 3]
+            # if wl > 600:  # and wl<700:
+            #     min_xy = 0
+            #     max_xy = 0.6
+            #     ticks = [0, 0.2, 0.4, 0.6]
+
             # if wl>700 and wl<800:
             #     min_xy = 0
             #     max_xy = 0.05
@@ -878,7 +883,8 @@ class INSITUCOMPARISON:
         stat_list = ['NMATCH-UPS', 'r2', 'RMSD', 'BIAS']
         stats_xpos = 0.05
         stats_ypos = 0.80
-        self.set_data_scatterplot(wl)
+        #self.set_data_scatterplot(wl)
+        self.set_data_scatterplot_spectral(wl,xvariable,yvariable,wlvariable)
 
         # print(self.xdata)
         # print(self.ydata)
@@ -894,7 +900,7 @@ class INSITUCOMPARISON:
 
         # global scatterplot
         if wl is None:
-            file_out = os.path.join(path_plots, 'GlobalScatterplot.tif')
+            file_out = os.path.join(path_plots, f'GlobalScatterplot_{yvariable}.tif')
             self.dataset_w = Dataset(self.path_nc, 'r')
             groupData = np.array(self.dataset_w.variables['mu_wavelength'])
             self.dataset_w.close()
@@ -918,9 +924,9 @@ class INSITUCOMPARISON:
         else:
             if wl != 'rho':
                 wls = self.get_wl_str_from_wl(wl)
-                file_out = os.path.join(path_plots, f'Wl_Scatterplot_{wls}.tif')
+                file_out = os.path.join(path_plots, f'Wl_Scatterplot_{yvariable}_{wls}.tif')
             else:
-                file_out = os.path.join(path_plots, f'Rho_Scatterplot.tif')
+                file_out = os.path.join(path_plots, f'Rho_Scatterplot_{yvariable}.tif')
             ##DENSITY
             xhere = np.asarray(self.xdata, dtype=np.float)
             yhere = np.asarray(self.ydata, dtype=np.float)

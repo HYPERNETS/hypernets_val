@@ -20,7 +20,7 @@ from SAT_EXTRACT.sat_extract import SatExtract
 import COMMON.common_functions as cfs
 
 parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MDB) files.")
-parser.add_argument("-d", "--debug", help="Debugging mode.", action="store_true")
+parser.add_argument("-d", "--download_sources", help="Download DOORS sources.", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-p', "--product_file", help="Image file.")
@@ -1764,6 +1764,44 @@ def get_satellite_time_from_global_attributes(fproduct):
     dataset.close()
     return None
 
+def download_doors_sources(options):
+    section = 'doors_download'
+    if not options.has_section(section):
+        print(f'[ERROR] Section {section} is not included in  the config file')
+        return
+    compulsory_options = ['sat_source_dir','path_csv','dataset_name_file','dataset_name_format_date']
+    options_dict = {}
+    for coption in compulsory_options:
+        if not options.has_option(section,coption):
+            print(f'[ERROR] Option {coption} is compulsory in section {section}')
+            return
+        options_dict[coption] = options[section][coption]
+
+    if not os.path.isdir(options_dict['sat_source_dir']):
+        print(f'[ERROR] {options_dict["sat_source_dir"]} is not a valid directory')
+        return
+    path_csv = options_dict['path_csv']
+    if not os.path.isfile(path_csv):
+        print(f'[ERROR] {path_csv} is not a valid file')
+        return
+    file_out = os.path.join(os.path.dirname(path_csv),os.path.basename(path_csv)[:-4]+'_sources.csv')
+    df = pd.read_csv(path_csv,sep=';')
+    nrows = len(df.index)
+    df = df.assign(source=['']*nrows)
+    df = df.assign(satellite_time=[''] * nrows)
+    for index,row in df.iterrows():
+        datehere = dt.strptime(row['Date'],'%Y-%m-%d')
+        print(f'[INFO] Date: {datehere}')
+        sfile = get_cmems_product_day(options_dict['sat_source_dir'],'YYYYjjj',datehere,options_dict['dataset_name_file'],options_dict['dataset_name_format_date'])
+        if sfile is not None:
+            df.loc[index,'source'] = sfile
+            satellite_time = get_satellite_time_from_global_attributes(sfile)
+            if satellite_time is not None:
+                df.loc[index,'satellite_time'] = satellite_time.strftime('%Y-%m-%d %H:%M:%S')
+    df.to_csv(file_out,sep=';')
+    print(f'[INFO] Completed')
+
+
 def main():
     print('[INFO] Creating satellite extracts')
 
@@ -1774,6 +1812,11 @@ def main():
         return
 
     options = config_reader(args.config_file)
+
+    if args.download_sources:
+        download_doors_sources(options)
+        return
+
 
     path_output = get_output_path(options)
     if path_output is None:

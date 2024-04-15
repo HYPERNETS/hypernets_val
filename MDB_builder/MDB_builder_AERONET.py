@@ -66,9 +66,9 @@ def get_time_from_extract_file(extract_path):
     return satellite_time_var
 
 
-def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_time_ini,ins_time_end):
+def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_time_ini, ins_time_end):
     extract_path = extract_info['path']
-    satellite_datetime =  extract_info['time']
+    satellite_datetime = extract_info['time']
     # satellite_datetime = get_time_from_extract_file(extract_path)
     #
     # if satellite_datetime.hour == 0 and satellite_datetime.minute == 0:
@@ -82,7 +82,7 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
     else:
         print(f'[INFO] Satellite time -> {satellite_datetime}')
 
-    if satellite_datetime<ins_time_ini or satellite_datetime>ins_time_end:
+    if satellite_datetime < ins_time_ini or satellite_datetime > ins_time_end:
         print(f'[WARNING] No in situ spectra were found for date: {satellite_datetime}')
         return False
     satellite_date = satellite_datetime.strftime('%Y-%m-%d')
@@ -99,7 +99,7 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
 
     for i in range(nspectra):
         time_dif_seconds[i] = float(abs((time_list[i] - satellite_datetime).total_seconds()))
-        #print(satellite_datetime, time_list[i], time_dif_seconds[i], '============================================')
+        # print(satellite_datetime, time_list[i], time_dif_seconds[i], '============================================')
         if time_dif_seconds[i] < time_window_seconds:
             spectra_within_timewindow[i] = True
             nspectra_within_timewindow = nspectra_within_timewindow + 1
@@ -111,15 +111,16 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
         print(f'[WARNING] No in situ spectra were found for date: {satellite_date} within the specified time window')
         return False
 
+
     nominal_wavelengths = np.array(mo_options.get_wllist())
     subset_wl = True
     if mo_options.get_wllist() is None:
         nominal_wavelengths = areader.dataset['Nominal_Wavelenghts'][:]
         subset_wl = False
 
-
     rrs = areader.extract_rrs(False)
     exactwl = areader.extract_spectral_data('Exact_Wavelengths', False)
+
 
     ##WHEN A SUBSET IS DEFINED, BANDS ARE BAND SHIFTED
     if subset_wl:
@@ -129,7 +130,6 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
 
         nominal_wavelengths = update_nominal_wl_with_sat_wl(nominal_wavelengths, extract_path, maxwldiff)
         indiceswl_valid, nominal_wavelengths_exact = get_wl_valid_indices(nominal_wavelengths, exactwl_h, maxwldiff)
-
 
         rrsh = rrs[0][:]
         indices_good = np.ma.where(rrsh.mask == False)
@@ -156,6 +156,7 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
     else:
         new_MDB = copy_nc(extract_path, ofile, satellite_datetime, None, None)
 
+
     # add time window diff
     new_MDB.time_diff = f'{time_window_seconds}'  # in seconds
 
@@ -165,11 +166,15 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
         n_insitu_bands = areader.nwl
 
     # create in situ dimensions
-    new_MDB.createDimension('insitu_id', 50)
+    if 'insitu_id' not in new_MDB.dimensions:
+        new_MDB.createDimension('insitu_id', 50)
     new_MDB.createDimension('insitu_original_bands', n_insitu_bands)
 
     # create variables
-    insitu_time = new_MDB.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id',), zlib=True, complevel=6)
+    if 'insitu_time' not in new_MDB.variables:
+        insitu_time = new_MDB.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id',), zlib=True, complevel=6)
+    else:
+        insitu_time = new_MDB.variables['insitu_time']
     insitu_time.units = "Seconds since 1970-1-1"
     insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
 
@@ -186,8 +191,11 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
                                                       fill_value=-999, zlib=True, complevel=6)
     insitu_exact_wavelenghts.description = 'In situ bands in nm'
 
-    time_difference = new_MDB.createVariable('time_difference', 'f4', ('satellite_id', 'insitu_id'), fill_value=-999,
+    if 'time_difference' not in new_MDB.variables:
+        time_difference = new_MDB.createVariable('time_difference', 'f4', ('satellite_id', 'insitu_id'), fill_value=-999,
                                              zlib=True, complevel=6)
+    else:
+        time_difference = new_MDB.variables['time_difference']
     time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
     time_difference.units = "seconds"
 
@@ -202,7 +210,6 @@ def add_insitu_aeronet(extract_info, ofile, areader, mo_options, time_list, ins_
         insitu_time[0, insitu_idx] = float(time_list[i].replace(tzinfo=timezone.utc).timestamp())
 
         time_difference[0, insitu_idx] = time_dif_seconds[i]
-
 
         idx = i - areader.row_ini
         rrs_here = np.array(rrs[idx][:])
@@ -350,12 +357,13 @@ def main():
         print(f'[INFO] Checking available dates--------------------------------------------------------------START')
     mo.get_dates()
     sdate, edate = areader.get_time_ini_fin()
-    if sdate>mo.start_date:
-        mo.start_date = sdate.replace(hour=0,minute=0,second=0,microsecond=0)
 
-    if edate<mo.end_date:
+    if sdate > mo.start_date:
+        mo.start_date = sdate.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    if edate < mo.end_date:
         from datetime import timedelta
-        mo.end_date = (edate+timedelta(days=1)).replace(hour=0,minute=0,second=0,microsecond=0)
+        mo.end_date = (edate + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     if args.verbose:
         print(f'[INFO] Start date for MDB_builder:{mo.start_date}')
@@ -368,7 +376,7 @@ def main():
     for itime in time_list:
         if mo.start_date <= itime <= mo.end_date:
             time_list_range.append(itime)
-    if len(time_list_range)==0:
+    if len(time_list_range) == 0:
         print(f'[WARNING] No insitu files were found in the given range')
         return
     ins_time_ini = time_list_range[0].replace(hour=0, minute=0, second=0, microsecond=0)
@@ -387,7 +395,7 @@ def main():
 
     # for extract in extract_list:
     date_ref = mo.start_date
-    while date_ref<=mo.end_date:
+    while date_ref <= mo.end_date:
         date_ref_str = date_ref.strftime('%Y%m%d')
         if date_ref_str in extract_list.keys():
             extract = extract_list[date_ref_str]
@@ -401,7 +409,8 @@ def main():
                 mdb_extract_files.append(ofile)
                 print(f'[WARNING] MDB extract file already exits. Skipping...')
             else:
-                b = add_insitu_aeronet(extract_list[date_ref_str], ofile, areader, mo, time_list,ins_time_ini,ins_time_end)
+                b = add_insitu_aeronet(extract_list[date_ref_str], ofile, areader, mo, time_list, ins_time_ini,
+                                       ins_time_end)
                 if b:
                     mdb_extract_files.append(ofile)
         date_ref = date_ref + timedelta(hours=24)

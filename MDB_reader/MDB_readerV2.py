@@ -2308,33 +2308,151 @@ def apply_spectra_convolution():
     print('Completed')
 
 def do_image_with_centro():
-    file_img = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/01_090_0000_0_0000.jpg'
-    file_out = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/01_090_0000_0_0000_grid.png'
-    from PIL import Image
-    from matplotlib import pyplot as plt
-    image = Image.open(file_img)
-    #rimage = image.rotate(270, expand=True)
-    rimage = image.transpose(Image.ROTATE_270)
+    dir_img = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT'
+    dir_out = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/SUN'
+    for name in os.listdir(dir_img):
+        if name.startswith('Sun'):
+            file_img = os.path.join(dir_img,name)
+            file_out = os.path.join(dir_out,name)
+            # file_img = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/01_090_0000_0_0000.jpg'
+            # file_out = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/01_090_0000_0_0000_grid.png'
+            from PIL import Image
+            from matplotlib import pyplot as plt
+            image = Image.open(file_img)
+            #rimage = image.rotate(270, expand=True)
+            rimage = image.transpose(Image.ROTATE_270)
 
-    plt.imshow(rimage)
+            plt.imshow(rimage)
 
-    w, h = rimage.size
+            w, h = rimage.size
 
-    ##central point
-    plt.axvline(w / 2, 0.48, 0.52, color='red', linewidth=0.25)
-    plt.axhline(h / 2, 0.48, 0.52, color='red', linewidth=0.25)
-    ##grid
-    incremx = int(w / 4)
-    incremy = int(h / 4)
-    for x in range(0, w, incremx):
-        plt.axvline(x, color='red', linewidth=0.5)
-    for y in range(0, h, incremy):
-        plt.axhline(y, color='red', linewidth=0.5)
+            ##central point
+            plt.axvline(w / 2, 0.48, 0.52, color='red', linewidth=0.25)
+            plt.axhline(h / 2, 0.48, 0.52, color='red', linewidth=0.25)
+            ##grid
+            incremx = int(w / 4)
+            incremy = int(h / 4)
+            for x in range(0, w, incremx):
+                plt.axvline(x, color='red', linewidth=0.5)
+            for y in range(0, h, incremy):
+                plt.axhline(y, color='red', linewidth=0.5)
 
-    plt.xticks([])
-    plt.yticks([])
+            plt.xticks([])
+            plt.yticks([])
 
-    plt.savefig(file_out,bbox_inches='tight',dpi=300)
+            plt.savefig(file_out,bbox_inches='tight',dpi=300)
+
+def get_certo_dates_step1():
+
+    from netCDF4 import Dataset
+    from datetime import datetime as dt
+    dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
+    certo_dates = {}
+    for name in os.listdir(dir_base):
+        if name.find('CERTO_OLCI')>0:
+            dataset = Dataset(os.path.join(dir_base,name))
+            sat_time = np.array(dataset.variables['satellite_time'])
+            for stime in sat_time:
+                sat_time_utc= dt.utcfromtimestamp(float(stime))
+                key = sat_time_utc.strftime('%Y%m%d')
+                certo_dates[key]={
+                    'time': sat_time_utc,
+                    'stamp': float(stime)
+                }
+            dataset.close()
+
+    file_out = os.path.join(dir_base,'CERTO_OLCI_TIMES.csv')
+    fout = open(file_out,'w')
+    fout.write('date;time;stamp')
+
+    for name in os.listdir(dir_base):
+        if name.find('CMEMS_OLCI')>0:
+            file_in = os.path.join(dir_base,name)
+            dataset = Dataset(file_in)
+            sat_time = np.array(dataset.variables['satellite_time'])
+            for stime in sat_time:
+
+                sat_time_utc_prev = dt.utcfromtimestamp(float(stime))
+                key = sat_time_utc_prev.strftime('%Y%m%d')
+                if key in certo_dates:
+                    sat_time_utc_new = certo_dates[key]['time']
+                    time_stamp = certo_dates[key]['stamp']
+                    line = f'{key};{sat_time_utc_new.strftime("%Y-%m-%dT%H:%M:%S.%f")};{time_stamp}'
+                else:
+                    line = f'{key};NaN;NaN'
+                fout.write('\n')
+                fout.write(line)
+
+    fout.close()
+    dataset.close()
+
+def get_certo_dates_step2():
+    from datetime import datetime as dt
+    import subprocess
+    dir_base = '/store3/DOORS/MDBs'
+    dir_sources = '/store3/DOORS/CERTO_SOURCES'
+    #dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
+    #dir_sources = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
+    file_in = os.path.join(dir_base, 'CERTO_OLCI_TIMES.csv')
+    file_out = os.path.join(dir_base, 'CERTO_OLCI_TIMES_OUT.csv')
+    import pandas as pd
+    df = pd.read_csv(file_in,sep=';')
+
+    for index,row in df.iterrows():
+        there = str(row['time'])
+        if there=='nan':
+            dhere = str(row['date'])
+            date_here = dt.strptime(dhere,'%Y%m%d')
+            if date_here.year<2017:
+                continue
+
+            yyyy = date_here.strftime('%Y')
+            jjj = date_here.strftime('%j')
+            if date_here.year<2023:
+                namefile = f'CERTO_blk_{dhere}_OLCI_RES300__final_l3_product.nc'
+            else:
+                namefile = f'CERTO_olci_blk_p2_{dhere}_OLCI_RES300__final_l3_product.nc'
+            dir_year = os.path.join(dir_sources,yyyy)
+            if not os.path.isdir(dir_year):
+                os.mkdir(dir_year)
+            dir_jjj = os.path.join(dir_year,jjj)
+            if not os.path.isdir(dir_jjj):
+                os.mkdir(dir_jjj)
+            ofile = os.path.join(dir_jjj,namefile)
+
+            cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/OLCI/{namefile} -O {ofile}'
+            print(cmd)
+            proc = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            try:
+                outs, errs = proc.communicate(timeout=1800)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                outs, errs = proc.communicate()
+            if os.path.exists(ofile) and os.stat(ofile).st_size > 0:
+                sat_time_new = get_satellite_time_from_global_attributes(ofile)
+                print(ofile,'->',sat_time_new)
+                if sat_time_new is not None:
+                    df.loc[index,'time'] = sat_time_new.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    df.loc[index,'stamp'] = sat_time_new.timestamp()
+
+    df.to_csv(file_out,sep=';')
+
+def get_satellite_time_from_global_attributes(fproduct):
+    from netCDF4 import Dataset
+    from datetime import datetime as dt
+    dataset = Dataset(fproduct)
+    if 'time_coverage_start' in dataset.ncattrs() and 'time_coverage_end' in dataset.ncattrs():
+        try:
+            start_date = dt.strptime(dataset.time_coverage_start,'%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+            end_date = dt.strptime(dataset.time_coverage_end, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+            sat_time = (start_date.timestamp()+end_date.timestamp())/2
+            sat_time = dt.utcfromtimestamp(sat_time).replace(tzinfo=pytz.utc)
+            return sat_time
+
+        except:
+            return None
+    dataset.close()
+    return None
 
 def main():
     mode = args.mode
@@ -2343,50 +2461,53 @@ def main():
     if args.mode == 'TEST':
         #do_image_with_centro()
 
-        from BSC_QAA import bsc_qaa_EUMETSAT as qaa
-        import MDBFile
-        code_home = os.path.dirname(os.path.dirname(MDBFile.__file__))
-        # # code_home = os.path.abspath('../')
-        sys.path.append(code_home)
-        code_aeronet = os.path.join(os.path.dirname(code_home), 'aeronet')
-        sys.path.append(code_aeronet)
-        print(code_aeronet)
-        from base.anet_nc_reader import AERONETReader
-        aeronet_file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_Gloria.LWN_lev20_15.nc'
-        areader = AERONETReader(aeronet_file)
-        all_rrs = areader.extract_rrs(False)
-        all_wl = areader.extract_spectral_data('Exact_Wavelengths',False)
+        #get_certo_dates_step1()
+        get_certo_dates_step2()
 
-        print(all_rrs.shape,all_wl.shape)
-
-        rrs_input = all_rrs[2325,:]
-        wl_input = all_wl[2325,:]
-        print(rrs_input)
-        print(wl_input)
-        rrs_in = [0.004897506441920996, 0.006124403327703476, 0.009032594971358776, 0.011597496457397938,
-                  0.01306516770273447, 0.0037191512528806925, 0.00033687229733914137, 0.00010173415648750961]
-        bands_in = [411.29998779296875, 442.0, 491.3999938964844, 530.7000122070312, 551.9000244140625, 668.5,
-                 869.4000244140625, 1017.2999877929688]
-        print(len(rrs_in),len(bands_in))
-        nominal_wl = areader.get_all_nominal_wl()
-        print(nominal_wl)
-
-        ##for a single band out
-        bands_out = [412]
-        rrs_out = qaa.bsc_qaa(rrs_in, bands_in, bands_out)
-        print(f'Original wavelength: {bands_in[0]} Output wavelength: {bands_out[0]} Wl diff: {abs(bands_in[0]-bands_out[0])}')
-        print(f'Original rrs: {rrs_in[0]} Output rrs: {rrs_out[0]}')
-
-        #for CMEMS multi bands
-        bands_out = [412,443,490,510,555,670]
-        rrs_out = qaa.bsc_qaa(rrs_in, bands_in, bands_out)
-        for iwl,wl in enumerate(bands_out):
-            band_input_ref = bands_in[np.argmin(np.abs(np.array(bands_in)-wl))]
-            diff_wl = abs(wl-band_input_ref)
-            if diff_wl<=5:
-                print(f'Band shifting from {band_input_ref} nm to {wl} nm. Rrs: {rrs_in[iwl]} -> {rrs_out[iwl]}')
-            else:
-                print(f'Band shifting from {band_input_ref} nm to {wl} nm. Rrs: {rrs_in[iwl]} -> {rrs_out[iwl]} WARNING: {diff_wl} is higher than 5 nm. It should not be used for validation')
+        # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
+        # import MDBFile
+        # code_home = os.path.dirname(os.path.dirname(MDBFile.__file__))
+        # # # code_home = os.path.abspath('../')
+        # sys.path.append(code_home)
+        # code_aeronet = os.path.join(os.path.dirname(code_home), 'aeronet')
+        # sys.path.append(code_aeronet)
+        # print(code_aeronet)
+        # from base.anet_nc_reader import AERONETReader
+        # aeronet_file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_Gloria.LWN_lev20_15.nc'
+        # areader = AERONETReader(aeronet_file)
+        # all_rrs = areader.extract_rrs(False)
+        # all_wl = areader.extract_spectral_data('Exact_Wavelengths',False)
+        #
+        # print(all_rrs.shape,all_wl.shape)
+        #
+        # rrs_input = all_rrs[2325,:]
+        # wl_input = all_wl[2325,:]
+        # print(rrs_input)
+        # print(wl_input)
+        # rrs_in = [0.004897506441920996, 0.006124403327703476, 0.009032594971358776, 0.011597496457397938,
+        #           0.01306516770273447, 0.0037191512528806925, 0.00033687229733914137, 0.00010173415648750961]
+        # bands_in = [411.29998779296875, 442.0, 491.3999938964844, 530.7000122070312, 551.9000244140625, 668.5,
+        #          869.4000244140625, 1017.2999877929688]
+        # print(len(rrs_in),len(bands_in))
+        # nominal_wl = areader.get_all_nominal_wl()
+        # print(nominal_wl)
+        #
+        # ##for a single band out
+        # bands_out = [412]
+        # rrs_out = qaa.bsc_qaa(rrs_in, bands_in, bands_out)
+        # print(f'Original wavelength: {bands_in[0]} Output wavelength: {bands_out[0]} Wl diff: {abs(bands_in[0]-bands_out[0])}')
+        # print(f'Original rrs: {rrs_in[0]} Output rrs: {rrs_out[0]}')
+        #
+        # #for CMEMS multi bands
+        # bands_out = [412,443,490,510,555,670]
+        # rrs_out = qaa.bsc_qaa(rrs_in, bands_in, bands_out)
+        # for iwl,wl in enumerate(bands_out):
+        #     band_input_ref = bands_in[np.argmin(np.abs(np.array(bands_in)-wl))]
+        #     diff_wl = abs(wl-band_input_ref)
+        #     if diff_wl<=5:
+        #         print(f'Band shifting from {band_input_ref} nm to {wl} nm. Rrs: {rrs_in[iwl]} -> {rrs_out[iwl]}')
+        #     else:
+        #         print(f'Band shifting from {band_input_ref} nm to {wl} nm. Rrs: {rrs_in[iwl]} -> {rrs_out[iwl]} WARNING: {diff_wl} is higher than 5 nm. It should not be used for validation')
 
             #print(rrs_out)
         # convert_tara_files()

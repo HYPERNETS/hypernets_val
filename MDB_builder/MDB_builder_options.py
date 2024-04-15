@@ -114,7 +114,7 @@ class MDBBuilderOptions:
             self.VALID = False
 
     def get_insitu_path_source(self):
-        if self.options['file_path']['ins_source_dir']:
+        if self.options.has_option('file_path','ins_source_dir'):
             self.insitu_path_source = self.options['file_path']['ins_source_dir']
             if self.verbose:
                 print(f'[info] In situ path source: {self.insitu_path_source}')
@@ -130,7 +130,7 @@ class MDBBuilderOptions:
                 print(f'[ERROR] Insitu path source {self.insitu_path_source} doest not exist and could not be created')
                 self.VALID = False
                 return
-        if self.options['file_path']['ins_source_metadata_dir']:
+        if self.options.has_option('file_path','ins_source_metadata_dir'):
             self.insitu_path_metadata = self.options['file_path']['ins_source_metadata_dir']
             if self.verbose:
                 print(f'[info] In situ metadata source: {self.insitu_path_metadata}')

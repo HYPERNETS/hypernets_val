@@ -72,6 +72,7 @@ class SAT_EXTRACTS_LIST:
         site = self.boptions.param_insitu
 
         prefix = self.boptions.param_sat['prefix']
+
         sat_extract_dir = self.boptions.satellite_path_source
 
         sat_list = {}

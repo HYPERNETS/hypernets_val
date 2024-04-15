@@ -200,7 +200,7 @@ def make_plots():
     # date_here = dt(2023, 9, 26)
     # file_comparison = get_file_comparison_date(path_out, date_here, False)
 
-    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_20230425_20230625.nc'
+    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_20230425_20240331.nc'
 
     file_config = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/config_plot.ini'
     import configparser
@@ -210,14 +210,15 @@ def make_plots():
     # iplots = INSITU_plots(ic)
     # iplots.plot_from_options(options)
 
-    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
-    ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
-    ic.plot_spectra_stats()
+    #ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
 
-    # ic.plot_scatterplot(None)
-    # ic.plot_all_scatterplots_wl()
+    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
+    # ic.plot_spectra_stats()
+
+    #ic.plot_scatterplot(None)
+    ic.plot_all_scatterplots_wl()
     # ic.plot_all_spectra()
-    # ic.plot_rho_scatterplot()
+    #ic.plot_rho_scatterplot()
 
 
 def get_file_comparison_date(path_out, date_here, to_create):
@@ -544,15 +545,18 @@ def main():
     elif args.mode == 'TEST':
         # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/05/05/HYPERNETS_W_VEIT_L2A_REF_20230505T1540_20240118T1418_270_v2.0.nc'
         # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/2023/05/05/COMPARISON_20230505.nc'
-        file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20240406_AAOT.LWN_lev20_15.nc'
-        from netCDF4 import Dataset
-        dataset = Dataset(file)
-        for name in dataset.variables:
-            print(name)
-        # print(dataset.variables['HYPSTAR_epsilon'][:])
-        # print(dataset.variables['rhof'])
-        dataset.close()
-        # do_test()
+        # file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20240406_AAOT.LWN_lev20_15.nc'
+        # from netCDF4 import Dataset
+        # dataset = Dataset(file)
+        # for name in dataset.variables:
+        #     print(name)
+        # # print(dataset.variables['HYPSTAR_epsilon'][:])
+        # # print(dataset.variables['rhof'])
+        # dataset.close()
+        # # do_test()
+        #file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_20230425_20240331.nc'
+        #add_mu_to_file(file_out)
+        make_plots()
 
 
 # %%
