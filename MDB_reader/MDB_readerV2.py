@@ -2508,8 +2508,8 @@ def get_certo_dates_olci():
     dir_sources = '/store3/DOORS/CERTO_SOURCES'
     # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     # dir_sources = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
-    file_in = os.path.join(dir_base, 'DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_OLCI.csv')
-    file_out = os.path.join(dir_base, 'DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_OLCI_TIME.csv')
+    file_in = os.path.join(dir_base, 'DOORS_insitu_from_metadata_11102023_extract_CERTO_OLCI.csv')
+    file_out = os.path.join(dir_base, 'DOORS_insitu_from_metadata_11102023_extract_CERTO_OLCI_TIME.csv')
     fout = open(file_out, 'w')
     fout.write('date;stamp')
 
@@ -2529,7 +2529,10 @@ def get_certo_dates_olci():
             continue
         dir_year = os.path.join(dir_sources, yyyy)
         dir_jjj = os.path.join(dir_year, jjj)
-        name_file = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
+        if date_here.year==2023:
+            name_file = f'CERTO_blacksea_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
+        else:
+            name_file = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
         file_orig = os.path.join(dir_jjj, name_file)
         if not os.path.exists(file_orig):
             if not os.path.exists(dir_year):
