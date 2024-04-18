@@ -2467,6 +2467,9 @@ def get_certo_dates_msi():
         jjj = date_here.strftime('%j')
         orig_file = str(row['OrigFile'])
         if orig_file.lower()=='nan':
+            line = f'{date_here_str};NaN'
+            fout.write('\n')
+            fout.write(line)
             continue
         dir_year = os.path.join(dir_sources, yyyy)
         dir_jjj = os.path.join(dir_year, jjj)
