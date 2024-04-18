@@ -2508,8 +2508,8 @@ def get_certo_dates_olci():
     dir_sources = '/store3/DOORS/CERTO_SOURCES'
     # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     # dir_sources = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
-    file_in = os.path.join(dir_base, 'DOORS_insitu_from_metadata_11102023_extract_CERTO_OLCI.csv')
-    file_out = os.path.join(dir_base, 'DOORS_insitu_from_metadata_11102023_extract_CERTO_OLCI_TIME.csv')
+    file_in = os.path.join(dir_base, 'DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_OLCI.csv')
+    file_out = os.path.join(dir_base, 'DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_OLCI_TIME.csv')
     fout = open(file_out, 'w')
     fout.write('date;stamp')
 
