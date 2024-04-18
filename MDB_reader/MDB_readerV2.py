@@ -878,7 +878,7 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
     return True
 
 
-def creating_copy_correcting_band(reader, file_out):
+def creating_copy_correcting_band(reader, file_out,band_to_correct,new_array):
     # reader = MDB_READER('', True)
     from netCDF4 import Dataset
     import numpy as np
@@ -886,6 +886,8 @@ def creating_copy_correcting_band(reader, file_out):
 
     # copy global attributes all at once via dictionary
     ncout.setncatts(reader.mfile.nc.__dict__)
+
+
 
     # copy dimensions
     for name, dimension in reader.mfile.nc.dimensions.items():
@@ -905,8 +907,10 @@ def creating_copy_correcting_band(reader, file_out):
 
         # copy variable data
         ncout[name][:] = reader.mfile.nc[name][:]
-        if name == 'satellite_Rrs':
+        if name == 'satellite_Rrs' and band_to_correct is None and new_array is None:
             ncout[name][:, 1, :, :] = reader.mfile.nc[name][:, 1, :, :] * np.pi
+        if band_to_correct is not None and name==band_to_correct:
+            ncout[name][:] = new_array[:]
 
     ncout.close()
     reader.mfile.close()
@@ -1251,6 +1255,7 @@ def creating_copy_mdb_publication(file_in, file_out, satellite):
 
     return True
 
+
 def creating_copy_with_convolution(file_in, file_out, array_new):
     from netCDF4 import Dataset
     input_dataset = Dataset(file_in)
@@ -1275,12 +1280,13 @@ def creating_copy_with_convolution(file_in, file_out, array_new):
         # copy variable attributes all at once via dictionary
         ncout[name].setncatts(input_dataset[name].__dict__)
 
-        if name=='mu_ins_rrs':
+        if name == 'mu_ins_rrs':
             ncout[name][:] = array_new[:]
         else:
             ncout[name][:] = input_dataset[name][:]
     input_dataset.close()
     ncout.close()
+
 
 def getting_common_matchups():
     # getting common match-ups
@@ -2249,8 +2255,8 @@ def apply_spectra_convolution():
     array_new = array_out.copy()
 
     for idx, sat_id_here in enumerate(dataset.variables['mu_satellite_id']):
-        if idx==0 or (idx%100)==0:
-            print('-->',idx)
+        if idx == 0 or (idx % 100) == 0:
+            print('-->', idx)
         insitu_id_here = dataset.variables['mu_insitu_id'][sat_id_here]
         index_site = int(np.log2(dataset.variables['flag_site'][sat_id_here]))
         index_sat = int(np.log2(dataset.variables['flag_satellite'][sat_id_here]))
@@ -2298,28 +2304,29 @@ def apply_spectra_convolution():
     #     f1.write('\n')
     #     f1.write(line)
     # f1.close()
-        # diff = abs(rrs_prev-rrs_new)
+    # diff = abs(rrs_prev-rrs_new)
 
     dataset.close()
 
     print('Creating copy...')
     file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/ALLSITES/MDBrc_S3AB_ALLSITES_OLCI_WFR_WITHCONVOLUTION.nc'
-    creating_copy_with_convolution(file_nc,file_out,array_new)
+    creating_copy_with_convolution(file_nc, file_out, array_new)
     print('Completed')
+
 
 def do_image_with_centro():
     dir_img = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT'
     dir_out = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/SUN'
     for name in os.listdir(dir_img):
         if name.startswith('Sun'):
-            file_img = os.path.join(dir_img,name)
-            file_out = os.path.join(dir_out,name)
+            file_img = os.path.join(dir_img, name)
+            file_out = os.path.join(dir_out, name)
             # file_img = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/01_090_0000_0_0000.jpg'
             # file_out = '/mnt/c/DATA_LUIS/INFO_CNR2/JSIT/01_090_0000_0_0000_grid.png'
             from PIL import Image
             from matplotlib import pyplot as plt
             image = Image.open(file_img)
-            #rimage = image.rotate(270, expand=True)
+            # rimage = image.rotate(270, expand=True)
             rimage = image.transpose(Image.ROTATE_270)
 
             plt.imshow(rimage)
@@ -2340,34 +2347,34 @@ def do_image_with_centro():
             plt.xticks([])
             plt.yticks([])
 
-            plt.savefig(file_out,bbox_inches='tight',dpi=300)
+            plt.savefig(file_out, bbox_inches='tight', dpi=300)
 
-def get_certo_dates_step1():
 
+def get_certo_dates_olci_step1():
     from netCDF4 import Dataset
     from datetime import datetime as dt
     dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     certo_dates = {}
     for name in os.listdir(dir_base):
-        if name.find('CERTO_OLCI')>0:
-            dataset = Dataset(os.path.join(dir_base,name))
+        if name.find('CERTO_OLCI') > 0:
+            dataset = Dataset(os.path.join(dir_base, name))
             sat_time = np.array(dataset.variables['satellite_time'])
             for stime in sat_time:
-                sat_time_utc= dt.utcfromtimestamp(float(stime))
+                sat_time_utc = dt.utcfromtimestamp(float(stime))
                 key = sat_time_utc.strftime('%Y%m%d')
-                certo_dates[key]={
+                certo_dates[key] = {
                     'time': sat_time_utc,
                     'stamp': float(stime)
                 }
             dataset.close()
 
-    file_out = os.path.join(dir_base,'CERTO_OLCI_TIMES.csv')
-    fout = open(file_out,'w')
+    file_out = os.path.join(dir_base, 'CERTO_OLCI_TIMES.csv')
+    fout = open(file_out, 'w')
     fout.write('date;time;stamp')
 
     for name in os.listdir(dir_base):
-        if name.find('CMEMS_OLCI')>0:
-            file_in = os.path.join(dir_base,name)
+        if name.find('CMEMS_OLCI') > 0:
+            file_in = os.path.join(dir_base, name)
             dataset = Dataset(file_in)
             sat_time = np.array(dataset.variables['satellite_time'])
             for stime in sat_time:
@@ -2386,39 +2393,40 @@ def get_certo_dates_step1():
     fout.close()
     dataset.close()
 
-def get_certo_dates_step2():
+
+def get_certo_dates_olci_step2():
     from datetime import datetime as dt
     import subprocess
     dir_base = '/store3/DOORS/MDBs'
     dir_sources = '/store3/DOORS/CERTO_SOURCES'
-    #dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
-    #dir_sources = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
+    # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
+    # dir_sources = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
     file_in = os.path.join(dir_base, 'CERTO_OLCI_TIMES.csv')
     file_out = os.path.join(dir_base, 'CERTO_OLCI_TIMES_OUT.csv')
     import pandas as pd
-    df = pd.read_csv(file_in,sep=';')
+    df = pd.read_csv(file_in, sep=';')
 
-    for index,row in df.iterrows():
+    for index, row in df.iterrows():
         there = str(row['time'])
-        if there=='nan':
+        if there == 'nan':
             dhere = str(row['date'])
-            date_here = dt.strptime(dhere,'%Y%m%d')
-            if date_here.year<2017:
+            date_here = dt.strptime(dhere, '%Y%m%d')
+            if date_here.year < 2017:
                 continue
 
             yyyy = date_here.strftime('%Y')
             jjj = date_here.strftime('%j')
-            if date_here.year<2023:
+            if date_here.year < 2023:
                 namefile = f'CERTO_blk_{dhere}_OLCI_RES300__final_l3_product.nc'
             else:
                 namefile = f'CERTO_olci_blk_p2_{dhere}_OLCI_RES300__final_l3_product.nc'
-            dir_year = os.path.join(dir_sources,yyyy)
+            dir_year = os.path.join(dir_sources, yyyy)
             if not os.path.isdir(dir_year):
                 os.mkdir(dir_year)
-            dir_jjj = os.path.join(dir_year,jjj)
+            dir_jjj = os.path.join(dir_year, jjj)
             if not os.path.isdir(dir_jjj):
                 os.mkdir(dir_jjj)
-            ofile = os.path.join(dir_jjj,namefile)
+            ofile = os.path.join(dir_jjj, namefile)
 
             cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/OLCI/{namefile} -O {ofile}'
             print(cmd)
@@ -2430,12 +2438,160 @@ def get_certo_dates_step2():
                 outs, errs = proc.communicate()
             if os.path.exists(ofile) and os.stat(ofile).st_size > 0:
                 sat_time_new = get_satellite_time_from_global_attributes(ofile)
-                print(ofile,'->',sat_time_new)
+                print(ofile, '->', sat_time_new)
                 if sat_time_new is not None:
-                    df.loc[index,'time'] = sat_time_new.strftime("%Y-%m-%dT%H:%M:%S.%f")
-                    df.loc[index,'stamp'] = sat_time_new.timestamp()
+                    df.loc[index, 'time'] = sat_time_new.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    df.loc[index, 'stamp'] = sat_time_new.timestamp()
 
-    df.to_csv(file_out,sep=';')
+    df.to_csv(file_out, sep=';')
+
+def get_certo_dates_msi():
+    from datetime import datetime as dt
+    import subprocess
+    dir_base = '/store3/DOORS/MDBs'
+    dir_sources = '/store3/DOORS/CERTO_SOURCES'
+    # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
+    # dir_sources = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
+    file_in = os.path.join(dir_base, 'DOORS_insitu_from_metadata_11102023_extract_CERTO_MSI.csv')
+    file_out = os.path.join(dir_base, 'DOORS_insitu_from_metadata_11102023_extract_CERTO_MSI_TIME.csv')
+    fout = open(file_out, 'w')
+    fout.write('date;stamp')
+
+    import pandas as pd
+    df = pd.read_csv(file_in, sep=';')
+
+    for index, row in df.iterrows():
+        date_here_str = str(row['Date'])
+        date_here = dt.strptime(date_here_str,'%Y-%m-%d')
+        yyyy = date_here.strftime('%Y')
+        jjj = date_here.strftime('%j')
+        orig_file = str(row['OrigFile'])
+        dir_year = os.path.join(dir_sources, yyyy)
+        dir_jjj = os.path.join(dir_year, jjj)
+        file_orig = os.path.join(dir_sources,dir_year,dir_jjj,orig_file)
+        if not os.path.exists(file_orig):
+            cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/MSI/{orig_file} -O {file_orig}'
+            print(cmd)
+            proc = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            try:
+                outs, errs = proc.communicate(timeout=1800)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                outs, errs = proc.communicate()
+        if os.path.exists(file_orig) and os.stat(file_orig).st_size > 0:
+            sat_date = get_satellite_time_from_global_attributes(file_orig)
+            if sat_date is not None:
+                line = f'{date_here_str};{sat_date.strftime("%Y-%m-%d %H:%M:%S")}'
+            else:
+                line = f'{date_here_str};SatTimeError'
+        else:
+            line = f'{date_here_str};NaN'
+        fout.write('\n')
+        fout.write(line)
+
+    fout.close()
+
+
+
+def set_certo_dates_olci():
+    from datetime import datetime as dt
+    dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
+    dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/OUT'
+    file_new_dates = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/CERTO_OLCI_TIMES_OUT.csv'
+    df = pd.read_csv(file_new_dates, sep=';')
+    info_dates = {}
+    for index, row in df.iterrows():
+        key = str(row['date'])
+        dtime = str(row['time'])
+        if dtime == 'nan':
+            date_here_str = f'{key}T08:00:00'
+            date_here = dt.strptime(date_here_str, '%Y%m%dT%H:%M:%S').replace(tzinfo=pytz.utc).replace(microsecond=0)
+            info_dates[key] = {
+                'time': date_here,
+                'stamp': date_here.timestamp()
+            }
+        else:
+            info_dates[key] = {
+                'time': dt.strptime(dtime, "%Y-%m-%dT%H:%M:%S.%f"),
+                'stamp': float(row['stamp'])
+            }
+    from netCDF4 import Dataset
+    for name in os.listdir(dir_base):
+        if name.find('CMEMS_OLCI') > 0:
+            print('-->',name)
+            file_in = os.path.join(dir_base, name)
+            dataset = Dataset(file_in)
+            sat_time = np.array(dataset.variables['satellite_time'])
+            sat_time_new = sat_time.copy()
+            for idx in range(len(sat_time)):
+                date_here = dt.utcfromtimestamp(float(sat_time[idx]))
+                key = date_here.strftime('%Y%m%d')
+                sat_time_new[idx] = float(info_dates[key]['stamp'])
+                print(':->',sat_time[idx],'->',sat_time_new[idx])
+            dataset.close()
+            output_file = os.path.join(dir_out,name)
+            areader = MDB_READER(file_in,True)
+            creating_copy_correcting_band(areader,output_file,'satellite_time',sat_time_new)
+
+def set_certo_dates_msi():
+    from datetime import datetime as dt
+    dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
+    dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/OUT'
+    site = 'Section-7'
+    file_new_dates = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_msi/DOORS_insitu_BlackSea_AeronetOC_Section-7_Platform_extract_CERTO_MSI.csv'
+    df = pd.read_csv(file_new_dates, sep=';')
+    info_dates = {}
+    for index, row in df.iterrows():
+        sat_time_str = str(row['SatTime'])
+        sat_time = dt.strptime(sat_time_str,'%Y-%m-%d %H:%M:%S').replace(microsecond=0).replace(tzinfo=pytz.utc)
+        key = sat_time.strftime('%Y%m%d')
+        info_dates[key] = {
+            'time': sat_time,
+            'stamp': sat_time.timestamp()
+        }
+    from netCDF4 import Dataset
+    for name in os.listdir(dir_base):
+        if name.find('CERTO_MSI') > 0 and name.find(site)>0:
+            print('-->',name)
+            file_in = os.path.join(dir_base, name)
+            dataset = Dataset(file_in)
+            sat_time = np.array(dataset.variables['satellite_time'])
+            sat_time_new = sat_time.copy()
+            for idx in range(len(sat_time)):
+                date_here = dt.utcfromtimestamp(float(sat_time[idx]))
+                key = date_here.strftime('%Y%m%d')
+                sat_time_new[idx] = float(info_dates[key]['stamp'])
+                print(':->',sat_time[idx],'->',sat_time_new[idx])
+            dataset.close()
+            output_file = os.path.join(dir_out,name)
+            areader = MDB_READER(file_in,True)
+            creating_copy_correcting_band(areader,output_file,'satellite_time',sat_time_new)
+
+def check_dates():
+    from datetime import datetime as dt
+    from netCDF4 import Dataset
+    dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
+    dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/OUT'
+    for name in os.listdir(dir_base):
+        if name.find('CMEMS_MULTI') > 0:
+            file_in = os.path.join(dir_base, name)
+            dataset = Dataset(file_in)
+            sat_time = np.array(dataset.variables['satellite_time'])
+            ins_time = np.array(dataset.variables['insitu_time'])
+            time_diff = np.array(dataset.variables['time_difference'])
+            time_diff_new = time_diff.copy()
+            for idx in range(len(sat_time)):
+                sat_time_here = dt.utcfromtimestamp(float(sat_time[idx]))
+                ins_time_here = dt.utcfromtimestamp(float(ins_time[idx][0]))
+                time_diff_here = time_diff[idx][0]
+                time_diff_c = abs((sat_time_here-ins_time_here).total_seconds())
+                time_diff_c2 = abs(sat_time[idx]-ins_time[idx][0])
+                time_diff_new[idx,:] = np.abs(sat_time[idx]-ins_time[idx][:])
+                print(sat_time_here.strftime('%Y-%m-%d %H:%M:%S'),ins_time_here.strftime('%Y-%m-%d %H:%M:%S'),time_diff_here,time_diff_c,time_diff_c2,time_diff_new[idx,0])
+            dataset.close
+            # file_out = os.path.join(dir_out,name)
+            # areader = MDB_READER(file_in,True)
+            # creating_copy_correcting_band(areader,file_out,'time_difference',time_diff_new)
 
 def get_satellite_time_from_global_attributes(fproduct):
     from netCDF4 import Dataset
@@ -2443,9 +2599,9 @@ def get_satellite_time_from_global_attributes(fproduct):
     dataset = Dataset(fproduct)
     if 'time_coverage_start' in dataset.ncattrs() and 'time_coverage_end' in dataset.ncattrs():
         try:
-            start_date = dt.strptime(dataset.time_coverage_start,'%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+            start_date = dt.strptime(dataset.time_coverage_start, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
             end_date = dt.strptime(dataset.time_coverage_end, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
-            sat_time = (start_date.timestamp()+end_date.timestamp())/2
+            sat_time = (start_date.timestamp() + end_date.timestamp()) / 2
             sat_time = dt.utcfromtimestamp(sat_time).replace(tzinfo=pytz.utc)
             return sat_time
 
@@ -2454,15 +2610,33 @@ def get_satellite_time_from_global_attributes(fproduct):
     dataset.close()
     return None
 
+def move_extracts():
+    dir_orig = '/mnt/c/DATA_LUIS/DOORS_WORK/temp'
+    dir_dest = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_msi_section-7'
+    path_csv = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_msi/DOORS_insitu_BlackSea_AeronetOC_Section-7_Platform_extract_CERTO_MSI.csv'
+    df = pd.read_csv(path_csv,sep=';')
+    for index,row in df.iterrows():
+        name_file = row['Extract']
+        name_file = f'extract_{name_file}'
+        input_file = os.path.join(dir_orig,name_file)
+        output_file = os.path.join(dir_dest,name_file)
+        os.rename(input_file,output_file)
+    print('DONE')
+
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
-        #do_image_with_centro()
+        # do_image_with_centro()
 
-        #get_certo_dates_step1()
-        get_certo_dates_step2()
+        # get_certo_dates_olci_step1()
+        # get_certo_dates_olci_step2()
+        # set_certo_dates_olci()
+        # move_extracts()
+        #set_certo_dates_msi()
+        get_certo_dates_msi()
+        # check_dates()
 
         # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import MDBFile
@@ -2509,7 +2683,7 @@ def main():
         #     else:
         #         print(f'Band shifting from {band_input_ref} nm to {wl} nm. Rrs: {rrs_in[iwl]} -> {rrs_out[iwl]} WARNING: {diff_wl} is higher than 5 nm. It should not be used for validation')
 
-            #print(rrs_out)
+        # print(rrs_out)
         # convert_tara_files()
 
         ##convert mdb format

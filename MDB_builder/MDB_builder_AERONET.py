@@ -393,6 +393,21 @@ def main():
 
     mdb_extract_files = []
 
+    ##path for certo msi extracts for section-7
+    # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/MDB_EXTRACTS_MSI_Section-7'
+    # dir_n = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/MDB_EXTRACTS'
+    # to_remove = ['satellite_chlor_oc3',
+    #              'satellite_alpha_rep']
+    # for name in os.listdir(dir_base):
+    #     file_i = os.path.join(dir_base,name)
+    #     dataset_i = Dataset(file_i)
+    #     for var in dataset_i.variables:
+    #         if var.startswith('satellite_spm'):
+    #             to_remove.append(var)
+    #     dataset_i.close()
+    #     file_o = os.path.join(dir_n,name)
+    #     os.rename(file_i,file_o)
+
     # for extract in extract_list:
     date_ref = mo.start_date
     while date_ref <= mo.end_date:
@@ -406,6 +421,10 @@ def main():
             if args.verbose:
                 print(f'[INFO] MDB extract file: {ofile}')
             if os.path.exists(ofile):
+                #patch for certo-msi section-7
+                #fout = os.path.join('/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/MDB_EXTRACTS_MSI_Section-7',os.path.basename(ofile))
+                # creating_copy_removing_bands(ofile,fout,to_remove)
+                # mdb_extract_files.append(fout)
                 mdb_extract_files.append(ofile)
                 print(f'[WARNING] MDB extract file already exits. Skipping...')
             else:
@@ -413,6 +432,8 @@ def main():
                                        ins_time_end)
                 if b:
                     mdb_extract_files.append(ofile)
+
+
         date_ref = date_ref + timedelta(hours=24)
     nextract_files = len(mdb_extract_files)
     if args.verbose:
@@ -429,6 +450,37 @@ def main():
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
+
+def creating_copy_removing_bands(input_file, output_file,bands_to_remove):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(input_dataset.__dict__)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+        if name in bands_to_remove:
+            continue
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        ncout[name][:] = input_dataset[name][:]
+
+
+    ncout.close()
+    input_dataset.close()
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):
     if len(list_files) == 0:

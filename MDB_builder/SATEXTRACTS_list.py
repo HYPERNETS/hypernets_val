@@ -258,6 +258,8 @@ class SAT_EXTRACTS_LIST:
                 sensor_here = 'MULTI'
             if sensor_here.startswith('SeaWiFS,'):
                 sensor_here = 'MULTI'
+            if sensor_here.startswith('MSI'):
+                sensor_here = 'MSI'
 
         if sensor_here is None:
             print(f'[WARNING] Sensor set to {sensor_name} despite of not being defined in the extract file')
