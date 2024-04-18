@@ -2452,8 +2452,8 @@ def get_certo_dates_msi():
     dir_sources = '/store3/DOORS/CERTO_SOURCES'
     # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     # dir_sources = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
-    file_in = os.path.join(dir_base, 'DOORS_insitu_from_metadata_11102023_extract_CERTO_MSI.csv')
-    file_out = os.path.join(dir_base, 'DOORS_insitu_from_metadata_11102023_extract_CERTO_MSI_TIME.csv')
+    file_in = os.path.join(dir_base, 'DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_MSI.csv')
+    file_out = os.path.join(dir_base, 'DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_MSI_TIME.csv')
     fout = open(file_out, 'w')
     fout.write('date;stamp')
 
@@ -2466,6 +2466,8 @@ def get_certo_dates_msi():
         yyyy = date_here.strftime('%Y')
         jjj = date_here.strftime('%j')
         orig_file = str(row['OrigFile'])
+        if orig_file.lower()=='nan':
+            continue
         dir_year = os.path.join(dir_sources, yyyy)
         dir_jjj = os.path.join(dir_year, jjj)
         file_orig = os.path.join(dir_jjj,orig_file)
@@ -2474,7 +2476,7 @@ def get_certo_dates_msi():
                 os.mkdir(dir_year)
             if not os.path.exists(dir_jjj):
                 os.mkdir(dir_jjj)
-                
+
             cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/MSI/{orig_file} -O {file_orig}'
             print(cmd)
             proc = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
