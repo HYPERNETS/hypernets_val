@@ -2468,8 +2468,13 @@ def get_certo_dates_msi():
         orig_file = str(row['OrigFile'])
         dir_year = os.path.join(dir_sources, yyyy)
         dir_jjj = os.path.join(dir_year, jjj)
-        file_orig = os.path.join(dir_sources,dir_year,dir_jjj,orig_file)
+        file_orig = os.path.join(dir_jjj,orig_file)
         if not os.path.exists(file_orig):
+            if not os.path.exists(dir_year):
+                os.mkdir(dir_year)
+            if not os.path.exists(dir_jjj):
+                os.mkdir(dir_jjj)
+                
             cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/MSI/{orig_file} -O {file_orig}'
             print(cmd)
             proc = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
