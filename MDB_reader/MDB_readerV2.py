@@ -877,6 +877,44 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
     reader.mfile.close()
     return True
 
+def creating_copy_correcting_band_bis(file_in, file_out, band_to_correct, new_array):
+    # reader = MDB_READER('', True)
+    from netCDF4 import Dataset
+    import numpy as np
+    ncin = Dataset(file_in)
+    ncout = Dataset(file_out, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(ncin.__dict__)
+
+    # copy dimensions
+    for name, dimension in ncin.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    # copy variables
+    for name, variable in ncin.variables.items():
+        fill_value = None
+        if '_FillValue' in list(ncin.ncattrs()):
+            fill_value = variable._FillValue
+        # print(name)
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(ncin[name].__dict__)
+
+        # copy variable data
+        ncout[name][:] = ncin[name][:]
+        if name == 'satellite_Rrs' and band_to_correct is None and new_array is None:
+            ncout[name][:, 1, :, :] = ncin[name][:, 1, :, :] * np.pi
+        if band_to_correct is not None and name == band_to_correct:
+            ncout[name][:] = new_array[:]
+
+    ncout.close()
+    ncin.close()
+    return True
+
+
 
 def creating_copy_correcting_band(reader, file_out, band_to_correct, new_array):
     # reader = MDB_READER('', True)
@@ -2562,7 +2600,7 @@ def get_certo_dates_olci():
     fout.close()
 
 
-def set_certo_dates_olci():
+def set_certo_dates_olci_mdb():
     from datetime import datetime as dt
     dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/OUT'
@@ -2637,6 +2675,50 @@ def set_certo_dates_msi():
             areader = MDB_READER(file_in, True)
             creating_copy_correcting_band(areader, output_file, 'satellite_time', sat_time_new)
 
+def set_certo_dates_extracts():
+    from datetime import datetime as dt
+    ##olci
+    #dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_olci'
+    #dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_olci_out'
+    #file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_olci/DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_OLCI.csv'
+    #msi
+    # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_msi'
+    # dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_msi_out'
+    # #file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_msi/DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_MSI.csv'
+    # file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_msi/DOORS_insitu_from_metadata_11102023_extract_CERTO_MSI.csv'
+    #cmems olci
+    dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts/cmems_olci'
+    dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts/cmems_olci_out'
+    # file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/INSITU/in_situ_extracts/cmems/DOORS_insitu_from_metadata_11102023_extract_CMEMS.csv'
+    file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/INSITU/in_situ_extracts/cmems/DOORS_BlackSea_insitu_cnr_iop_extract_CMEMS.csv'
+    df = pd.read_csv(file_extracts, sep=';')
+    for index, row in df.iterrows():
+        if int(row['IndexExtractOlci'])==-1:
+            continue
+        name_file = f'extract_{str(row["ExtractOlci"])}'
+        input_file = os.path.join(dir_base,name_file)
+        output_file = os.path.join(dir_out,name_file)
+        sat_time = dt.strptime(str(row['SatTimeOlci']),'%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.utc)
+        ts = sat_time.timestamp()
+        if os.path.exists(output_file):
+            from netCDF4 import Dataset
+            dataset_out = Dataset(output_file)
+            ts_out = float(dataset_out.variables['satellite_time'][0])
+            dataset_out.close()
+            diff = abs(ts-ts_out)
+            sat_time_check = dt.utcfromtimestamp(ts_out)
+            #print(sat_time.strftime('%Y-%m-%d %H:%M:%S'), sat_time_check.strftime('%Y-%m-%d %H:%M:%S'),diff)
+            if diff!=0:
+                print(output_file,sat_time.strftime('%Y-%m-%d %H:%M:%S'))
+                # fnew = os.path.join('/mnt/c/DATA_LUIS/DOORS_WORK',name_file)
+                # os.rename(output_file,fnew)
+        else:
+            sat_time_check = dt.utcfromtimestamp(ts)
+            #print(input_file)
+            print(sat_time.strftime('%Y-%m-%d %H:%M:%S'),sat_time_check.strftime('%Y-%m-%d %H:%M:%S'),os.path.exists(input_file))
+            array_new = np.array([ts],dtype=np.float64)
+            creating_copy_correcting_band_bis(input_file,output_file,'satellite_time',array_new)
+
 
 def check_dates():
     from datetime import datetime as dt
@@ -2707,12 +2789,13 @@ def main():
 
         # get_certo_dates_olci_step1()
         # get_certo_dates_olci_step2()
-        # set_certo_dates_olci()
+        # set_certo_dates_olci_mdb()
         # move_extracts()
         # set_certo_dates_msi()
         # get_certo_dates_msi()
-        get_certo_dates_olci()
+        #get_certo_dates_olci()
         # check_dates()
+        set_certo_dates_extracts()
 
         # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import MDBFile

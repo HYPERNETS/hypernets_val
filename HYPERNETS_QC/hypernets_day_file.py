@@ -320,6 +320,8 @@ class HYPERNETS_DAY_FILE():
         pm.save_fig(f'{file_out_base}.{self.format_img}')
         pm.close_plot()
 
+
+
     def save_img_files(self, multiple_plot):
         flags = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
         dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')

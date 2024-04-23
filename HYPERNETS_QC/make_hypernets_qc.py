@@ -12,7 +12,7 @@ from hypernets_day import HYPERNETS_DAY
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
-                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV','PLOT'],
+                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV','PLOT','SUNPLOTS'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -469,6 +469,52 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
         dataset_w.close()
 
 
+def make_sun_plots(input_path,output_path,site,start_date,end_date):
+    if args.verbose:
+        print(f'[INFO] Started creating files')
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, output_path)
+    ndays = 5
+    hours = ['11:00', '12:00', '13:00', '14:00', '15:00']
+    nhours = len(hours)
+    sun_images_list = [['']*ndays]*nhours
+
+    max_time_diff = 30*60 ##30 minutes
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+
+        for iday in range(ndays):
+            work_date_here = work_date-timedelta(days=iday)
+            print(f'[INFO] --> {work_date_here}')
+
+            sun_images = hday.get_sun_images_date(site,work_date_here)
+            sun_images_list_day = [None]*nhours
+            sun_images_time_diffs = [max_time_diff]*nhours
+            sun_images_time_refs = [dt.strptime(f'{work_date_here.strftime("%Y-%m-%d")} {x}','%Y-%m-%d %H:%M') for x in hours]
+            for sun_image_time_str in sun_images:
+                sun_image_time = dt.strptime(sun_image_time_str,'%Y%m%dT%H%M%S')
+                for idx in range(nhours):
+                    diff_here = abs((sun_image_time-sun_images_time_refs[idx]).total_seconds())
+                    if diff_here<=sun_images_time_diffs[idx]:
+                        sun_images_time_diffs[idx] = diff_here
+                        sun_images_list_day[idx] = sun_images[sun_image_time_str]
+
+            sun_images_list[iday] = sun_images_list_day
+
+        dir_out = hday.get_output_folder_date(site,work_date)
+
+        file_out = os.path.join(dir_out,f'SunImages_{work_date.strftime("%Y%m%d")}.png')
+
+        hday.save_sun_images(file_out,sun_images_list)
+        work_date = work_date + timedelta(hours=interval)
+
+
+
 def get_start_and_end_dates():
     start_date = dt.now()
     if args.start_date:
@@ -554,6 +600,9 @@ def main():
 
     if args.mode == 'PLOT':
         plot_from_options(input_path,args.config_path)
+
+    if args.mode == 'SUNPLOTS':
+        make_sun_plots(input_path,output_path,site,start_date,end_date)
 
 # %%
 if __name__ == '__main__':

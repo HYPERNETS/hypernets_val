@@ -100,6 +100,57 @@ class HYPERNETS_DAY():
                     pass
 
 
+    def get_sun_images_date(self,site,date_here):
+        sun_images = {}
+
+        date_folder = self.get_folder_date(site, date_here)
+        if date_folder is not None:
+            nimages = 0
+            for name in os.listdir(date_folder):
+                if name.find('_0_0')>0 and name.endswith('.jpg'):
+                    seq = f'{name.split("_")[4]}00'
+
+                    sun_images[seq] = os.path.join(date_folder,name)
+                    nimages = nimages + 1
+            if nimages>1:
+                return sun_images
+
+
+
+        if date_folder is None:
+            path_site = os.path.join(self.path_data,site)
+            path_year = os.path.join(path_site,date_here.strftime('%Y'))
+            path_month = os.path.join(path_year, date_here.strftime('%m'))
+            path_day = os.path.join(path_month, date_here.strftime('%d'))
+            self.create_if_not_exists(path_site)
+            self.create_if_not_exists(path_year)
+            self.create_if_not_exists(path_month)
+            self.create_if_not_exists(path_day)
+            date_folder = path_day
+
+        list_sequences = self.get_sequences_date(site, date_here)
+        if len(list_sequences) == 0:
+            print(f'[WARNING] No sequences found for date: {date_here}')
+            return
+
+
+        for seq in list_sequences:
+            print(f'[INFO] Checking sun picture in sequence: {seq}')
+            #seq_time =  dt.strptime(seq[3:], '%Y%m%dT%H%M%S').replace(tzinfo=pytz.UTC)
+            files_sun = self.get_sun_image_sequence(site, date_here, seq)
+            if len(files_sun)==1:
+                name_file = files_sun[0].split('/')[-1]
+                file_sun = os.path.join(date_folder,name_file)
+                if not os.path.exists(file_sun):
+                    self.transfer_file_ssh(files_sun[0],file_sun)
+                if os.path.exists(file_sun):
+                    sun_images[seq[3:]] = file_sun
+                else:
+                    sun_images[seq[3:]] = file_sun
+
+
+
+        return sun_images
 
     def get_files_date(self, site, date_here):
         self.files_dates = {}
@@ -138,6 +189,33 @@ class HYPERNETS_DAY():
                     name_l1 = file_l1.split('/')[-1]
                     print(f'[INFO] --> File {name_l1} was not found. Launching download...')
                     self.transfer_file_ssh(f'{ssh_path}/{name_l1}', file_l1)
+
+    def save_sun_images(self,output_file,sun_images):
+        from MDB_reader.PlotMultiple import PlotMultiple
+        pm = PlotMultiple()
+        nrow = len(sun_images)
+        ncol = len(sun_images[0])
+        xfigsize = 2.2 * ncol
+        yfigsize = 2.7 * nrow
+
+        pm.start_multiple_plot_advanced(nrow, ncol, xfigsize, yfigsize, 0, 0.15, True)
+        for irow in range(nrow):
+            for icol  in range(ncol):
+                file_img = sun_images[irow][icol]
+                if file_img is not None:
+                    name = file_img.split('/')[-1]
+                    title = name.split('_')[4]
+                else:
+                    title = 'Not available'
+                if file_img is not None:
+                    # pm.plot_image_title(file_img,index_row,index_col,title)
+                    pm.plot_image_hypernets(file_img, irow, icol, title)
+                else:
+                    pm.plot_blank_with_title(irow, icol, title)
+
+        print(f'[INFO] Saving sun plot to: {output_file}')
+        pm.save_fig(output_file)
+        pm.close_plot()
 
     def get_file_date_complete(self, site, date_here):
         folder_date = self.get_output_folder_date(site, date_here)
@@ -497,6 +575,13 @@ class HYPERNETS_DAY():
     def get_images_sequence(self, site, date_here, sequence_folder):
         ssh_path = self.get_ssh_path(site, date_here, sequence_folder)
         path_image = f'{ssh_path}/image'
+        cmd = f'{self.ssh_base} {self.url_base} ls {path_image}'
+        list_images = self.get_list_files_from_ls_cmd(cmd)
+        return list_images
+
+    def get_sun_image_sequence(self, site, date_here, sequence_folder):
+        ssh_path = self.get_ssh_path(site, date_here, sequence_folder)
+        path_image = f'{ssh_path}/image/*_0_0_*jpg'
         cmd = f'{self.ssh_base} {self.url_base} ls {path_image}'
         list_images = self.get_list_files_from_ls_cmd(cmd)
         return list_images

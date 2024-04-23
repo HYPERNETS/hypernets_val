@@ -79,11 +79,9 @@ def make_check(start_date, end_date, site, output_folder):
 def make_download(start_date, end_date, site, output_folder):
     ih = INSITU_HYPERNETS_DAY(None, None, args.verbose)
 
-
-
     date_download = start_date
     while date_download <= end_date:
-        sequence_folders = ih.get_sequences_day_ssh(site,date_download)
+        sequence_folders = ih.get_sequences_day_ssh(site, date_download)
         if len(sequence_folders) == 0:
             if args.verbose:
                 print(f'[WARNING] No sequences are available for site: {site} and date: {date_download}')
@@ -93,14 +91,8 @@ def make_download(start_date, end_date, site, output_folder):
 
         ih.find_ref = 'HYPERNETS_W_SITE_L1C_ALL*'
         files_download_l1 = ih.get_files_download(date_download, site)
-        # if files_download is None:
-        #     if args.verbose:
-        #         print(f'[WARNING] No files are available for site: {site} and date: {date_download}')
-        #     date_download = date_download + timedelta(hours=24)
-        #     continue
         if files_download_l1 is not None:
             files_download_all = files_download_l1
-
         ih.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
         files_download_l2 = ih.get_files_download(date_download, site)
         if files_download_l2 is not None:
@@ -133,14 +125,15 @@ def make_download(start_date, end_date, site, output_folder):
             print(f'[INFO] Files available for download: {len(files_download_all)}')
 
         ih.transfer_files_to_output_folder_via_ssh(files_download_all, output_folder_date)
-        if len(sequence_folders)>0:
-            save_sequence_list(sequence_folders,output_folder_date)
+        if len(sequence_folders) > 0:
+            save_sequence_list(sequence_folders, output_folder_date)
 
         date_download = date_download + timedelta(hours=24)
 
-def save_sequence_list(sequence_folders,output_folder_date):
-    file_out = os.path.join(output_folder_date,'sequence_list.txt')
-    f1 = open(file_out,'w')
+
+def save_sequence_list(sequence_folders, output_folder_date):
+    file_out = os.path.join(output_folder_date, 'sequence_list.txt')
+    f1 = open(file_out, 'w')
     started = True
     for seq in sequence_folders:
         if not started:
@@ -148,6 +141,8 @@ def save_sequence_list(sequence_folders,output_folder_date):
         f1.write(seq)
         started = False
     f1.close()
+
+
 def get_folder_new(output_folder_base, new_folder):
     if output_folder_base is None:
         return None
