@@ -212,6 +212,7 @@ class HYPERNETS_DAY():
                     self.transfer_file_ssh(f'{ssh_path}/{name_l1}', file_l1)
 
     def save_sun_images(self, output_file, sun_images,time_list):
+        import __init__
         from MDB_reader.PlotMultiple import PlotMultiple
         pm = PlotMultiple()
         nrow = len(sun_images)
