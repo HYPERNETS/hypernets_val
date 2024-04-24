@@ -2,8 +2,8 @@ from datetime import datetime as dt
 import os
 import subprocess
 
-import pytz
-from netCDF4 import Dataset
+# import pytz
+# from netCDF4 import Dataset
 from hypernets_day_file import HYPERNETS_DAY_FILE
 
 
@@ -102,7 +102,7 @@ class HYPERNETS_DAY():
                 except:
                     pass
 
-    def get_sun_images_date(self, site, date_here):
+    def get_sun_images_date(self, site, date_here,ndw):
         sun_images = {}
 
         date_folder = self.get_folder_date(site, date_here)
@@ -111,11 +111,11 @@ class HYPERNETS_DAY():
             for name in os.listdir(date_folder):
                 if name.find('_0_0') > 0 and name.endswith('.jpg'):
                     seq = f'{name.split("_")[4]}00'
-
                     sun_images[seq] = os.path.join(date_folder, name)
                     nimages = nimages + 1
-            if nimages > 1:
-                return sun_images
+
+        if ndw:
+            return sun_images
 
         if date_folder is None:
             path_site = os.path.join(self.path_data, site)
@@ -259,6 +259,8 @@ class HYPERNETS_DAY():
             return None
 
     def start_file_date_complete(self, site, date_here, overwrite):
+
+        from netCDF4 import Dataset
         file_date = self.get_file_date_complete(site, date_here)
         if file_date is None:
             print(f'[WARNING] Date folder for {site} and {date_here} is not avaiable. Skipping...')
@@ -372,6 +374,7 @@ class HYPERNETS_DAY():
 
     def set_sequence_data(self):
         print(f'[INFO] Set sequence reference data...')
+        import pytz
         seq_list = list(self.files_dates.keys())
         seq_list.sort()
         for idx in range(len(seq_list)):
@@ -392,6 +395,7 @@ class HYPERNETS_DAY():
             self.dataset_w.site = site
 
     def set_netcdf_data(self, level):
+        from netCDF4 import Dataset
         seq_list = list(self.files_dates.keys())
         seq_list.sort()
         for idx in range(len(seq_list)):
@@ -430,6 +434,7 @@ class HYPERNETS_DAY():
             dataset.close()
 
     def set_rgb_images_data(self):
+        import pytz
         seq_list = list(self.files_dates.keys())
         seq_list.sort()
         rgb_variables = {
@@ -471,6 +476,7 @@ class HYPERNETS_DAY():
         print(f'[INFO] Completed')
 
     def check_dimensions(self, seq):
+        from netCDF4 import Dataset
         file_l1 = self.files_dates[seq]['file_l1']
         if file_l1 is None:
             return None
@@ -484,6 +490,7 @@ class HYPERNETS_DAY():
         return dim_out
 
     def create_variables(self, level, seq):
+        from netCDF4 import Dataset
         if level == 1:
             file = self.files_dates[seq]['file_l1']
             prename = 'l1'

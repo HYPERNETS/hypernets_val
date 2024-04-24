@@ -1,15 +1,13 @@
 import os
-from netCDF4 import Dataset
 from datetime import datetime as dt
-import numpy as np
-#import __init__
-#import sys
-
-#code_home = os.path.dirname(os.path.dirname(__init__.__file__))
-#sys.path.append(code_home)
+# from netCDF4 import Dataset
+# import numpy as np
+import __init__
 from MDB_reader.PlotMultiple import PlotMultiple
 from COMMON import Class_Flags_OLCI
-
+#import sys
+#code_home = os.path.dirname(os.path.dirname(__init__.__file__))
+#sys.path.append(code_home)
 
 class HYPERNETS_DAY_FILE():
 
@@ -38,6 +36,8 @@ class HYPERNETS_DAY_FILE():
         self.flag_builder = None
 
     def get_sequences(self):
+        from netCDF4 import Dataset
+        import numpy as np
         sequences = []
         dataset = Dataset(self.file_nc)
         seq_var = dataset.variables['sequence_ref']
@@ -125,12 +125,16 @@ class HYPERNETS_DAY_FILE():
         return report_files
 
     def get_ref_wl_idx(self):
+        from netCDF4 import Dataset
+        import numpy as np
         dataset = Dataset(self.file_nc)
         wavelength = np.array(dataset.variables['wavelength'][:])
         self.ref_wl_idx = np.argmin(np.abs(wavelength - self.ref_wl))
         dataset.close()
 
     def reflectance_ref(self, apply_nosc):
+        from netCDF4 import Dataset
+        import numpy as np
         if self.ref_wl_idx == -1:
             self.get_ref_wl_idx()
         variable = 'l2_reflectance'
@@ -142,6 +146,8 @@ class HYPERNETS_DAY_FILE():
         return reflectance
 
     def reflectance_ref_l1(self, apply_nosc):
+        from netCDF4 import Dataset
+        import numpy as np
         if self.ref_wl_idx == -1:
             self.get_ref_wl_idx()
         variable = 'l1_reflectance'
@@ -153,6 +159,8 @@ class HYPERNETS_DAY_FILE():
         return reflectance
 
     def angle_rad_level1(self, flag):
+        from netCDF4 import Dataset
+        import numpy as np
         if flag == 'sza':
             variable = 'l1_solar_zenith_angle'
         elif flag == 'saa':
@@ -166,6 +174,8 @@ class HYPERNETS_DAY_FILE():
         return angle
 
     def angle_rad(self, flag):
+        from netCDF4 import Dataset
+        import numpy as np
         if flag == 'sza':
             variable = 'l2_solar_zenith_angle'
         elif flag == 'saa':
@@ -188,11 +198,15 @@ class HYPERNETS_DAY_FILE():
         return angle, angle_label
 
     def get_valid_flags(self):
+        from netCDF4 import Dataset
+        import numpy as np
         dataset = Dataset(self.file_nc)
         self.valid_sequences = np.array(dataset.variables['l2_quality_flag'][:])
         dataset.close()
 
     def get_flags_sequence(self):
+        from netCDF4 import Dataset
+        import numpy as np
         dataset = Dataset(self.file_nc)
         flag_value = np.uint64(dataset.variables['l2_quality_flag'][self.isequence])
         all_flag_values = [np.uint64(x) for x in dataset.variables['l2_quality_flag'].flag_masks.split(',')]
@@ -203,6 +217,7 @@ class HYPERNETS_DAY_FILE():
         return list
 
     def get_info_l2(self):
+        from netCDF4 import Dataset
         dataset = Dataset(self.file_nc)
         epsilon = dataset.variables['l2_epsilon'][self.isequence]
         rho = dataset.variables['l2_rhof'][self.isequence]
@@ -223,6 +238,8 @@ class HYPERNETS_DAY_FILE():
 
     # flag: name_variable, sky_irr_1, sky_irr_2, sky_rad_1, sky_rad_1, water_rad, sun
     def get_img_file(self, flag):
+        from netCDF4 import Dataset
+        import numpy as np
         if flag.startswith('pictures_'):
             name_var = flag
         else:
@@ -260,6 +277,8 @@ class HYPERNETS_DAY_FILE():
             self.path_images_date = folder_date
 
     def get_water_images(self, site, date_here, time_min, time_max, interval_minutes):
+        from netCDF4 import Dataset
+        import numpy as np
         if time_min is None:
             time_min = '0600'
         if time_max is None:
@@ -455,6 +474,7 @@ class HYPERNETS_DAY_FILE():
             os.remove(dir_img)
 
     def plot_angle(self, flag, ax_here):
+        import numpy as np
         angle_flag = flag.split('_')[0]
         apply_nosc = False
         if flag.endswith('_nosc'):
@@ -507,6 +527,8 @@ class HYPERNETS_DAY_FILE():
         ax_here.tick_params(axis='y', labelsize=10)
 
     def plot_spectra(self, flag, ax_here):
+        from netCDF4 import Dataset
+        import numpy as np
         info = {
             'irradiance': {
                 'ylabel': 'Ed',
@@ -565,6 +587,8 @@ class HYPERNETS_DAY_FILE():
                 print(f'[INFO] {flag}->{file_img}->{os.path.exists(file_img)}')
 
     def start_dataset_w(self, file_out):
+        from netCDF4 import Dataset
+
         dataset_w = Dataset(file_out, 'w', format='NETCDF4')
         dataset_r = Dataset(self.file_nc)
         # copy attributes
@@ -598,6 +622,8 @@ class HYPERNETS_DAY_FILE():
         return dataset_w
 
     def set_data_dataset_w(self, dataset_w, sindices, index_w):
+        from netCDF4 import Dataset
+
         dini = index_w
         dfin = index_w + len(sindices)
         dataset_r = Dataset(self.file_nc)
@@ -628,6 +654,8 @@ class HYPERNETS_DAY_FILE():
         return dataset_w
 
     def get_csv_col_names(self):
+        from netCDF4 import Dataset
+
         col_names = ['sequence_ref']
         dataset_r = Dataset(self.file_nc)
         for var in dataset_r.variables:
@@ -644,6 +672,8 @@ class HYPERNETS_DAY_FILE():
         return col_names
 
     def get_dataframe_lines(self, sindices, col_names):
+        from netCDF4 import Dataset
+        import numpy as np
         import pandas as pd
         if self.sequences is None:
             self.sequences = self.get_sequences()
@@ -686,11 +716,14 @@ class HYPERNETS_DAY_FILE():
             self.plot_spectra_plot_from_options(options_figure)
 
     def plot_angle_plot_from_options(self, options_figure):
+        from netCDF4 import Dataset
+        import numpy as np
         options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
         dataset = Dataset(self.file_nc)
         angle_variable = np.array(dataset.variables[options_figure['wl_variable']])
 
     def reduce_l1_dimensions(self, array):
+        import numpy as np
         if len(array.shape) == 3:  ##spectral variables
             nspectra_total = array.shape[2] * array.shape[0]
             new_shape = (nspectra_total, array.shape[1])
@@ -715,6 +748,7 @@ class HYPERNETS_DAY_FILE():
         return sequence_here_total, sequence_indices_total
 
     def multiply_array_by_scan(self, array, nseries, nscan):
+        import numpy as np
         if array.shape[0] != nseries:
             return None
         ntotal = nseries * nscan
@@ -727,6 +761,7 @@ class HYPERNETS_DAY_FILE():
 
     ##spectra without _fILLValue
     def get_spectra_stats(self, spectra_good):
+        import numpy as np
         import statistics as st
 
         spectra_avg = np.mean(spectra_good, axis=0)
@@ -763,6 +798,8 @@ class HYPERNETS_DAY_FILE():
 
 
     def plot_spectra_plot_from_options(self, options_figure):
+        from netCDF4 import Dataset
+        import numpy as np
         plot_spectra = True
         if options_figure['plot_spectra'][0].lower() == 'none':
             plot_spectra = False
@@ -949,6 +986,7 @@ class HYPERNETS_DAY_FILE():
         return str_legend
 
     def get_flag_list(self, values, allValues, allFlags):
+        import numpy as np
         flag_list = []
         for val in values:
             if val == -1:
@@ -961,6 +999,8 @@ class HYPERNETS_DAY_FILE():
         return flag_list
 
     def get_gs_array(self, options_figure, by, type):
+        from netCDF4 import Dataset
+        import numpy as np
         dataset = Dataset(self.file_nc)
         if type == 'float':
             array_flag = np.array(dataset.variables[by])
@@ -980,6 +1020,8 @@ class HYPERNETS_DAY_FILE():
         return array_flag, all_flag_values, all_flag_meanings
 
     def check_gs_options_impl(self, options_figure, by, type, values):
+        from netCDF4 import Dataset
+        import numpy as np
         dataset = Dataset(self.file_nc)
         var_group_name = options_figure[by]
         if options_figure[type] == 'flag':

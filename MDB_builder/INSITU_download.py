@@ -15,6 +15,7 @@ parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD 
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-check', "--check_mode", help="Check mode.", action="store_true")
 
+
 args = parser.parse_args()
 
 
@@ -74,6 +75,7 @@ def make_check(start_date, end_date, site, output_folder):
         date_download = date_download + timedelta(hours=24)
 
     fout.close()
+
 
 
 def make_download(start_date, end_date, site, output_folder):

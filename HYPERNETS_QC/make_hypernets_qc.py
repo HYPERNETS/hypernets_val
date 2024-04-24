@@ -4,15 +4,12 @@ from datetime import datetime as dt
 from datetime import timedelta
 import argparse
 
-import numpy as np
-import pandas as pd
-import __init__
-
 from hypernets_day import HYPERNETS_DAY
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
-                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV','PLOT','SUNPLOTS','SUNEMAIL'],
+                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
+                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNEMAIL'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -235,7 +232,7 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     # red_array = np.array(img.getdata(0)).reshape(img.size).astype(np.uint8)
 
 
-def plot_from_options(input_path,config_file):
+def plot_from_options(input_path, config_file):
     if not os.path.exists(config_file):
         print(f'[ERROR] Plot configuration file: {config_file} does not exist. ')
         return
@@ -246,23 +243,20 @@ def plot_from_options(input_path,config_file):
     from hypernets_day_file import HYPERNETS_DAY_FILE
     options = configparser.ConfigParser()
     options.read(config_file)
-    hfile = HYPERNETS_DAY_FILE(input_path,None)
+    hfile = HYPERNETS_DAY_FILE(input_path, None)
     from MDB_reader.PlotOptions import PlotOptions
     poptions = PlotOptions(options, None)
     poptions.set_global_options()
 
-
     from MDB_reader.FlagBuilder import FlagBuilder
-    fbuilder = FlagBuilder(input_path,None,options)
+    fbuilder = FlagBuilder(input_path, None, options)
     hfile.flag_builder = fbuilder
-
 
     # print('************************************************************************')
     # print(virtual_flags_options)
     # for virtual_flag in virtual_flags_options:
     #     array, flag_names, flag_values = fbuilder.create_flag_array_ranges_v2(virtual_flags_options[virtual_flag])
     #     print(array.shape)
-
 
     list_figures = poptions.get_list_figures()
     # print(list_figures)
@@ -279,6 +273,7 @@ def make_flagged_nc_from_csv(config_file):
 
     import configparser
     from hypernets_day_file import HYPERNETS_DAY_FILE
+    import pandas as pd
     options = configparser.ConfigParser()
     options.read(config_file)
     if not options.has_section('basic'):
@@ -314,8 +309,6 @@ def make_flagged_nc_from_csv(config_file):
     file_nc = os.path.join(output_path, f'CSV_NC_{name_csv}.nc')
 
     df = pd.read_csv(input_csv, sep=';')
-
-
 
     file_nc_prev = ''
     dataset_w = None
@@ -381,10 +374,11 @@ def get_flags(options):
 
 
 def get_flag_array(indices, df, flags, flag):
-    print('Columna: ',df.columns)
-    print('Indices: ',indices)
+    import numpy as np
+    print('Columna: ', df.columns)
+    print('Indices: ', indices)
     print(type(indices))
-    print('Flag',flag)
+    print('Flag', flag)
     data_flag = df.loc[indices, flag]
     try:
         data_flag_array = np.array(data_flag).astype(np.int64)
@@ -402,6 +396,7 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
     if args.verbose:
         print(f'[INFO] Started summary files with options: {options}')
 
+    import pandas as pd
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
     hday = HYPERNETS_DAY(None, input_path)
@@ -469,9 +464,28 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
         dataset_w.close()
 
 
-def make_sun_plots(input_path,output_path,site,start_date,end_date):
+def make_sun_download(input_path, site, start_date, end_date):
+    if args.verbose:
+        print(f'[INFO] Downloading sun images')
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, input_path)
+
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+            hday.get_sun_images_date(site, work_date, False)
+
+        work_date = work_date + timedelta(hours=interval)
+
+
+def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
     if args.verbose:
         print(f'[INFO] Started creating files')
+        print(f'[INFO] No download set to: {ndw}')
     interval = 24
     if args.ndays_interval:
         interval = 24 * int(args.ndays_interval)
@@ -480,42 +494,42 @@ def make_sun_plots(input_path,output_path,site,start_date,end_date):
     ndays = 5
     hours = ['11:00', '12:00', '13:00', '14:00', '15:00']
     nhours = len(hours)
-    sun_images_list = [['']*ndays]*nhours
-    sun_images_time_list = [['']*ndays]*nhours
+    sun_images_list = [[''] * ndays] * nhours
+    sun_images_time_list = [[''] * ndays] * nhours
 
-    max_time_diff = 30*60 ##30 minutes
+    max_time_diff = 30 * 60  ##30 minutes
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
             print(f'[INFO] Date: {work_date}')
 
         for iday in range(ndays):
-            work_date_here = work_date-timedelta(days=iday)
+            work_date_here = work_date - timedelta(days=iday)
             print(f'[INFO] --> {work_date_here}')
+            times_tmp = []
             for ihour in range(nhours):
-                sun_images_time_list[iday][ihour] = f'{work_date_here.strftime("%Y%m%d")}T{hours[ihour].replace(":","")}'
-
-            sun_images = hday.get_sun_images_date(site,work_date_here)
-            sun_images_list_day = [None]*nhours
-            sun_images_time_diffs = [max_time_diff]*nhours
-            sun_images_time_refs = [dt.strptime(f'{work_date_here.strftime("%Y-%m-%d")} {x}','%Y-%m-%d %H:%M') for x in hours]
+                times_tmp.append(f'{work_date_here.strftime("%Y%m%d")}T{hours[ihour].replace(":", "")}')
+            sun_images_time_list[iday] = times_tmp
+            sun_images = hday.get_sun_images_date(site, work_date_here, ndw)
+            sun_images_list_day = [None] * nhours
+            sun_images_time_diffs = [max_time_diff] * nhours
+            sun_images_time_refs = [dt.strptime(f'{work_date_here.strftime("%Y-%m-%d")} {x}', '%Y-%m-%d %H:%M') for x in
+                                    hours]
             for sun_image_time_str in sun_images:
-                sun_image_time = dt.strptime(sun_image_time_str,'%Y%m%dT%H%M%S')
+                sun_image_time = dt.strptime(sun_image_time_str, '%Y%m%dT%H%M%S')
                 for idx in range(nhours):
-                    diff_here = abs((sun_image_time-sun_images_time_refs[idx]).total_seconds())
-                    if diff_here<=sun_images_time_diffs[idx]:
+                    diff_here = abs((sun_image_time - sun_images_time_refs[idx]).total_seconds())
+                    if diff_here <= sun_images_time_diffs[idx]:
                         sun_images_time_diffs[idx] = diff_here
                         sun_images_list_day[idx] = sun_images[sun_image_time_str]
 
             sun_images_list[iday] = sun_images_list_day
 
-        dir_out = hday.get_output_folder_date(site,work_date)
+        dir_out = hday.get_output_folder_date(site, work_date)
 
-        file_out = os.path.join(dir_out,f'SunImages_{work_date.strftime("%Y%m%d")}.png')
-
-        hday.save_sun_images(file_out,sun_images_list,sun_images_time_list)
+        file_out = os.path.join(dir_out, f'SunImages_{work_date.strftime("%Y%m%d")}.png')
+        hday.save_sun_images(file_out, sun_images_list, sun_images_time_list)
         work_date = work_date + timedelta(hours=interval)
-
 
 
 def get_start_and_end_dates():
@@ -556,22 +570,24 @@ def get_start_and_end_times():
 
     return start_time, end_time
 
-def prepare_sun_plot_email(input_path,output_path,site,start_date):
-    output_path_site = os.path.join(output_path,site)
-    file_mail_text = os.path.join(output_path_site,'SunMail.mail')
+
+def prepare_sun_plot_email(input_path, output_path, site, start_date):
+    output_path_site = os.path.join(output_path, site)
+    file_mail_text = os.path.join(output_path_site, 'SunMail.mail')
     lines = [f'SUN PICTURES CHECK {start_date.strftime("%Y-%m-%d")}']
-    ini_date = start_date-timedelta(days=5)
+    ini_date = start_date - timedelta(days=5)
     lines.append(f'Start date for checking: {ini_date.strftime("%Y-%m-%d")}')
     lines.append(f'End date for checking: {start_date.strftime("%Y-%m-%d")}')
-    path_sun = os.path.join(output_path,site,start_date.strftime('%Y'),start_date.strftime('%m'),start_date.strftime('%d'))
-    path_file = os.path.join(path_sun,f'SunImages_{start_date.strftime("%Y%m%d")}.png')
+    path_sun = os.path.join(output_path, site, start_date.strftime('%Y'), start_date.strftime('%m'),
+                            start_date.strftime('%d'))
+    path_file = os.path.join(path_sun, f'SunImages_{start_date.strftime("%Y%m%d")}.png')
     if os.path.exists(path_file):
         lines.append(f'Image file path: {path_file}')
     else:
         lines.append(f'Error: No image file was found for date: {start_date.strftime("%Y-%m-%d")}')
-    fout = open(file_mail_text,'w')
+    fout = open(file_mail_text, 'w')
     fout.write(lines[0])
-    for idx in range(1,len(lines)):
+    for idx in range(1, len(lines)):
         fout.write('\n')
         fout.write(lines[idx])
     fout.close()
@@ -579,6 +595,7 @@ def prepare_sun_plot_email(input_path,output_path,site,start_date):
         print(path_file)
     else:
         print('NONE')
+
 
 def main():
     if args.verbose:
@@ -626,13 +643,16 @@ def main():
         make_flagged_nc_from_csv(args.config_path)
 
     if args.mode == 'PLOT':
-        plot_from_options(input_path,args.config_path)
+        plot_from_options(input_path, args.config_path)
+
+    if args.mode == 'SUNDOWNLOAD':
+        make_sun_download(input_path, site, start_date, end_date)
 
     if args.mode == 'SUNPLOTS':
-        make_sun_plots(input_path,output_path,site,start_date,end_date)
+        make_sun_plots(input_path, output_path, site, start_date, end_date, args.nodownload)
 
     if args.mode == 'SUNEMAIL':
-        prepare_sun_plot_email(input_path,output_path,site,start_date)
+        prepare_sun_plot_email(input_path, output_path, site, start_date)
 
 
 # %%
