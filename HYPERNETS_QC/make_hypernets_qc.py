@@ -9,7 +9,7 @@ from hypernets_day import HYPERNETS_DAY
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
-                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNEMAIL'],
+                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -651,7 +651,7 @@ def main():
     if args.mode == 'SUNPLOTS':
         make_sun_plots(input_path, output_path, site, start_date, end_date, args.nodownload)
 
-    if args.mode == 'SUNEMAIL':
+    if args.mode == 'SUNMAIL':
         prepare_sun_plot_email(input_path, output_path, site, start_date)
 
 
