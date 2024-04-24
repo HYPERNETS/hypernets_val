@@ -12,7 +12,7 @@ from hypernets_day import HYPERNETS_DAY
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
-                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV','PLOT','SUNPLOTS'],
+                    choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV','PLOT','SUNPLOTS','SUNEMAIL'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -481,6 +481,7 @@ def make_sun_plots(input_path,output_path,site,start_date,end_date):
     hours = ['11:00', '12:00', '13:00', '14:00', '15:00']
     nhours = len(hours)
     sun_images_list = [['']*ndays]*nhours
+    sun_images_time_list = [['']*ndays]*nhours
 
     max_time_diff = 30*60 ##30 minutes
     while work_date <= end_date:
@@ -491,6 +492,8 @@ def make_sun_plots(input_path,output_path,site,start_date,end_date):
         for iday in range(ndays):
             work_date_here = work_date-timedelta(days=iday)
             print(f'[INFO] --> {work_date_here}')
+            for ihour in range(nhours):
+                sun_images_time_list[iday][ihour] = f'{work_date_here.strftime("%Y%m%d")}T{hours[ihour].replace(":","")}'
 
             sun_images = hday.get_sun_images_date(site,work_date_here)
             sun_images_list_day = [None]*nhours
@@ -510,7 +513,7 @@ def make_sun_plots(input_path,output_path,site,start_date,end_date):
 
         file_out = os.path.join(dir_out,f'SunImages_{work_date.strftime("%Y%m%d")}.png')
 
-        hday.save_sun_images(file_out,sun_images_list)
+        hday.save_sun_images(file_out,sun_images_list,sun_images_time_list)
         work_date = work_date + timedelta(hours=interval)
 
 
@@ -553,9 +556,33 @@ def get_start_and_end_times():
 
     return start_time, end_time
 
+def prepare_sun_plot_email(input_path,output_path,site,start_date):
+    output_path_site = os.path.join(output_path,site)
+    file_mail_text = os.path.join(output_path_site,'SunMail.mail')
+    lines = [f'SUN PICTURES CHECK {start_date.strftime("%Y-%m-%d")}']
+    ini_date = start_date-timedelta(days=5)
+    lines.append(f'Start date for checking: {ini_date.strftime("%Y-%m-%d")}')
+    lines.append(f'End date for checking: {start_date.strftime("%Y-%m-%d")}')
+    path_sun = os.path.join(output_path,site,start_date.strftime('%Y'),start_date.strftime('%m'),start_date.strftime('%d'))
+    path_file = os.path.join(path_sun,f'SunImages_{start_date.strftime("%Y%m%d")}.png')
+    if os.path.exists(path_file):
+        lines.append(f'Image file path: {path_file}')
+    else:
+        lines.append(f'Error: No image file was found for date: {start_date.strftime("%Y-%m-%d")}')
+    fout = open(file_mail_text,'w')
+    fout.write(lines[0])
+    for idx in range(1,len(lines)):
+        fout.write('\n')
+        fout.write(lines[idx])
+    fout.close()
+    if os.path.exists(path_file):
+        print(path_file)
+    else:
+        print('NONE')
 
 def main():
-    print('STARTED')
+    if args.verbose:
+        print('STARTED')
     # b = test()
     # if b:
     #     return
@@ -603,6 +630,10 @@ def main():
 
     if args.mode == 'SUNPLOTS':
         make_sun_plots(input_path,output_path,site,start_date,end_date)
+
+    if args.mode == 'SUNEMAIL':
+        prepare_sun_plot_email(input_path,output_path,site,start_date)
+
 
 # %%
 if __name__ == '__main__':

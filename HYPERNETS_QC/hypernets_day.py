@@ -9,7 +9,7 @@ from hypernets_day_file import HYPERNETS_DAY_FILE
 
 class HYPERNETS_DAY():
 
-    def __init__(self, path_data,path_output):
+    def __init__(self, path_data, path_output):
         if path_data is not None:
             self.path_data = path_data
         else:
@@ -22,27 +22,30 @@ class HYPERNETS_DAY():
         print(f'[INFO] ->Input path data: {self.path_data}')
         print(f'[INFO] ->Output path data: {self.path_output}')
 
-
         rsync_user = 'hypstar'
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
+        self.url_base_npl = f'cnr@hypernetssvr1.npl.co.uk'
         self.base_folder = '/waterhypernet/hypstar/processed_v2/'
+        self.base_folder_l2_npl = '/home/cnr/'
+        self.base_folder_l2_rbins = '/home/hypstar/'
+
         self.ssh_base = 'ssh -X -Y -p 9022'
+        self.ssh_base_npl = 'ssh'
         self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'
         self.rsync_url = f'rsync -a -e \'ssh -p 9022\' {self.url_base}'
+        self.rsync_url_npl = f'rsync -a -e \'ssh\' {self.url_base_npl}'
 
         self.n_series = 50
         self.files_dates = {}
         self.dataset_w = None
 
-
-
-    def get_files_date_nodownload(self,site,date_here):
+    def get_files_date_nodownload(self, site, date_here):
         self.files_dates = {}
         date_folder = self.get_folder_date(site, date_here)
         if date_folder is None:
             return
-        list_sequences = self.get_sequences_date_from_file_list(site,date_here)
-        if len(list_sequences)==0:
+        list_sequences = self.get_sequences_date_from_file_list(site, date_here)
+        if len(list_sequences) == 0:
             print(f'[WARNING] No sequences found for date: {date_here}')
             return
         list_seq_refs = [x[3:-2] for x in list_sequences]
@@ -78,7 +81,7 @@ class HYPERNETS_DAY():
                         self.files_dates[sequence_ref]['file_l1'] = os.path.join(date_folder, name)
                 except:
                     pass
-            if name.find('IMG')>0 and name.endswith('jpg'):
+            if name.find('IMG') > 0 and name.endswith('jpg'):
                 sequence_ref = name.split('_')[4]
                 try:
                     list_seq_refs.index(sequence_ref)
@@ -86,40 +89,37 @@ class HYPERNETS_DAY():
                         self.files_dates[sequence_ref] = {
                             'file_l2': None,
                             'file_l1': None,
-                            'file_images': [os.path.join(date_folder,name)],
+                            'file_images': [os.path.join(date_folder, name)],
                             'valid': True
                         }
                     else:
                         file_images = self.files_dates[sequence_ref]['file_images']
                         if file_images is None:
-                            file_images = [os.path.join(date_folder,name)]
+                            file_images = [os.path.join(date_folder, name)]
                         else:
-                            file_images.append(os.path.join(date_folder,name))
+                            file_images.append(os.path.join(date_folder, name))
                         self.files_dates[sequence_ref]['file_images'] = file_images
                 except:
                     pass
 
-
-    def get_sun_images_date(self,site,date_here):
+    def get_sun_images_date(self, site, date_here):
         sun_images = {}
 
         date_folder = self.get_folder_date(site, date_here)
         if date_folder is not None:
             nimages = 0
             for name in os.listdir(date_folder):
-                if name.find('_0_0')>0 and name.endswith('.jpg'):
+                if name.find('_0_0') > 0 and name.endswith('.jpg'):
                     seq = f'{name.split("_")[4]}00'
 
-                    sun_images[seq] = os.path.join(date_folder,name)
+                    sun_images[seq] = os.path.join(date_folder, name)
                     nimages = nimages + 1
-            if nimages>1:
+            if nimages > 1:
                 return sun_images
 
-
-
         if date_folder is None:
-            path_site = os.path.join(self.path_data,site)
-            path_year = os.path.join(path_site,date_here.strftime('%Y'))
+            path_site = os.path.join(self.path_data, site)
+            path_year = os.path.join(path_site, date_here.strftime('%Y'))
             path_month = os.path.join(path_year, date_here.strftime('%m'))
             path_day = os.path.join(path_month, date_here.strftime('%d'))
             self.create_if_not_exists(path_site)
@@ -128,29 +128,50 @@ class HYPERNETS_DAY():
             self.create_if_not_exists(path_day)
             date_folder = path_day
 
-        list_sequences = self.get_sequences_date(site, date_here)
+        if site == 'JSIT':
+            list_sequences = self.get_sequences_date_l2(site, date_here)
+        else:
+            list_sequences = self.get_sequences_date(site, date_here)
+            if len(list_sequences) == 0:
+                list_sequences = self.get_sequences_date_l2(site, date_here)
+
         if len(list_sequences) == 0:
             print(f'[WARNING] No sequences found for date: {date_here}')
             return
 
-
         for seq in list_sequences:
             print(f'[INFO] Checking sun picture in sequence: {seq}')
-            #seq_time =  dt.strptime(seq[3:], '%Y%m%dT%H%M%S').replace(tzinfo=pytz.UTC)
-            files_sun = self.get_sun_image_sequence(site, date_here, seq)
-            if len(files_sun)==1:
+            # seq_time =  dt.strptime(seq[3:], '%Y%m%dT%H%M%S').replace(tzinfo=pytz.UTC)
+            files_sun = self.get_sun_image_sequence(site, seq)
+
+            if len(files_sun) == 1:
                 name_file = files_sun[0].split('/')[-1]
-                file_sun = os.path.join(date_folder,name_file)
+                file_sun = os.path.join(date_folder, name_file)
                 if not os.path.exists(file_sun):
-                    self.transfer_file_ssh(files_sun[0],file_sun)
+                    if site=='JSIT':
+                        self.transfer_file_ssh_npl(files_sun[0],file_sun)
+                    else:
+                        self.transfer_file_ssh(files_sun[0], file_sun)
                 if os.path.exists(file_sun):
-                    sun_images[seq[3:]] = file_sun
+                    name_new = self.get_name_new_file_sun(file_sun,site,seq)
+                    file_sun_new = os.path.join(date_folder,name_new)
+                    os.rename(file_sun,file_sun_new)
+                    sun_images[seq[3:]] = file_sun_new
                 else:
-                    sun_images[seq[3:]] = file_sun
-
-
+                    sun_images[seq[3:]] = None
 
         return sun_images
+
+    def get_name_new_file_sun(self,file_img,site,seq):
+        type = 'W'
+        picture = '016'
+        if site=='JSIT':
+            type = 'L'
+            picture = '090'
+        date_img =  dt.fromtimestamp(os.path.getmtime(file_img))
+        date_img_str = date_img.strftime('%Y%m%dT%H%M')
+        name_new = f'HYPTERNETS_{type}_{site}_IMG_{seq[3:-2]}_{date_img_str}_{picture}_0_0_v2.0.jpg'
+        return name_new
 
     def get_files_date(self, site, date_here):
         self.files_dates = {}
@@ -159,7 +180,7 @@ class HYPERNETS_DAY():
             return
 
         list_sequences = self.get_sequences_date(site, date_here)
-        if len(list_sequences)==0:
+        if len(list_sequences) == 0:
             print(f'[WARNING] No sequences found for date: {date_here}')
             return
 
@@ -190,7 +211,7 @@ class HYPERNETS_DAY():
                     print(f'[INFO] --> File {name_l1} was not found. Launching download...')
                     self.transfer_file_ssh(f'{ssh_path}/{name_l1}', file_l1)
 
-    def save_sun_images(self,output_file,sun_images):
+    def save_sun_images(self, output_file, sun_images,time_list):
         from MDB_reader.PlotMultiple import PlotMultiple
         pm = PlotMultiple()
         nrow = len(sun_images)
@@ -198,15 +219,17 @@ class HYPERNETS_DAY():
         xfigsize = 2.2 * ncol
         yfigsize = 2.7 * nrow
 
+
+
         pm.start_multiple_plot_advanced(nrow, ncol, xfigsize, yfigsize, 0, 0.15, True)
         for irow in range(nrow):
-            for icol  in range(ncol):
+            for icol in range(ncol):
                 file_img = sun_images[irow][icol]
                 if file_img is not None:
                     name = file_img.split('/')[-1]
                     title = name.split('_')[4]
                 else:
-                    title = 'Not available'
+                    title = time_list[irow][icol]
                 if file_img is not None:
                     # pm.plot_image_title(file_img,index_row,index_col,title)
                     pm.plot_image_hypernets(file_img, irow, icol, title)
@@ -231,7 +254,7 @@ class HYPERNETS_DAY():
         if file_date is None:
             return None
         if os.path.exists(file_date):
-            return HYPERNETS_DAY_FILE(file_date,self.path_data)
+            return HYPERNETS_DAY_FILE(file_date, self.path_data)
         else:
             return None
 
@@ -261,7 +284,6 @@ class HYPERNETS_DAY():
                 nseq_valid = nseq_valid + 1
             else:
                 self.files_dates[seq]['valid'] = False
-
 
         if dims is None:
             print(f'[WARNING] L1 files are not available for this date')
@@ -411,12 +433,12 @@ class HYPERNETS_DAY():
         seq_list = list(self.files_dates.keys())
         seq_list.sort()
         rgb_variables = {
-            '003': {'name_var':'pictures_sky_irr_1','check_at':False},
-            '006': {'name_var':'pictures_sky_rad_1','check_at':False},
-            '009': {'name_var':'pictures_water_rad','check_at':False},
-            '012': {'name_var':'pictures_sky_rad_2','check_at':False},
-            '015': {'name_var':'pictures_sky_irr_2','check_at':False},
-            '016': {'name_var':'pictures_sun','check_at':False}
+            '003': {'name_var': 'pictures_sky_irr_1', 'check_at': False},
+            '006': {'name_var': 'pictures_sky_rad_1', 'check_at': False},
+            '009': {'name_var': 'pictures_water_rad', 'check_at': False},
+            '012': {'name_var': 'pictures_sky_rad_2', 'check_at': False},
+            '015': {'name_var': 'pictures_sky_irr_2', 'check_at': False},
+            '016': {'name_var': 'pictures_sun', 'check_at': False}
         }
         for idx in range(len(seq_list)):
             seq = seq_list[idx]
@@ -433,7 +455,6 @@ class HYPERNETS_DAY():
                     continue
                 var_name = rgb_variables[ref]['name_var']
                 variable = self.dataset_w.variables[var_name]
-
 
                 time_here = dt.strptime(name_s[5], '%Y%m%dT%H%M').replace(tzinfo=pytz.UTC)
                 time_stamp = float(time_here.timestamp())
@@ -505,6 +526,13 @@ class HYPERNETS_DAY():
         if err:
             print(err)
 
+    def transfer_file_ssh_npl(self, input_path, output_path):
+        cmd = f'{self.rsync_url_npl}:{input_path} {output_path}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(err)
+
     def get_sequence_folder_from_list(self, list_sequences, prefix):
         sequence = None
         for seq in list_sequences:
@@ -520,7 +548,7 @@ class HYPERNETS_DAY():
         else:
             return None
 
-    def get_output_folder_date(self,site, date_here):
+    def get_output_folder_date(self, site, date_here):
         folder_site = os.path.join(self.path_output, site)
         folder_year = os.path.join(folder_site, date_here.strftime('%Y'))
         folder_month = os.path.join(folder_year, date_here.strftime('%m'))
@@ -535,13 +563,12 @@ class HYPERNETS_DAY():
         else:
             return None
 
-    def create_if_not_exists(self,folder):
+    def create_if_not_exists(self, folder):
         if not os.path.exists(folder):
             try:
                 os.mkdir(folder)
             except:
                 pass
-
 
     def get_ssh_path(self, site, date_here, sequence_folder):
         year_str = date_here.strftime('%Y')
@@ -552,25 +579,48 @@ class HYPERNETS_DAY():
             path = f'{path}/{sequence_folder}'
         return path
 
+    def get_ssh_path_l2(self, site, sequence_folder):
+        base_folder_l2 = self.base_folder_l2_rbins
+        if site == 'JSIT':
+            base_folder_l2 = self.base_folder_l2_npl
+        path = f'{base_folder_l2}{site}/DATA/{sequence_folder}'
+        return path
+
     def get_sequences_date(self, site, date_here):
         ssh_path = self.get_ssh_path(site, date_here, None)
         cmd = f'{self.ssh_base} {self.url_base} ls {ssh_path}'
         list_sequences = self.get_list_files_from_ls_cmd(cmd)
         return list_sequences
 
+    def get_sequences_date_l2(self, site, date_here):
+        base_folder_l2 = self.base_folder_l2_rbins
+        url_base = self.url_base
+        ssh_base = self.ssh_base
+        if site == 'JSIT':
+            base_folder_l2 = self.base_folder_l2_npl
+            url_base = self.url_base_npl
+            ssh_base = self.ssh_base_npl
+        path_search = f'{base_folder_l2}{site}/DATA/SEQ{date_here.strftime("%Y%m%d")}*'
+
+        cmd = f'{ssh_base} {url_base} ls -d {path_search}'
+
+        list_sequences = self.get_list_files_from_ls_cmd(cmd)
+        list_sequences = [x.split('/')[-1] for x in list_sequences]
+
+        return list_sequences
+
     def get_sequences_date_from_file_list(self, site, date_here):
-        folder_date = self.get_folder_date(site,date_here)
-        file_list = os.path.join(folder_date,'sequence_list.txt')
+        folder_date = self.get_folder_date(site, date_here)
+        file_list = os.path.join(folder_date, 'sequence_list.txt')
         list_sequences = []
         if os.path.exists(file_list):
-            f1 = open(file_list,'r')
+            f1 = open(file_list, 'r')
             for line in f1:
-                if len(line)>0:
+                if len(line) > 0:
                     list_sequences.append(line.strip())
             f1.close()
             list_sequences.sort()
         return list_sequences
-
 
     def get_images_sequence(self, site, date_here, sequence_folder):
         ssh_path = self.get_ssh_path(site, date_here, sequence_folder)
@@ -579,10 +629,18 @@ class HYPERNETS_DAY():
         list_images = self.get_list_files_from_ls_cmd(cmd)
         return list_images
 
-    def get_sun_image_sequence(self, site, date_here, sequence_folder):
-        ssh_path = self.get_ssh_path(site, date_here, sequence_folder)
-        path_image = f'{ssh_path}/image/*_0_0_*jpg'
-        cmd = f'{self.ssh_base} {self.url_base} ls {path_image}'
+    def get_sun_image_sequence(self, site, sequence_folder):
+        url_base = self.url_base
+        ssh_base = self.ssh_base
+        if site == 'JSIT':
+            url_base = self.url_base_npl
+            ssh_base = self.ssh_base_npl
+        ssh_path = self.get_ssh_path_l2(site, sequence_folder)
+
+        path_image = f'{ssh_path}/RADIOMETER/*_0000_0_0000.jpg'
+
+        cmd = f'{ssh_base} {url_base} ls {path_image}'
+
         list_images = self.get_list_files_from_ls_cmd(cmd)
         return list_images
 
