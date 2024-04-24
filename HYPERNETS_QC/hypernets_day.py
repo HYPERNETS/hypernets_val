@@ -4,7 +4,7 @@ import subprocess
 
 # import pytz
 # from netCDF4 import Dataset
-from hypernets_day_file import HYPERNETS_DAY_FILE
+
 
 
 class HYPERNETS_DAY():
@@ -250,6 +250,7 @@ class HYPERNETS_DAY():
         return file_date
 
     def get_hypernets_day_file(self, site, date_here):
+        from hypernets_day_file import HYPERNETS_DAY_FILE
         file_date = self.get_file_date_complete(site, date_here)
         if file_date is None:
             return None
