@@ -1696,18 +1696,19 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
         folder_cmd = 'OLCI'
         if namefile.find('OLCI')<0:
             folder_cmd = 'MSI'
-        ##DONWLOAD
-        cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/{folder_cmd}/{namefile} -O {file}'
-        if args.verbose:
-            print(f'[INFO] Trying download with cmd:')
-            print(f'[INFO] {cmd}')
+        ##DONWLOAD CERTO SOURCES
+        if namefile.find('CERTO')>0:
+            cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/{folder_cmd}/{namefile} -O {file}'
+            if args.verbose:
+                print(f'[INFO] Trying download with cmd:')
+                print(f'[INFO] {cmd}')
 
-        proc = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-        try:
-            outs, errs = proc.communicate(timeout=1800)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            outs, errs = proc.communicate()
+            proc = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            try:
+                outs, errs = proc.communicate(timeout=1800)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                outs, errs = proc.communicate()
 
     if os.path.exists(file) and os.stat(file).st_size==0:
         os.remove(file)
