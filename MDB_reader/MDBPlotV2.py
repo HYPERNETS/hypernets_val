@@ -1203,6 +1203,7 @@ class MDBPlot:
                 if options['groupType'] == 'float':
                     for g in groupValues:
                         str_legend.append(f'{g:.2f}')
+
                 if options['groupType'] == 'flag':
                     flag_name = options['groupBy']
                     str_legend = self.get_flag_list(groupValues, options[flag_name]['flag_values'],
@@ -1259,9 +1260,8 @@ class MDBPlot:
                 xhere = self.xdata[self.groupdata == g]
                 yhere = self.ydata[self.groupdata == g]
 
-                # xhere[xhere<0]=0
-                # yhere[yhere<0]=0
-                # None, None, color, 'gray', 1.5
+
+
 
                 if len(markers) == ngroup:
                     marker = markers[idx]
@@ -1309,9 +1309,7 @@ class MDBPlot:
                     idx = z.argsort()
                     xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
                     plot.set_cmap('jet')
-
-                    plot.plot_data(xhere, yhere, marker, markersize, z, edgecolor, linewidth)
-
+                    plot.plot_data(xhere, yhere, marker, markersize, z, edgecolor, 0)
                 except:
                     plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
 
@@ -1412,6 +1410,15 @@ class MDBPlot:
                     for stat in stat_list:
                         if len(str0) > 0:
                             str0 = f'{str0}\n'
+
+                        if stat == 'EQUATION':
+                            slope = self.valid_stats['slope']
+                            offset = self.valid_stats['intercept']
+                            sign = '+'
+                            if offset < 0:
+                                sign = '-'
+                                offset = offset *(-1)
+                            str0 = f'{str0}y= {slope:.2f} x {sign} {offset:.2f}'
                         if stat == 'N':
                             val = self.valid_stats[stat]
                             str0 = f'{str0}N={val}'
@@ -1421,7 +1428,6 @@ class MDBPlot:
                                 nwl = np.unique(np.array(self.mrfile.variables['mu_wavelength'])).shape[0]
                                 val = val / nwl
                             str0 = f'{str0}N={val:.0f}'
-
                         if stat == 'NMU':
                             if ngroupReal == 1:
                                 val = self.valid_stats[stat]
@@ -1442,7 +1448,6 @@ class MDBPlot:
                                     for idx in range(1, len(valadded)):
                                         iref = idx + 1
                                         str0 = f'{str0}\nN({iref})={val:.0f}'
-
                         if stat == 'r2':
                             val = self.valid_stats['DETER(r2)']
                             str0 = f'{str0}R\u00b2={val:.2f}'

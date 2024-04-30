@@ -194,7 +194,7 @@ global_options = {
     }
 }
 
-type_list = ['scatterplot','statswlplot','spectraplot','multipleplot','flagplot']
+type_list = ['scatterplot','statswlplot','spectraplot','multipleplot','flagplot','histogram']
 
 valid_stats = {
     'N':{
@@ -721,6 +721,33 @@ options_spectraplots = {
     }
 }
 
+options_histogram = {
+    'hvar': {
+        'default': None,
+        'type': 'str'
+    },
+    'type_histo': {
+        'default': 'int',
+        'type': 'str',
+        'values': ['int','float']
+    },
+    'int_values': {
+        'default': None,
+        'type': 'intlist'
+    },
+    'hticks':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'xlabel':{
+        'default': None,
+        'type': 'str'
+    },
+    'ylabel':{
+        'default': 'NValues',
+        'type': 'str'
+    }
+}
 
 def get_options_spectraplots():
     options = options_spectraplots
@@ -753,6 +780,9 @@ def get_options_satterplots():
     for op in options_select:
         options[op] = options_select[op]
     return options
+
+def get_options_histogram():
+    return options_histogram
 
 def get_scale_factor_str(scale_factor):
     import numpy as np

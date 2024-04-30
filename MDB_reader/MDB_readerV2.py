@@ -2780,6 +2780,163 @@ def move_extracts():
     print('DONE')
 
 
+def do_temporal_owt_comparison(input_path):
+    var_data = 'CMEMSVal'
+    owt_list = [3, 6, 9, 13]
+    file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/Spectra_{var_data}_4_OWT.tif'
+    from PlotSpectra import PlotSpectra
+    import pandas as pd
+    from CSVPlot import CSVPLOT
+    pspectra = PlotSpectra()
+    wl_list_str = ['400', '412_5', '442_5', '490', '510', '560', '620', '665', '673_75', '681_25', '708_75', '753_75',
+                   '778_75', '865', '885', '1020']
+    wl_list = [float(x.replace('_', '.')) for x in wl_list_str]
+    wl_ticks = [str(x) for x in wl_list]
+    colors = ['Blue', 'Red', 'Green', 'm', 'Cyan', 'Orange', 'Yellow']
+    legend = [f'OWT {x}' for x in owt_list]
+    df = pd.DataFrame(index=owt_list, columns=wl_list_str)
+    options_out = {
+        'yvar': var_data,
+        'selectBy': 'blended_dominat_owt',
+        'selectValue': -1
+    }
+    for wls in wl_list_str:
+        file_csv = os.path.join(input_path, f'rrs_{wls}_points_valid_common.csv')
+        cplot = CSVPLOT(file_csv)
+        for owt in owt_list:
+            options_out['selectValue'] = owt
+            median,p25,p75 = cplot.compute_distribution(options_out)
+            df.loc[owt].at[wls] = median
+    print(df)
+    pspectra.xdata = wl_list
+    for index, owt in enumerate(owt_list):
+        data = np.array(df.loc[owt])
+        pspectra.plot_single_line(data, colors[index], '-', 1, 'o', 3)
+    pspectra.set_xticks(wl_list, wl_ticks, 45, 8)
+    pspectra.set_xaxis_title('Wavelength (nm)')
+    pspectra.set_yaxis_title('Rrs')
+    pspectra.set_grid()
+    pspectra.legend_options['loc'] = 'lower center'
+    pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.4)
+    pspectra.legend_options['ncols'] = len(owt_list)
+    pspectra.set_legend(legend)
+    pspectra.set_tigth_layout()
+
+    pspectra.save_plot(file_out)
+
+def do_temporal_spectra_stats_from_csv(input_path):
+    owt = 13
+    file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/SpectraComparison_OWT_{owt}.tif'
+    from PlotSpectra import PlotSpectra
+    import pandas as pd
+    from CSVPlot import CSVPLOT
+    pspectra = PlotSpectra()
+    wl_list_str = ['400', '412_5', '442_5', '490', '510', '560', '620', '665', '673_75', '681_25', '708_75', '753_75',
+                   '778_75', '865', '885', '1020']
+    wl_list = [float(x.replace('_', '.')) for x in wl_list_str]
+    wl_ticks = [str(x) for x in wl_list]
+    # owt_list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+    # owt_list = [3, 6, 9, 13]
+
+    indices = ['median_CMEMS','p25_CMEMS','p75_CMEMS','median_CERTO','p25_CERTO','p75_CERTO']
+    df = pd.DataFrame(index=indices,columns=wl_list_str)
+    options_out = {
+        'yvar': 'CMEMSVal',
+        'selectBy': 'blended_dominat_owt',
+        'selectValue': owt
+    }
+    for wls in wl_list_str:
+        file_csv = os.path.join(input_path, f'rrs_{wls}_points_valid_common.csv')
+        cplot = CSVPLOT(file_csv)
+        options_out['yvar'] = 'CMEMSVal'
+        median,p25,p75 = cplot.compute_distribution(options_out)
+        df.loc['median_CMEMS'].at[wls] = median
+        df.loc['p25_CMEMS'].at[wls] = p25
+        df.loc['p75_CMEMS'].at[wls] = p75
+        options_out['yvar'] = 'CERTOVal'
+        median, p25, p75 = cplot.compute_distribution(options_out)
+        df.loc['median_CERTO'].at[wls] = median
+        df.loc['p25_CERTO'].at[wls] = p25
+        df.loc['p75_CERTO'].at[wls] = p75
+
+    print(df)
+    pspectra.xdata = np.array(wl_list)
+    pspectra.set_iqr_as_stats_plot()
+    pspectra.set_color('red')
+    stats = {
+        'median': np.array(df.loc['median_CMEMS']).astype(np.float32),
+        'p25': np.array(df.loc['p25_CMEMS']).astype(np.float32),
+        'p75': np.array(df.loc['p75_CMEMS']).astype(np.float32)
+    }
+    h1 = pspectra.plot_stats(stats,0,16)
+    pspectra.set_color('blue')
+    stats = {
+        'median': np.array(df.loc['median_CERTO']).astype(np.float32),
+        'p25': np.array(df.loc['p25_CERTO']).astype(np.float32),
+        'p75': np.array(df.loc['p75_CERTO']).astype(np.float32)
+    }
+    h2 =pspectra.plot_stats(stats, 0, 16)
+    pspectra.set_xticks(wl_list, wl_ticks, 45, 8)
+    pspectra.set_xaxis_title('Wavelenght(nm)')
+    pspectra.set_yaxis_title('Rrs')
+    pspectra.legend_options['loc'] = 'lower center'
+    pspectra.legend_options['bbox_to_anchor'] = (0.5,-0.4)
+    pspectra.legend_options['ncols'] = 2
+    pspectra.set_legend_h([h1[0],h2[0]],['CMEMS-OLCI','CERTO-OLCI'])
+    pspectra.set_title(f'Optical water type {owt}')
+    pspectra.set_grid()
+    pspectra.set_tigth_layout()
+    pspectra.save_plot(file_out)
+
+def do_temporal_wl_stats_from_csv(input_path):
+    # N, slope, intercept, BIAS, RMSD, DETER(r2)
+    stat = 'DETER(r2)'
+    # f'R$^2$'
+    ytitle = f'R$^2$'
+    file_out = '/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/Stats_R2_4owt.tif'
+    from PlotSpectra import PlotSpectra
+    import pandas as pd
+    from CSVPlot import CSVPLOT
+    pspectra = PlotSpectra()
+    wl_list_str = ['400', '412_5', '442_5', '490', '510', '560', '620', '665', '673_75', '681_25', '708_75', '753_75',
+                   '778_75', '865', '885', '1020']
+    wl_list = [float(x.replace('_', '.')) for x in wl_list_str]
+    wl_ticks = [str(x) for x in wl_list]
+    # owt_list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+    owt_list = [3, 6, 9, 13]
+
+    colors = ['Blue', 'Red', 'Green', 'm', 'Cyan', 'Orange', 'Yellow']
+    legend = [f'OWT {x}' for x in owt_list]
+    df = pd.DataFrame(index=owt_list, columns=wl_list_str)
+    pspectra.xdata = wl_list
+    options_out = {
+        'xvar': 'CMEMSVal',
+        'yvar': 'CERTOVal',
+        'selectBy': 'blended_dominat_owt',
+        'selectValue': 0
+
+    }
+    for wls in wl_list_str:
+        file_csv = os.path.join(input_path, f'rrs_{wls}_points_valid_common.csv')
+        cplot = CSVPLOT(file_csv)
+        for owt in owt_list:
+            options_out['selectValue'] = owt
+            valid_stats = cplot.compute_statistics(options_out)
+            df.loc[owt].at[wls] = valid_stats[stat]
+    print(df)
+
+    for index, owt in enumerate(owt_list):
+        data = np.array(df.loc[owt])
+        pspectra.plot_single_line(data, colors[index], '-', 1, 'o', 6)
+    pspectra.set_xticks(wl_list, wl_ticks, 45, 8)
+    pspectra.set_xaxis_title('Wavelength (nm)')
+    pspectra.set_yaxis_title(ytitle)
+    pspectra.set_grid()
+    pspectra.set_legend(legend)
+    pspectra.set_tigth_layout()
+
+    pspectra.save_plot(file_out)
+
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
@@ -3310,6 +3467,7 @@ def main():
 
     ##CONCATENATING MDB READER FILES INCLUDING FLAGS BANDS FOR SATELLITE+PLATFORM, SENSOR, AC, SITE
     if args.input_path and mode == 'CONCATENATE':
+        import pandas as pd
         input_path = args.input_path
         if not os.path.exists(input_path):
             print(f'[ERROR] {input_path} does not exist')
@@ -3669,6 +3827,19 @@ def main():
                 pass
         if not os.path.isdir(output_path):
             print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
+            return
+
+        ##temporal,stats plots from multiple csv files
+        if os.path.isdir(input_path):
+            #do_temporal_wl_stats_from_csv(input_path)
+            #do_temporal_spectra_stats_from_csv(input_path)
+            do_temporal_owt_comparison(input_path)
+
+
+            return
+
+
+
 
         from CSVPlot import CSVPLOT
         cplot = CSVPLOT(input_path)

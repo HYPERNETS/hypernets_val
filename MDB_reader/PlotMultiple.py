@@ -180,5 +180,7 @@ class PlotMultiple():
             plt.savefig(file_out, dpi=300, bbox_inches='tight', facecolor='white')
         # plt.savefig(file_out, dpi=300)
 
+
+
     def close_plot(self):
         plt.close()

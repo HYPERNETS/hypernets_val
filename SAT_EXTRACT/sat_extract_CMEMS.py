@@ -1931,12 +1931,16 @@ def main():
                 if col_time is not None:
                     try:
                         datetimerow = f'{row[col_date].strip()}T{row[col_time].strip()}'
+                        if np.isreal(datetimerow):
+                            datetimerow = f'{datetimerow:.0f}'
                         format_datetime = f'{format_date}T{format_time}'
                         datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
                     except:
                         pass
                 if datehere is None:
-                    datetimerow = row[col_date].strip()
+                    datetimerow = row[col_date]
+                    if np.isreal(datetimerow):
+                        datetimerow = f'{datetimerow:.0f}'
                     format_datetime = format_date
                     datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
                     datehere = datehere.replace(hour=12, minute=0, second=0).replace(tzinfo=pytz.utc)

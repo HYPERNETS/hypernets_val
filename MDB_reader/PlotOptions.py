@@ -94,6 +94,11 @@ class PlotOptions:
 
         if options_out['type'].startswith('statstable'):
             options_out = self.get_options_csv_statstable(section, options_out)
+
+
+        if options_out['type'] == 'histogram':
+            options_out = self.get_options_histogram(section,options_out)
+
         # if options_out['type'] == 'statswlplot':
         #     options_out = self.get_select_options(section, options_out)
         #     options_out = self.get_options_statswlplot(section, options_out)
@@ -108,6 +113,17 @@ class PlotOptions:
 
         for option in options_out:
             print(option, '->', options_out[option])
+
+        return options_out
+
+    def get_options_histogram(self,section,options_out):
+        doptions = defaults.get_options_histogram()
+        for option in doptions:
+            pvalues = None
+            if 'values' in doptions[option]:
+                pvalues = doptions[option]['values']
+            options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
+                                                       doptions[option]['type'], pvalues)
 
         return options_out
 
@@ -191,6 +207,7 @@ class PlotOptions:
                     continue
                 elif stat.upper() == 'EQUATION':
                     type_regression = options_out['type_regression'].upper()
+
                     val_format_slope = self.get_value(section, f'SLOPE_{type_regression}_FORMAT')
                     if val_format_slope is None:
                         val_format_slope = defaults.valid_stats[f'SLOPE_{type_regression}']['format']
