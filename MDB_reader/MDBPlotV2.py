@@ -1218,6 +1218,8 @@ class MDBPlot:
         if plot is not None and index >= 0:
             plot.set_axhere_index(index)
 
+        if options['log_scale']:
+            options['scale_factor'] = None
         if options['scale_factor'] is not None:
             self.xdata = self.xdata * options['scale_factor']
             self.ydata = self.ydata * options['scale_factor']
@@ -1357,8 +1359,7 @@ class MDBPlot:
         else:
             ticks = options['ticks']
 
-        # print(min_xy)
-        # print(max_xy)
+
 
         plot.set_limits(min_xy, max_xy)
 
@@ -1544,6 +1545,11 @@ class MDBPlot:
                             plot.plot_regress_line(xregress, yregress, color)
             else:
                 plot.plot_regress_line(self.xregress, self.yregress, 'black')
+
+        if options['log_scale'] and options['regression_line']:
+            xr = np.power(10,self.xregress)
+            yr = np.power(10,self.yregress)
+            plot.plot_regress_line(xr, yr, 'black')
 
         if options['title'] is not None:
             title_here = options['title']
@@ -3753,6 +3759,12 @@ class MDBPlot:
         #     rdif = rel_diff[idx]
         #     if math.isinf(rdif):
         #         print('=====))))))))) ',sat_obs[idx],ref_obs[idx])
+        # print('===========')
+        # inf = np.count_nonzero(np.isinf(rel_diff))
+        # nan = np.count_nonzero(np.isnan(rel_diff))
+        # print(inf,nan)
+        # print('============')
+        rel_diff[np.isinf(rel_diff)]=0
 
         self.valid_stats['RPD'] = np.mean(rel_diff)
 
@@ -3783,6 +3795,8 @@ class MDBPlot:
         self.valid_stats['MAE'] = mae
 
         self.valid_stats['DETER(r2)'] = r_value * r_value
+
+
 
     def plot_spectra_tmp1(self, array_rrs, spatial_index, q5_index):
         nspectra = spatial_index.shape[0]

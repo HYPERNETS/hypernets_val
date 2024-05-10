@@ -46,7 +46,10 @@ class PlotMultiple():
 
     def set_text(self, x, y, s):
         plt.text(x, y, s, fontsize=10, backgroundcolor='w')
-        # plt.text(x, y, s, fontsize=12)
+
+
+    def set_text_size(self, x, y, s,fontsize):
+        plt.text(x, y, s, fontsize=fontsize, backgroundcolor='w')
 
     def get_axes(self, index_row, index_col):
         if self.nrow > 1 and self.ncol > 1:
@@ -146,6 +149,9 @@ class PlotMultiple():
         axhere.imshow(image_end)
 
         axhere.axis(False)
+
+    def tigth_layout(self):
+        self.fig.tight_layout()
 
     def set_global_legend(self, handles, str_legend):
         # self.fig.legend(handles, str_legend, fontsize = 8, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.55,0.08))

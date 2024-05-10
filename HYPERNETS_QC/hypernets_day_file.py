@@ -2,12 +2,18 @@ import os
 from datetime import datetime as dt
 # from netCDF4 import Dataset
 # import numpy as np
+import matplotlib.pyplot as plt
+import numpy as np
+
 import __init__
 from MDB_reader.PlotMultiple import PlotMultiple
+from MDB_reader.FlagBuilder import FlagBuilder
 from COMMON import Class_Flags_OLCI
-#import sys
-#code_home = os.path.dirname(os.path.dirname(__init__.__file__))
-#sys.path.append(code_home)
+
+
+# import sys
+# code_home = os.path.dirname(os.path.dirname(__init__.__file__))
+# sys.path.append(code_home)
 
 class HYPERNETS_DAY_FILE():
 
@@ -197,11 +203,30 @@ class HYPERNETS_DAY_FILE():
         angle = (angle * np.pi) / 180
         return angle, angle_label
 
+    def get_rlabel_position(self, angle):
+        median_op_angle = np.median(angle) + 180
+        if median_op_angle > 360:
+            median_op_angle = median_op_angle - 360
+        angle_labels = np.arange(0, 361, 45)
+        angle_label = angle_labels[int(np.argmin(np.abs(angle_labels - median_op_angle)))]
+        if angle_label == 270:
+            angle_label = 225
+        if angle_label == 90:
+            angle_label = 135
+        return angle_label
+
     def get_valid_flags(self):
         from netCDF4 import Dataset
         import numpy as np
         dataset = Dataset(self.file_nc)
-        self.valid_sequences = np.array(dataset.variables['l2_quality_flag'][:])
+        valid_sequences = dataset.variables['l2_quality_flag'][:].astype(np.float64)
+        valid_sequences = np.ma.filled(valid_sequences, -999.0)
+        valid_sequences[valid_sequences > 0] = 1
+        epsilon_array = dataset.variables['l2_epsilon'][:].astype(np.float64)
+        epsilon_array = np.ma.filled(epsilon_array, -999.0)
+        valid_sequences[np.logical_and(valid_sequences == 0, epsilon_array < (-0.05))] = 2
+        valid_sequences[np.logical_and(valid_sequences == 0, epsilon_array >= 0.05)] = 3
+        self.valid_sequences = valid_sequences
         dataset.close()
 
     def get_flags_sequence(self):
@@ -213,6 +238,10 @@ class HYPERNETS_DAY_FILE():
         all_flag_meaninigs = dataset.variables['l2_quality_flag'].flag_meanings
         cflags = Class_Flags_OLCI.Class_Flags_OLCI(all_flag_values, all_flag_meaninigs)
         list, mask = cflags.Decode(flag_value)
+        epsilon_here = dataset.variables['l2_epsilon'][self.isequence]
+        if not np.ma.is_masked(epsilon_here):
+            if epsilon_here < (-0.05): list.append('ENEG')
+            if epsilon_here >= 0.05: list.append('EHIGH')
         dataset.close()
         return list
 
@@ -310,7 +339,6 @@ class HYPERNETS_DAY_FILE():
             self.isequence = idx
             file_img, title = self.get_img_file('water_rad')
             seq = self.sequences[self.isequence]
-            print(idx, seq, file_img)
             if seq in water_images.keys():
                 water_images[seq]['file_img'] = file_img
                 paa = float(dataset.variables['l2_pointing_azimuth_angle'][idx])
@@ -320,8 +348,8 @@ class HYPERNETS_DAY_FILE():
                 title = f'{seq} (paa={paa:.1f})'
                 water_images[seq]['title'] = title
         dataset.close()
-        for tal in water_images:
-            print(tal, '->', water_images[tal]['file_img'], '->', water_images[tal]['title'])
+        # for tal in water_images:
+        #     print(tal, '->', water_images[tal]['file_img'], '->', water_images[tal]['title'])
         return water_images
 
     def plot_water_images(self, wimages):
@@ -338,8 +366,6 @@ class HYPERNETS_DAY_FILE():
             index_row = index_row + 1
         pm.save_fig(f'{file_out_base}.{self.format_img}')
         pm.close_plot()
-
-
 
     def save_img_files(self, multiple_plot):
         flags = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
@@ -426,6 +452,96 @@ class HYPERNETS_DAY_FILE():
             pm.save_fig(f'{file_out_base}_all{self.format_img}')
             pm.close_plot()
 
+    def save_report_summary_image(self, site, date_here, dir_img_summary):
+
+        file_out = os.path.join(os.path.dirname(self.file_nc),
+                                f'{site}_{date_here.strftime("%Y%m%d")}_DailySummary{self.format_img}')
+        print(f'[INFO] Output file: {file_out}')
+        # self.plot_from_options_impl(options_figure)
+
+        ##TIME SERIES
+        # start_multiple_plot_advanced(self, nrow, ncol, xfigsize, yfigsize, wspace, hspace, frameon)
+        file_out_ts = os.path.join(dir_img_summary, f'TS{self.format_img}')
+        pmts = PlotMultiple()
+        pmts.start_multiple_plot_advanced(2, 1, 3, 3.5, 0, 0, True)
+        pmts.plot_image(os.path.join(dir_img_summary, 'time_series_epsilon.tif'), 0, 0)
+        pmts.plot_image(os.path.join(dir_img_summary, 'time_series_r800_nosc.tif'), 1, 0)
+        pmts.save_fig(file_out_ts)
+        pmts.close_plot()
+
+        ##TOP PANEL
+        file_out_top = os.path.join(dir_img_summary, f'TOP{self.format_img}')
+        pmtop = PlotMultiple()
+        pmtop.start_multiple_plot_advanced(1, 3, 10, 3.5, 0, 0, True)
+        pmtop.plot_image(os.path.join(dir_img_summary, 'sequence_info.tif'), 0, 0)
+        pmtop.plot_image(os.path.join(dir_img_summary, 'flag_plot.tif'), 0, 1)
+        pmtop.plot_image(file_out_ts, 0, 2)
+        pmtop.set_text(-1250, 50, f'DAILY SUMMARY REPORT - {date_here.strftime("%Y-%m-%d")}')
+        daily_sequences_summary = self.get_sequence_info()
+        line = f'Total sequences: {daily_sequences_summary["Total"]}. Available: {daily_sequences_summary["Available"]}.'
+        line = f'{line} QC Flagged: {daily_sequences_summary["QFlagged"]}.'
+        line = f'{line} Epsilon Flagged: {daily_sequences_summary["EFlagged"]}.'
+        line = f'{line} Valid: {daily_sequences_summary["Valid"]}'
+        pmtop.set_text_size(-1750, 850, line, 8)
+        pmtop.save_fig(file_out_top)
+        pmtop.close_plot()
+
+        ##MIDDLE(ANGLE-PANEL)
+        file_out_middle = os.path.join(dir_img_summary, f'MIDDLE{self.format_img}')
+        pmmiddle = PlotMultiple()
+        pmmiddle.start_multiple_plot_advanced(2, 3, 10, 6, 0, 0, True)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_sza.tif'), 0, 0)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_saa.tif'), 0, 1)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_paa.tif'), 0, 2)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_sza.tif'), 1, 0)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_saa.tif'), 1, 1)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_paa.tif'), 1, 2)
+        pmmiddle.save_fig(file_out_middle)
+        pmmiddle.close_plot()
+
+        ##DOWN(SPECTRA-PANEL)
+        file_out_down = os.path.join(dir_img_summary, f'DOWN{self.format_img}')
+        pdown = PlotMultiple()
+        pdown.start_multiple_plot_advanced(2, 3, 10, 6, 0, 0, True)
+        pdown.plot_image(os.path.join(dir_img_summary, 'downwelling_irradiance.tif'), 0, 0)
+        pdown.plot_image(os.path.join(dir_img_summary, 'downwelling_radiance.tif'), 0, 1)
+        pdown.plot_image(os.path.join(dir_img_summary, 'upwelling_radiance.tif'), 0, 2)
+        pdown.plot_image(os.path.join(dir_img_summary, 'water_leaving_radiance.tif'), 1, 0)
+        pdown.plot_image(os.path.join(dir_img_summary, 'reflectance_nosc.tif'), 1, 1)
+        pdown.plot_image(os.path.join(dir_img_summary, 'reflectance.tif'), 1, 2)
+        pdown.save_fig(file_out_down)
+        pdown.close_plot()
+
+        ##final plot
+        pm = PlotMultiple()
+        pm.start_multiple_plot_advanced(3, 1, 10, 18, 0, 0, True)
+        pm.plot_image(file_out_top, 0, 0)
+        pm.plot_image(file_out_middle, 1, 0)
+        pm.plot_image(file_out_down, 2, 0)
+        pm.save_fig(file_out)
+        pm.close_plot()
+
+        ##remove blank space
+        import matplotlib.image as mpimg
+        import numpy as np
+        image = mpimg.imread(file_out)
+        image_new = np.concatenate([image[0:901, :, :], image[1200:image.shape[0], :, :]])
+        height, width, nbands = image_new.shape
+        figsize = width / float(300), height / float(300)
+        plt.close()
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.imshow(image_new, interpolation='nearest')
+        ax.axis(False)
+        fig.savefig(file_out, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+        ##delete intermeddiate figures
+        for name in os.listdir(dir_img_summary):
+            os.remove(os.path.join(dir_img_summary, name))
+
+        os.rmdir(dir_img_summary)
+
     def save_report_image(self, site, delete_images, overwrite):
         print(f'[INFO] Sequence {self.isequence}: SEQ{self.sequences[self.isequence]}')
         if self.sequences[self.isequence] is None:
@@ -471,7 +587,7 @@ class HYPERNETS_DAY_FILE():
             for name in os.listdir(dir_img):
                 file_here = os.path.join(dir_img, name)
                 os.remove(file_here)
-            os.remove(dir_img)
+            os.rmdir(dir_img)
 
     def plot_angle(self, flag, ax_here):
         import numpy as np
@@ -485,8 +601,8 @@ class HYPERNETS_DAY_FILE():
         angle_rad, angle_label = self.angle_rad(angle_flag)
         angle_rad_l1 = self.angle_rad_level1(angle_flag)
 
-        reflectance_ref[reflectance_ref < 1e-5] = 1e-5
-        reflectance_ref_l1[reflectance_ref_l1 < 1e-5] = 1e-5
+        reflectance_ref[reflectance_ref < 1e-5] = 1.1e-5
+        reflectance_ref_l1[reflectance_ref_l1 < 1e-5] = 1.1e-5
 
         if self.valid_sequences is None:
             self.get_valid_flags()
@@ -496,11 +612,21 @@ class HYPERNETS_DAY_FILE():
         ax_here.set_rticks([1e-4, 1e-3, 1e-2, 1e-1, 1])
         ax_here.set_theta_zero_location("N")
         ax_here.set_theta_direction(-1)
+
+        ##valid
         ax_here.scatter(angle_rad[self.valid_sequences == 0], reflectance_ref[self.valid_sequences == 0], marker='o',
                         s=8, color='green')
+        ##qc_flagedd
+        ax_here.scatter(angle_rad[self.valid_sequences == 1], reflectance_ref[self.valid_sequences == 1], marker='o',
+                        s=8, color='red')
 
-        ax_here.scatter(angle_rad[self.valid_sequences > 0], reflectance_ref[self.valid_sequences > 0], marker='o', s=8,
-                        color='red')
+        ##ENEG
+        ax_here.scatter(angle_rad[self.valid_sequences == 2], reflectance_ref[self.valid_sequences == 2], marker='o',
+                        s=8, color='cyan')
+
+        ##EHIGH
+        ax_here.scatter(angle_rad[self.valid_sequences == 3], reflectance_ref[self.valid_sequences == 3], marker='o',
+                        s=8, color='magenta')
 
         ax_here.scatter(angle_rad_l1[:], reflectance_ref_l1[:], marker='s', s=8, color='gray')
         ax_here.scatter(angle_rad[self.isequence], reflectance_ref[self.isequence], marker='s', s=12, color='blue')
@@ -519,9 +645,6 @@ class HYPERNETS_DAY_FILE():
             ax_here.set_rticks([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1])
         if angle_flag == 'saa' or angle_flag == 'paa':
             ax_here.set_rlabel_position(angle_label)
-            # if angle_label==225:
-            #     labels = ax_here.yticklabels()
-            #     print(labels)
 
         ax_here.tick_params(axis='x', labelsize=10)
         ax_here.tick_params(axis='y', labelsize=10)
@@ -574,6 +697,7 @@ class HYPERNETS_DAY_FILE():
         ax_here.tick_params(axis='x', labelsize=7)
         ax_here.tick_params(axis='y', labelsize=7)
         ax_here.set_title(info[flag]['title'], fontsize=7)
+        ax_here.grid(which='major', color='lightgray', linestyle='--', axis='y')
         dataset.close()
 
     def check_img_files(self):
@@ -713,14 +837,316 @@ class HYPERNETS_DAY_FILE():
         if not options_figure['apply']:
             return
         if options_figure['type'] == 'spectraplot' and options_figure['type_rrs'] == 'user_defined':
+            print(f'[INFO] Spectra plot')
             self.plot_spectra_plot_from_options(options_figure)
+        if options_figure['type'] == 'timeseries':
+            print(f'[INFO] Time series')
+            self.plot_time_series_from_options(options_figure)
+        if options_figure['type'] == 'sequence':
+            print(f'[INFO] Sequence plot')
+            self.plot_sequence_plot_from_options(options_figure)
+        if options_figure['type'] == 'flagplot' and options_figure['type_flagplot'] == 'comparison':
+            print(f'[INFO] Flag plot')
+            self.plot_flag_plot_comparison(options_figure)
+        if options_figure['type'] == 'angleplot':
+            print(f'[INFO] Angle plot')
+            self.plot_angle_plot_from_options(options_figure)
+
+    def get_sequence_info(self):
+        from netCDF4 import Dataset
+        import COMMON.Class_Flags_OLCI as flag
+        dataset = Dataset(self.file_nc)
+        qf_array = dataset.variables['l2_quality_flag'][:]
+        epsilon_array = dataset.variables['l2_epsilon'][:]
+        ndata = len(qf_array)
+        qf_flags_meanings = dataset.variables['l2_quality_flag'].flag_meanings
+        qf_flags_list = qf_flags_meanings.split(' ')
+        qf_flags_values = [np.uint64(x) for x in dataset.variables['l2_quality_flag'].flag_masks.split(',')]
+        fcheck = flag.Class_Flags_OLCI(qf_flags_values, qf_flags_meanings)
+        nflag_total = 0
+        for index, value in enumerate(qf_flags_values):
+            mask = fcheck.Mask(qf_array, [qf_flags_list[index]])
+            mask = np.ma.filled(mask, 0)
+            nflag = np.count_nonzero(mask > 0)
+            if nflag > 0:
+                nflag_total = nflag_total + nflag
+
+        eneg = np.logical_and(qf_array == 0, epsilon_array < (-0.05))
+        ehigh = np.logical_and(qf_array == 0, epsilon_array >= 0.05)
+        valid = np.logical_and(qf_array == 0, np.logical_and(epsilon_array >= (-0.05), epsilon_array < 0.05))
+        nvalid = int(np.count_nonzero(valid))
+        nepsilon = int(np.count_nonzero(eneg) + np.count_nonzero(ehigh))
+        navailable = nvalid + nepsilon + nflag_total
+        daily_sequences_summary = {
+            'Total': ndata,
+            'Available': navailable,
+            'Valid': nvalid,
+            'QFlagged': nflag_total,
+            'EFlagged': nepsilon
+        }
+        dataset.close()
+        return daily_sequences_summary
+
+    def plot_flag_plot_comparison(self, options_figure):
+        from netCDF4 import Dataset
+        import COMMON.Class_Flags_OLCI as flag
+        dataset = Dataset(self.file_nc)
+        qf_array = dataset.variables['l2_quality_flag'][:]
+        epsilon_array = dataset.variables['l2_epsilon'][:]
+        ndata = len(qf_array)
+        qf_flags_meanings = dataset.variables['l2_quality_flag'].flag_meanings
+        qf_flags_list = qf_flags_meanings.split(' ')
+        qf_flags_values = [np.uint64(x) for x in dataset.variables['l2_quality_flag'].flag_masks.split(',')]
+        ylabel = ['VALID'] + qf_flags_list + ['ENEG', 'EHIGH']
+        yarray = np.zeros((len(ylabel)))
+        fcheck = flag.Class_Flags_OLCI(qf_flags_values, qf_flags_meanings)
+        nflag_total = 0
+        for index, value in enumerate(qf_flags_values):
+            mask = fcheck.Mask(qf_array, [qf_flags_list[index]])
+            mask = np.ma.filled(mask, 0)
+            nflag = np.count_nonzero(mask > 0)
+            if nflag > 0:
+                yarray[index + 1] = nflag
+                nflag_total = nflag_total + nflag
+
+        eneg = np.logical_and(qf_array == 0, epsilon_array < (-0.05))
+        ehigh = np.logical_and(qf_array == 0, epsilon_array >= 0.05)
+        valid = np.logical_and(qf_array == 0, np.logical_and(epsilon_array >= (-0.05), epsilon_array < 0.05))
+        yarray[-2] = np.count_nonzero(eneg)
+        yarray[-1] = np.count_nonzero(ehigh)
+        yarray[0] = np.count_nonzero(valid)
+        xarray = np.arange(len(yarray))
+        plt.barh(xarray, yarray)
+        xarray = np.append(xarray, xarray[-1] + 1)
+        ylabel.append('')
+        plt.yticks(xarray - 0.5, ylabel, fontsize=8, verticalalignment='bottom')
+        if ndata <= 5:
+            xticks = [0, 1, 2, 3, 4, 5]
+        elif ndata >= 5 and ndata < 10:
+            xticks = [0, 2, 4, 6, 8, 10]
+        else:
+            xmax = 5 * (np.floor(ndata / 5) + 1)
+            xticks = np.arange(0, xmax + 1, 5).tolist()
+        plt.xticks(xticks, [f'{x:.0f}' for x in xticks])
+        plt.xlabel(f'Number of sequences')
+        plt.grid()
+        plt.gcf().tight_layout()
+        file_out = options_figure['file_out']
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+
+        dataset.close()
+
+    def plot_sequence_plot_from_options(self, options_figure):
+        from netCDF4 import Dataset
+        import numpy as np
+        import pytz
+        import pandas as pd
+        import seaborn as sns
+        from matplotlib import pyplot as plt
+
+        dataset = Dataset(self.file_nc)
+        time_array = dataset.variables['l2_acquisition_time'][:]
+        start_time_real = dt.utcfromtimestamp(np.min(time_array))
+        end_time_real = dt.utcfromtimestamp(np.max(time_array))
+        if start_time_real.strftime('%Y%m%d') != end_time_real.strftime('%Y%m%d'):
+            dataset.close()
+            print('f[ERROR] Plot is only created for a single day')
+            return
+
+        qf_array = dataset.variables['l2_quality_flag'][:]
+        epsilon_array = dataset.variables['l2_epsilon'][:]
+
+        time_fix_axis = self.get_fix_axis_time(options_figure, start_time_real, end_time_real)
+        ntime = len(time_fix_axis)
+        time_fix_min_max = np.zeros((ntime, 2))
+        seconds_ref = self.get_time_interval_seconds(options_figure['frequency'], 'minutes')
+        time_fix_axis_ts = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in time_fix_axis]).astype(
+            np.float64)
+        time_fix_min_max[:, 0] = time_fix_axis_ts - seconds_ref
+        time_fix_min_max[:, 1] = time_fix_axis_ts + seconds_ref
+        xarray = np.arange(ntime)
+        yarray = np.zeros(xarray.shape)
+        hours_ticks = []
+        minutes_ticks = []
+        for itime in range(ntime):
+            time_valid = np.logical_and(time_array >= time_fix_min_max[itime, 0],
+                                        time_array < time_fix_min_max[itime, 1])
+            htick = time_fix_axis[itime].strftime('%H')
+            mtick = time_fix_axis[itime].strftime('%M')
+
+            if htick not in hours_ticks: hours_ticks.append(htick)
+            if mtick not in minutes_ticks: minutes_ticks.append(mtick)
+            if np.count_nonzero(time_valid) == 1:
+                qf_value = qf_array[time_valid][0]
+                epsilon_value = epsilon_array[time_valid][0]
+                if qf_value == 0:
+                    if epsilon_value < (-0.05):
+                        yarray[itime] = 2
+                    elif (-0.05) <= epsilon_value < 0.05:
+                        yarray[itime] = 3
+                    elif epsilon_value > 0.05:
+                        yarray[itime] = 4
+                else:
+                    yarray[itime] = 1
+
+        hours_ticks.reverse()
+        plt.Figure()
+        data = pd.DataFrame(index=hours_ticks, columns=minutes_ticks).astype(np.float64)
+        yarray[yarray == 0] = np.nan
+        for itime, tf in enumerate(time_fix_axis):
+            data.loc[tf.strftime('%H')].at[tf.strftime('%M')] = yarray[itime]
+        colors = ['red', 'cyan', 'green', 'magenta']
+        ax = sns.heatmap(data, vmin=1, vmax=4, cmap=colors, linewidths=0.5, linecolor='gray')
+        plt.yticks(rotation='horizontal')
+        colorbar = ax.collections[0].colorbar
+        colorbar.set_ticks([1.5, 2.25, 3, 3.75])
+        colorbar.set_ticklabels(['FLAGGED', 'ENEG', 'VALID', 'EHIGH'], rotation=90)
+        colorbar.ax.tick_params(size=0)
+        plt.xlabel('Minutes')
+        plt.ylabel('Hours')
+
+        if options_figure['title'] is not None:
+            title = options_figure['title']
+            title = title.replace('$DATE$', start_time_real.strftime('%Y-%m-%d'))
+            plt.title(title, fontsize=options_figure['fontsizetitle'])
+
+        plt.gcf().tight_layout()
+        file_out = options_figure['file_out']
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+
+        plt.close()
+
+        # # print(x)
+        # # print(ydata)
+        # plt.figure()
+        # yarray_data = yarray.copy()
+        # yarray_data[yarray>0]=1
+        # plt.barh(xarray, yarray_data)
+        # plt.yticks(xvalues,xticks)
+        # #plt.grid(visible=True, which='major', color='gray', linestyle='--')
+        # #plt.xlabel(xlabel, fontsize=12)
+        # plt.gcf().tight_layout()
+        # file_out = options_figure['file_out']
+        # if file_out is not None:
+        #     plt.savefig(file_out, dpi=300)
+        # plt.close()
+
+        # time_array = np.ma.filled(time_array.astype(np.float), -999.0)
+        dataset.close()
 
     def plot_angle_plot_from_options(self, options_figure):
         from netCDF4 import Dataset
         import numpy as np
         options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
         dataset = Dataset(self.file_nc)
-        angle_variable = np.array(dataset.variables[options_figure['wl_variable']])
+        if options_figure['angle_var'] not in dataset.variables:
+            print(f'[ERROR] Angle var: {options_figure["angle_var"]} is not available')
+            dataset.close()
+            return
+        if options_figure['avg_var'] not in dataset.variables:
+            print(f'[ERROR] Angle var: {options_figure["avg_var"]} is not available')
+            dataset.close()
+            return
+
+        angle_array = dataset.variables[options_figure['angle_var']][:]
+        angle_array = np.ma.filled(angle_array.astype(np.float32), -999.0)
+        nseries = angle_array.shape[0]
+        nscan = 1
+        if options_figure['angle_var'].startswith('l1'):
+            nscan = angle_array.shape[2]
+            angle_array = self.reduce_l1_dimensions(angle_array)
+
+        avg_array = dataset.variables[options_figure['avg_var']][:]
+        avg_array = np.ma.filled(avg_array, -999.0)
+        if options_figure['avg_var'].startswith('l1'):
+            if len(avg_array.shape) == 2: is_spectral = False
+            if len(avg_array.shape) == 3: is_spectral = True
+
+        if options_figure['avg_var'].startswith('l2'):
+            if len(avg_array.shape) == 1: is_spectral = False
+            if len(avg_array.shape) == 2: is_spectral = True
+
+        if is_spectral:
+            index_ref = -1
+            if options_figure['wlref'] != -999.0:
+                wavelength = dataset.variables['wavelength'][:]
+                index_ref = np.argmin(np.abs(options_figure['wlref'] - wavelength))
+                if abs(wavelength[index_ref] - options_figure['wlref']) > 2:
+                    index_ref = -1
+            if index_ref == -1:
+                print(f'[ERROR] index_ref for wavelength {options_figure["wlref"]} is not valid')
+                return
+            if len(avg_array.shape) == 3: avg_array = avg_array[:, index_ref, :]
+            if len(avg_array.shape) == 2: avg_array = avg_array[:, index_ref]
+
+        if nscan > 1 and len(avg_array.shape) == 1: avg_array = self.multiply_array_by_scan(avg_array, nseries, nscan)
+        if nscan > 1 and len(avg_array.shape) == 2: avg_array = self.reduce_l1_dimensions(avg_array)
+
+        ngroups, groupValues, groupArray, str_legend = self.check_group_and_legend(options_figure, nseries, nscan)
+
+        ##PLOTTING
+        fig, ax_here = plt.subplots(figsize=(3, 3), subplot_kw={'projection': 'polar'})
+        ax_here = plt.gca()
+        ax_here.set_rscale(options_figure['scale'])
+        ax_here.set_rlim(options_figure['rlim'])
+        ax_here.set_rticks(options_figure['rticks'])
+        ax_here.set_theta_zero_location(options_figure['theta_zero_location'])
+        ax_here.set_theta_direction(options_figure['theta_direction'])
+
+        valid_array = np.logical_and(angle_array != -999.0, avg_array != -999.0)
+        angle_array = angle_array[valid_array]
+        avg_array = avg_array[valid_array]
+        if ngroups > 1 and groupArray is not None:
+            groupArray = groupArray[valid_array]
+        if options_figure['min_data'] is not None:
+            avg_array[avg_array < options_figure['min_data']] = options_figure['min_data'] + 1e-6
+
+        if ngroups > 1 and groupArray is not None:
+            colors = options_figure['color']
+            if len(colors) != ngroups:
+                import MDB_reader.MDBPlotDefaults as pdefaults
+                colors = pdefaults.get_color_list(ngroups)
+            point_size = options_figure['point_size']
+            point_marker = options_figure['point_marker']
+            if len(point_size) != ngroups:
+                point_size = [point_size[0]] * ngroups
+            if len(point_marker) != ngroups:
+                point_marker = [point_marker[0]] * ngroups
+            for ig, g in enumerate(groupValues):
+                valid_g = groupArray == g
+                if np.count_nonzero(valid_g) > 0:
+                    angle_array_rad = (angle_array[valid_g] * np.pi) / 180
+                    avg_array_here = avg_array[valid_g]
+                    ax_here.scatter(angle_array_rad, avg_array_here, marker=point_marker[ig], s=point_size[ig],
+                                    color=colors[ig])
+        else:
+            angle_array_rad = (angle_array * np.pi) / 180
+            ax_here.scatter(angle_array_rad, avg_array, marker=options_figure['point_marker'][0],
+                            s=options_figure['point_size'][0], color=options_figure['color'][0])
+
+        if options_figure['title'] is not None:
+            ax_here.set_title(options_figure['title'])
+
+        ax_here.set_thetamin(options_figure['theta_min'])
+        ax_here.set_thetamax(options_figure['theta_max'])
+        ax_here.set_xticks((np.pi * np.array(options_figure['xticks']) / 180))
+        if options_figure['rlabel_position'] is not None:
+            if options_figure['rlabel_position'] == 'AUTO':
+                rpos = self.get_rlabel_position(angle_array)
+            else:
+                rpos = float(options_figure['rlabel_position'])
+            ax_here.set_rlabel_position(rpos)
+
+        ax_here.tick_params(axis='x', labelsize=options_figure['label_size'])
+        ax_here.tick_params(axis='y', labelsize=options_figure['label_size'])
+        plt.tight_layout()
+        file_out = options_figure['file_out']
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+
+        dataset.close()
 
     def reduce_l1_dimensions(self, array):
         import numpy as np
@@ -732,6 +1158,16 @@ class HYPERNETS_DAY_FILE():
                 iini = iscan * array.shape[0]
                 ifin = iini + array.shape[0]
                 array_new[iini:ifin, :] = array[:, :, iscan]
+            return array_new
+
+        if len(array.shape) == 2:  ##no spectral variables
+            ntotal = array.shape[0] * array.shape[1]
+            new_shape = (ntotal,)
+            array_new = np.zeros(new_shape)
+            for iscan in range(array.shape[1]):
+                iini = iscan * array.shape[0]
+                ifin = iini + array.shape[0]
+                array_new[iini:ifin] = array[:, iscan]
             return array_new
 
     def multiply_by_scan(self, nseries, nscan, sequences_here, sequence_indices):
@@ -778,10 +1214,8 @@ class HYPERNETS_DAY_FILE():
 
         spectra_median = np.median(spectra_good, axis=0)
 
-
         spectra_p25 = np.percentile(spectra_good, 25, axis=0)
         spectra_p75 = np.percentile(spectra_good, 75, axis=0)
-
 
         spectra_stats = {
             'avg': spectra_avg,
@@ -796,6 +1230,213 @@ class HYPERNETS_DAY_FILE():
         }
         return spectra_stats
 
+    def plot_time_series_from_options(self, options_figure):
+        from netCDF4 import Dataset
+        import numpy as np
+        import pytz
+
+        dataset = Dataset(self.file_nc)
+        time_var = options_figure['time_var']
+        avg_vars = options_figure['avg_var']
+        nseries = 0
+        nscan = 1
+        if time_var is None or avg_vars is None:
+            print(f'[ERROR] time_var and avg_var should be defined in the configuration file')
+            return
+        if time_var not in dataset.variables:
+            print(f'[ERROR] {time_var} is not defined in {self.mrfile.file_path}')
+            return
+        else:
+            nseries = dataset.variables[time_var].shape[0]
+
+        is_spectral = []
+        for avg_var in avg_vars:
+            if avg_var not in dataset.variables:
+                print(f'[ERROR] {avg_var} is not defined in {self.mrfile.file_path}')
+                return
+            else:
+                sh = dataset.variables[avg_var].shape
+                if avg_var.startswith('l1'):
+                    nscan = sh[-1]
+                    if len(sh) == 2:
+                        is_spectral.append(False)
+                    elif len(sh) == 3:
+                        is_spectral.append(True)
+                if avg_var.startswith('l2'):
+                    if len(sh) == 1:
+                        is_spectral.append(False)
+                    elif len(sh) == 2:
+                        is_spectral.append(True)
+
+        options_figure['wlref_index'] = -1
+        if options_figure['wlref'] != -999.0 and is_spectral.count(True) > 0:
+            wavelength = dataset.variables['wavelength'][:]
+            index_ref = np.argmin(np.abs(options_figure['wlref'] - wavelength))
+            if abs(wavelength[index_ref] - options_figure['wlref']) <= 2:
+                options_figure['wlref_index'] = index_ref
+
+        options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
+        time_array = dataset.variables[time_var][:]
+        time_array = np.ma.filled(time_array.astype(np.float), -999.0)
+
+        if nscan > 1:
+            time_array = self.reduce_l1_dimensions(time_array)
+
+        ngroups, groupValues, groupArray, str_legend = self.check_group_and_legend(options_figure, nseries, nscan)
+        if options_figure['legend_values'] is not None and len(options_figure['legend_values']) == ngroups:
+            str_legend = options_figure['legend_values']
+
+        start_time_real = dt.utcfromtimestamp(np.min(time_array[time_array != -999.0]))
+        end_time_real = dt.utcfromtimestamp(np.max(time_array[time_array != -999.0]))
+
+        # time_fix_axis = None
+        time_fix_min_max = None
+        if options_figure['type_time_axis'] == 'fix':
+            time_fix_axis = self.get_fix_axis_time(options_figure, start_time_real, end_time_real)
+            ntime = len(time_fix_axis)
+            time_fix_min_max = np.zeros((ntime, 2))
+            seconds_ref = self.get_time_interval_seconds(options_figure['frequency'], options_figure['frequency_units'])
+            time_fix_axis_ts = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in time_fix_axis]).astype(
+                np.float)
+            time_fix_min_max[:, 0] = time_fix_axis_ts - seconds_ref
+            time_fix_min_max[:, 1] = time_fix_axis_ts + seconds_ref
+            xarray = np.arange(ntime)
+
+            xvalues = xarray.tolist()
+            xticks = [x.strftime('%H:%M') for x in time_fix_axis]
+            if options_figure['xticks_range'] > 1:
+                if options_figure['xticks_labels_range'] > 1:
+                    indices_new = list(range(0, ntime, options_figure['xticks_labels_range']))
+                    for idx in range(ntime):
+                        if idx not in indices_new:
+                            xticks[idx] = ''
+                indices_new = list(range(0, ntime, options_figure['xticks_range']))
+                xvalues = [xvalues[index] for index in indices_new]
+                xticks = [xticks[index] for index in indices_new]
+
+        ##PLOTTING
+        from MDB_reader.PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = xarray
+
+        if ngroups == 1:  ##no groups,we could use multiple variables
+            pass
+        elif ngroups > 1:  ##multiple groups, only one variable
+            avg_var = avg_vars[0]
+            avg_array = dataset.variables[avg_var][:]
+            avg_array = np.ma.filled(avg_array.astype(np.float), -999.0)
+            if is_spectral[0]:
+                index_ref = options_figure['wlref_index']
+                if len(avg_array.shape) == 3:
+                    avg_array = avg_array[:, index_ref, :]
+                elif len(avg_array.shape) == 2:
+                    avg_array = avg_array[:, index_ref]
+                avg_array = np.squeeze(avg_array)
+            print('-----> ', avg_array.shape)
+            if nscan > 1 and len(avg_array.shape) == 1:
+                avg_array = self.multiply_array_by_scan(avg_array, nseries, nscan)
+            if nscan > 1 and len(avg_array.shape) == 2:
+                avg_array = self.reduce_l1_dimensions(avg_array)
+            handles = []
+            str_legend_valid = []
+            for icolor, gvalue in enumerate(groupValues):
+                color = options_figure['color'][icolor]
+                legend_added = False
+                for idx in range(ntime):
+
+                    xdata, ydata = self.get_data_nospectral_fix_time(options_figure, time_fix_min_max[idx, 0],
+                                                                     time_fix_min_max[idx, 1], time_array,
+                                                                     avg_array, idx, groupArray, gvalue)
+                    if xdata is not None and ydata is not None:
+                        h = pspectra.plot_single_marker(xdata, ydata, 'o', 6, color, None, 0)
+                        if not legend_added:
+                            handles.append(h[0])
+                            str_legend_valid.append(icolor)
+                            legend_added = True
+
+        pspectra.set_grid()
+        if options_figure['xlabel'] is not None:
+            pspectra.set_xaxis_title(options_figure['xlabel'])
+        if options_figure['ylabel'] is not None:
+            pspectra.set_yaxis_title(options_figure['ylabel'])
+
+        ##legend
+        if len(str_legend) > 0 and len(str_legend_valid) > 0:
+            str_legend = [str_legend[int(x)] for x in str_legend_valid]
+            pspectra.legend_options['loc'] = 'lower center'
+            pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.25)
+            pspectra.legend_options['ncols'] = len(str_legend)
+            if len(handles) == 0:
+                pspectra.set_legend(str_legend)
+            elif len(handles) == len(str_legend):
+                pspectra.set_legend_h(handles, str_legend)
+
+        ##y-range
+        pspectra.set_y_range(options_figure['y_min'], options_figure['y_max'])
+
+        pspectra.set_xticks(xvalues, xticks, 0, 10)
+        pspectra.set_tigth_layout()
+
+        file_out = options_figure['file_out']
+        if file_out is not None:
+            pspectra.save_fig(file_out)
+        pspectra.close_plot()
+        dataset.close()
+
+    def get_time_interval_seconds(self, frequency, units):
+        interval = frequency / 2
+        if units == 'minutes':
+            interval = interval * 60
+        elif units == 'hours':
+            interval = interval * 60 * 60
+        elif units == 'days':
+            interval = interval * 60 * 60 * 24
+        elif units == 'months':
+            interval = interval * 60 * 60 * 24 * 30
+        elif units == 'years':
+            interval = interval * 60 * 60 * 24 * 365
+        return interval
+
+    def get_data_nospectral_fix_time(self, options_figure, time_min, time_max, time_array, var_array, output_value,
+                                     groupArray, groupValue):
+
+        if groupArray is not None:
+            valid_time = np.logical_and(np.logical_and(time_array >= time_min, time_array < time_max),
+                                        groupArray == groupValue)
+        else:
+            valid_time = np.logical_and(time_array >= time_min, time_array < time_max)
+        nvalid = np.count_nonzero(valid_time)
+        if nvalid == 0:
+            return None, None
+        print(dt.utcfromtimestamp(time_min), dt.utcfromtimestamp(time_max))
+        xdata = np.array([output_value] * nvalid).astype(np.float)
+        ydata = var_array[valid_time]
+
+        return xdata, ydata
+
+    def get_fix_axis_time(self, options_figure, start_time_real, end_time_real):
+        start_date = options_figure['start_date']
+        end_date = options_figure['end_date']
+        if start_date is None:
+            start_date = start_time_real.strftime('%Y-%m-%d')
+        if end_date is None:
+            end_date = end_time_real.strftime('%Y-%m-%d')
+        start_time = options_figure['start_time']
+        end_time = options_figure['end_time']
+        if start_time is None:
+            start_time = start_time_real.strftime('%H:%M')
+        if end_time is None:
+            end_time = end_time_real.strftime('%H:%M')
+        start_date_time = dt.strptime(f'{start_date}T{start_time}', '%Y-%m-%dT%H:%M')
+        end_date_time = dt.strptime(f'{end_date}T{end_time}', '%Y-%m-%dT%H:%M')
+        print(f'[INFO] Fix time axis from {start_date_time} to {end_date_time}')
+        frequency = float(options_figure['frequency'])
+        print(f'[INFO] ->Frequency: {frequency} {options_figure["frequency_units"]}')
+        if frequency == -999.0:
+            return None
+        from MDB_reader.PlotOptions import PlotOptions
+        poptions = PlotOptions(None, None)
+        return poptions.get_fix_time_axis(frequency, options_figure['frequency_units'], start_date_time, end_date_time)
 
     def plot_spectra_plot_from_options(self, options_figure):
         from netCDF4 import Dataset
@@ -822,7 +1463,7 @@ class HYPERNETS_DAY_FILE():
         else:
             from netCDF4 import default_fillvals
             fill_value = default_fillvals[var_y.dtype.str[1:]]
-        nscan = 0
+        nscan = 1
         nseries = 0
         if ndim == 3:  # l1 variable
             spectra = np.array(dataset.variables[y_variable][:, :, :])
@@ -846,40 +1487,47 @@ class HYPERNETS_DAY_FILE():
         if sequence_indices is not None:
             spectra_check[sequence_indices] = spectra_check[sequence_indices] + 100
             spectra_check = np.where(spectra_check == 100, 0, 1)
+
         spectra = spectra[spectra_check == 0, :]
+
         dataset.close()
         ##DATA SELECTION
 
         ##CHECKING GROUP AND LEGEND
-        ngroup = 1
-        groupValues = None
-        groupArray = None
-        if 'groupValues' in options_figure.keys():
-            groupValues = options_figure['groupValues']
-        if groupValues is not None:
-            ngroup = len(groupValues)
-        str_legend = []
+        ngroup, groupValues, groupArray, str_legend = self.check_group_and_legend(options_figure, nseries, nscan)
         handles = []
-        if ngroup > 1 and options_figure['legend']:
-            str_legend = self.get_str_legend(options_figure)
+        str_legend_valid = []
         if ngroup > 1:
-            groupArray, all_flag_values, all_flag_meanings = self.get_gs_array(options_figure,
-                                                                               options_figure['groupBy'],
-                                                                               options_figure['groupType'])
-            if ndim == 3:
-                if len(groupArray.shape) == 1 and groupArray.shape[0] == nseries:
-                    groupArray = self.multiply_array_by_scan(groupArray, nseries, nscan)
             groupArray = groupArray[spectra_check == 0]
-
-
-
+        # ngroup = 1
+        # groupValues = None
+        # groupArray = None
+        # if 'groupValues' in options_figure.keys():
+        #     groupValues = options_figure['groupValues']
+        # if groupValues is not None:
+        #     ngroup = len(groupValues)
+        # str_legend = []
+        #
+        # if ngroup > 1 and options_figure['legend']:
+        #     str_legend = self.get_str_legend(options_figure)
+        #
+        # if ngroup > 1:
+        #     groupArray, all_flag_values, all_flag_meanings = self.get_gs_array(options_figure,
+        #                                                                        options_figure['groupBy'],
+        #                                                                        options_figure['groupType'])
+        #
+        #     if ndim == 3:
+        #         if len(groupArray.shape) == 1 and groupArray.shape[0] == nseries:
+        #             groupArray = self.multiply_array_by_scan(groupArray, nseries, nscan)
+        #         if len(groupArray.shape) == 2 and groupArray.shape[0] == nseries and groupArray.shape[1] == nscan:
+        #             groupArray = self.reduce_l1_dimensions(groupArray)
 
         ##PLOTTING
         from MDB_reader.PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = wavelength
 
-        #single spectra plotting
+        # single spectra plotting
         if plot_spectra:
             line_color = options_figure['line_color']
             marker = options_figure['marker']
@@ -903,11 +1551,13 @@ class HYPERNETS_DAY_FILE():
                 for idx in range(ngroup):
                     val = groupValues[idx]
                     hline = pspectra.plot_single_line(spectra[groupArray == val, :].transpose(), line_color[idx],
-                                                  line_type[idx], line_size[idx], marker[idx], marker_size[idx])
+                                                      line_type[idx], line_size[idx], marker[idx], marker_size[idx])
                     if len(hline) > 0:
                         handles.append(hline[0])
+                        str_legend_valid.append(idx)
             else:
-                pspectra.plot_single_line(spectra.tranpose(),line_color[0],line_type[0],line_size[0],marker[0],marker_size[0])
+                pspectra.plot_single_line(spectra.tranpose(), line_color[0], line_type[0], line_size[0], marker[0],
+                                          marker_size[0])
 
         if plot_stats:
             line_color = options_figure['line_color']
@@ -919,28 +1569,40 @@ class HYPERNETS_DAY_FILE():
                 for idx in range(ngroup):
                     val = groupValues[idx]
                     spectra_here = spectra[groupArray == val, :]
-                    stats_here = self.get_spectra_stats(spectra_here)
-                    pspectra.stats_style['fill']['color'] = line_color[idx]
-                    pspectra.stats_style['central']['color'] = line_color[idx]
-                    hline = pspectra.plot_stats(stats_here,None,None)
-                    handles.append(hline[0])
+                    if len(spectra_here) > 0:
+                        stats_here = self.get_spectra_stats(spectra_here)
+                        pspectra.stats_style['fill']['color'] = line_color[idx]
+                        pspectra.stats_style['central']['color'] = line_color[idx]
+                        hline = pspectra.plot_stats(stats_here, None, None)
+                        handles.append(hline[0])
+                        str_legend_valid.append(idx)
             else:
                 stats = self.get_spectra_stats(spectra)
                 pspectra.plot_stats(stats, None, None)
 
-
         ##legend
-        if len(str_legend) > 0:
+        if len(str_legend) > 0 and len(str_legend_valid) > 0:
+            str_legend = [str_legend[int(x)] for x in str_legend_valid]
+            pspectra.legend_options = pspectra.legend_options_bottom
+            pspectra.legend_options['ncols'] = len(str_legend)
+
             if len(handles) == 0:
                 pspectra.set_legend(str_legend)
-            else:
-
+            elif len(handles) == len(str_legend):
                 pspectra.set_legend_h(handles, str_legend)
 
         ##y-range
         pspectra.set_y_range(options_figure['y_min'], options_figure['y_max'])
 
-        #saveing to file
+        ##label and titles
+        if options_figure['xlabel'] is not None:
+            pspectra.set_xaxis_title(options_figure['xlabel'])
+        if options_figure['ylabel'] is not None:
+            pspectra.set_yaxis_title(options_figure['ylabel'])
+        if options_figure['title'] is not None:
+            pspectra.set_title(options_figure['title'])
+        pspectra.set_grid_horizontal()
+        # saveing to file
         if options_figure['file_out'] is not None:
             file_out = options_figure['file_out']
             pspectra.save_fig(file_out)
@@ -952,6 +1614,7 @@ class HYPERNETS_DAY_FILE():
             return options['legend_values']
         str_legend = []
         groupValues = options['groupValues']
+        groupValues = np.unique(np.array(groupValues)).tolist()
         if groupValues is not None:
             ngroup = len(groupValues)
             if ngroup > 1:
@@ -1019,11 +1682,46 @@ class HYPERNETS_DAY_FILE():
 
         return array_flag, all_flag_values, all_flag_meanings
 
+    def check_group_and_legend(self, options_figure, nseries, nscan):
+
+        ngroup = 1
+        groupValues = None
+        groupArray = None
+        if 'groupValues' in options_figure.keys():
+            groupValues = options_figure['groupValues']
+        if groupValues is not None:
+            ngroup = len(groupValues)
+        str_legend = []
+        handles = []
+        str_legend_valid = []
+        if ngroup > 1 and options_figure['legend']:
+            str_legend = self.get_str_legend(options_figure)
+
+        if ngroup > 1:
+            groupArray, all_flag_values, all_flag_meanings = self.get_gs_array(options_figure,
+                                                                               options_figure['groupBy'],
+                                                                               options_figure['groupType'])
+            if nscan > 1:
+                if len(groupArray.shape) == 1 and groupArray.shape[0] == nseries:
+                    groupArray = self.multiply_array_by_scan(groupArray, nseries, nscan)
+                if len(groupArray.shape) == 2 and groupArray.shape[0] == nseries and groupArray.shape[1] == nscan:
+                    groupArray = self.reduce_l1_dimensions(groupArray)
+
+            if 'color' in options_figure.keys():
+                if len(options_figure['color']) != ngroup:
+                    import MDB_reader.MDBPlotDefaults as default
+                    options_figure['color'] = default.get_color_list(ngroup)
+
+        return ngroup, groupValues, groupArray, str_legend
+
     def check_gs_options_impl(self, options_figure, by, type, values):
         from netCDF4 import Dataset
         import numpy as np
-        dataset = Dataset(self.file_nc)
         var_group_name = options_figure[by]
+        if var_group_name is None:
+            return options_figure
+
+        dataset = Dataset(self.file_nc)
         if options_figure[type] == 'flag':
             if var_group_name in dataset.variables:
                 flag_values = dataset.variables[var_group_name].flag_values
@@ -1035,8 +1733,10 @@ class HYPERNETS_DAY_FILE():
                 }
             else:  ##virtual flag
                 virtual_flags_options = self.flag_builder.get_virtual_flags_options()
+
                 array, flag_meanings, flag_values = self.flag_builder.create_flag_array_ranges_v2(
                     virtual_flags_options[var_group_name])
+
                 options_figure[var_group_name] = {
                     'flag_values': flag_values,
                     'flag_meanings': flag_meanings,
@@ -1085,7 +1785,6 @@ class HYPERNETS_DAY_FILE():
         colors_default = ['Blue', 'Red', 'Green', 'm', 'Cyan', 'Orange', 'Yellow']
         if nvalues < 6:
             index = value - min
-            print('index', index, '-->', colors_default[index])
             return colors_default[index]
         import matplotlib as mpl
         cm = mpl.colormaps['jet']

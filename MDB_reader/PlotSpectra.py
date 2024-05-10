@@ -19,7 +19,15 @@ class PlotSpectra():
             'loc': 'upper left',
             'bbox_to_anchor': (1.0, 1.0),
             'framealpha': 0.8,
-            'ncols': 1
+            'ncols': 1,
+            'markerscale': 1
+        }
+        self.legend_options_bottom = {
+            'loc': 'lower center',
+            'bbox_to_anchor': (0.5, -0.25),
+            'framealpha': 0.8,
+            'ncols': 1,
+            'markerscale': 1
         }
 
         self.line_style_default = line_style_default.copy()
@@ -104,17 +112,18 @@ class PlotSpectra():
         return h
 
     def plot_single_marker(self, xpoint, ypoint, marker, marker_size, color, edge_color, edge_width):
-        plt.plot(xpoint, ypoint,
+        h = plt.plot(xpoint, ypoint,
                  color=color,
                  linewidth=0,
                  marker=marker,
                  markersize=marker_size,
                  mec=edge_color,
                  mew=edge_width)
+        return h
 
-    def plot_single_bar_series(self, ydata, color, width, offset):
+    def plot_single_bar_series(self, ydata, color, width, offset,linewidth):
 
-        h = plt.bar(self.xdata + offset, ydata, width, color=color, linewidth=1, edgecolor='k')
+        h = plt.bar(self.xdata + offset, ydata, width, color=color, linewidth=linewidth, edgecolor='k')
         return h
 
     def set_legend(self, str_legend):
@@ -125,10 +134,13 @@ class PlotSpectra():
     def set_legend_h(self, handles, str_legend):
         plt.legend(handles, str_legend, loc=self.legend_options['loc'],
                    bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'],
-                   ncol=self.legend_options['ncols'])
+                   ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'])
 
     def set_title(self, title):
         plt.title(title)
+    def set_title_size(self, title, fontsize):
+        plt.title(title,fontsize=fontsize)
+
 
     def set_xticks(self, xticks, xtickvalues, rotation, fontsize):
         if rotation is None:
@@ -200,6 +212,9 @@ class PlotSpectra():
     def set_grid(self):
         # plt.grid(b=True, which='major', color='gray', linestyle='--')
         plt.grid(which='major', color='gray', linestyle='--', axis='both')
+
+    def set_grid_horizontal(self):
+        plt.grid(which='major',color='lightgray',linestyle='--',axis='y')
 
     def set_tigth_layout(self):
         plt.gcf().tight_layout()

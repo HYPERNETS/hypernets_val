@@ -44,15 +44,18 @@ class MDBFile:
             self.variables = self.nc.variables
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
-            self.VALID = True
-            # self.VALID = self.check_structure()
+            #self.VALID = True
+            self.VALID = self.check_structure()
+
         # except:
         except Exception as e:
             self.VALID = False
-            print(f'[ERROR] Exception starting MDB File: {e}')
+            print(f'[ERROR] Exception starting NetCDF file: {e}')
+            return
 
         if not self.VALID:
-            print(f'[ERROR] MDB File: {file_path} is not valid')
+            print(f'[ERROR] MDB File: {file_path} is not a valid MDB file with the correct structure. It could be cause problems.')
+            return
 
         if self.VALID:
             self.n_mu_total = len(self.dimensions['satellite_id'])

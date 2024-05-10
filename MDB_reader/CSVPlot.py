@@ -109,17 +109,24 @@ class CSVPLOT:
         mplot = MDBPlot(None)
         xdata = np.array(self.dataset[options_out['xvar']])
         ydata = np.array(self.dataset[options_out['yvar']])
-
+        valid = np.logical_and(xdata!=-999.0,ydata!=-999.0)
+        xdata = xdata[valid]
+        ydata = ydata[valid]
         # xdata = xdata[1:100000]
         # ydata = ydata[1:100000]
         mplot.xdata = xdata
         mplot.ydata = ydata
+
+
         if options_out['groupBy'] is not None:
-            mplot.groupdata = np.array(self.dataset[options_out['groupBy']])
-            if options_out['groupBy']=='blended_dominat_owt':
+            groupdata = np.array(self.dataset[options_out['groupBy']])
+            gData = groupdata[valid]
+            mplot.groupdata = gData
+            if options_out['groupBy']=='blended_dominant_owt':
                 values = list(range(1,19))
+                #values = [-1] + values
                 flags = [f'OWT_{x}' for x in values]
-                options_out['blended_dominat_owt'] = {
+                options_out['blended_dominant_owt'] = {
                     'flag_values': values,
                     'flag_meanings': flags
                 }
@@ -129,10 +136,13 @@ class CSVPLOT:
                 else:
                     options_out['groupValues'] = values
 
-                options_out['groupValues'] = [3,6,9,13]
+                options_out['groupValues'] = [-1]
+                #options_out['groupValues'] = [1,2,3,6,9,13]
+
+                #print('==========>',options_out['groupValues'])
 
                 selectData = np.zeros(xdata.shape)
-                gData = mplot.groupdata
+                #gData = mplot.groupdata
                 for gvalue in options_out['groupValues']:
                     selectData[gData==gvalue] = 1
 
@@ -242,9 +252,13 @@ class CSVPLOT:
         ydata = np.array(self.dataset[options_out['yvar']])
         selectData = np.array(self.dataset[options_out['selectBy']]).astype(np.int32)
         selectValue = options_out['selectValue']
+        valid = np.logical_and(xdata!=-999.0, ydata!=-999.0)
+        xdata = xdata[valid]
+        ydata = ydata[valid]
+        selectData = selectData[valid]
         mplot.xdata = xdata[selectData==selectValue]
         mplot.ydata = ydata[selectData==selectValue]
-        mplot.compute_statistics(False,False)
+        mplot.compute_statistics(options_out['log_scale'],False)
         #print(mplot.valid_stats)
         return mplot.valid_stats
 

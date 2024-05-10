@@ -115,6 +115,9 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
     if args.ndays_interval:
         interval = 24 * int(args.ndays_interval)
 
+    config_file_summary = os.path.join(output_path,'ConfigPlotSummary.ini')
+    print('[INFO] Config file summary: ',config_file_summary)
+
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
@@ -126,11 +129,17 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             continue
         hdayfile.set_path_images_date(site, work_date)
 
+        if os.path.exists(config_file_summary):
+            dir_img_summary = os.path.join(os.path.dirname(hdayfile.file_nc), 'SUMMARY')
+            plot_from_options(hdayfile.file_nc,config_file_summary,dir_img_summary)
+            hdayfile.save_report_summary_image(site,work_date,dir_img_summary)
+
         for isequence in range(len(hdayfile.sequences)):
             hdayfile.isequence = isequence
-            # if isequence==0:
-            #     hdayfile.save_report_image(site,args.nodelfiles, args.overwrite)
-            hdayfile.save_report_image(site, args.nodelfiles, args.overwrite)
+            delete = False if args.nodelfiles else True
+            # if isequence==32:
+            #     hdayfile.save_report_image(site,delete, args.overwrite)
+            hdayfile.save_report_image(site, delete, args.overwrite)
             # hdayfile.save_angle_files(True)
 
         # hdayfile.save_img_files(True)
@@ -232,10 +241,10 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     # red_array = np.array(img.getdata(0)).reshape(img.size).astype(np.uint8)
 
 
-def plot_from_options(input_path, config_file):
+def plot_from_options(input_path, config_file,output_path_images):
     if not os.path.exists(config_file):
         print(f'[ERROR] Plot configuration file: {config_file} does not exist. ')
-        return
+        return None
 
     if args.verbose:
         print(f'[INFO] Started plotting from file: {input_path}')
@@ -247,6 +256,14 @@ def plot_from_options(input_path, config_file):
     from MDB_reader.PlotOptions import PlotOptions
     poptions = PlotOptions(options, None)
     poptions.set_global_options()
+    if output_path_images is not None:
+        if not os.path.exists(output_path_images):
+            try:
+                os.mkdir(output_path_images)
+            except:
+                pass
+        if os.path.exists(output_path_images):
+            poptions.global_options['output_path'] = output_path_images
 
     from MDB_reader.FlagBuilder import FlagBuilder
     fbuilder = FlagBuilder(input_path, None, options)
@@ -259,12 +276,16 @@ def plot_from_options(input_path, config_file):
     #     print(array.shape)
 
     list_figures = poptions.get_list_figures()
+
     # print(list_figures)
     for figure in list_figures:
         print('------------------------------------------------------------------------------------------')
         print(f'[INFO] Starting figure: {figure}')
         options_figure = poptions.get_options(figure)
+        if options_figure is None:
+            continue
         hfile.plot_from_options_impl(options_figure)
+
 
 
 def make_flagged_nc_from_csv(config_file):
@@ -636,6 +657,8 @@ def main():
     if args.mode == 'REPORTDAYFILES':
         make_report_files(input_path, output_path, site, start_date, end_date)
 
+
+
     if args.mode == 'SUMMARYFILES':
         make_summary_files(input_path, output_path, site, start_date, end_date, start_time, end_time, summary_options)
 
@@ -643,7 +666,7 @@ def main():
         make_flagged_nc_from_csv(args.config_path)
 
     if args.mode == 'PLOT':
-        plot_from_options(input_path, args.config_path)
+        plot_from_options(input_path, args.config_path,None)
 
     if args.mode == 'SUNDOWNLOAD':
         make_sun_download(input_path, site, start_date, end_date)

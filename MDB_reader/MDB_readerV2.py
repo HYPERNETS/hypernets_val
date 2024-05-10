@@ -877,6 +877,7 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
     reader.mfile.close()
     return True
 
+
 def creating_copy_correcting_band_bis(file_in, file_out, band_to_correct, new_array):
     # reader = MDB_READER('', True)
     from netCDF4 import Dataset
@@ -913,7 +914,6 @@ def creating_copy_correcting_band_bis(file_in, file_out, band_to_correct, new_ar
     ncout.close()
     ncin.close()
     return True
-
 
 
 def creating_copy_correcting_band(reader, file_out, band_to_correct, new_array):
@@ -2567,7 +2567,7 @@ def get_certo_dates_olci():
             continue
         dir_year = os.path.join(dir_sources, yyyy)
         dir_jjj = os.path.join(dir_year, jjj)
-        if date_here.year==2023:
+        if date_here.year == 2023:
             name_file = f'CERTO_blacksea_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
         else:
             name_file = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
@@ -2675,49 +2675,51 @@ def set_certo_dates_msi():
             areader = MDB_READER(file_in, True)
             creating_copy_correcting_band(areader, output_file, 'satellite_time', sat_time_new)
 
+
 def set_certo_dates_extracts():
     from datetime import datetime as dt
     ##olci
-    #dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_olci'
-    #dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_olci_out'
-    #file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_olci/DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_OLCI.csv'
-    #msi
+    # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_olci'
+    # dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_olci_out'
+    # file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_olci/DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_OLCI.csv'
+    # msi
     # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_msi'
     # dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_msi_out'
     # #file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_msi/DOORS_BlackSea_insitu_cnr_iop_extract_CERTO_MSI.csv'
     # file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/in_situ_extracts/certo_msi/DOORS_insitu_from_metadata_11102023_extract_CERTO_MSI.csv'
-    #cmems olci
+    # cmems olci
     dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts/cmems_olci'
     dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts/cmems_olci_out'
     # file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/INSITU/in_situ_extracts/cmems/DOORS_insitu_from_metadata_11102023_extract_CMEMS.csv'
     file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/INSITU/in_situ_extracts/cmems/DOORS_BlackSea_insitu_cnr_iop_extract_CMEMS.csv'
     df = pd.read_csv(file_extracts, sep=';')
     for index, row in df.iterrows():
-        if int(row['IndexExtractOlci'])==-1:
+        if int(row['IndexExtractOlci']) == -1:
             continue
         name_file = f'extract_{str(row["ExtractOlci"])}'
-        input_file = os.path.join(dir_base,name_file)
-        output_file = os.path.join(dir_out,name_file)
-        sat_time = dt.strptime(str(row['SatTimeOlci']),'%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.utc)
+        input_file = os.path.join(dir_base, name_file)
+        output_file = os.path.join(dir_out, name_file)
+        sat_time = dt.strptime(str(row['SatTimeOlci']), '%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.utc)
         ts = sat_time.timestamp()
         if os.path.exists(output_file):
             from netCDF4 import Dataset
             dataset_out = Dataset(output_file)
             ts_out = float(dataset_out.variables['satellite_time'][0])
             dataset_out.close()
-            diff = abs(ts-ts_out)
+            diff = abs(ts - ts_out)
             sat_time_check = dt.utcfromtimestamp(ts_out)
-            #print(sat_time.strftime('%Y-%m-%d %H:%M:%S'), sat_time_check.strftime('%Y-%m-%d %H:%M:%S'),diff)
-            if diff!=0:
-                print(output_file,sat_time.strftime('%Y-%m-%d %H:%M:%S'))
+            # print(sat_time.strftime('%Y-%m-%d %H:%M:%S'), sat_time_check.strftime('%Y-%m-%d %H:%M:%S'),diff)
+            if diff != 0:
+                print(output_file, sat_time.strftime('%Y-%m-%d %H:%M:%S'))
                 # fnew = os.path.join('/mnt/c/DATA_LUIS/DOORS_WORK',name_file)
                 # os.rename(output_file,fnew)
         else:
             sat_time_check = dt.utcfromtimestamp(ts)
-            #print(input_file)
-            print(sat_time.strftime('%Y-%m-%d %H:%M:%S'),sat_time_check.strftime('%Y-%m-%d %H:%M:%S'),os.path.exists(input_file))
-            array_new = np.array([ts],dtype=np.float64)
-            creating_copy_correcting_band_bis(input_file,output_file,'satellite_time',array_new)
+            # print(input_file)
+            print(sat_time.strftime('%Y-%m-%d %H:%M:%S'), sat_time_check.strftime('%Y-%m-%d %H:%M:%S'),
+                  os.path.exists(input_file))
+            array_new = np.array([ts], dtype=np.float64)
+            creating_copy_correcting_band_bis(input_file, output_file, 'satellite_time', array_new)
 
 
 def check_dates():
@@ -2805,7 +2807,7 @@ def do_temporal_owt_comparison(input_path):
         cplot = CSVPLOT(file_csv)
         for owt in owt_list:
             options_out['selectValue'] = owt
-            median,p25,p75 = cplot.compute_distribution(options_out)
+            median, p25, p75 = cplot.compute_distribution(options_out)
             df.loc[owt].at[wls] = median
     print(df)
     pspectra.xdata = wl_list
@@ -2825,7 +2827,11 @@ def do_temporal_owt_comparison(input_path):
     pspectra.save_plot(file_out)
 
 def do_temporal_spectra_stats_from_csv(input_path):
-    owt = 13
+    do_temporal_spectra_stats_from_csv_impl(input_path,-1)
+    for owt in range(1,18):
+        do_temporal_spectra_stats_from_csv_impl(input_path, owt)
+def do_temporal_spectra_stats_from_csv_impl(input_path,owt):
+    #owt = 13
     file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/SpectraComparison_OWT_{owt}.tif'
     from PlotSpectra import PlotSpectra
     import pandas as pd
@@ -2838,8 +2844,8 @@ def do_temporal_spectra_stats_from_csv(input_path):
     # owt_list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
     # owt_list = [3, 6, 9, 13]
 
-    indices = ['median_CMEMS','p25_CMEMS','p75_CMEMS','median_CERTO','p25_CERTO','p75_CERTO']
-    df = pd.DataFrame(index=indices,columns=wl_list_str)
+    indices = ['median_CMEMS', 'p25_CMEMS', 'p75_CMEMS', 'median_CERTO', 'p25_CERTO', 'p75_CERTO']
+    df = pd.DataFrame(index=indices, columns=wl_list_str)
     options_out = {
         'yvar': 'CMEMSVal',
         'selectBy': 'blended_dominat_owt',
@@ -2849,7 +2855,7 @@ def do_temporal_spectra_stats_from_csv(input_path):
         file_csv = os.path.join(input_path, f'rrs_{wls}_points_valid_common.csv')
         cplot = CSVPLOT(file_csv)
         options_out['yvar'] = 'CMEMSVal'
-        median,p25,p75 = cplot.compute_distribution(options_out)
+        median, p25, p75 = cplot.compute_distribution(options_out)
         df.loc['median_CMEMS'].at[wls] = median
         df.loc['p25_CMEMS'].at[wls] = p25
         df.loc['p75_CMEMS'].at[wls] = p75
@@ -2868,32 +2874,40 @@ def do_temporal_spectra_stats_from_csv(input_path):
         'p25': np.array(df.loc['p25_CMEMS']).astype(np.float32),
         'p75': np.array(df.loc['p75_CMEMS']).astype(np.float32)
     }
-    h1 = pspectra.plot_stats(stats,0,16)
+    h1 = pspectra.plot_stats(stats, 0, 16)
     pspectra.set_color('blue')
     stats = {
         'median': np.array(df.loc['median_CERTO']).astype(np.float32),
         'p25': np.array(df.loc['p25_CERTO']).astype(np.float32),
         'p75': np.array(df.loc['p75_CERTO']).astype(np.float32)
     }
-    h2 =pspectra.plot_stats(stats, 0, 16)
+    h2 = pspectra.plot_stats(stats, 0, 16)
     pspectra.set_xticks(wl_list, wl_ticks, 45, 8)
     pspectra.set_xaxis_title('Wavelenght(nm)')
     pspectra.set_yaxis_title('Rrs')
     pspectra.legend_options['loc'] = 'lower center'
-    pspectra.legend_options['bbox_to_anchor'] = (0.5,-0.4)
+    pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.4)
     pspectra.legend_options['ncols'] = 2
-    pspectra.set_legend_h([h1[0],h2[0]],['CMEMS-OLCI','CERTO-OLCI'])
+    pspectra.set_legend_h([h1[0], h2[0]], ['CMEMS-OLCI', 'CERTO-OLCI'])
     pspectra.set_title(f'Optical water type {owt}')
     pspectra.set_grid()
     pspectra.set_tigth_layout()
     pspectra.save_plot(file_out)
 
-def do_temporal_wl_stats_from_csv(input_path):
+
+def do_temporal_wl_stats_from_csv(type,input_path):
+    stats = ['N', 'slope', 'intercept', 'BIAS', 'RMSD', 'DETER(r2)', 'RPD', 'APD']
+    ytitles = ['N', 'SLOPE TYPE-II REGRESSION', 'OFFSET TYPE-II REGRESSION', 'bias', 'RMSD', f'R$^2$', 'RPD', 'APD']
+    for stat,ytitle in zip(stats,ytitles):
+        do_temporal_wl_stats_from_csv_impl(type,input_path,stat,ytitle)
+
+
+def do_temporal_wl_stats_from_csv_impl(type,input_path,stat,ytitle):
     # N, slope, intercept, BIAS, RMSD, DETER(r2)
-    stat = 'DETER(r2)'
+    #stat = 'DETER(r2)'
     # f'R$^2$'
-    ytitle = f'R$^2$'
-    file_out = '/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/Stats_R2_4owt.tif'
+    #ytitle = f'R$^2$'
+    file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/Stats_{stat}_{type}.tif'
     from PlotSpectra import PlotSpectra
     import pandas as pd
     from CSVPlot import CSVPLOT
@@ -2903,7 +2917,10 @@ def do_temporal_wl_stats_from_csv(input_path):
     wl_list = [float(x.replace('_', '.')) for x in wl_list_str]
     wl_ticks = [str(x) for x in wl_list]
     # owt_list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
-    owt_list = [3, 6, 9, 13]
+    if type=='4owt':
+        owt_list = [3, 6, 9, 13]
+    if type=='6owt':
+        owt_list = [1,2, 3, 6, 9, 13]
 
     colors = ['Blue', 'Red', 'Green', 'm', 'Cyan', 'Orange', 'Yellow']
     legend = [f'OWT {x}' for x in owt_list]
@@ -2913,14 +2930,15 @@ def do_temporal_wl_stats_from_csv(input_path):
         'xvar': 'CMEMSVal',
         'yvar': 'CERTOVal',
         'selectBy': 'blended_dominat_owt',
-        'selectValue': 0
-
+        'selectValue': 0,
+        'log_scale': False
     }
     for wls in wl_list_str:
         file_csv = os.path.join(input_path, f'rrs_{wls}_points_valid_common.csv')
         cplot = CSVPLOT(file_csv)
         for owt in owt_list:
             options_out['selectValue'] = owt
+            print(wls,owt)
             valid_stats = cplot.compute_statistics(options_out)
             df.loc[owt].at[wls] = valid_stats[stat]
     print(df)
@@ -2929,6 +2947,10 @@ def do_temporal_wl_stats_from_csv(input_path):
         data = np.array(df.loc[owt])
         pspectra.plot_single_line(data, colors[index], '-', 1, 'o', 6)
     pspectra.set_xticks(wl_list, wl_ticks, 45, 8)
+    if stat=='APD':
+        pspectra.set_y_range(0,100)
+    if stat == 'RPD':
+        pspectra.set_y_range(-100,100)
     pspectra.set_xaxis_title('Wavelength (nm)')
     pspectra.set_yaxis_title(ytitle)
     pspectra.set_grid()
@@ -2936,6 +2958,83 @@ def do_temporal_wl_stats_from_csv(input_path):
     pspectra.set_tigth_layout()
 
     pspectra.save_plot(file_out)
+
+
+def do_temporal_all_owt_stats(type, input_path):
+    ## type: CHL or TSM
+    stats = ['N', 'slope', 'intercept', 'BIAS', 'RMSD', 'DETER(r2)', 'RPD', 'APD']
+    ytitles = ['N', 'SLOPE TYPE-II REGRESSION', 'OFFSET TYPE-II REGRESSION', 'bias', 'RMSD', f'R$^2$', 'RPD', 'APD']
+    for stat, ytitle in zip(stats, ytitles):
+        do_temporal_all_owt_stats_impl(input_path, type, stat, ytitle)
+
+
+def do_temporal_all_owt_stats_impl(input_path, type, stat, ytitle):
+    # N, slope, intercept, BIAS, RMSD, DETER(r2)
+    import pandas as pd
+    from PlotSpectra import PlotSpectra
+    from CSVPlot import CSVPLOT
+    param = 'Chla'
+    if type=='TSM':
+        param = 'tsm'
+    file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/Stats_{param}_{stat}.tif'
+
+    cplot = CSVPLOT(input_path)
+    options_out = {
+        'xvar': 'CMEMS_chl',
+        'yvar': 'CERTO_blended_chla',
+        'selectBy': 'blended_dominant_owt',
+        'selectValue': 0,
+        'log_scale': True
+    }
+
+    owt = list(range(18))
+    if type=='CHL':
+        indices = ['CERTO_blended_chla', 'CERTO_blended_chla_from_predominant_owt', 'CERTO_blended_chla_top_2_weighted','CERTO_blended_chla_top_3_weighted']
+    if type=='TSM':
+        options_out['xvar'] = 'CMEMS_tsmnn'
+        indices = ['CERTO_blended_tsm', 'CERTO_blended_tsm_top_2_weighted','CERTO_blended_tsm_top_3_weighted']
+
+    colors = ['Blue', 'Red', 'Green', 'm', 'Cyan', 'Orange', 'Yellow']
+    df = pd.DataFrame(index=indices, columns=owt)
+    for yvar in indices:
+        options_out['yvar'] = yvar
+        for ow in owt:
+            selectValue = ow
+            if ow == 0:
+                selectValue = -1
+            options_out['selectValue'] = selectValue
+            valid_stats = cplot.compute_statistics(options_out)
+            df.loc[yvar].at[ow] = valid_stats[stat]
+
+    pspectra = PlotSpectra()
+    pspectra.xdata = owt
+    for index, yvar in enumerate(indices):
+        data = np.array(df.loc[yvar])
+        pspectra.plot_single_line(data, colors[index], '-', 1, 'o', 5)
+    owt_ticks = []
+    for ow in owt:
+        if ow == 0:
+            tick = 'NO OWT'
+        else:
+            tick = f'OWT {ow}'
+        owt_ticks.append(tick)
+    pspectra.set_xticks(owt, owt_ticks, 90, 8)
+    pspectra.set_xaxis_title('Optical Water Types')
+    pspectra.set_yaxis_title(ytitle)
+    pspectra.set_grid()
+    legend = ['Blended', 'OWT', 'Top-2', 'Top-3']
+    if type=='TSM':
+        legend = ['Blended', 'Top-2', 'Top-3']
+    pspectra.legend_options['loc'] = 'lower center'
+    pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.4)
+    pspectra.legend_options['ncols'] = len(legend)
+    pspectra.set_legend(legend)
+    pspectra.set_tigth_layout()
+
+    pspectra.save_plot(file_out)
+
+    print(df)
+
 
 def main():
     mode = args.mode
@@ -2950,7 +3049,7 @@ def main():
         # move_extracts()
         # set_certo_dates_msi()
         # get_certo_dates_msi()
-        #get_certo_dates_olci()
+        # get_certo_dates_olci()
         # check_dates()
         set_certo_dates_extracts()
 
@@ -3580,22 +3679,23 @@ def main():
         if not os.path.isdir(output_path):
             print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
 
-        # from MDBPlotV3 import MDBPlot
-        # mplot = MDBPlot(input_path)
-        # mplot.plot_from_options_file(config_file)
+        ##WITH MDBPLOTV3
+        from MDBPlotV3 import MDBPlot
+        mplot = MDBPlot(input_path)
+        mplot.plot_from_options_file(config_file)
 
         # mplot.output_path = output_path
         #
 
         ##WITH MDBPlotV2
-        from MDBPlotV2 import MDBPlot
-        import configparser
-        mplot = MDBPlot(input_path)
-        options = configparser.ConfigParser()
-        options.read(config_file)
-        # print(mplot.VALID)
-        mplot.set_global_options(options)
-        mplot.plot_from_options(options)
+        # from MDBPlotV2 import MDBPlot
+        # import configparser
+        # mplot = MDBPlot(input_path)
+        # options = configparser.ConfigParser()
+        # options.read(config_file)
+        # # print(mplot.VALID)
+        # mplot.set_global_options(options)
+        # mplot.plot_from_options(options)
 
         # path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS'
         # from PlotMultiple import PlotMultiple
@@ -3831,15 +3931,15 @@ def main():
 
         ##temporal,stats plots from multiple csv files
         if os.path.isdir(input_path):
-            #do_temporal_wl_stats_from_csv(input_path)
-            #do_temporal_spectra_stats_from_csv(input_path)
-            do_temporal_owt_comparison(input_path)
-
-
+            #do_temporal_wl_stats_from_csv('4owt',input_path)
+            #do_temporal_wl_stats_from_csv('6owt', input_path)
+            do_temporal_spectra_stats_from_csv(input_path)
+            # do_temporal_owt_comparison(input_path)
             return
-
-
-
+        if os.path.basename(config_file) == 'skip.ini':
+            #do_temporal_all_owt_stats('CHL',input_path)
+            do_temporal_all_owt_stats('TSM', input_path)
+            return
 
         from CSVPlot import CSVPLOT
         cplot = CSVPLOT(input_path)

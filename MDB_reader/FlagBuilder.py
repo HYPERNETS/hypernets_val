@@ -20,15 +20,17 @@ class FlagBuilder:
             try:
                 self.mfile = MDBFile(path_mdb_file)
                 self.VALID = self.mfile.VALID
+                if not self.VALID:
+                    print(
+                        f'[WARNING] {path_mdb_file} is not a MDB file, it will be used a regular NetCDF file, some functions could not work')
+                    self.mfile = None
+                    self.nc_file = path_mdb_file
+                    self.VALID = True
             except:
-                print(
-                    f'[WARNING] {path_mdb_file} is not a MDB file, it will be used a regular NetCDF file, some functions could not work')
-                self.mfile = None
-                self.nc_file = path_mdb_file
-                self.VALID = True
+                self.VALID = False
 
         if not self.VALID:
-            print(f'[ERROR] {path_mdb_file} is not a valid MDB file')
+            print(f'[ERROR] {path_mdb_file} is not a valid  file')
 
         self.omanager = OptionsManager(config_file, options)
         self.flag_list = self.omanager.get_section_list(None)
@@ -103,18 +105,22 @@ class FlagBuilder:
         return flag_values, flag_names, array
 
     def create_flag_array_ranges_v2(self, options_dict):
+
         default_value = 0
         flag_names = []
         flag_values = []
         fl_info = {}
         array = None
+        nscans = 1
         dataset = Dataset(self.nc_file)
         for fl in options_dict:
             if fl.startswith('flag_ranges'):
                 if options_dict[fl]['is_default']:
                     default_value = int(options_dict[fl]['flag_value'])
-                flag_values.append(options_dict[fl]['flag_value'])
-                flag_names.append(options_dict[fl]['flag_name'])
+                value = options_dict[fl]['flag_value']
+                if value not in flag_values:
+                    flag_values.append(value)
+                    flag_names.append(options_dict[fl]['flag_name'])
                 value_s = str(options_dict[fl]['flag_value'])
                 if value_s not in fl_info.keys():
                     fl_info[value_s] = [fl]
@@ -123,9 +129,13 @@ class FlagBuilder:
                 if array is None:
                     r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
                     array = r_array.copy().astype(np.int64)
+                if array is not None and len(dataset.variables[options_dict[fl]['flag_var']].dimensions)==2:
+
+                    r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
+                    array = r_array.copy().astype(np.int64)
+                    nscans = array.shape[1]
 
         array[:] = default_value
-
 
         for svalue in fl_info:
             value = int(svalue)
@@ -133,6 +143,8 @@ class FlagBuilder:
             if nranges == 1:
                 fl = fl_info[svalue][0]
                 r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
+                if nscans>1 and len(r_array.shape)==1:
+                    r_array = self.replicate_scans(r_array,nscans)
                 v_min = options_dict[fl]['min_range']
                 v_max = options_dict[fl]['max_range']
                 if v_min is not None and v_max is not None:
@@ -142,9 +154,12 @@ class FlagBuilder:
                 elif v_min is not None and v_max is None:
                     array[r_array >= v_min] = value
             else:
+
                 array_check = np.zeros(array.shape)
                 for fl in fl_info[svalue]:
                     r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
+                    if nscans > 1 and len(r_array.shape) == 1:
+                        r_array = self.replicate_scans(r_array,nscans)
                     v_min = options_dict[fl]['min_range']
                     v_max = options_dict[fl]['max_range']
 
@@ -154,8 +169,9 @@ class FlagBuilder:
                     elif v_min is None and v_max is not None:
                         array_check[r_array <= v_max] = array_check[r_array <= v_max] + 1
                     elif v_min is not None and v_max is None:
-                        array_check[r_array >= v_min] = array_check[r_array <= v_max] + 1
+                        array_check[r_array >= v_min] = array_check[r_array >= v_min] + 1
                 condition = options_dict[fl]['flag_condition']
+
                 if condition=='and':
                     array[array_check == nranges] = value
                 elif condition=='or':
@@ -164,6 +180,13 @@ class FlagBuilder:
 
         return array, flag_names, flag_values
 
+
+    def replicate_scans(self,array,nscans):
+        ndata = array.shape[0]
+        new_array = np.zeros((ndata,nscans))
+        for iscan in range(nscans):
+            new_array[:,iscan] = array[:]
+        return new_array
     def create_flag_array_ranges(self, options_dict):
         var_ranges = options_dict['var_ranges']
         r_array = self.mfile.get_full_array(var_ranges)
@@ -177,7 +200,7 @@ class FlagBuilder:
                     default_value = int(options_dict[fl]['flag_value'])
                 flag_values.append(options_dict[fl]['flag_value'])
                 flag_names.append(options_dict[fl]['flag_name'])
-                ##Default value
+        ##Default value
         array[:] = default_value
         ##Flag limites by lat-long values
         for fl in options_dict:
@@ -185,7 +208,7 @@ class FlagBuilder:
                 v_min = options_dict[fl]['min_range']
                 v_max = options_dict[fl]['max_range']
                 value = int(options_dict[fl]['flag_value'])
-                array[np.logical_and(r_array >= v_min, r_array <= v_max)] = value
+                array[np.logical_and(r_array >= v_min, r_array < v_max)] = value
         dims = self.mfile.get_dims_variable(var_ranges)
 
         if default_value != 0:

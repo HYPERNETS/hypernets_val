@@ -1,3 +1,5 @@
+import pytz
+
 from MDBFile import MDBFile
 from PlotOptions import PlotOptions
 import MDBPlotDefaults as defaults
@@ -188,7 +190,9 @@ class MDBPlot:
             print('------------------------------------------------------------------------------------------')
             print(f'[INFO] Starting figure: {figure}')
             options_figure = poptions.get_options(figure)
-            if options_figure['selectBy'] is not None:
+            if options_figure is None:
+                continue
+            if 'selecteBy' in options_figure and options_figure['selectBy'] is not None:
                 options_figure = self.check_gs_options_impl(options_figure, 'selectBy', 'selectType', 'selectValues')
             self.plot_from_options_impl(options_figure)
 
@@ -197,6 +201,111 @@ class MDBPlot:
             self.plot_scatterplot_from_options(options_figure)
         if options_figure['type'] == 'spectraplot':
             self.plot_spectraplot_from_options(options_figure)
+        if options_figure['type'] == 'timeseries':
+            self.plot_time_series(options_figure)
+
+    def plot_time_series(self, options_figure):
+        if not self.VALID and not os.path.isfile(self.mrfile.file_path):
+            print(f'[ERROR] {self.mrfile.file_path} shoud be a valid NetCDF file')
+            return
+        time_var = options_figure['time_var']
+        avg_vars = options_figure['avg_var']
+        if time_var is None or avg_vars is None:
+            print(f'[ERROR] time_var and avg_var should be defined in the configuration file')
+            return
+        if time_var not in self.mrfile.nc.variables:
+            print(f'[ERROR] {time_var} is not defined in {self.mrfile.file_path}')
+            return
+        for avg_var in avg_vars:
+            if avg_var not in self.mrfile.nc.variables:
+                print(f'[ERROR] {avg_var} is not defined in {self.mrfile.file_path}')
+                return
+
+        time = np.array(self.mrfile.nc.variables[time_var])
+        from datetime import datetime as dt
+        time_ini_year = [dt.utcfromtimestamp(float(x)).replace(day=1,month=1,hour=0,minute=0,second=0,microsecond=0,tzinfo=pytz.UTC).timestamp() for x in time]
+        time_fin_year = [dt.utcfromtimestamp(float(x)).replace(tzinfo=pytz.UTC,year=dt.utcfromtimestamp(float(x)).year+1).timestamp() for x in time_ini_year]
+        seconds_year = np.array(time_fin_year)-np.array(time_ini_year)
+        time_array = []
+        for there,ini_year,total_year in zip(time,time_ini_year,seconds_year):
+            val = dt.utcfromtimestamp(there).year + ((there-ini_year)/total_year)
+            time_array.append(val)
+        time_array = np.array(time_array)
+        width = (time_array[-1]-time_array[0])/len(time_array)
+
+
+        dispersion_min_var = options_figure['dispersion_min_var']
+        dispersion_max_var = options_figure['dispersion_max_var']
+
+
+        from PlotSpectra import PlotSpectra
+        import MDBPlotDefaults as defaults
+        pspectra = PlotSpectra()
+        pspectra.xdata = time_array
+        style = pspectra.line_style_default.copy()
+        style['linewidth']  = 0
+        style['marker'] = 'o'
+        style['markersize'] = 1
+        handles = []
+        for index,avg_var in enumerate(avg_vars):
+            style['color'] = defaults.colors_default[index]
+            var_array = np.array(self.mrfile.nc.variables[avg_var]).astype(np.float)
+            var_array[var_array<-1] = np.nan
+            if index==1 and not options_figure['log_scale']:
+                var_array[~np.isnan(var_array)] = var_array[~np.isnan(var_array)]/np.pi
+            if options_figure['log_scale']:
+                var_array[~np.isnan(var_array)] = np.log10(var_array[~np.isnan(var_array)])
+            h = pspectra.plot_data(var_array,style)
+
+            ##temporal, owt
+            #h = pspectra.plot_single_bar_series(var_array,style['color'],width,0,0)
+
+            handles.append(h[0])
+            if dispersion_min_var is not None and dispersion_max_var is not None:
+                if len(dispersion_min_var)==len(avg_vars) and len(dispersion_max_var)==len(avg_vars):
+                    min_dispersion_array = np.array(self.mrfile.nc.variables[dispersion_min_var[index]])
+                    max_dispersion_array = np.array(self.mrfile.nc.variables[dispersion_max_var[index]])
+                    min_dispersion_array[min_dispersion_array<-1.0] = np.nan
+                    max_dispersion_array[max_dispersion_array<-1.0] = np.nan
+                    if index == 1 and not options_figure['log_scale']:
+                        min_dispersion_array[~np.isnan(min_dispersion_array)] = min_dispersion_array[~np.isnan(min_dispersion_array)] / np.pi
+                        max_dispersion_array[~np.isnan(max_dispersion_array)] = max_dispersion_array[~np.isnan(
+                            max_dispersion_array)] / np.pi
+                    if options_figure['log_scale']:
+                        min_dispersion_array[~np.isnan(min_dispersion_array)] = np.log10(min_dispersion_array[~np.isnan(min_dispersion_array)])
+                        max_dispersion_array[~np.isnan(max_dispersion_array)] = np.log10(
+                            max_dispersion_array[~np.isnan(max_dispersion_array)])
+                    pspectra.plot_iqr_basic(min_dispersion_array,max_dispersion_array,style['color'])
+
+        ##temporal, for owt
+        # yticks = np.arange(1,19)
+        # pspectra.set_yticks(yticks,yticks,0,10)
+
+        ##temporal
+        ymin = options_figure['y_min']
+        ymax = options_figure['y_max']
+        if ymin is not None or ymax is not None:
+            pspectra.set_y_range(ymin,ymax)
+        if options_figure['ylabel'] is not None:
+            pspectra.set_yaxis_title(options_figure['ylabel'])
+        if options_figure['xlabel'] is not None:
+            pspectra.set_xaxis_title(options_figure['xlabel'])
+        pspectra.set_grid()
+        if options_figure['legend'] and options_figure['legend_values'] is not None:
+            pspectra.legend_options['loc'] = 'lower center'
+            pspectra.legend_options['bbox_to_anchor'] = (0.5,-0.25)
+            pspectra.legend_options['ncols'] = 2
+            pspectra.legend_options['markerscale'] = 5
+
+            pspectra.set_legend_h(handles,options_figure['legend_values'])
+        if options_figure['title'] is not None:
+            pspectra.set_title(options_figure['title'])
+
+        pspectra.set_tigth_layout()
+        file_out = options_figure['file_out']
+        if file_out is not None:
+            pspectra.save_plot(file_out)
+
 
     def plot_scatterplot_from_options(self, options_figure):
 

@@ -83,21 +83,36 @@ class PlotOptions:
             file_out_default = None
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str', None)
 
+
         # options_out['multiple_plot'] = self.get_value_param(section, 'multiple_plot', None, 'str')
         # if options_out['type'] == 'csvtable':
         #     options_out = self.get_options_csv(section,options_out)
-        if options_out['type'] == 'scatterplot':
-            print(f'[INFO] Plot type: scatterplot')
-            options_out = self.get_options_scatterplot(section, options_out)
-        if options_out['type'] == 'spectraplot':
-            options_out = self.get_options_spectraplot(section, options_out)
+        # if options_out['type'] == 'scatterplot':
+        #     print(f'[INFO] Plot type: scatterplot')
+        #     options_out = self.get_options_scatterplot(section, options_out)
+        #
+        # if options_out['type'] == 'spectraplot':
+        #     print(f'[INFO] Plot type: spectraplot')
+        #     options_out = self.get_options_spectraplot(section, options_out)
 
         if options_out['type'].startswith('statstable'):
+            print(f'[INFO] Plot type: statstable')
             options_out = self.get_options_csv_statstable(section, options_out)
+        else:
+            print(f'[INFO] Plot type: {options_out["type"]}')
+            options_out = self.get_options_impl(options_out['type'],section,options_out)
 
-
-        if options_out['type'] == 'histogram':
-            options_out = self.get_options_histogram(section,options_out)
+        # if options_out['type'] == 'histogram':
+        #     print(f'[INFO] Plot type: histogram')
+        #     options_out = self.get_options_histogram(section,options_out)
+        #
+        # if options_out['type'] == 'timeseries':
+        #     print(f'[INFO] Plot type: timeseries')
+        #     options_out = self.get_options_timeseries(section, options_out)
+        #
+        # if options_out['type'] == 'sequence':
+        #     print(f'[INFO] Plot type: sequence')
+        #     options_out = self.get_options_sequence(section, options_out)
 
         # if options_out['type'] == 'statswlplot':
         #     options_out = self.get_select_options(section, options_out)
@@ -109,23 +124,70 @@ class PlotOptions:
         #     options_out = self.get_options_spectraplot(section, options_out)
         #     options_out = self.get_select_options(section, options_out)
         # if options_out['type'] == 'flagplot':
-        #     options_out = self.get_options_flag(section, options_out)
-
-        for option in options_out:
-            print(option, '->', options_out[option])
+        #      options_out = self.get_options_flag(section, options_out)
+        if options_out is not None:
+            for option in options_out:
+                print(option, '->', options_out[option])
 
         return options_out
 
-    def get_options_histogram(self,section,options_out):
-        doptions = defaults.get_options_histogram()
+    def get_options_impl(self,type,section,options_out):
+        doptions = None
+        if type=='scatterplot':
+            doptions = defaults.get_options_scatterplots()
+        if type == 'spectraplot':
+            doptions = defaults.get_options_spectraplots()
+        if type=='timeseries':
+            doptions = defaults.get_options_timeseries()
+        if type=='sequence':
+            doptions = defaults.get_options_sequence()
+        if type=='histogram':
+            doptions = defaults.get_options_histogram()
+        if type=='flagplot':
+            doptions = defaults.get_options_flag_plot()
+        if type=='angleplot':
+            doptions = defaults.get_options_angleplot()
+
+        if doptions is None:
+            print(f'[ERROR] Options for plot {type} are not implemented yet')
+            return None
         for option in doptions:
             pvalues = None
             if 'values' in doptions[option]:
                 pvalues = doptions[option]['values']
             options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
                                                        doptions[option]['type'], pvalues)
+        if type == 'scatterplot':
+            options_out = self.get_options_scatterplot(section,options_out)
+
 
         return options_out
+
+
+
+    def get_fix_time_axis(self,frequency,units,time_start,time_stop):
+
+        from datetime import timedelta
+        time_instants = []
+        time_here = time_start
+        if units=='months':
+            frequency = frequency*30
+        if units=='years':
+            frequency = frequency*365
+        while time_here<=time_stop:
+            time_instants.append(time_here)
+            if units=='minutes':
+                time_here = time_here + timedelta(minutes=frequency)
+            elif units=='hours':
+                time_here = time_here + timedelta(hours=frequency)
+            elif units=='days' or units=='months' or units=='years':
+                time_here = time_here + timedelta(days=frequency)
+            else:
+                break
+
+        return time_instants
+
+
 
     def get_options_csv_statstable(self, section, options_out):
         options_out['xvar'] = self.get_value_param(section, 'xvar', 'mu_ins_rrs', 'str')
@@ -140,27 +202,9 @@ class PlotOptions:
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str')
         return options_out
 
-    def get_options_spectraplot(self, section, options_out):
 
-        doptions = defaults.get_options_spectraplots()
-
-        for option in doptions:
-            pvalues = None
-            if 'values' in doptions[option]:
-                pvalues = doptions[option]['values']
-            options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
-                                                       doptions[option]['type'], pvalues)
-        return options_out
 
     def get_options_scatterplot(self, section, options_out):
-        doptions = defaults.get_options_satterplots()
-        for option in doptions:
-            pvalues = None
-            if 'values' in doptions[option]:
-                pvalues = doptions[option]['values']
-
-            options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
-                                                       doptions[option]['type'], pvalues)
 
         if options_out['type_scatterplot'] == 'chla' or options_out['type_scatterplot'] == 'kd':  ##CHANGE DEFAULTS
             if self.get_value(section, 'units') is None:
@@ -388,6 +432,13 @@ class PlotOptions:
                 vals = vals.strip()
                 list.append(float(vals))
             return list
+        if type == 'floattuple':
+            list_str = value.split(',')
+            list = []
+            for vals in list_str:
+                vals = vals.strip()
+                list.append(float(vals))
+            return tuple(list)
         if type == 'intlist':
             list_str = value.split(',')
             list = []

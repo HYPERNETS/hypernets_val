@@ -194,7 +194,7 @@ global_options = {
     }
 }
 
-type_list = ['scatterplot','statswlplot','spectraplot','multipleplot','flagplot','histogram']
+type_list = ['scatterplot','statswlplot','spectraplot','multipleplot','flagplot','histogram','timeseries','sequence','angleplot']
 
 valid_stats = {
     'N':{
@@ -749,6 +749,182 @@ options_histogram = {
     }
 }
 
+options_timeseries = {
+    'time_var':{
+        'default': None,
+        'type': 'str'
+    },
+    'avg_var':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'dispersion_min_var':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'dispersion_max_var':{
+        'default': None,
+        'type': 'strlist'
+    },'xlabel':{
+        'default': None,
+        'type': 'str'
+    },
+    'ylabel':{
+        'default': None,
+        'type': 'str'
+    },
+    'y_min':{
+        'default': None,
+        'type': 'float'
+    },
+    'y_max':{
+        'default': None,
+        'type': 'float'
+    },
+    'log_scale':{
+        'default': False,
+        'type': 'boolean'
+    },
+    'type_time_axis':{
+        'default': 'variable',
+        'type': 'str',
+        'values': ['variable','fix']
+    },
+    'method_fix_axis':{
+        'default': 'all',
+        'type': 'str',
+        'values': ['all','nearest']
+    },
+    'xticks_range':{
+        'default': 1,
+        'type': 'int'
+    },
+    'xticks_labels_range':{
+        'default': 1,
+        'type': 'int'
+    },
+    'color':{
+        'default': [marker_color_default],
+        'type': 'strlist'
+    },
+    'wlref':{
+        'default': -999.0,
+        'type': 'float'
+    }
+}
+
+options_sequences = {
+    'start_time':{
+        'default': None,
+        'type': 'str'
+    },
+    'end_time':{
+        'default': None,
+        'type': 'str'
+    },
+    'start_date':{
+        'default': None,
+        'type': 'str'
+    },
+    'end_date':{
+        'default': None,
+        'type': 'str'
+    },
+    'frequency_units':{
+        'default': 'minutes',
+        'type': 'str',
+        'values': ['minutes','hours','days','months','years']
+    },
+    'frequency':{
+        'default': -999.0,
+        'type': 'float',
+    }
+}
+
+options_flagplot = {
+    'type_flagplot':{
+        'default': 'comparison',
+        'type': 'str',
+        'values': ['comparison']
+    }
+}
+
+options_angleplot = {
+    'angle_var':{
+        'default': None,
+        'type': 'str'
+    },
+    'avg_var':{
+        'default': None,
+        'type': 'str'
+    },
+    'color':{
+        'default': [marker_color_default],
+        'type': 'strlist'
+    },
+    'wlref':{
+        'default': -999.0,
+        'type': 'float'
+    },
+    'scale':{
+        'default': 'log',
+        'type': 'str',
+        'values': ['log','linear','symlog','logit']
+    },
+    'rlim':{
+        'default': (1e-5,1),
+        'type': 'floattuple'
+    },
+    'theta_zero_location':{
+        'default': 'N',
+        'type': 'str',
+        'values': ['N', 'NW', 'W', 'SW', 'S', 'SE', 'E', 'NE']
+    },
+    'theta_direction':{
+        'default': -1,
+        'type': 'int',
+        'values': [-1,1]
+    },
+    'theta_min':{
+        'default': 0,
+        'type': 'float'
+    },
+    'theta_max':{
+        'default': 360,
+        'type': 'float'
+    },
+    'xticks':{
+        'default': [0,45,90,135,180,225,270,315],
+        'type': 'floatlist'
+    },
+    'rticks':{
+        'default': [1e-4, 1e-3, 1e-2, 1e-1, 1],
+        'type': 'floatlist'
+    },
+    'rlabel_position':{
+        'default': None,
+        'type': 'str'
+    },
+    'label_size':{
+        'default': 10,
+        'type': 'float'
+    },
+    'point_size':{
+        'default': [15],
+        'type': 'floatlist'
+    },
+    'point_marker':{
+        'default': ['o'],
+        'type': 'strlist'
+    },
+    'min_data':{
+        'default': 1.0e-5,
+        'type': 'float'
+    }
+
+
+}
+
 def get_options_spectraplots():
     options = options_spectraplots
     for op in options_legend:
@@ -763,7 +939,7 @@ def get_options_spectraplots():
         options[op] = options_time[op]
     return options
 
-def get_options_satterplots():
+def get_options_scatterplots():
     options = options_scatterplots
     for op in options_legend:
         options[op] = options_legend[op]
@@ -784,6 +960,44 @@ def get_options_satterplots():
 def get_options_histogram():
     return options_histogram
 
+def get_options_timeseries():
+    options = options_timeseries
+
+    for op in options_sequences:
+        options[op] = options_sequences[op]
+    for op in options_legend:
+        options[op] = options_legend[op]
+    for op in options_title:
+        options[op] = options_title[op]
+    for op in options_group:
+        options[op] = options_group[op]
+
+    return options
+
+def get_options_angleplot():
+    options = options_angleplot
+
+    for op in options_legend:
+        options[op] = options_legend[op]
+    for op in options_title:
+        options[op] = options_title[op]
+    for op in options_group:
+        options[op] = options_group[op]
+
+    return options
+
+
+def get_options_sequence():
+    options =  options_sequences
+    for op in options_title:
+        options[op] = options_title[op]
+    return options
+
+def get_options_flag_plot():
+    options =  options_flagplot
+    for op in options_title:
+        options[op] = options_title[op]
+    return options
 def get_scale_factor_str(scale_factor):
     import numpy as np
     scale_factor_str = ''
