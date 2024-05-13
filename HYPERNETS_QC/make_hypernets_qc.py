@@ -179,7 +179,6 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         fout.write(f'Link to PDF file: {public_link}')
         fout.write('\n')
         fout.close()
-
         import owncloud
         session = owncloud.Client('https://file.sic.rm.cnr.it/')
         session.login('Luis.Gonzalezvilas@artov.ismar.cnr.it','BigRoma_21')
