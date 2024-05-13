@@ -457,6 +457,7 @@ class HYPERNETS_DAY_FILE():
         file_out = os.path.join(os.path.dirname(self.file_nc),
                                 f'{site}_{date_here.strftime("%Y%m%d")}_DailySummary{self.format_img}')
         print(f'[INFO] Output file: {file_out}')
+
         # self.plot_from_options_impl(options_figure)
 
         ##TIME SERIES
