@@ -1743,6 +1743,8 @@ def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file
         fname = os.path.join(path_day, name)
         if os.path.exists(fname):
             ncfiles.append(fname)
+        else:
+            print(f'[WARNING] File: {fname} was not found')
 
     if len(ncfiles) == len(dataset_var_list):
         return ncfiles
@@ -1922,7 +1924,7 @@ def main():
         if csv_flags is not None:
             csv_flags_meanings = {}
 
-        #print('****************************************************** y luego aqui', is_reflectance)
+
 
         for idx, row in df.iterrows():
             list = [str(x).strip() for x in row.to_list()]
@@ -2038,7 +2040,7 @@ def main():
                         fcsv_out.write(f'{line_orig};NaN;-1')
 
                 else:
-                    print(f'[WARNING] Files not found for date: {datehere}. Skipping...')
+                    print(f'[WARNING] Files not found for date: {datehere.strftime("%Y-%m-%d")}. Skipping...')
                     fcsv_out.write('\n')
                     fcsv_out.write(f'{line_orig};NaN;-1')
             else:
@@ -2112,7 +2114,7 @@ def main():
                         fcsv_out.write('\n')
                         fcsv_out.write(f'{line_orig};NaN;-1')
                 else:
-                    print(f'[WARNING] Files not found for date: {datehere}. Skipping...')
+                    print(f'[WARNING] Files not found for date: {datehere.strftime("%Y-%m-%d")}. Skipping...')
                     fcsv_out.write('\n')
                     fcsv_out.write(f'{line_orig};NaN;-1')
 

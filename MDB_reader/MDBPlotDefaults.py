@@ -56,114 +56,114 @@ marker_color_default = 'black'
 edge_color_default = 'gray'
 line_width_default = 0.5
 regression_line_style_default = {
-    'line_color': 'black',
+    'color': 'black',
     'marker': None,
-    'marker_size': 0,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 0,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 identity_line_style_default = {
-    'line_color': 'black',
+    'color': 'black',
     'marker': None,
-    'marker_size': 0,
-    'line_style': 'dashed',
-    'line_size': 0.75
+    'markersize': 0,
+    'linestyle': 'dashed',
+    'linewidth': 0.75
 }
 
 line_style_default = {
-    'line_color': 'black',
+    'color': 'black',
     'marker': None,
-    'marker_size': 0,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 0,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 all_line_style_default = {
-    'line_color': 'gray',
+    'color': 'gray',
     'marker': None,
-    'marker_size': 0,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 0,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 valid_line_style_default = {
-    'line_color': 'green',
+    'color': 'green',
     'marker': None,
-    'marker_size': 0,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 0,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 invalid_line_style_default = {
-    'line_color': 'red',
+    'color': 'red',
     'marker': None,
-    'marker_size': 0,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 0,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 selected_line_style_default = {
-    'line_color': 'blue',
+    'color': 'blue',
     'marker': None,
-    'marker_size': 0,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 0,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 central_line_style_default = {
-    'line_color': 'black',
+    'color': 'black',
     'marker': 'o',
-    'marker_size': 5,
-    'line_style': 'solid',
-    'line_size': 1.5
+    'markersize': 5,
+    'linestyle': 'solid',
+    'linewidth': 1.5
 }
 dispersion_line_style_default = {
-    'line_color': 'black',
+    'color': 'black',
     'marker': None,
-    'marker_size': 0,
-    'line_style': 'dashed',
-    'line_size': 0
+    'markersize': 0,
+    'linestyle': 'dashed',
+    'linewidth': 0
 }
 fill_style_default ={
     'color': 'gray',
     'alpha': 0.5
 }
 insitu_line_style_default = {
-    'line_color': 'red',
+    'color': 'red',
     'marker': '.',
-    'marker_size': 10,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 10,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 sat_line_style_default = {
-    'line_color': 'blue',
+    'color': 'blue',
     'marker': '.',
-    'marker_size': 10,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 10,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 insitu_central_style_default = {
-    'line_color': 'red',
+    'color': 'red',
     'marker': 'o',
-    'marker_size': 5,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 5,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 sat_central_style_default = {
-    'line_color': 'blue',
+    'color': 'blue',
     'marker': 'o',
-    'marker_size': 5,
-    'line_style': 'solid',
-    'line_size': 1
+    'markersize': 5,
+    'linestyle': 'solid',
+    'linewidth': 1
 }
 insitu_dispersion_style_default = {
-    'line_color': 'red',
+    'color': 'red',
     'marker': 'o',
-    'marker_size': 0,
-    'line_style': 'dashed',
-    'line_size': 0
+    'markersize': 0,
+    'linestyle': 'dashed',
+    'linewidth': 0
 }
 sat_dispersion_style_default = {
-    'line_color': 'red',
+    'color': 'red',
     'marker': 'o',
-    'marker_size': 0,
-    'line_style': 'dashed',
-    'line_size': 0
+    'markersize': 0,
+    'linestyle': 'dashed',
+    'linewidth': 0
 }
 insitu_fill_style_default ={
     'color': 'red',
@@ -631,28 +631,28 @@ options_spectraplots = {
         'default': all_line_style_default,
         'type': 'linestyle'
     },
-    'line_style':{
+    'linestyle':{
         'default': line_style_default,
         'type': 'linestyle'
     },
-    'line_color':{
-        'default': [line_style_default['line_color']],
+    'color':{
+        'default': [line_style_default['color']],
         'type': 'strlist'
     },
     'marker':{
         'default': [line_style_default['marker']],
         'type': 'strlist'
     },
-    'marker_size':{
-        'default': [line_style_default['marker_size']],
+    'markersize':{
+        'default': [line_style_default['markersize']],
         'type': 'floatlist'
     },
-    'line_type':{
-        'default': [line_style_default['line_style']],
+    'linestyle':{
+        'default': [line_style_default['linestyle']],
         'type': 'strlist'
     },
-    'line_size': {
-        'default': [line_style_default['line_size']],
+    'linewidth': {
+        'default': [line_style_default['linewidth']],
         'type': 'strlist'
     },
     'valid_line_style':{

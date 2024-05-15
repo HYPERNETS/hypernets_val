@@ -45,7 +45,7 @@ class MDBFile:
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
             #self.VALID = True
-            self.VALID = self.check_structure()
+            if self.check_structure()==0: self.valid=False
 
         # except:
         except Exception as e:
@@ -331,11 +331,11 @@ class MDBFile:
             # if atrib == 'site' or atrib == 'in_situ_lat' or atrib == 'in_situ_lon':
             #     continue
             if atrib not in self.nc.ncattrs():
-                print(f'[ERROR] Attribute: {atrib} is not available in MDB file')
+                print(f'[WARNING] Attribute: {atrib} is not available in MDB file')
                 check_atrib = False
 
-        if check_var == False or check_dim == False or check_atrib == False:
-            return False
+        if check_var == False or check_dim == False:
+            return 0
 
         if not self.flag_band_name in self.variables:
             if self.nc.satellite_aco_processor.upper() == 'POLYMER' and 'satellite_bitmask' in self.variables:
@@ -350,7 +350,11 @@ class MDBFile:
             if self.nc.satellite_aco_processor.upper() == 'ACOLITE':
                 self.flag_band_name = 'NONE'
 
-        return True
+        if check_atrib:
+            return 1
+        else:
+            return 2
+
 
     # Set qc sat filtering options
     def set_default_filtering_options(self):

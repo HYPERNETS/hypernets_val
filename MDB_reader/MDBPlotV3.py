@@ -670,7 +670,26 @@ class MDBPlot:
         wavelength = self.mrfile.get_insitu_wl()
         all_spectra, all_spectra_validity, spectra_stats = self.mrfile.get_all_insitu_spectra(options_figure['scale_factor'],options_figure['use_rhow'],options_figure['plot_stats'])
 
-        # from PlotSpectra import PlotSpectra
+
+
+        from PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = wavelength
+        for ps in options_figure['plot_spectra']:
+            if ps.lower()=='none':
+                continue
+            if ps.lower()=='valid':
+                spectra_valid = all_spectra[all_spectra_validity==1]
+                for spectra in spectra_valid:
+                    pspectra.plot_data(spectra,options_figure['valid_line_style'])
+
+        pspectra.set_grid()
+
+        if options_figure['xlabel'] is not None: pspectra.set_xaxis_title(options_figure['xlabel'])
+        if options_figure['ylabel'] is not None: pspectra.set_yaxis_title(options_figure['ylabel'])
+        pspectra.set_tigth_layout()
+        if options_figure['file_out'] is not None: pspectra.save_plot(options_figure['file_out'])
+
         # if not options_out['plot_stats']:
         #     stats = None
 

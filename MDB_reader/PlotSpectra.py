@@ -94,6 +94,18 @@ class PlotSpectra():
                      markersize=style['markersize'])
         return h
 
+    def plot_multiple_data(self,ydata,style):
+        if len(ydata.shape)==2 and ydata.shape[0]==len(self.xdata):
+            xdata_multiple = np.zeros(ydata.shape)
+            xdata_multiple = xdata_multiple + np.array(self.xdata)
+            h = plt.plot(xdata_multiple, ydata,
+                         color=style['color'],
+                         linestyle=style['linestyle'],
+                         linewidth=style['linewidth'],
+                         marker=style['marker'],
+                         markersize=style['markersize'])
+            return h
+
     def plot_single_line(self, ydata, line_color, line_type, line_width, marker, marker_size):
         style = self.line_style_default
         if line_color is not None:

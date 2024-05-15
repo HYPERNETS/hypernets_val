@@ -83,7 +83,6 @@ class PlotOptions:
             file_out_default = None
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str', None)
 
-
         # options_out['multiple_plot'] = self.get_value_param(section, 'multiple_plot', None, 'str')
         # if options_out['type'] == 'csvtable':
         #     options_out = self.get_options_csv(section,options_out)
@@ -100,7 +99,7 @@ class PlotOptions:
             options_out = self.get_options_csv_statstable(section, options_out)
         else:
             print(f'[INFO] Plot type: {options_out["type"]}')
-            options_out = self.get_options_impl(options_out['type'],section,options_out)
+            options_out = self.get_options_impl(options_out['type'], section, options_out)
 
         # if options_out['type'] == 'histogram':
         #     print(f'[INFO] Plot type: histogram')
@@ -131,21 +130,21 @@ class PlotOptions:
 
         return options_out
 
-    def get_options_impl(self,type,section,options_out):
+    def get_options_impl(self, type, section, options_out):
         doptions = None
-        if type=='scatterplot':
+        if type == 'scatterplot':
             doptions = defaults.get_options_scatterplots()
         if type == 'spectraplot':
             doptions = defaults.get_options_spectraplots()
-        if type=='timeseries':
+        if type == 'timeseries':
             doptions = defaults.get_options_timeseries()
-        if type=='sequence':
+        if type == 'sequence':
             doptions = defaults.get_options_sequence()
-        if type=='histogram':
+        if type == 'histogram':
             doptions = defaults.get_options_histogram()
-        if type=='flagplot':
+        if type == 'flagplot':
             doptions = defaults.get_options_flag_plot()
-        if type=='angleplot':
+        if type == 'angleplot':
             doptions = defaults.get_options_angleplot()
 
         if doptions is None:
@@ -158,36 +157,31 @@ class PlotOptions:
             options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
                                                        doptions[option]['type'], pvalues)
         if type == 'scatterplot':
-            options_out = self.get_options_scatterplot(section,options_out)
-
+            options_out = self.get_options_scatterplot(section, options_out)
 
         return options_out
 
-
-
-    def get_fix_time_axis(self,frequency,units,time_start,time_stop):
+    def get_fix_time_axis(self, frequency, units, time_start, time_stop):
 
         from datetime import timedelta
         time_instants = []
         time_here = time_start
-        if units=='months':
-            frequency = frequency*30
-        if units=='years':
-            frequency = frequency*365
-        while time_here<=time_stop:
+        if units == 'months':
+            frequency = frequency * 30
+        if units == 'years':
+            frequency = frequency * 365
+        while time_here <= time_stop:
             time_instants.append(time_here)
-            if units=='minutes':
+            if units == 'minutes':
                 time_here = time_here + timedelta(minutes=frequency)
-            elif units=='hours':
+            elif units == 'hours':
                 time_here = time_here + timedelta(hours=frequency)
-            elif units=='days' or units=='months' or units=='years':
+            elif units == 'days' or units == 'months' or units == 'years':
                 time_here = time_here + timedelta(days=frequency)
             else:
                 break
 
         return time_instants
-
-
 
     def get_options_csv_statstable(self, section, options_out):
         options_out['xvar'] = self.get_value_param(section, 'xvar', 'mu_ins_rrs', 'str')
@@ -201,8 +195,6 @@ class PlotOptions:
             file_out_default = os.path.join(self.output_path, name_default)
         options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str')
         return options_out
-
-
 
     def get_options_scatterplot(self, section, options_out):
 
@@ -301,7 +293,7 @@ class PlotOptions:
                                                                      'boolean')
         options_out['apply_density'] = self.get_value_param(section, 'apply_density', True, 'boolean')
         options_out['title'] = self.get_value_param(section, 'title', None, 'str')
-        #print(self.global_options)
+        # print(self.global_options)
         if self.global_options['output_path'] is not None:
             name_default = options_out['name'] + '.' + self.global_options['fig_extension']
             file_out_default = os.path.join(self.global_options['output_path'], name_default)
@@ -462,11 +454,11 @@ class PlotOptions:
                 if marker.lower() == 'none':
                     marker = None
                 style = {
-                    'line_color': list_str[0].strip(),
+                    'color': list_str[0].strip(),
                     'marker': marker,
-                    'marker_size': marker_size,
-                    'line_style': list_str[3].strip(),
-                    'line_size': line_size
+                    'markersize': marker_size,
+                    'linestyle': list_str[3].strip(),
+                    'linewidth': line_size
                 }
                 return style
 
@@ -474,7 +466,7 @@ class PlotOptions:
                 print(f'[WARNING] {section}-{key} is not valid line style, using default style')
                 return default
 
-        if type=='fillstyle':
+        if type == 'fillstyle':
             list_str = value.split(',')
             if len(list_str) != 2:
                 print(
@@ -484,7 +476,7 @@ class PlotOptions:
                 return default
             try:
                 alpha = float(list_str[1].strip())
-                style  = {
+                style = {
                     'color': list_str[0].strip(),
                     'alpha': alpha
                 }
@@ -493,14 +485,14 @@ class PlotOptions:
                 print(f'[WARNING] {section}-{key} is not valid fill style, using default style')
                 return default
 
-        if type=='date':
+        if type == 'date':
             from datetime import datetime as dt
             try:
-                date = dt.strptime(value.strip(),'%Y-%m-%d')
+                date = dt.strptime(value.strip(), '%Y-%m-%d')
                 return date
             except:
                 return default
-        if type=='time':
+        if type == 'time':
             from datetime import datetime as dt
             val = value.strip()
             try:
