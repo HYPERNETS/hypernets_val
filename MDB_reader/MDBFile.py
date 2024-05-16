@@ -44,21 +44,17 @@ class MDBFile:
             self.variables = self.nc.variables
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
-            print('LINEA 47')
-            cs = self.check_structure()
-            print('LINE 49',cs)
-            # self.VALID = True
-            if cs == 0:
-                self.valid = False
+            if self.check_structure() == 0:
+                self.VALID = False
 
         except Exception as e:
             self.VALID = False
             print(f'[ERROR] Exception starting NetCDF file: {e}')
             return
 
+
         if not self.VALID:
-            print(
-                f'[ERROR] MDB File: {file_path} is not a valid MDB file with the correct structure. It could be cause problems.')
+            print(f'[ERROR] MDB File: {file_path} is not a valid MDB file with the correct structure.')
             return
 
         if self.VALID:
@@ -320,17 +316,17 @@ class MDBFile:
         self.nc.close()
 
     def check_structure(self):
-        check_var = True
-        check_dim = True
-        check_atrib = True
+        
         for var in VAR_NAMES:
             if var not in self.variables:
                 print(f'[ERROR] Variable: {var} is not available in MDB file')
-                check_var = False
+                return 0
         for dim in DIMENSION_NAMES:
             if dim not in self.dimensions:
                 print(f'[ERROR] Dimension: {dim} is not available in MDB file')
-                check_dim = False
+                return 0
+
+        check_atrib = True
         for atrib in ATRIB_NAMES:
             # if atrib == 'site' or atrib == 'in_situ_lat' or atrib == 'in_situ_lon':
             #     continue
@@ -338,8 +334,6 @@ class MDBFile:
                 print(f'[WARNING] Attribute: {atrib} is not available in MDB file')
                 check_atrib = False
 
-        if not check_var or not check_dim:
-            return 0
 
         if not self.flag_band_name in self.variables:
             if self.nc.satellite_aco_processor.upper() == 'POLYMER' and 'satellite_bitmask' in self.variables:
