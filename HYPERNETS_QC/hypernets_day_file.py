@@ -841,7 +841,7 @@ class HYPERNETS_DAY_FILE():
             print(f'[INFO] Spectra plot')
             self.plot_spectra_plot_from_options(options_figure)
         if options_figure['type'] == 'timeseries':
-            print(f'[INFO] Time series')
+            print(f'[INFO] Time series plot')
             self.plot_time_series_from_options(options_figure)
         if options_figure['type'] == 'sequence':
             print(f'[INFO] Sequence plot')
@@ -962,8 +962,7 @@ class HYPERNETS_DAY_FILE():
         ntime = len(time_fix_axis)
         time_fix_min_max = np.zeros((ntime, 2))
         seconds_ref = self.get_time_interval_seconds(options_figure['frequency'], 'minutes')
-        time_fix_axis_ts = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in time_fix_axis]).astype(
-            np.float64)
+        time_fix_axis_ts = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in time_fix_axis]).astype(np.float64)
         time_fix_min_max[:, 0] = time_fix_axis_ts - seconds_ref
         time_fix_min_max[:, 1] = time_fix_axis_ts + seconds_ref
         xarray = np.arange(ntime)
@@ -1052,7 +1051,7 @@ class HYPERNETS_DAY_FILE():
             return
 
         angle_array = dataset.variables[options_figure['angle_var']][:]
-        angle_array = np.ma.filled(angle_array.astype(np.float32), -999.0)
+        angle_array = np.ma.filled(angle_array.astype(np.float64), -999.0)
         nseries = angle_array.shape[0]
         nscan = 1
         if options_figure['angle_var'].startswith('l1'):
@@ -1278,7 +1277,7 @@ class HYPERNETS_DAY_FILE():
 
         options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
         time_array = dataset.variables[time_var][:]
-        time_array = np.ma.filled(time_array.astype(float), -999.0)
+        time_array = np.ma.filled(time_array.astype(np.float64), -999.0)
 
         if nscan > 1:
             time_array = self.reduce_l1_dimensions(time_array)
@@ -1297,8 +1296,7 @@ class HYPERNETS_DAY_FILE():
             ntime = len(time_fix_axis)
             time_fix_min_max = np.zeros((ntime, 2))
             seconds_ref = self.get_time_interval_seconds(options_figure['frequency'], options_figure['frequency_units'])
-            time_fix_axis_ts = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in time_fix_axis]).astype(
-                np.float)
+            time_fix_axis_ts = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in time_fix_axis]).astype(np.float64)
             time_fix_min_max[:, 0] = time_fix_axis_ts - seconds_ref
             time_fix_min_max[:, 1] = time_fix_axis_ts + seconds_ref
             xarray = np.arange(ntime)
@@ -1325,7 +1323,7 @@ class HYPERNETS_DAY_FILE():
         elif ngroups > 1:  ##multiple groups, only one variable
             avg_var = avg_vars[0]
             avg_array = dataset.variables[avg_var][:]
-            avg_array = np.ma.filled(avg_array.astype(np.float), -999.0)
+            avg_array = np.ma.filled(avg_array.astype(np.float64), -999.0)
             if is_spectral[0]:
                 index_ref = options_figure['wlref_index']
                 if len(avg_array.shape) == 3:
@@ -1410,7 +1408,7 @@ class HYPERNETS_DAY_FILE():
         if nvalid == 0:
             return None, None
         print(dt.utcfromtimestamp(time_min), dt.utcfromtimestamp(time_max))
-        xdata = np.array([output_value] * nvalid).astype(np.float)
+        xdata = np.array([output_value] * nvalid).astype(np.float64)
         ydata = var_array[valid_time]
 
         return xdata, ydata

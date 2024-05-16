@@ -18,6 +18,7 @@ class FlagBuilder:
         self.VALID = False
         if path_mdb_file is not None and os.path.isfile(path_mdb_file):
             try:
+                print(f'[INFO] Starting flag builder using file: {path_mdb_file}')
                 self.mfile = MDBFile(path_mdb_file)
                 self.VALID = self.mfile.VALID
                 if not self.VALID:
