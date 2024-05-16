@@ -206,7 +206,7 @@ def create_empty_image(file_img,site,date_here):
     plt.axis('off')
     plt.tight_layout()
     plt.savefig(file_img,dpi=300)
-    
+
 def create_daily_pdf_report(input_path, output_path, site, date_here, file_summary,sequences):
     import os
     from matplotlib.backends.backend_pdf import PdfPages

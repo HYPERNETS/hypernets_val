@@ -1334,7 +1334,7 @@ class HYPERNETS_DAY_FILE():
                 elif len(avg_array.shape) == 2:
                     avg_array = avg_array[:, index_ref]
                 avg_array = np.squeeze(avg_array)
-            print('-----> ', avg_array.shape)
+            print(f'[INFO] NSeries:  {nseries} NScans: {nscan} Variablel: {avg_var} Array shape: {avg_array.shape}')
             if nscan > 1 and len(avg_array.shape) == 1:
                 avg_array = self.multiply_array_by_scan(avg_array, nseries, nscan)
             if nscan > 1 and len(avg_array.shape) == 2:
