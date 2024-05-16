@@ -44,11 +44,13 @@ class MDBFile:
             self.variables = self.nc.variables
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
+            print('LINEA 47')
+            cs = self.check_structure()
+            print('LINE 49',cs)
             # self.VALID = True
-            if self.check_structure() == 0:
+            if cs == 0:
                 self.valid = False
 
-        # except:
         except Exception as e:
             self.VALID = False
             print(f'[ERROR] Exception starting NetCDF file: {e}')
