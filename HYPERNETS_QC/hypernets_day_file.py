@@ -1278,7 +1278,7 @@ class HYPERNETS_DAY_FILE():
 
         options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
         time_array = dataset.variables[time_var][:]
-        time_array = np.ma.filled(time_array.astype(np.float), -999.0)
+        time_array = np.ma.filled(time_array.astype(float), -999.0)
 
         if nscan > 1:
             time_array = self.reduce_l1_dimensions(time_array)

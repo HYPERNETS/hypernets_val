@@ -23,7 +23,8 @@ class MDBBuilderOptions:
             'AERONET': 'AERONET',
             'WISP3':'WISP3',
             'MEDA':'MEDA',
-            'TARA':'HYPERBOOST'
+            'TARA':'HYPERBOOST',
+            'SINGLE_CSV_RRS': 'NotAv'
         }
         # insitu path source
         self.insitu_path_source = None
@@ -268,7 +269,12 @@ class MDBBuilderOptions:
             'insitu_site_flags': self.get_value_param(section,'insitu_site_flag_flags','INVALID','str'),
             'bad_spectra_file_list': self.get_value_param(section,'insitu_bad_spectra_file_list',None,'file'),
             'bad_spectra_prefix': self.get_value_param(section,'insitu_bad_spectra_prefix',None,'str'),
-            'bad_spectra_format_time': self.get_value_param(section,'insitu_bad_spectra_format_time','%Y%m%dT%H%M%S','str')
+            'bad_spectra_format_time': self.get_value_param(section,'insitu_bad_spectra_format_time','%Y%m%dT%H%M%S','str'),
+            'rrs_prefix': self.get_value_param(section,'rrs_prefix',None,'str'),
+            'rrs_suffix': self.get_value_param(section,'rrs_suffix',None,'str'),
+            'first_rrs': self.get_value_param(section,'first_rrs',None,'str'),
+            'last_rrs': self.get_value_param(section,'last_rrs',None,'str'),
+            'fill_value': self.get_value_param(section,'fill_value',None,'float')
         }
         if self.verbose:
             print(
@@ -373,16 +379,16 @@ class MDBBuilderOptions:
         return filepath
 
     def get_dates(self):
-        if self.options['Time_and_sites_selection']['time_start']:
+        if self.options.has_option('Time_and_sites_selection','time_start'):
             self.start_date = dt.strptime(self.options['Time_and_sites_selection']['time_start'], '%Y-%m-%d').replace(
                 hour=0, minute=0, second=0, microsecond=0)
         else:
             if 'sensor' in self.param_sat:
                 if self.param_sat['sensor'] == 'OLCI':
                     self.start_date = dt(2016, 4, 15).replace(hour=0, minute=0, second=0, microsecond=0)
-                if self.param_sat['sensor'] == 'MULTI':
+                if self.param_sat['sensor'] == 'MULTI' or self.param_sat['sensor']=='CCI':
                     self.start_date = dt(1997, 9, 1).replace(hour=0, minute=0, second=0, microsecond=0)
-        if self.options['Time_and_sites_selection']['time_stop']:
+        if self.options.has_option('Time_and_sites_selection','time_stop'):
             self.end_date = dt.strptime(self.options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d').replace(
                 hour=23, minute=59, second=59)
 

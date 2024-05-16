@@ -596,7 +596,7 @@ class INSITUCOMPARISON:
                 if stat == 'BIAS':
                     stat = stat.lower()
                 # str0 = f'{str0}{stat}={val:.1e}'
-                str0 = f'{str0}{stat}={val:.2f}'
+                str0 = f'{str0}{stat}={val:.4f}'
             if stat == 'RPD' or stat == 'APD':
                 val = self.valid_stats[stat]
                 str0 = f'{str0}{stat}={val:.0f}%'
@@ -666,22 +666,52 @@ class INSITUCOMPARISON:
     def set_data_scatterplot_spectral(self, wl, xvariable, yvariable, wlvariable):
 
         self.dataset_w = Dataset(self.path_nc, 'r')
+
+        day_id = np.array(self.dataset_w['mu_day_id'][:])
+        array_1020 = np.array(self.dataset_w['mu_HYPSTAR_TO_AERONET_Lw'][:])
+        valid = np.ones(array_1020.shape)
+        valid[array_1020>100000] = 0
+        invalid_days = [21,30,32,35,63,66,80]
+        for iday in invalid_days:
+            valid[day_id==iday] = 0
+        # valid[day_id==21] = 0
+        # valid[day_id==35] = 0
+        # valid[day_id==80] = 0
+
+
         if wl is None:
             self.xdata = np.array(self.dataset_w.variables[xvariable])
             self.ydata = np.array(self.dataset_w.variables[yvariable])
+            self.xdata = self.xdata[valid==1]
+            self.ydata = self.ydata[valid==1]
         else:
             xdata = np.array(self.dataset_w.variables[xvariable])
             ydata = np.array(self.dataset_w.variables[yvariable])
             wl_array = np.array(self.dataset_w.variables[wlvariable])  # 'mu_wavelength'
+
+            xdata = xdata[valid == 1]
+            ydata = ydata[valid == 1]
+            wl_array = wl_array[valid==1]
+
+
             self.xdata = xdata[wl_array == wl]
             self.ydata = ydata[wl_array == wl]
 
+
+
+
+
+
+
+
         # print(self.xdata.shape, self.ydata.shape)
-        self.xdata = self.xdata[np.where(self.xdata < 100000)]
-        self.ydata = self.ydata[np.where(self.xdata < 100000)]
+        # self.xdata = self.xdata[np.where(self.xdata < 100000)]
+        # self.ydata = self.ydata[np.where(self.xdata < 100000)]
         # print(self.xdata.shape,self.ydata.shape)
 
         self.close_file_w()
+
+        return valid
 
     def set_spectra_stats(self, variable1, variable2, wlvariable):
         self.dataset_w = Dataset(self.path_nc, 'r')
@@ -706,26 +736,36 @@ class INSITUCOMPARISON:
             }
         }
         variables = [variable1, variable2]
+
+        day_id = np.array(self.dataset_w['mu_day_id'][:])
+        array_1020 = np.array(self.dataset_w['mu_HYPSTAR_TO_AERONET_Lw'][:])
+        valid = np.ones(array_1020.shape)
+        valid[array_1020 > 100000] = 0
+        invalid_days = [21, 30, 32, 35, 63, 66, 80]
+        for iday in invalid_days:
+            valid[day_id == iday] = 0
+
+        wldata = wldata[valid==1]
+
         for variable in variables:
             for idx in range(nwl):
                 wl = wlvalues[idx]
                 values_all = np.array(self.dataset_w.variables[variable])
+                values_all = values_all[valid==1]
                 values = values_all[wldata == wl]
                 values = values[values < 100000]
                 self.spectra_stats[variable]['mean'][idx] = np.mean(values)
                 self.spectra_stats[variable]['std'][idx] = np.std(values)
-                print(idx, wl, np.median(values))
+                #print(idx, wl, np.median(values))
                 self.spectra_stats[variable]['median'][idx] = np.median(values)
                 self.spectra_stats[variable]['p25'][idx] = np.percentile(values, 25)
                 self.spectra_stats[variable]['p75'][idx] = np.percentile(values, 75)
 
         self.close_file_w()
 
-    def plot_spectra_stats(self):
-        file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Lw.tif'
+    def plot_spectra_stats(self,file_out,legend,ylabel,title):
 
-        legend = ['HYPSTAR - Lw', 'AERONET-OC - Lw']
-        self.plot_spectra_impl(file_out, legend, None)
+        self.plot_spectra_impl(file_out, legend, ylabel,title)
 
     def plot_all_spectra(self):
         path_plots = '/mnt/c/DATA_LUIS/ESA-POP_WORK/Technical_Meeting_2024Jan31'
@@ -754,25 +794,25 @@ class INSITUCOMPARISON:
             htimestr = htime.strftime('%Y-%m-%d %H:%M')
             legend = [f'AERONET-OC({atimestr})', f'HYPSTAR({htimestr})']
             title = f'SPECTRA #{ispectra + 1}'
-            self.plot_spectra_impl(file_out, legend, title)
+            ylabel = ''
+            self.plot_spectra_impl(file_out, legend, ylabel,title)
             imu = imu_end
 
         self.close_file_w()
 
-    def plot_spectra_impl(self, file_out, legend, title):
+    def plot_spectra_impl(self, file_out, legend, ylabel, title):
 
         variables = list(self.spectra_stats.keys())
         self.ydata_1 = self.spectra_stats[variables[0]]['median']
         self.ydata_2 = self.spectra_stats[variables[1]]['median']
-        print(self.ydata_1)
-        print(self.ydata_2)
+
         ydata_1_min = self.spectra_stats[variables[0]]['p25']
         ydata_1_max = self.spectra_stats[variables[0]]['p75']
         ydata_2_min = self.spectra_stats[variables[1]]['p25']
         ydata_2_max = self.spectra_stats[variables[1]]['p75']
 
         xlabel = 'Wavelength (nm)'
-        ylabel = 'Lt'
+        #ylabel = 'Lt'
         from MDB_reader.PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = self.wl_data
@@ -804,9 +844,32 @@ class INSITUCOMPARISON:
         self.close_file_w()
         xvariables  = ['mu_HYPSTAR_TO_AERONET_Li_mean','mu_HYPSTAR_TO_AERONET_Lt_mean','mu_HYPSTAR_TO_AERONET_Lw']
         yvariables = ['mu_AERONET_Li_mean', 'mu_AERONET_Lt_mean', 'mu_AERONET_Lw']
-        for idx in range(len(xvariables)):
-            for wl in wl_list:
-                self.plot_scatterplot(wl,xvariables[idx],yvariables[idx],'mu_wavelength')
+
+        # self.dataset_w = Dataset(self.path_nc, 'r')
+        # array_1020 = np.array(self.dataset_w['mu_HYPSTAR_TO_AERONET_Lw'][:])
+        # array_865  = np.array(self.dataset_w['mu_AERONET_Lt_mean'][:])
+        # array_400 = np.array(self.dataset_w['mu_AERONET_Li_mean'][:])
+        # wavelength = np.array(self.dataset_w['mu_wavelength'][:])
+        # day_id = np.array(self.dataset_w['mu_day_id'][:])
+        # check_invalid = np.zeros(array_1020.shape)
+        # check_invalid[np.logical_and(wavelength==1020.0,np.logical_and(array_1020 > 0.2,array_1020<100000))] = 1
+        # check_invalid[np.logical_and(wavelength == 865.0, np.logical_and(array_865 > 0.5, array_865 < 100000))] = 1
+        # check_invalid[np.logical_and(wavelength == 400.0, np.logical_and(array_400 > 20, array_400 < 100000))] = 1
+        # print(np.sum(check_invalid))
+        # day_id_invalid = day_id[check_invalid==1]
+        # print(day_id_invalid)
+        # self.close_file_w()
+
+        # for idx in range(len(xvariables)):
+        #     for wl in wl_list:
+        #         self.plot_scatterplot(wl,xvariables[idx],yvariables[idx],'mu_wavelength')
+
+        ##global scatterplots
+        # for idx in range(len(xvariables)):
+        #     self.plot_scatterplot(None,xvariables[idx],yvariables[idx],'mu_wavelength')
+        #     self.plot_scatterplot('rrsdensity', xvariables[idx], yvariables[idx], 'mu_wavelength')
+
+
 
     def get_wl_list(self, wlvariable):
         self.dataset_w = Dataset(self.path_nc, 'r')
@@ -823,23 +886,49 @@ class INSITUCOMPARISON:
         nspectra = int(ndata / nwl)
 
         # print(ndata)
-        self.xdata = [0] * nspectra
-        self.ydata = [0] * nspectra
+        # self.xdata = [0] * nspectra
+        # self.ydata = [0] * nspectra
+
+
+        print('NData:',ndata,'Nwl:',nwl,'NSpectra:',nspectra)
+        self.xdata = []
+        self.ydata = []
+
+        array_mu_1020 =np.array(self.dataset_w['mu_HYPSTAR_TO_AERONET_Lw'][:])
+        invalid_days = [21, 30, 32, 35, 63, 66, 80]
+
 
         imu = 0
         for ispectra in range(int(nspectra)):
+
             iday = int(self.dataset_w.variables['mu_day_id'][imu])
             ihs = int(self.dataset_w.variables['mu_HYPSTAR_sequence_id'][imu])
             ias = int(self.dataset_w.variables['mu_AERONET_sequence_id'][imu])
 
-            self.xdata[ispectra] = float(self.dataset_w.variables['AERONET_Rho'][iday, ias, 0])
-            self.ydata[ispectra] = float(self.dataset_w.variables['HYPSTAR_Rho'][iday, ihs])
+            imu_ini = imu
+            imu_fin = imu + nwl
+            if iday in invalid_days:
+                imu = imu + nwl
+                continue
+            if np.count_nonzero(array_mu_1020[imu_ini:imu_fin]>100000)>0:
+                imu = imu + nwl
+                continue
+
+
+            # self.xdata[ispectra] = float(self.dataset_w.variables['AERONET_Rho'][iday, ias, 0])
+            # self.ydata[ispectra] = float(self.dataset_w.variables['HYPSTAR_rhof'][iday, ihs])
+
+            self.xdata.append(float(self.dataset_w.variables['AERONET_Rho'][iday, ias, 0]))
+            self.ydata.append(float(self.dataset_w.variables['HYPSTAR_rhof'][iday, ihs]))
 
             imu = imu + nwl
 
+
+        print(len(self.xdata))
+
         self.close_file_w()
 
-        self.plot_scatterplot('rho')
+        self.plot_scatterplot('rho',None,None,None)
 
     def plot_scatterplot(self, wl, xvariable, yvariable,wlvariable):
 
@@ -858,8 +947,15 @@ class INSITUCOMPARISON:
             max_xy = 0.030
             ticks = [0.025, 0.026, 0.027, 0.028, 0.029, 0.030]
         else:
-            xlabel = r'AERONET-OC Lw (µW/cm$^2$/sr/nm)'
-            ylabel = r'HYPSTAR Lw (µW/cm$^2$/sr/nm)'
+            if xvariable.find('Li')>0:
+                ylabel = r'AERONET-OC Li [μW/(cm$^2$·sr·nm)]'
+                xlabel = r'HYPSTAR Li [μW/(cm$^2$·sr·nm)]'
+            elif xvariable.find('Lt')>0:
+                ylabel = r'AERONET-OC Lt [μW/(cm$^2$·sr·nm)]'
+                xlabel = r'HYPSTAR Lt [μW/(cm$^2$·sr·nm)]'
+            elif xvariable.find('Lw')>0:
+                ylabel = r'AERONET-OC [μW/(cm$^2$·sr·nm)]'
+                xlabel = r'HYPSTAR Lw [μW/(cm$^2$·sr·nm)]'
             min_xy = None
             max_xy = None
             ticks = None
@@ -884,13 +980,19 @@ class INSITUCOMPARISON:
         stats_xpos = 0.05
         stats_ypos = 0.80
         #self.set_data_scatterplot(wl)
-        self.set_data_scatterplot_spectral(wl,xvariable,yvariable,wlvariable)
+
+        if wl!='rho':
+            if wl=='rrsdensity':
+                valid_array = self.set_data_scatterplot_spectral(None, xvariable, yvariable, wlvariable)
+            else:
+                valid_array = self.set_data_scatterplot_spectral(wl,xvariable,yvariable,wlvariable)
 
         # print(self.xdata)
         # print(self.ydata)
         # print(min_xy,max_xy)
 
         self.compute_stats(False, False)
+
 
         from MDB_reader.PlotScatter import PlotScatter
         import MDB_reader.MDBPlotDefaults as defaults
@@ -902,9 +1004,12 @@ class INSITUCOMPARISON:
         if wl is None:
             file_out = os.path.join(path_plots, f'GlobalScatterplot_{yvariable}.tif')
             self.dataset_w = Dataset(self.path_nc, 'r')
-            groupData = np.array(self.dataset_w.variables['mu_wavelength'])
+            groupData = np.array(self.dataset_w.variables['mu_wavelength'][:])
+            if valid_array is not None:
+                groupData = groupData[valid_array==1]
             self.dataset_w.close()
             groupValues = np.unique(groupData)
+
             ngroup = len(groupValues)
             str_legend = []
             for g in groupValues:
@@ -912,24 +1017,34 @@ class INSITUCOMPARISON:
 
             for idx in range(ngroup):  # groupValues:
                 g = groupValues[idx]
-                color = defaults.get_color_ref(g)
+                #color = defaults.get_color_ref(g)
+                color = defaults.get_color_wavelength(g)
                 xhere = self.xdata[groupData == g]
                 yhere = self.ydata[groupData == g]
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
-
-            plot.set_limits(min_xy, max_xy)
-            plot.set_ticks(ticks, fontsizeaxis)
+            if min_xy is not None and max_xy is not None:
+                plot.set_limits(min_xy, max_xy)
+            if ticks is not None:
+                plot.set_ticks(ticks, fontsizeaxis)
             plot.set_legend(str_legend)
             str_stats = self.get_str_stat_list(stat_list, None)
         else:
-            if wl != 'rho':
+            if wl != 'rho' and wl != 'rrsdensity':
                 wls = self.get_wl_str_from_wl(wl)
                 file_out = os.path.join(path_plots, f'Wl_Scatterplot_{yvariable}_{wls}.tif')
             else:
-                file_out = os.path.join(path_plots, f'Rho_Scatterplot_{yvariable}.tif')
+                if wl == 'rho':
+                    file_out = os.path.join(path_plots, f'Rho_Scatterplot_{yvariable}.tif')
+                elif wl == 'rrsdensity':
+                    file_out = os.path.join(path_plots, f'Global_Scatterplot_{yvariable}_density.tif')
             ##DENSITY
             xhere = np.asarray(self.xdata, dtype=np.float)
             yhere = np.asarray(self.ydata, dtype=np.float)
+            # print(xhere.shape,' but valid',valid_array.shape)
+            # if valid_array is not None:
+            #     xhere = xhere[valid_array==1]
+            #     yhere = yhere[valid_array==1]
+
             xy = np.vstack([xhere, yhere])
             try:
                 z = gaussian_kde(xy)(xy)
@@ -941,7 +1056,7 @@ class INSITUCOMPARISON:
                 plot.plot_data(xhere, yhere, marker, markersize, 'k', edgecolor, linewidth)
             stat_list = ['N', 'r2', 'RMSD', 'BIAS']
             str_stats = self.get_str_stat_list(stat_list, None)
-            if wl != 'rho':
+            if wl != 'rho' and wl != 'rrsdensity':
                 title = f'{wls} nm'
                 plot.set_title(title)
             if min_xy is not None and max_xy is not None:

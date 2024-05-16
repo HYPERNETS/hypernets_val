@@ -2,6 +2,7 @@ import os
 import argparse
 import configparser
 
+import pandas as pd
 import pytz
 
 from MDB_builder_options import MDBBuilderOptions
@@ -154,19 +155,19 @@ def main():
         print(f'[INFO] Checking available dates--------------------------------------------------------------START')
     mo.get_dates()
     if args.verbose:
-        print(f'[INFO] Start date for MDB_builder:{mo.start_date}')
-        print(f'[INFO] End date for MDB_builder: {mo.end_date}')
+        print(f'[INFO] Start date for MDB_builder: {mo.start_date}')
+        print(f'[INFO] End date for MDB_builder:  {mo.end_date}')
         print(f'[INFO] Checking available dates--------------------------------------------------------------STOP')
 
-    ##retrieving sat extract list
-    if args.verbose:
-        print(f'[INFO] Obtaining extract list----------------------------------------------------------------START')
-    slist = SAT_EXTRACTS_LIST(mo, args.verbose)
-    extract_list = slist.get_list_as_dict()
-    # for e in extract_list:
-    #     print(e, extract_list[e])
-    if args.verbose:
-        print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
+    ##retrieving sat extract list (except for SINGLE_CSV mode, with extract name included in the csv file)
+    extract_list = None
+    if not mo.insitu_type.startswith('SINGLE_CSV'):
+        if args.verbose:
+            print(f'[INFO] Obtaining extract list----------------------------------------------------------------START')
+        slist = SAT_EXTRACTS_LIST(mo, args.verbose)
+        extract_list = slist.get_list_as_dict()
+        if args.verbose:
+            print(f'[INFO] Obtaining extract list----------------------------------------------------------------STOP')
 
     ##checking in situ files
     if args.verbose:
@@ -184,7 +185,11 @@ def main():
 
     if mo.insitu_type == 'TARA':
         create_mdb_tara_file(mo, extract_list)
+        return
 
+    if mo.insitu_type == 'SINGLE_CSV_RRS':
+        insitu_file = mo.get_single_insitu_file()
+        create_mdb_single_csv_rrs(mo, extract_list, insitu_file)
         return
 
     ihd = INSITU_HYPERNETS_DAY(mo, None, args.verbose)
@@ -494,6 +499,61 @@ def create_mdb_wisp_file(mo, extract_list, insitu_file):
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
+def create_mdb_single_csv_rrs(mo,extract_list,insitu_file):
+    import numpy as np
+    first_rrs = mo.insitu_options['first_rrs']
+    if first_rrs is None:
+        print('Option first_rrs is not defined in [insitu_options] section in the configuration file')
+        return
+    last_rrs = mo.insitu_options['last_rrs']
+    if last_rrs is None:
+        print('Option last_rrs is not defined in [insitu_options] section in the configuration file')
+        return
+    try:
+        df = pd.read_csv(insitu_file,sep=';')
+    except:
+        print(f'[ERROR] File {insitu_file} is not a valid csv file')
+        return
+    col_names = df.columns
+    if first_rrs not in col_names:
+        print(f'[ERROR] {first_rrs} is not a valid column name in the CSV file {insitu_file}')
+        return
+    if last_rrs not in col_names:
+        print(f'[ERROR] {last_rrs} is not a valid column name in the CSV file {insitu_file}')
+        return
+    wl_values = []
+    wl_cols = []
+    be_added = False
+    prefix = mo.insitu_options['rrs_prefix']
+    suffix = mo.insitu_options['rrs_suffix']
+    iini = 0 if prefix is None else len(prefix)
+    ns = 0 if suffix is None else len(suffix)
+    for col in col_names:
+        if col==first_rrs:
+            be_added = True
+        if be_added:
+            rrs_s = col[iini:len(col)-ns]
+            rrs_s = rrs_s.replace('_','.')
+            try:
+                wl_values.append(float(rrs_s))
+                wl_cols.append(col)
+            except:
+                print(f'[ERROR] {rrs_s} is not a valid col name containing a rrs value')
+                return
+        if col==last_rrs:
+            be_added = False
+    print(wl_values)
+    print(len(wl_values))
+    if mo.insitu_options['n_insitu_bands']!=len(wl_values):
+        mo.insitu_options['n_insitu_bands'] = len(wl_values)
+        print(f'[WARNING] Number of bands in the configuration file was wrong, set to:{len(wl_values)}')
+
+    for index,row in df.iterrows():
+        rrs_array  = np.array(df.loc[index,wl_cols]).astype(np.float64)
+        rrs_array[np.isnan(rrs_array)] = -999.0
+        if mo.insitu_options['fill_value'] is not None:
+            rrs_array[rrs_array==mo.insitu_options['fill_value']] = -999.0
+        print('----')
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):
     if len(list_files) == 0:

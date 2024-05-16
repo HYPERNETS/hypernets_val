@@ -210,14 +210,44 @@ def make_plots():
     # iplots = INSITU_plots(ic)
     # iplots.plot_from_options(options)
 
+    # if xvariable.find('Li') > 0:
+    #     ylabel = r'AERONET-OC Li [μW/(cm$^2$·sr·nm)]'
+    #     xlabel = r'HYPSTAR Li [μW/(cm$^2$·sr·nm)]'
+    # elif xvariable.find('Lt') > 0:
+    #     ylabel = r'AERONET-OC Lt [μW/(cm$^2$·sr·nm)]'
+    #     xlabel = r'HYPSTAR Lt [μW/(cm$^2$·sr·nm)]'
+    # elif xvariable.find('Lw') > 0:
+    #     ylabel = r'AERONET-OC [μW/(cm$^2$·sr·nm)]'
+    #     xlabel = r'HYPSTAR Lw [μW/(cm$^2$·sr·nm)]'
+
+
+
     #ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
 
-    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
-    # ic.plot_spectra_stats()
+    ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Li_mean', 'mu_AERONET_Li_mean', 'mu_wavelength')
+    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Li.tif'
+    legend = ['HYPSTAR - Li', 'AERONET-OC - Li']
+    ylabel = r'Li [μW/(cm$^2$·sr·nm)]'
+    title = 'Downwelling radiance'
+    ic.plot_spectra_stats(file_out, legend, ylabel, title)
+
+    ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean', 'mu_AERONET_Lt_mean', 'mu_wavelength')
+    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Lt.tif'
+    legend = ['HYPSTAR - Lt', 'AERONET-OC - Lt']
+    ylabel = r'Lt [μW/(cm$^2$·sr·nm)]'
+    title = 'Upwelling radiance'
+    ic.plot_spectra_stats(file_out, legend, ylabel, title)
+
+    ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
+    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Lw.tif'
+    legend = ['HYPSTAR - Lw', 'AERONET-OC - Lw']
+    ylabel = r'Lw [μW/(cm$^2$·sr·nm)]'
+    title = 'Water-leaving radiance'
+    ic.plot_spectra_stats(file_out,legend,ylabel,title)
 
     #ic.plot_scatterplot(None)
-    ic.plot_all_scatterplots_wl()
-    # ic.plot_all_spectra()
+    #ic.plot_all_scatterplots_wl()
+    #ic.plot_all_spectra()
     #ic.plot_rho_scatterplot()
 
 
@@ -576,10 +606,10 @@ if __name__ == '__main__':
     # add_mu_to_file_date(date_here)
 
     ##PLOTING
-    # make_plots()
+    make_plots()
 
     ##CHECKING HYPSTAR QF (TEST)
     # check_hypstar_qf()
     # check_angles()
 
-    main()
+    #main()
