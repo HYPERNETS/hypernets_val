@@ -577,6 +577,7 @@ class HYPERNETS_DAY():
         if not os.path.exists(folder):
             try:
                 os.mkdir(folder)
+                os.chmod(folder,'0o775')
             except:
                 pass
 
