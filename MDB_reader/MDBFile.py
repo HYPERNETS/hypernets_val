@@ -44,8 +44,9 @@ class MDBFile:
             self.variables = self.nc.variables
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
-            #self.VALID = True
-            if self.check_structure()==0: self.valid=False
+            # self.VALID = True
+            if self.check_structure() == 0:
+                self.valid = False
 
         # except:
         except Exception as e:
@@ -54,7 +55,8 @@ class MDBFile:
             return
 
         if not self.VALID:
-            print(f'[ERROR] MDB File: {file_path} is not a valid MDB file with the correct structure. It could be cause problems.')
+            print(
+                f'[ERROR] MDB File: {file_path} is not a valid MDB file with the correct structure. It could be cause problems.')
             return
 
         if self.VALID:
@@ -129,7 +131,7 @@ class MDBFile:
         # Variables to make validation...
         self.col_names = ['Index', 'Index_MU', 'Index_Band', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Wavelenght',
                           'Ins_Rrs',
-                          'Sat_Rrs', 'Valid','status']
+                          'Sat_Rrs', 'Valid', 'status']
         self.df_validation = None
         self.df_validation_valid = None
         self.mu_dates = {}
@@ -334,7 +336,7 @@ class MDBFile:
                 print(f'[WARNING] Attribute: {atrib} is not available in MDB file')
                 check_atrib = False
 
-        if check_var == False or check_dim == False:
+        if not check_var or not check_dim:
             return 0
 
         if not self.flag_band_name in self.variables:
@@ -354,7 +356,6 @@ class MDBFile:
             return 1
         else:
             return 2
-
 
     # Set qc sat filtering options
     def set_default_filtering_options(self):
@@ -913,9 +914,6 @@ class MDBFile:
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
-
-
-
             if info_mu['status'] < 0:
                 spos = info_mu['status'] * (-1)
                 status_error[spos] = status_error[spos] + 1
@@ -935,9 +933,8 @@ class MDBFile:
             ins_lat = -999.0
             ins_lon = -999.0
             if 'insitu_latitude' in self.variables and 'insitu_longitude' in self.variables:
-                ins_lat = float(self.variables['insitu_latitude'][index_mu,self.ins_time_index])
-                ins_lon = float(self.variables['insitu_longitude'][index_mu,self.ins_time_index])
-
+                ins_lat = float(self.variables['insitu_latitude'][index_mu, self.ins_time_index])
+                ins_lon = float(self.variables['insitu_longitude'][index_mu, self.ins_time_index])
 
             # if index_mu==0:
             #     print(self.mu_insitu_time,self.mu_sat_time,time_diff)
@@ -1020,7 +1017,6 @@ class MDBFile:
                 # print(pd.DataFrame.from_dict(row))
                 # print(self.df_validation.columns.values)
                 row_here = pd.DataFrame.from_dict(row)
-
 
                 # print(type(row_here))
                 self.df_validation.iloc[index_tot] = row_here.iloc[0]
@@ -1282,7 +1278,7 @@ class MDBFile:
 
         return spectra_selected, spectra_valid, spectra_invalid
 
-    def get_all_insitu_spectra(self,scale_factor,use_rhow,compute_stats):
+    def get_all_insitu_spectra(self, scale_factor, use_rhow, compute_stats):
         import numpy.ma as ma
         nspectra = self.n_mu_total * self.n_insitu_day
         noriginal_bands = len(self.dimensions['insitu_original_bands'])
@@ -1292,16 +1288,16 @@ class MDBFile:
         var_insitu_valid = self.nc.variables['insitu_valid']
         index_row = 0
         for index_mu in range(self.n_mu_total):
-            if (index_mu%500)==0:
+            if (index_mu % 500) == 0:
                 print(f'[INFO] Getting spectra {index_mu} / {self.n_mu_total}')
             idx_selected = -1
             if self.nc.variables['mu_valid'][index_mu] == 1:
                 idx_selected = self.nc.variables['mu_insitu_id'][index_mu]
             for idx in range(self.n_insitu_day):
-                if np.ma.is_masked(self.nc.variables['insitu_time'][index_mu,idx]):
+                if np.ma.is_masked(self.nc.variables['insitu_time'][index_mu, idx]):
                     continue
-                all_spectra_validity[index_row] = var_insitu_valid[index_mu,idx]
-                if idx==idx_selected:
+                all_spectra_validity[index_row] = var_insitu_valid[index_mu, idx]
+                if idx == idx_selected:
                     all_spectra_validity[index_row] = 2
                 spectra_here = ma.array(var_insitu[index_mu, :, idx]).transpose()
                 if use_rhow:
@@ -1316,7 +1312,7 @@ class MDBFile:
 
         spectra_stats = None
         if compute_stats:
-            spectra_good = all_spectra[all_spectra_validity>=1]
+            spectra_good = all_spectra[all_spectra_validity >= 1]
             import statistics as st
             spectra_avg = ma.mean(spectra_good, axis=0)
             spectra_std = ma.std(spectra_good, axis=0)
@@ -1339,7 +1335,7 @@ class MDBFile:
                 'spectra_max': spectra_max,
             }
 
-        return all_spectra,all_spectra_validity,spectra_stats
+        return all_spectra, all_spectra_validity, spectra_stats
 
     def get_all_insitu_valid_spectra(self, scale_factor):
         import numpy.ma as ma
@@ -2207,7 +2203,7 @@ class MDBFile:
         else:
             return None
 
-    def get_fill_value(self,namevariable):
+    def get_fill_value(self, namevariable):
         fillValue = None
         if self.VALID and namevariable in self.variables:
             try:
@@ -2215,7 +2211,6 @@ class MDBFile:
             except:
                 pass
         return fillValue
-
 
     def close(self):
         if self.VALID:
