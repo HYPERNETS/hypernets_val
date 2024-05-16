@@ -316,7 +316,7 @@ class MDBFile:
         self.nc.close()
 
     def check_structure(self):
-        
+
         for var in VAR_NAMES:
             if var not in self.variables:
                 print(f'[ERROR] Variable: {var} is not available in MDB file')

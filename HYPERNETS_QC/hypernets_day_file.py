@@ -1528,11 +1528,11 @@ class HYPERNETS_DAY_FILE():
 
         # single spectra plotting
         if plot_spectra:
-            line_color = options_figure['line_color']
+            line_color = options_figure['color']
             marker = options_figure['marker']
-            marker_size = options_figure['marker_size']
-            line_type = options_figure['line_type']
-            line_size = options_figure['line_size']
+            marker_size = options_figure['markersize']
+            line_type = options_figure['linestyle']
+            line_size = options_figure['linewidth']
             if ngroup > 1:
                 if len(line_color) != ngroup:  ##assing default colors
                     line_color = [line_color[0]] * ngroup
@@ -1559,7 +1559,7 @@ class HYPERNETS_DAY_FILE():
                                           marker_size[0])
 
         if plot_stats:
-            line_color = options_figure['line_color']
+            line_color = options_figure['color']
             if ngroup > 1:
                 if len(line_color) != ngroup:  ##assing default colors
                     line_color = [line_color[0]] * ngroup
