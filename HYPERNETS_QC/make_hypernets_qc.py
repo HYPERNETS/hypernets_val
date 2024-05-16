@@ -124,13 +124,21 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             print(f'--------------------------------------------------------------------------------------------------')
             print(f'[INFO] Date: {work_date}')
         hdayfile = hday.get_hypernets_day_file(site, work_date)
+        output_folder_date = hday.get_output_folder_date(site,work_date)
+        if output_folder_date is None:
+            print(f'[ERROR] Path image date could not be created in {output_path}. Please review permissions')
+            work_date = work_date + timedelta(hours=interval)
+            continue
         if hdayfile is None:
-            print(f'[WARNING] HYPERNETS day file for date {work_date} is not available. Skipping...')
+            print(f'[WARNING] HYPERNETS day file for date {work_date} is not available. Creating empty daily summary plot and skipping...')
+            file_img = os.path.join(output_folder_date,f'{site}_{work_date.strftime("%Y%m%d")}_DailySummary.png')
+            create_empty_image(file_img,site,work_date)
             work_date = work_date + timedelta(hours=interval)
             continue
         hdayfile.set_path_images_date(site, work_date)
 
-        file_summary = None
+
+        #file_summary = None
         if os.path.exists(config_file_summary):
             dir_img_summary = os.path.join(os.path.dirname(hdayfile.file_nc), 'SUMMARY')
             file_summary = os.path.join(os.path.dirname(hdayfile.file_nc),
@@ -155,7 +163,9 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         # hdayfile.get_flags_sequence()
         # hdayfile.get_title()
         # hdayfile.save_report_image(False)
+
         create_daily_pdf_report(input_path,output_path,site,work_date,file_summary,hdayfile.sequences)
+
         work_date = work_date + timedelta(hours=interval)
 
     if start_date==end_date:
@@ -175,18 +185,28 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         fout.write('\n')
         fout.write(f'Summary file: {os.path.join(folder_day,name_summary) if os.path.exists(os.path.join(folder_day,name_summary)) else "Not. Av."}')
         fout.write('\n')
-        fout.write(f'PDF file: {os.path.join(folder_day, name_pdf) if os.path.exists(os.path.join(folder_day, name_pdf)) else "Not. Av."}')
+        fout.write(f'PDF file: {file_pdf if os.path.exists(file_pdf) else "Not. Av."}')
         fout.write('\n')
         fout.write(f'Link to PDF file: {public_link}')
         fout.write('\n')
         fout.close()
-        import owncloud
-        session = owncloud.Client('https://file.sic.rm.cnr.it/')
-        session.login('Luis.Gonzalezvilas@artov.ismar.cnr.it','BigRoma_21')
-        session.put_file(f'/ESA-HYP-POP/{site}/{site}_LastQC.pdf',file_pdf)
+        if os.path.exists(file_pdf):
+            import owncloud
+            session = owncloud.Client('https://file.sic.rm.cnr.it/')
+            session.login('Luis.Gonzalezvilas@artov.ismar.cnr.it','BigRoma_21')
+            session.put_file(f'/ESA-HYP-POP/{site}/{site}_LastQC.pdf',file_pdf)
 
 
-
+def create_empty_image(file_img,site,date_here):
+    from matplotlib import pyplot as plt
+    plt.figure(figsize=(6, 0.75))
+    plt.title(f'L2 data were not available for {site} on {date_here.strftime("%Y-%m-%d")}')
+    plt.xticks([])
+    plt.yticks([])
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig(file_img,dpi=300)
+    
 def create_daily_pdf_report(input_path, output_path, site, date_here, file_summary,sequences):
     import os
     from matplotlib.backends.backend_pdf import PdfPages

@@ -303,7 +303,7 @@ class HYPERNETS_DAY_FILE():
         if os.path.exists(folder_date):
             self.path_images_date = folder_date
         else:
-            self.path_images_date = folder_date
+            self.path_images_date = None
 
     def get_water_images(self, site, date_here, time_min, time_max, interval_minutes):
         from netCDF4 import Dataset
@@ -977,6 +977,7 @@ class HYPERNETS_DAY_FILE():
 
             if htick not in hours_ticks: hours_ticks.append(htick)
             if mtick not in minutes_ticks: minutes_ticks.append(mtick)
+
             if np.count_nonzero(time_valid) == 1:
                 qf_value = qf_array[time_valid][0]
                 epsilon_value = epsilon_array[time_valid][0]
@@ -990,12 +991,14 @@ class HYPERNETS_DAY_FILE():
                 else:
                     yarray[itime] = 1
 
+
         hours_ticks.reverse()
         plt.Figure()
         data = pd.DataFrame(index=hours_ticks, columns=minutes_ticks).astype(np.float64)
         yarray[yarray == 0] = np.nan
         for itime, tf in enumerate(time_fix_axis):
             data.loc[tf.strftime('%H')].at[tf.strftime('%M')] = yarray[itime]
+
         colors = ['red', 'cyan', 'green', 'magenta']
         ax = sns.heatmap(data, vmin=1, vmax=4, cmap=colors, linewidths=0.5, linecolor='gray')
         plt.yticks(rotation='horizontal')
