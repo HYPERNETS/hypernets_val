@@ -948,11 +948,12 @@ class HYPERNETS_DAY_FILE():
 
         dataset = Dataset(self.file_nc)
         time_array = dataset.variables['l2_acquisition_time'][:]
+        time_array = np.ma.masked_values(time_array, 0)##solving a problem find 0n 30/05/2023, it shouln't be happen
         start_time_real = dt.utcfromtimestamp(np.min(time_array))
         end_time_real = dt.utcfromtimestamp(np.max(time_array))
         if start_time_real.strftime('%Y%m%d') != end_time_real.strftime('%Y%m%d'):
             dataset.close()
-            print('f[ERROR] Plot is only created for a single day')
+            print('[ERROR] Plot is only created for a single day')
             return
 
         qf_array = dataset.variables['l2_quality_flag'][:]
