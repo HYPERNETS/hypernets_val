@@ -577,7 +577,7 @@ class HYPERNETS_DAY():
         if not os.path.exists(folder):
             try:
                 os.mkdir(folder)
-                os.chmod(folder,'0o775')
+                os.chmod(folder,0o775)
             except:
                 print(f'[ERROR] Error creating folder: {folder}')
 
