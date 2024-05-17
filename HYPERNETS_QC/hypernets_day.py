@@ -579,7 +579,8 @@ class HYPERNETS_DAY():
                 os.mkdir(folder)
                 os.chmod(folder,'0o775')
             except:
-                pass
+                print(f'[ERROR] Error creating folder: {folder}')
+
 
     def get_ssh_path(self, site, date_here, sequence_folder):
         year_str = date_here.strftime('%Y')
