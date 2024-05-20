@@ -112,6 +112,16 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
     # def add_insitu(self, extract_path, ofile):
     #     self.start_add_insitu(extract_path, ofile)
 
+    def download_sequence_metadata(self,site,sequence_folder,output_folder):
+        url_base_raw = f'hypstar@enhydra.naturalsciences.be'
+        base_folder = '/home/hypstar/'
+        rsync_url = f'rsync -a -e \'ssh -p 9022\' {url_base_raw}:{base_folder}{site}/DATA/{sequence_folder}/metadata.txt'
+        cmd = f'{rsync_url} {output_folder}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(err)
+
     def create_mdb_insitu_extract(self, extract_path, ofile):
         self.start_add_insitu(extract_path, ofile)
         self.add_new_variables()

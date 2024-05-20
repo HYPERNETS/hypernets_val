@@ -14,6 +14,7 @@ parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM
 parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-check', "--check_mode", help="Check mode.", action="store_true")
+parser.add_argument('-meta',"--download_metadata",help="Option do download metadata",action="store_true")
 
 
 args = parser.parse_args()
@@ -40,6 +41,10 @@ def main():
     if args.check_mode:
         print('[INFO] Entering in check mode....')
         make_check(start_date, end_date, site, output_folder)
+        return
+    if args.download_metadata:
+        print('[INFO] Entering metadata mode...')
+        make_download_metadata(start_date,end_date,site,output_folder)
         return
 
     make_download(start_date, end_date, site, output_folder)
@@ -77,6 +82,30 @@ def make_check(start_date, end_date, site, output_folder):
     fout.close()
 
 
+def make_download_metadata(start_date, end_date, site, output_folder):
+    ih = INSITU_HYPERNETS_DAY(None, None, args.verbose)
+
+    date_download = start_date
+    while date_download <= end_date:
+        sequence_folders = ih.get_sequences_day_ssh(site, date_download)
+        if len(sequence_folders) == 0:
+            if args.verbose:
+                print(f'[WARNING] No sequences are available for site: {site} and date: {date_download}')
+            date_download = date_download + timedelta(hours=24)
+            continue
+        output_folder_site = get_folder_new(output_folder, site)
+        output_folder_date = get_folder_date(output_folder_site, date_download)
+        if output_folder_date is None:
+            print(f'[ERROR] Output folder date does not exist and could not be created')
+            date_download = date_download + timedelta(hours=24)
+            continue
+        for seq in sequence_folders:
+            print(f'[INFO] Donwload metadata file for {site}/{seq} to {output_folder_date}')
+            ih.download_sequence_metadata(site,seq,output_folder_date)
+            file_metadata = os.path.join(output_folder_date,'metadata.txt')
+            file_metadata_new = os.path.join(output_folder_date,f'{seq}_metadata.txt')
+            os.rename(file_metadata,file_metadata_new)
+        date_download = date_download + timedelta(hours=24)
 
 def make_download(start_date, end_date, site, output_folder):
     ih = INSITU_HYPERNETS_DAY(None, None, args.verbose)
