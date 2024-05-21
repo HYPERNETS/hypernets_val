@@ -14,6 +14,7 @@ import subprocess
 
 # import user defined functions from other .py
 import sat_extract
+
 code_home = os.path.dirname(os.path.dirname(sat_extract.__file__))
 sys.path.append(code_home)
 from SAT_EXTRACT.sat_extract import SatExtract
@@ -443,7 +444,8 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
 
     return True
 
-def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out,rrs_var_list):
+
+def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, rrs_var_list):
     file = extract['file']
     limits = extract['limits']
     start_idx_y = limits[0]
@@ -451,18 +453,18 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out,rr
     start_idx_x = limits[2]
     stop_idx_x = limits[3]
     input_dataset = None
-    if variable_list[0].strip()=='*':
+    if variable_list[0].strip() == '*':
         variable_list = []
-        input_dataset = Dataset(file,'r')
+        input_dataset = Dataset(file, 'r')
         for var in input_dataset.variables:
             if var in rrs_var_list:
                 continue
-            if input_dataset.variables[var].ndim==3:
+            if input_dataset.variables[var].ndim == 3:
                 variable_list.append(var)
         variable_list_out = variable_list
 
     if input_dataset is None:
-        input_dataset = Dataset(file,'r')
+        input_dataset = Dataset(file, 'r')
 
     for idx in range(len(variable_list)):
         variable_in = variable_list[idx]
@@ -485,6 +487,7 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out,rr
     input_dataset.close()
 
     return newEXTRACT
+
 
 def add_variable_multiple(newEXTRACT, extract, variable_list, variable_list_out):
     list_files = extract['list_files']
@@ -517,7 +520,8 @@ def add_variable_multiple(newEXTRACT, extract, variable_list, variable_list_out)
 
     return newEXTRACT
 
-def add_reflectance_single(newEXTRACT,extract,wl_list,var_list):
+
+def add_reflectance_single(newEXTRACT, extract, wl_list, var_list):
     if not 'satellite_bands' in newEXTRACT.EXTRACT.dimensions:
         print(f'[ERROR] Dimension satellite bands is not defined')
         return
@@ -531,7 +535,7 @@ def add_reflectance_single(newEXTRACT,extract,wl_list,var_list):
 
     nwl = len(wl_list)
 
-    if len(var_list)!=nwl:
+    if len(var_list) != nwl:
         return
 
     if 'satellite_Rrs' in newEXTRACT.EXTRACT.variables:
@@ -559,6 +563,7 @@ def add_reflectance_single(newEXTRACT,extract,wl_list,var_list):
 
     return newEXTRACT
 
+
 def add_reflectance_multiple(newEXTRACT, extract, wl_list):
     if not 'satellite_bands' in newEXTRACT.EXTRACT.dimensions:
         print(f'[ERROR] Dimension satellite bands is not defined')
@@ -582,7 +587,7 @@ def add_reflectance_multiple(newEXTRACT, extract, wl_list):
         wavelengths.append(float(wl))
         input_dataset = Dataset(list_files[iwl])
         for name, variable in input_dataset.variables.items():
-            wls = str(wl).replace('.','_')
+            wls = str(wl).replace('.', '_')
             ifind = name.find(wls)
             if ifind >= 0:
                 if variable.ndim == 3:
@@ -609,7 +614,6 @@ def add_insitu_basic_info(newEXTRACT, extract, id, nid, csv_flag_menings):
     ids = str(id)
     satellite_time = extract['satellite_time']
     insitu_time = extract[ids]['insitu_time']
-
 
     global_at = extract[ids]['global_at']
     insitu_lat = global_at['in_situ_lat']
@@ -1673,31 +1677,34 @@ def get_cmems_product_day_dataset(path_source, org, datehere, dataset):
         return None
     return file
 
-def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date):
+
+def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,cmems_download_options):
     path_day = path_source
     if org is not None:
         if org == 'YYYYjjj':
             yearstr = datehere.strftime('%Y')
             jjjstr = datehere.strftime('%j')
-            path_year = os.path.join(path_source,yearstr)
+            path_year = os.path.join(path_source, yearstr)
             path_day = os.path.join(path_source, yearstr, jjjstr)
     datefile = datehere.strftime(dataset_name_format_date)
-    namefile = dataset_name_file.replace('$DATE$',datefile)
+    namefile = dataset_name_file.replace('$DATE$', datefile)
     file = os.path.join(path_day, f'{namefile}')
 
     if not os.path.exists(file):
+        ods = None
         if org == 'YYYYjjj':
+            ods = '%Y/%j'
             path_year = os.path.join(path_source, yearstr)
             if not os.path.isdir(path_year):
                 os.mkdir(path_year)
             if not os.path.isdir(path_day):
                 os.mkdir(path_day)
 
-        folder_cmd = 'OLCI'
-        if namefile.find('OLCI')<0:
-            folder_cmd = 'MSI'
         ##DONWLOAD CERTO SOURCES
-        if namefile.find('CERTO')>0:
+        if namefile.find('CERTO') > 0:
+            folder_cmd = 'OLCI'
+            if namefile.find('OLCI') < 0:
+                folder_cmd = 'MSI'
             cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/{folder_cmd}/{namefile} -O {file}'
             if args.verbose:
                 print(f'[INFO] Trying download with cmd:')
@@ -1710,19 +1717,32 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
                 proc.kill()
                 outs, errs = proc.communicate()
 
-    if os.path.exists(file) and os.stat(file).st_size==0:
+        ##DOWNLOAD CMEMS SOURCES
+        if cmems_download_options is not None:
+            code_eistools = os.path.join(os.path.dirname(code_home),'eistools')
+            if os.path.exists(code_eistools):
+                sys.append(code_eistools)
+                from eistools import download_tool as dwt
+                cmems_download_options['start_date'] = datehere
+                cmems_download_options['end_date'] = datehere
+                dwt.make_cmems_download(cmems_download_options, True, path_source, ods)
+            else:
+                print(f'[WARNING] Code {code_eistools} for downloading is not available')
+
+    if os.path.exists(file) and os.stat(file).st_size == 0:
         os.remove(file)
         if org == 'YYYYjjj':
-            if len(os.listdir(path_day))==0:
-               os.rmdir(path_day)
-            if len(os.listdir(path_year))==0:
-               os.rmdir(path_year)
+            if len(os.listdir(path_day)) == 0:
+                os.rmdir(path_day)
+            if len(os.listdir(path_year)) == 0:
+                os.rmdir(path_year)
 
     if not os.path.exists(file):
         print(f'[WARNING] File: {file} does not exist for date: {datefile}. Skiping...')
         return None
 
     return file
+
 
 def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
                                    dataset_var_list):
@@ -1756,9 +1776,9 @@ def get_satellite_time_from_global_attributes(fproduct):
     dataset = Dataset(fproduct)
     if 'time_coverage_start' in dataset.ncattrs() and 'time_coverage_end' in dataset.ncattrs():
         try:
-            start_date = dt.strptime(dataset.time_coverage_start,'%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+            start_date = dt.strptime(dataset.time_coverage_start, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
             end_date = dt.strptime(dataset.time_coverage_end, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
-            sat_time = (start_date.timestamp()+end_date.timestamp())/2
+            sat_time = (start_date.timestamp() + end_date.timestamp()) / 2
             sat_time = dt.utcfromtimestamp(sat_time).replace(tzinfo=pytz.utc)
             return sat_time
 
@@ -1767,15 +1787,16 @@ def get_satellite_time_from_global_attributes(fproduct):
     dataset.close()
     return None
 
+
 def download_doors_sources(options):
     section = 'doors_download'
     if not options.has_section(section):
         print(f'[ERROR] Section {section} is not included in  the config file')
         return
-    compulsory_options = ['sat_source_dir','path_csv','dataset_name_file','dataset_name_format_date']
+    compulsory_options = ['sat_source_dir', 'path_csv', 'dataset_name_file', 'dataset_name_format_date']
     options_dict = {}
     for coption in compulsory_options:
-        if not options.has_option(section,coption):
+        if not options.has_option(section, coption):
             print(f'[ERROR] Option {coption} is compulsory in section {section}')
             return
         options_dict[coption] = options[section][coption]
@@ -1787,22 +1808,42 @@ def download_doors_sources(options):
     if not os.path.isfile(path_csv):
         print(f'[ERROR] {path_csv} is not a valid file')
         return
-    file_out = os.path.join(os.path.dirname(path_csv),os.path.basename(path_csv)[:-4]+'_sources.csv')
-    df = pd.read_csv(path_csv,sep=';')
+    file_out = os.path.join(os.path.dirname(path_csv), os.path.basename(path_csv)[:-4] + '_sources.csv')
+    df = pd.read_csv(path_csv, sep=';')
     nrows = len(df.index)
-    df = df.assign(source=['']*nrows)
+    df = df.assign(source=[''] * nrows)
     df = df.assign(satellite_time=[''] * nrows)
-    for index,row in df.iterrows():
-        datehere = dt.strptime(row['Date'],'%Y-%m-%d')
+    for index, row in df.iterrows():
+        datehere = dt.strptime(row['Date'], '%Y-%m-%d')
         print(f'[INFO] Date: {datehere}')
-        sfile = get_cmems_product_day(options_dict['sat_source_dir'],'YYYYjjj',datehere,options_dict['dataset_name_file'],options_dict['dataset_name_format_date'])
+        sfile = get_cmems_product_day(options_dict['sat_source_dir'], 'YYYYjjj', datehere,
+                                      options_dict['dataset_name_file'], options_dict['dataset_name_format_date'],None)
         if sfile is not None:
-            df.loc[index,'source'] = sfile
+            df.loc[index, 'source'] = sfile
             satellite_time = get_satellite_time_from_global_attributes(sfile)
             if satellite_time is not None:
-                df.loc[index,'satellite_time'] = satellite_time.strftime('%Y-%m-%d %H:%M:%S')
-    df.to_csv(file_out,sep=';')
+                df.loc[index, 'satellite_time'] = satellite_time.strftime('%Y-%m-%d %H:%M:%S')
+    df.to_csv(file_out, sep=';')
     print(f'[INFO] Completed')
+
+
+def get_cmems_download_options(options):
+    section = 'satellite_options'
+    options_download = ['download_product', 'download_dataset', 'download_endpoint', 'download_bucket', 'download_tag']
+    keys_download = ['product', 'dataset', 'endpoint', 'bucket', 'tag']
+    keys_present = [False, False, True, False, False]  ##endpoint is not required, always True
+    cmems_donwload_options = {'start_date': None, 'end_date': None}
+    for idx, op in enumerate(options_download):
+        if options.has_option(section, op):
+            cmems_donwload_options[keys_download[idx]] = options[section][op]
+            keys_present[idx] = True
+        else:
+            cmems_donwload_options[keys_download[idx]] = None
+
+    if keys_present.count(True) == 5:
+        return cmems_donwload_options
+    else:
+        return None
 
 
 def main():
@@ -1819,7 +1860,6 @@ def main():
     if args.download_sources:
         download_doors_sources(options)
         return
-
 
     path_output = get_output_path(options)
     if path_output is None:
@@ -1841,7 +1881,7 @@ def main():
         n_bands = 0
         if options.has_option('CSV_SELECTION', 'use_single_file'):  ##SINGLE FILE SELECTION
             usf = options['CSV_SELECTION']['use_single_file']
-            if usf.strip().lower()=='true' or usf.strip()=='1':
+            if usf.strip().lower() == 'true' or usf.strip() == '1':
                 use_single_file = True
 
         dataset_name_file = options['CSV_SELECTION']['dataset_name_file']
@@ -1857,17 +1897,18 @@ def main():
             rrs_list = []
             rrs_var_list = []
             is_reflectance = False
-            if options.has_option('CSV_SELECTION','var_rrs_list') and options.has_option('CSV_SELECTION','var_rrs_format'):
+            if options.has_option('CSV_SELECTION', 'var_rrs_list') and options.has_option('CSV_SELECTION',
+                                                                                          'var_rrs_format'):
 
                 var_rrs_list = options['CSV_SELECTION']['var_rrs_list'].strip()
                 var_rrs_format = options['CSV_SELECTION']['var_rrs_format'].strip()
                 is_reflectance = True
                 for r in var_rrs_list.split(','):
                     try:
-                        rs = r.strip().replace('.','_')
+                        rs = r.strip().replace('.', '_')
                         rrs_here = float(r.strip())
                         rrs_list.append(rrs_here)
-                        var_here = var_rrs_format.replace('$BAND$',rs)
+                        var_here = var_rrs_format.replace('$BAND$', rs)
                         rrs_var_list.append(var_here)
                     except:
                         is_reflectance = False
@@ -1924,8 +1965,6 @@ def main():
         if csv_flags is not None:
             csv_flags_meanings = {}
 
-
-
         for idx, row in df.iterrows():
             list = [str(x).strip() for x in row.to_list()]
             line_orig = ";".join(list)
@@ -1972,7 +2011,9 @@ def main():
                             csv_flags_meanings[f] = lflags
 
             if use_single_file:
-                fproduct = get_cmems_product_day(path_source, org, datehere, dataset_name_file,dataset_name_format_date)
+                cmems_download_options = get_cmems_download_options(options)
+                fproduct = get_cmems_product_day(path_source, org, datehere, dataset_name_file,
+                                                 dataset_name_format_date,cmems_download_options)
                 if fproduct is not None:
 
                     limits, rc = get_geo_info(options, fproduct, lathere, lonhere)
@@ -2000,7 +2041,8 @@ def main():
                         satellite_time = get_satellite_time_from_global_attributes(fproduct)
                         if satellite_time is None:
                             try:
-                                satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}', '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
+                                satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}', '%Y%m%dT%H:%M').replace(
+                                    tzinfo=pytz.utc)
                             except:
                                 print(f'{cmems_time} is not a valid satellite time option. Skipping')
                                 fcsv_out.write('\n')
@@ -2044,8 +2086,6 @@ def main():
                     fcsv_out.write('\n')
                     fcsv_out.write(f'{line_orig};NaN;-1')
             else:
-
-
 
                 list_files = get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file,
                                                             dataset_name_format_date, dataset_var_list)
@@ -2129,11 +2169,11 @@ def main():
                 else:
                     newExtract = start_extract(extract, ofname)
 
-
                 if is_reflectance:
-                    newExtract = add_reflectance_single(newExtract,extract,rrs_list,rrs_var_list)
+                    newExtract = add_reflectance_single(newExtract, extract, rrs_list, rrs_var_list)
 
-                newExtract = add_variable_single(newExtract,extract,dataset_var_list,dataset_var_list_out,rrs_var_list)
+                newExtract = add_variable_single(newExtract, extract, dataset_var_list, dataset_var_list_out,
+                                                 rrs_var_list)
 
                 nidx = 50
 
