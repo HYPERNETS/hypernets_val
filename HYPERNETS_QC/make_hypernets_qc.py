@@ -71,8 +71,17 @@ def test():
     return True
 
 
-def test_2():
+def test2():
     print('test2')
+    import hypernets_day
+    import sys
+    code_home = os.path.dirname(os.path.dirname(hypernets_day.__file__))
+    sys.path.append(code_home)
+    code_eistools = os.path.join(os.path.dirname(code_home), 'eistools')
+    if os.path.exists(code_eistools):
+        sys.path.append(code_eistools)
+        import download_tool
+        download_tool.test()
     # work_date = dt(2023,10,5)
     # hdayfile = hday.get_hypernets_day_file(site, work_date)
     # hdayfile.set_path_images_date(site, work_date)
@@ -104,6 +113,7 @@ def test_2():
     # for wd in wimages:
     #     print(wd,wimages[wd])
     # hdayfile.plot_water_images(wimages)
+    return True
 
 
 def make_report_files(input_path, output_path, site, start_date, end_date):
@@ -703,9 +713,9 @@ def correct_angles(input_path,output_path,site,start_date,end_date):
 def main():
     if args.verbose:
         print('STARTED')
-    # b = test()
-    # if b:
-    #     return
+    b = test2()
+    if b:
+        return
     start_date, end_date = get_start_and_end_dates()
     if start_date is None:
         return

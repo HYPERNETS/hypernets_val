@@ -1722,10 +1722,11 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
             code_eistools = os.path.join(os.path.dirname(code_home),'eistools')
             if os.path.exists(code_eistools):
                 sys.path.append(code_eistools)
-                from eistools import download_tool as dwt
+                from cmems_lois import CMEMS_LOIS
+                clois = CMEMS_LOIS(args.verbose)
                 cmems_download_options['start_date'] = datehere
                 cmems_download_options['end_date'] = datehere
-                dwt.make_cmems_download(cmems_download_options, True, path_source, ods)
+                clois.make_cmems_download(cmems_download_options, True, path_source, ods,True)
             else:
                 print(f'[WARNING] Code {code_eistools} for downloading is not available')
 
@@ -1845,10 +1846,23 @@ def get_cmems_download_options(options):
     else:
         return None
 
+def test2():
+    print('test2')
+    import sat_extract
+    import sys
+    code_home = os.path.dirname(os.path.dirname(sat_extract.__file__))
+    sys.path.append(code_home)
+    code_eistools = os.path.join(os.path.dirname(code_home), 'eistools')
+    if os.path.exists(code_eistools):
+        sys.path.append(code_eistools)
+        from cmems_lois import CMEMS_LOIS
+        clois = CMEMS_LOIS(args.verbose)
+    return True
+
+
 
 def main():
     print('[INFO] Creating satellite extracts')
-
     if not args.config_file:
         return
     if not os.path.exists(args.config_file):
