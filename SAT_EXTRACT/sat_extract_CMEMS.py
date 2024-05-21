@@ -1726,7 +1726,11 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
                 clois = CMEMS_LOIS(args.verbose)
                 cmems_download_options['start_date'] = datehere
                 cmems_download_options['end_date'] = datehere
+                print(cmems_download_options)
+                print(path_source)
+                print(ods)
                 clois.make_cmems_download(cmems_download_options, True, path_source, ods,True)
+
             else:
                 print(f'[WARNING] Code {code_eistools} for downloading is not available')
 
@@ -1874,8 +1878,8 @@ def test2():
 
 
 def main():
-    if test2():
-        return
+    # if test2():
+    #     return
     print('[INFO] Creating satellite extracts')
     if not args.config_file:
         return
