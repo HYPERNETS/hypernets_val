@@ -1721,7 +1721,7 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
         if cmems_download_options is not None:
             code_eistools = os.path.join(os.path.dirname(code_home),'eistools')
             if os.path.exists(code_eistools):
-                sys.append(code_eistools)
+                sys.path.append(code_eistools)
                 from eistools import download_tool as dwt
                 cmems_download_options['start_date'] = datehere
                 cmems_download_options['end_date'] = datehere
