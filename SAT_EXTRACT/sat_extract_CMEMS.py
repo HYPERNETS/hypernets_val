@@ -1856,12 +1856,26 @@ def test2():
     if os.path.exists(code_eistools):
         sys.path.append(code_eistools)
         from cmems_lois import CMEMS_LOIS
+        from datetime import datetime as dt
         clois = CMEMS_LOIS(args.verbose)
+        cmems_download_options = {
+            'start_date': dt(2024,1,1),
+            'end_date': dt(2024,1,1),
+            'product':'OCEANCOLOUR_GLO_BGC_L3_MY_009_107',
+            'dataset':'c3s_obs-oc_glo_bgc-reflectance_my_l3-multi-4km_P1D',
+            'bucket':'mdl-native-16',
+            'endpoint': None,
+            'tag':'202303'
+        }
+        ods = '%Y/%j'
+        clois.make_cmems_download(cmems_download_options, True, '/store3/DOORS', ods, True)
     return True
 
 
 
 def main():
+    if test2():
+        return
     print('[INFO] Creating satellite extracts')
     if not args.config_file:
         return
