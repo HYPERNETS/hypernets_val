@@ -57,6 +57,87 @@ class HYPERNETS_DAY_FILE():
         dataset.close()
         return sequences
 
+    def get_metadata_files(self,input_path):
+        from netCDF4 import Dataset
+        import numpy as np
+        metadata_files = []
+        dataset = Dataset(self.file_nc)
+        seq_var = dataset.variables['sequence_ref']
+        metadata_files_keys = {}
+        for name in os.listdir(input_path):
+            if name.endswith('_metadata.txt'):
+                time_metadata = dt.strptime(name[3:name.find('_metadata.txt')],'%Y%m%dT%H%M%S')
+                metadata_files_keys[time_metadata.strftime('%Y%m%dT%H%M')] = os.path.join(input_path,name)
+
+        for idx in range(len(seq_var)):
+            val = seq_var[idx]
+            if np.ma.is_masked(val):
+                metadata_files.append(None)
+                continue
+            time = dt.utcfromtimestamp(float(val))
+            time_str = time.strftime('%Y%m%dT%H%M')
+            if time_str in metadata_files_keys:
+                metadata_files.append(metadata_files_keys[time_str])
+            else:
+                metadata_files.append(None)
+
+        dataset.close()
+        return metadata_files
+
+    def get_angles_from_metadata_files(self,metadata_files):
+        if metadata_files is None:
+            return None
+        import configparser
+        offset_tilt = 56
+        nseries = len(metadata_files)
+        array_angles = np.zeros((nseries,3)).astype(np.float64) #paa, vaa, vza
+        array_angles[:] = np.nan
+        for idx,file in enumerate(metadata_files):
+            if file is not None:
+                options = configparser.ConfigParser()
+                options.read(file)
+                if options.has_option('01_008_0270_2_0040','pt_ref'):
+                    val = options['01_008_0270_2_0040']['pt_ref']
+                    paa_ref = float(val.split(';')[0].strip())
+                    vza_ref = float(val.split(';')[1].strip())
+                    array_angles[idx,0] = self.normalizeddeg(paa_ref,0,360)
+                    array_angles[idx,1] = self.normalizeddeg(array_angles[idx,0]+180,0,360)
+                    array_angles[idx,2] = self.normalizeddeg(vza_ref+float(offset_tilt),0,360)
+
+        return array_angles
+
+    def normalizeddeg(self,num, lower=0.0, upper=360.0, b=False):
+        from math import floor, ceil
+        res = num
+        if not b:
+            if lower >= upper:
+                raise ValueError(
+                    "Invalid lower and upper limits: (%s, %s)" % (lower, upper)
+                )
+
+            res = num
+            if num > upper or num == lower:
+                num = lower + abs(num + upper) % (abs(lower) + abs(upper))
+            if num < lower or num == upper:
+                num = upper - abs(num - lower) % (abs(lower) + abs(upper))
+
+            res = lower if res == upper else num
+        else:
+            total_length = abs(lower) + abs(upper)
+            if num < -total_length:
+                num += ceil(num / (-2 * total_length)) * 2 * total_length
+            if num > total_length:
+                num -= floor(num / (2 * total_length)) * 2 * total_length
+            if num > upper:
+                num = total_length - num
+            if num < lower:
+                num = -total_length - num
+
+            res = num * 1.0  # Make all numbers float, to be consistent
+
+        return res
+
+
     ##methods for multiple dates. start_date and end_date are dt objects, start_time and end_time with format %H:%M
     ##these parameters are retrieved from options_figures using check_dates_times
     def get_sequences_range(self, start_date, end_date, start_time, end_time):
@@ -264,6 +345,71 @@ class HYPERNETS_DAY_FILE():
         time_str = date_time_here.strftime('%H:%M')
         title = f'{site} {self.sequences[self.isequence]} - {date_str} {time_str} - {self.isequence + 1}/{len(self.sequences)}'
         return title
+
+    def get_array_variable(self,name_var):
+        from netCDF4 import Dataset
+        import numpy as np
+        dataset = Dataset(self.file_nc)
+        array = np.array(dataset.variables[name_var][:])
+        dataset.close()
+        return array
+
+    def creating_copy_with_new_angles(self,array_angles):
+        from netCDF4 import Dataset
+        file_nc_old = self.file_nc[:-3]+'_old.nc'
+        if os.path.exists(file_nc_old):
+            print('[WARNING] Angle correction has already been done. Skipping...')
+            return
+        os.rename(self.file_nc,file_nc_old)
+        file_nc_new = self.file_nc
+        # file_nc_old = self.file_nc
+        # file_nc_new = self.file_nc[:-3] + '_new.nc'
+
+        input_dataset = Dataset(file_nc_old)
+        ncout = Dataset(file_nc_new, 'w', format='NETCDF4')
+
+        # copy attribtues
+        ncout.setncatts(input_dataset.__dict__)
+
+        # copy dimensions
+        for name, dimension in input_dataset.dimensions.items():
+            ncout.createDimension(
+                name, (len(dimension) if not dimension.isunlimited() else None))
+
+        nseries = array_angles.shape[0]
+        for name, variable in input_dataset.variables.items():
+            fill_value = None
+            if '_FillValue' in list(variable.ncattrs()):
+                fill_value = variable._FillValue
+
+            ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True, complevel=6)
+
+            # copy variable attributes all at once via dictionary
+            ncout[name].setncatts(input_dataset[name].__dict__)
+
+            if name=='l2_pointing_azimuth_angle':
+                ncout[name][:] = array_angles[:,0]
+            elif name=='l2_viewing_azimuth_angle':
+                ncout[name][:] = array_angles[:, 1]
+            elif name=='l2_viewing_zenith_angle':
+                ncout[name][:] = array_angles[:, 2]
+            elif name=='l1_pointing_azimuth_angle':
+                nscan = input_dataset[name].shape[1]
+                array_new = array_angles[:,0].reshape(nseries,1).repeat(nscan,axis=1)
+                ncout[name][:] = array_new[:]
+            elif name=='l1_viewing_azimuth_angle':
+                nscan = input_dataset[name].shape[1]
+                array_new = array_angles[:, 1].reshape(nseries, 1).repeat(nscan, axis=1)
+                ncout[name][:] = array_new[:]
+            elif name=='l1_viewing_zenith_angle':
+                nscan = input_dataset[name].shape[1]
+                array_new = array_angles[:, 2].reshape(nseries, 1).repeat(nscan, axis=1)
+                ncout[name][:] = array_new[:]
+            else:
+                ncout[name][:] = input_dataset[name][:]
+        input_dataset.close()
+
+        ncout.close()
 
     # flag: name_variable, sky_irr_1, sky_irr_2, sky_rad_1, sky_rad_1, water_rad, sun
     def get_img_file(self, flag):

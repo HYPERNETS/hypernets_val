@@ -9,7 +9,7 @@ from hypernets_day import HYPERNETS_DAY
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
-                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL'],
+                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL','CORRECTANGLES'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -680,6 +680,25 @@ def prepare_sun_plot_email(input_path, output_path, site, start_date):
     else:
         print('NONE')
 
+def correct_angles(input_path,output_path,site,start_date,end_date):
+    print('[INFO] Correctiong angles')
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hd = HYPERNETS_DAY(input_path, output_path)
+    while work_date<=end_date:
+        if args.verbose:
+            print(f'[INFO] Date: {work_date.strftime("%Y-%m-%d")}')
+        hday = hd.get_hypernets_day_file(site,work_date)
+        input_path_date = hd.get_folder_date(site,work_date)
+        if hday is not None:
+            list_metadata = hday.get_metadata_files(input_path_date)
+            array_angles = hday.get_angles_from_metadata_files(list_metadata)
+            hday.creating_copy_with_new_angles(array_angles)
+        else:
+            print(f'[WARNING] QC file for date {work_date.strftime("%Y-%m-%d")} is not available. Skipping...')
+        work_date = work_date + timedelta(hours=interval)
 
 def main():
     if args.verbose:
@@ -737,6 +756,9 @@ def main():
 
     if args.mode == 'SUNMAIL':
         prepare_sun_plot_email(input_path, output_path, site, start_date)
+
+    if args.mode == 'CORRECTANGLES':
+        correct_angles(input_path,output_path,site,start_date,end_date)
 
 
 # %%
