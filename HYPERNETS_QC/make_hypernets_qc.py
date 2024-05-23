@@ -185,7 +185,14 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         name_pdf = f'Report_{site}_{date_str}.pdf'
         file_pdf = os.path.join(folder_day, name_pdf)
         file_mail = os.path.join(output_path, site, 'QCMail.mail')
-        public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
+        public_link = ''
+        if os.path.exists(config_file_summary):
+            import configparser
+            options = configparser.ConfigParser()
+            options.read(config_file_summary)
+            if options.read('GLOBAL_OPTIONS',f'public_link_{site}'):
+                public_link = options['GLOBAL_OPTIONS'][f'public_link_{site}'].strip()
+        #public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
         print(f'[INFO] Creating e-mail file: {file_mail}')
         fout = open(file_mail, 'w')
         fout.write(f'QUALITY CONTROL - {site} - {start_date.strftime("%Y-%m-%d")}')
@@ -204,7 +211,7 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             import owncloud
             session = owncloud.Client('https://file.sic.rm.cnr.it/')
             session.login('Luis.Gonzalezvilas@artov.ismar.cnr.it', 'BigRoma_21')
-            session.put_file(f'/ESA-HYP-POP/{site}/{site}_LastQC.pdf', file_pdf)
+            session.put_file(f'/ESA-HYP-POP/LastQC_Reports/{site}_LastQC.pdf', file_pdf)
 
 
 def create_empty_image(file_img, site, date_here):
