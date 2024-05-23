@@ -274,7 +274,17 @@ class MDBBuilderOptions:
             'rrs_suffix': self.get_value_param(section,'rrs_suffix',None,'str'),
             'first_rrs': self.get_value_param(section,'first_rrs',None,'str'),
             'last_rrs': self.get_value_param(section,'last_rrs',None,'str'),
-            'fill_value': self.get_value_param(section,'fill_value',None,'float')
+            'fill_value': self.get_value_param(section,'fill_value',None,'float'),
+            'col_extract': self.get_value_param(section,'col_extract','Extract','str'),
+            'col_extract_index': self.get_value_param(section,'col_extract_index','Index','str'),
+            'col_lat': self.get_value_param(section,'col_lat','lat','str'),
+            'col_lon': self.get_value_param(section, 'col_lon','lon','str'),
+            'col_date': self.get_value_param(section,'col_date','date','str'),
+            'format_date': self.get_value_param(section,'format_date','%Y-%m-%d','str'),
+            'col_time': self.get_value_param(section,'col_time',None,'str'),
+            'format_time': self.get_value_param(section, 'format_date', '%H:%M:%S', 'str'),
+            'col_vars': self.get_value_param(section,'col_vars',None,'strlist'),
+            'insitu_time': self.get_value_param(section,'insitu_time',None,'str')
         }
         if self.verbose:
             print(

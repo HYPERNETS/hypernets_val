@@ -720,9 +720,9 @@ def correct_angles(input_path,output_path,site,start_date,end_date):
 def main():
     if args.verbose:
         print('STARTED')
-    b = test2()
-    if b:
-        return
+    # b = test2()
+    # if b:
+    #     return
     start_date, end_date = get_start_and_end_dates()
     if start_date is None:
         return

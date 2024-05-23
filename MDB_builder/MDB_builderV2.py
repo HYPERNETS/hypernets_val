@@ -192,6 +192,11 @@ def main():
         create_mdb_single_csv_rrs(mo, extract_list, insitu_file)
         return
 
+    if mo.insitu_type  == 'SINGLE_CSV_VAR':
+        insitu_file = mo.get_single_insitu_file()
+        create_mdb_single_csv_var(mo, insitu_file)
+        return
+
     ihd = INSITU_HYPERNETS_DAY(mo, None, args.verbose)
     if args.verbose:
         if mo.insitu_options['apply_rsync']:
@@ -554,6 +559,74 @@ def create_mdb_single_csv_rrs(mo,extract_list,insitu_file):
         if mo.insitu_options['fill_value'] is not None:
             rrs_array[rrs_array==mo.insitu_options['fill_value']] = -999.0
         print('----')
+
+def create_mdb_single_csv_var(mo,insitu_file):
+    try:
+        df = pd.read_csv(insitu_file,sep=';')
+    except:
+        print(f'[ERROR] File {insitu_file} is not a valid csv file')
+        return
+
+    cols_to_check = ['col_extract','col_extract_index','col_lat','col_lon','col_date']
+    for col in cols_to_check:
+        if not mo.insitu_options[col] in df.columns.tolist():
+            print(f'[ERROR]{mo.insitu_options[col]} is not a valid column in the input csv file. Please review {col} in the [insitu_options] of the configuration file')
+            return
+    col_vars = mo.insitu_options['col_vars']
+    if col_vars is None:
+        print(f'[ERROR] No valid variable names were given. Please set col_vars key in the [insitu_options] of the configuration file')
+        return
+    for var in col_vars:
+        if var not in df.columns.tolist():
+            print(f'[ERROR] Variable {var} is not a valid variable in the csv file {insitu_file}. Please review col_vars key in the [insitu_options] of the configuration file ')
+            return
+    #print(mo.insitu_options)
+    col_extract = mo.insitu_options['col_extract']
+    col_extract_index = mo.insitu_options['col_extract_index']
+    col_names = df.columns
+
+    extract_list = {}
+    # for index,row in df.iterrows():
+    #     file_extract = os.path.join(mo.satellite_path_source,f'extract_{row[col_extract]}')
+    #     if not os.path.exists(file_extract):
+    #         print(f'[WARNING] Extract file {row[col_extract]} is not available. Skipping row {index}')
+    #         continue
+    #     mdb_extract = mo.get_mdb_extract_path(row[col_extract],'CSV')
+    #     print(mdb_extract)
+    #     insitu_lat = get_float_value_from_row(index,row,mo.insitu_options['col_lat'])
+    #     insitu_lon = get_float_value_from_row(index,row,mo.insitu_options['col_lon'])
+    #     insitu_time = get_datetime_from_row(index,row,mo.insitu_options['col_date'],mo.insitu_options['format_date'],mo.insitu_options['col_time'],mo.insitu_options['format_time'],mo.insitu_options['insitu_time'])
+    #     print(insitu_time,insitu_lat,insitu_lon)
+
+def get_datetime_from_row(index,row,col_date,format_date,col_time,format_time,insitu_time):
+    date_row = str(row[col_date])
+    format_row = format_date
+    if col_time is not None:
+        date_row = f'{date_row}{row[col_time]}'
+        format_row = f'{format_row}{format_time}'
+    try:
+        date_here = dt.strptime(date_row,format_row)
+    except:
+        print(f'Datetime {date_row} for row {index} could not be parsed using the format {format_row}')
+        return None
+
+    if insitu_time is not None:
+        date_here_str = f'{date_here.strftime("%Y-%m-%d")}T{insitu_time}'
+        try:
+            date_here = dt.strptime(date_here_str,'%Y-%m-%dT%H:%M')
+        except:
+            print(f'insitu_time {insitu_time} for row {index} could not be parsed using the format %H:%M. Please review config file')
+            return None
+    return date_here
+
+
+def get_float_value_from_row(index,row,col_name):
+    try:
+        value = float(row[col_name])
+    except:
+        value = -999.0
+        print(f'[WARNING] {col_name} value {row[col_name]} for row {index} is a not a valid float value')
+    return value
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):
     if len(list_files) == 0:
