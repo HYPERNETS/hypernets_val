@@ -190,7 +190,7 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             import configparser
             options = configparser.ConfigParser()
             options.read(config_file_summary)
-            if options.read('GLOBAL_OPTIONS',f'public_link_{site}'):
+            if options.has_option('GLOBAL_OPTIONS',f'public_link_{site}'):
                 public_link = options['GLOBAL_OPTIONS'][f'public_link_{site}'].strip()
         #public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
         print(f'[INFO] Creating e-mail file: {file_mail}')
