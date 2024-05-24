@@ -583,20 +583,21 @@ def create_mdb_single_csv_var(mo,insitu_file):
     #print(mo.insitu_options)
     col_extract = mo.insitu_options['col_extract']
     col_extract_index = mo.insitu_options['col_extract_index']
+    df = df.sort_values([col_extract,col_extract_index])
     col_names = df.columns
 
     extract_list = {}
-    # for index,row in df.iterrows():
-    #     file_extract = os.path.join(mo.satellite_path_source,f'extract_{row[col_extract]}')
-    #     if not os.path.exists(file_extract):
-    #         print(f'[WARNING] Extract file {row[col_extract]} is not available. Skipping row {index}')
-    #         continue
-    #     mdb_extract = mo.get_mdb_extract_path(row[col_extract],'CSV')
-    #     print(mdb_extract)
-    #     insitu_lat = get_float_value_from_row(index,row,mo.insitu_options['col_lat'])
-    #     insitu_lon = get_float_value_from_row(index,row,mo.insitu_options['col_lon'])
-    #     insitu_time = get_datetime_from_row(index,row,mo.insitu_options['col_date'],mo.insitu_options['format_date'],mo.insitu_options['col_time'],mo.insitu_options['format_time'],mo.insitu_options['insitu_time'])
-    #     print(insitu_time,insitu_lat,insitu_lon)
+    for index,row in df.iterrows():
+        file_extract = os.path.join(mo.satellite_path_source,f'extract_{row[col_extract]}')
+        if not os.path.exists(file_extract):
+            print(f'[WARNING] Extract file {row[col_extract]} is not available. Skipping row {index}')
+            continue
+        mdb_extract = mo.get_mdb_extract_path(row[col_extract],None)
+        #print(mdb_extract)
+        insitu_lat = get_float_value_from_row(index,row,mo.insitu_options['col_lat'])
+        insitu_lon = get_float_value_from_row(index,row,mo.insitu_options['col_lon'])
+        insitu_time = get_datetime_from_row(index,row,mo.insitu_options['col_date'],mo.insitu_options['format_date'],mo.insitu_options['col_time'],mo.insitu_options['format_time'],mo.insitu_options['insitu_time'])
+        #print(insitu_time,insitu_lat,insitu_lon,mdb_extract,row[col_extract_index])
 
 def get_datetime_from_row(index,row,col_date,format_date,col_time,format_time,insitu_time):
     date_row = str(row[col_date])
@@ -617,6 +618,7 @@ def get_datetime_from_row(index,row,col_date,format_date,col_time,format_time,in
         except:
             print(f'insitu_time {insitu_time} for row {index} could not be parsed using the format %H:%M. Please review config file')
             return None
+    date_here = date_here.replace(tzinfo=pytz.utc)
     return date_here
 
 

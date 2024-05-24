@@ -342,7 +342,8 @@ class MDBBuilderOptions:
             return list
 
     def get_mdb_extract_path(self, path_extract, ins_sensor):
-        filename = f'MDB_{ins_sensor}_{path_extract}'
+        filename = f'MDB_{path_extract}' if ins_sensor is None else f'MDB_{ins_sensor}_{path_extract}'
+        #filename = f'MDB_{ins_sensor}_{path_extract}'
         outputpath = os.path.join(self.path_out, 'MDB_EXTRACTS')
         if not os.path.exists(outputpath):
             os.mkdir(outputpath)

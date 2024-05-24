@@ -9,7 +9,7 @@ from hypernets_day import HYPERNETS_DAY
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
-                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL','CORRECTANGLES'],
+                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL','CORRECTANGLES','COPYFROMCSV'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -451,6 +451,27 @@ def make_flagged_nc_from_csv(config_file):
     if dataset_w is not None:
         dataset_w.close()
 
+def make_copy_from_csv(site,input_path,output_directory):
+    import pandas as pd
+    from datetime import datetime as dt
+    base_folder = '/store3/HYPERNETS/INPUT_HYPSTARv2.0_QC/'
+    df = pd.read_csv(input_path, sep=';')
+    for index,row in df.iterrows():
+        sref = row['sequence_ref']
+        date_ref = dt.strptime(sref,'%Y%m%dT%H%M')
+        date_folder = os.path.join(base_folder,site,date_ref.strftime('%Y'),date_ref.strftime('%m'),date_ref.strftime('%d'))
+        report_name = f'{site}_{sref}_Report.png'
+        input_file = os.path.join(date_folder,report_name)
+        output_file = os.path.join(output_directory,report_name)
+        if os.path.exists(input_file):
+            shutil.copy(input_file,output_file)
+            print(f'[INFO] Input file: {input_file} coppied to {output_directory}')
+        else:
+            print(f'[WARNING] Input file: {input_file} is not available. Skipping...')
+
+
+
+
 
 def get_flags(options):
     flags = {}
@@ -761,6 +782,9 @@ def main():
 
     if args.mode == 'NCFROMCSV':
         make_flagged_nc_from_csv(args.config_path)
+
+    if args.mode == 'COPYFROMCSV':
+        make_copy_from_csv(site,input_path,output_path)
 
     if args.mode == 'PLOT':
         plot_from_options(input_path, args.config_path, None)
