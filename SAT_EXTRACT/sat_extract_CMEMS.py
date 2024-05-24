@@ -2195,9 +2195,11 @@ def main():
             for site in extract_list:
                 extract = extract_list[site]
                 ofname = extract['ofname']
-                ofname_temp = f'{ofname[:-3]}_temp.nc'
+                #ofname_temp = f'{ofname[:-3]}_temp.nc'
                 if os.path.exists(ofname):
-                    newExtract = copy_extract(ofname, ofname_temp)
+                    print(f'[WARNING] {ofname} already exist. Skipping...')
+                    continue
+                    #newExtract = copy_extract(ofname, ofname_temp)
                 else:
                     newExtract = start_extract(extract, ofname)
 
@@ -2217,8 +2219,8 @@ def main():
                         newExtract = add_insitu_basic_info(newExtract, extract, idx, nidx, csv_flags_meanings)
                 newExtract.close_file()
 
-                if os.path.exists(ofname_temp):
-                    os.rename(ofname_temp, ofname)
+                # if os.path.exists(ofname_temp):
+                #     os.rename(ofname_temp, ofname)
 
 
         else:  ##MULTIPLE
