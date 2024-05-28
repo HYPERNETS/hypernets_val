@@ -480,7 +480,7 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, r
             variable[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
 
         for at in var_in.ncattrs():
-            if at == '_FillValue':
+            if at == '_FillValue' or at=='add_offset' or at=='scale_factor':
                 continue
             variable.setncattr(at, var_in.getncattr(at))
 
@@ -513,7 +513,7 @@ def add_variable_multiple(newEXTRACT, extract, variable_list, variable_list_out)
             variable[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
 
         for at in var_in.ncattrs():
-            if at == '_FillValue':
+            if at == '_FillValue' or at=='add_offset' or at=='scale_factor':
                 continue
             variable.setncattr(at, var_in.getncattr(at))
         nc_in.close()
