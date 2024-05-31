@@ -24,7 +24,6 @@ class MDBBuilderOptions:
             'WISP3':'WISP3',
             'MEDA':'MEDA',
             'TARA':'HYPERBOOST',
-            'SINGLE_CSV_RRS': 'NotAv'
         }
         # insitu path source
         self.insitu_path_source = None
@@ -163,11 +162,14 @@ class MDBBuilderOptions:
             else:
                 print(f'[INFO] Site: {station_name} with lat: {in_situ_lat}, long: {in_situ_lon}')
 
+
         self.param_insitu = {
             'station_name': station_name,
             'insitu_lat': in_situ_lat,
             'insitu_lon': in_situ_lon
         }
+        if self.options.has_option('Time_and_sites_selection', 'insitu_sensor'):
+            self.param_insitu['insitu_sensor'] = (self.options['Time_and_sites_selection']['insitu_sensor'].strip())
 
     #get in situ file  with the station name in the name file
     def get_insitu_file(self,ext):
@@ -276,16 +278,30 @@ class MDBBuilderOptions:
             'last_rrs': self.get_value_param(section,'last_rrs',None,'str'),
             'fill_value': self.get_value_param(section,'fill_value',None,'float'),
             'col_extract': self.get_value_param(section,'col_extract','Extract','str'),
-            'col_extract_index': self.get_value_param(section,'col_extract_index','Index','str'),
+            'col_extract_extra': self.get_value_param(section,'col_extract_extra',None,'dictlist'),
             'col_lat': self.get_value_param(section,'col_lat','lat','str'),
             'col_lon': self.get_value_param(section, 'col_lon','lon','str'),
             'col_date': self.get_value_param(section,'col_date','date','str'),
             'format_date': self.get_value_param(section,'format_date','%Y-%m-%d','str'),
             'col_time': self.get_value_param(section,'col_time',None,'str'),
-            'format_time': self.get_value_param(section, 'format_date', '%H:%M:%S', 'str'),
+            'format_time': self.get_value_param(section, 'format_time', '%H:%M:%S', 'str'),
             'col_vars': self.get_value_param(section,'col_vars',None,'strlist'),
             'insitu_time': self.get_value_param(section,'insitu_time',None,'str')
         }
+
+        ##col_vars attributes
+        col_vars = self.insitu_options['col_vars']
+        section_keys = list(dict(self.options.items(section)).keys())
+        for col in col_vars:
+            col_dict = {}
+            for key in section_keys:
+                if key.startswith(f'{col.lower()}.'):
+                    value = self.get_value_param(section,key,None,'str')
+                    at = key.split('.')[1]
+                    col_dict[at] = value
+            if len(col_dict)>0:
+                self.insitu_options[col] = col_dict
+
         if self.verbose:
             print(
                 f'[INFO] In situ options----------------------------------------------------------------START')
@@ -333,6 +349,16 @@ class MDBBuilderOptions:
             for vals in list_str:
                 list.append(vals.strip())
             return list
+        if type == 'dictlist':
+            list_vals = value.split(';')
+            dict = {}
+            for val in list_vals:
+                key_value = val.split('=')
+                if len(key_value)==2:
+                    key = key_value[0].strip()
+                    value_list = [x.strip() for x in key_value[1].split(',')]
+                    dict[key] = value_list
+            return dict
         if type == 'floatlist':
             list_str = value.split(',')
             list = []
@@ -364,9 +390,12 @@ class MDBBuilderOptions:
         sat_extract_info['platform'] = self.param_sat['platform']
         sat_extract_info['resolution'] = self.param_sat['resolution']
         sat_extract_info['ac'] = self.param_sat['ac']
-        sensor_str = 'UNKNONW'
-        if self.insitu_type in self.insitu_sensors:
-            sensor_str = self.insitu_sensors[self.insitu_type]
+        sensor_str = 'UNKNOWN'
+        if 'insitu_sensor' in self.param_insitu.keys():
+            sensor_str =  self.param_insitu['insitu_sensor']
+        else:
+            if self.insitu_type in self.insitu_sensors:
+                sensor_str = self.insitu_sensors[self.insitu_type]
         sat_extract_info['ins_sensor'] = sensor_str
 
         return sat_extract_info
@@ -383,9 +412,15 @@ class MDBBuilderOptions:
         ac = sat_extract_info['ac']
         # datetime_creation = sat_extract_info['time_creation']
         if station_name == 'SHIPBORNE':
-            filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{ins_sensor}.nc'
+            if ins_sensor=='UNKNOWN':
+                filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}.nc'
+            else:
+                filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{ins_sensor}.nc'
         else:
-            filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{ins_sensor}_{station_name}.nc'
+            if ins_sensor == 'UNKNOWN':
+                filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{station_name}.nc'
+            else:
+                filename = f'MDB_{platform}_{sensor_str}_{resolution}_{ac}_{datetime_min}_{datetime_max}_{ins_sensor}_{station_name}.nc'
         filepath = os.path.join(self.path_out, filename)
         return filepath
 
@@ -422,6 +457,34 @@ class MDBBuilderOptions:
                             self.start_date = sday.replace(hour=0, minute=0, second=0, microsecond=0)
                         if eday < self.end_date:
                             self.end_date = eday.replace(hour=23, minute=59, second=59)
+
+
+    def get_dates_from_insitu_file(self):
+        insitu_file = self.get_single_insitu_file()
+        col_date = self.insitu_options['col_date']
+        format_date = self.insitu_options['format_date']
+        if not os.path.exists(insitu_file) or col_date is None or format_date is None:
+            return
+        # start_date = dt.now()
+        # end_date = dt(1900,1,1)
+        import pandas as pd
+        import numpy as np
+        df = pd.read_csv(insitu_file,sep=';')
+        if not col_date in df.columns.tolist():
+            return
+
+        date_array = np.array(df[col_date])
+        date_array.sort()
+
+        try:
+            self.start_date = dt.strptime(date_array[0],format_date)
+            self.end_date = dt.strptime(date_array[-1],format_date)
+        except:
+            return
+
+
+
+
 
     def get_wllist(self):
         if self.options.has_option('Time_and_sites_selection','wllist'):

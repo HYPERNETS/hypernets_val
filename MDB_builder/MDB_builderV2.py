@@ -151,13 +151,14 @@ def main():
     mo.get_insitu_options()
 
     ##dates
-    if args.verbose:
-        print(f'[INFO] Checking available dates--------------------------------------------------------------START')
-    mo.get_dates()
-    if args.verbose:
-        print(f'[INFO] Start date for MDB_builder: {mo.start_date}')
-        print(f'[INFO] End date for MDB_builder:  {mo.end_date}')
-        print(f'[INFO] Checking available dates--------------------------------------------------------------STOP')
+    if not mo.insitu_type.startswith('SINGLE_CSV'):
+        if args.verbose:
+            print(f'[INFO] Checking available dates--------------------------------------------------------------START')
+        mo.get_dates()
+        if args.verbose:
+            print(f'[INFO] Start date for MDB_builder: {mo.start_date}')
+            print(f'[INFO] End date for MDB_builder:  {mo.end_date}')
+            print(f'[INFO] Checking available dates--------------------------------------------------------------STOP')
 
     ##retrieving sat extract list (except for SINGLE_CSV mode, with extract name included in the csv file)
     extract_list = None
@@ -192,8 +193,10 @@ def main():
         create_mdb_single_csv_rrs(mo, extract_list, insitu_file)
         return
 
-    if mo.insitu_type  == 'SINGLE_CSV_VAR':
+    if mo.insitu_type == 'SINGLE_CSV_VAR':
         insitu_file = mo.get_single_insitu_file()
+        mo.get_dates_from_insitu_file()
+        print(mo.get_mdb_path())
         create_mdb_single_csv_var(mo, insitu_file)
         return
 
@@ -307,7 +310,7 @@ def create_mdb_tara_file(mo, extract_list):
     mdb_extract_files = []
     for date in date_list:
         print(f'[INFO] Working for date: {date} ****************************************************************')
-        date_here = dt.strptime(date,'%Y%m%d')
+        date_here = dt.strptime(date, '%Y%m%d')
         ##checking of the file dates
         file_metadata = it.get_file_metadata(date_here)
         if file_metadata is None:
@@ -374,7 +377,6 @@ def create_mdb_tara_file_impl(mo, extract_list, mdb_extract_files):
         if not metadata_started:
             it.retrieve_metadata_from_file(extract_time)
             metadata_started = True
-
 
         create = it.create_mdb_insitu_extract(extract_list[extract]['path'], ofile, extract_list[extract]['time'],
                                               max_time_diff)
@@ -504,7 +506,8 @@ def create_mdb_wisp_file(mo, extract_list, insitu_file):
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
-def create_mdb_single_csv_rrs(mo,extract_list,insitu_file):
+
+def create_mdb_single_csv_rrs(mo, insitu_file):
     import numpy as np
     first_rrs = mo.insitu_options['first_rrs']
     if first_rrs is None:
@@ -515,7 +518,7 @@ def create_mdb_single_csv_rrs(mo,extract_list,insitu_file):
         print('Option last_rrs is not defined in [insitu_options] section in the configuration file')
         return
     try:
-        df = pd.read_csv(insitu_file,sep=';')
+        df = pd.read_csv(insitu_file, sep=';')
     except:
         print(f'[ERROR] File {insitu_file} is not a valid csv file')
         return
@@ -534,101 +537,266 @@ def create_mdb_single_csv_rrs(mo,extract_list,insitu_file):
     iini = 0 if prefix is None else len(prefix)
     ns = 0 if suffix is None else len(suffix)
     for col in col_names:
-        if col==first_rrs:
+        if col == first_rrs:
             be_added = True
         if be_added:
-            rrs_s = col[iini:len(col)-ns]
-            rrs_s = rrs_s.replace('_','.')
+            rrs_s = col[iini:len(col) - ns]
+            rrs_s = rrs_s.replace('_', '.')
             try:
                 wl_values.append(float(rrs_s))
                 wl_cols.append(col)
             except:
                 print(f'[ERROR] {rrs_s} is not a valid col name containing a rrs value')
                 return
-        if col==last_rrs:
+        if col == last_rrs:
             be_added = False
     print(wl_values)
     print(len(wl_values))
-    if mo.insitu_options['n_insitu_bands']!=len(wl_values):
+    if mo.insitu_options['n_insitu_bands'] != len(wl_values):
         mo.insitu_options['n_insitu_bands'] = len(wl_values)
         print(f'[WARNING] Number of bands in the configuration file was wrong, set to:{len(wl_values)}')
 
-    for index,row in df.iterrows():
-        rrs_array  = np.array(df.loc[index,wl_cols]).astype(np.float64)
+    for index, row in df.iterrows():
+        rrs_array = np.array(df.loc[index, wl_cols]).astype(np.float64)
         rrs_array[np.isnan(rrs_array)] = -999.0
         if mo.insitu_options['fill_value'] is not None:
-            rrs_array[rrs_array==mo.insitu_options['fill_value']] = -999.0
+            rrs_array[rrs_array == mo.insitu_options['fill_value']] = -999.0
         print('----')
 
-def create_mdb_single_csv_var(mo,insitu_file):
+
+def create_mdb_single_csv_var(mo, insitu_file):
+    import numpy as np
+    from netCDF4 import Dataset
     try:
-        df = pd.read_csv(insitu_file,sep=';')
+        df = pd.read_csv(insitu_file, sep=';')
     except:
         print(f'[ERROR] File {insitu_file} is not a valid csv file')
         return
 
-    cols_to_check = ['col_extract','col_extract_index','col_lat','col_lon','col_date']
+    cols_to_check = ['col_extract', 'col_lat', 'col_lon', 'col_date']
     for col in cols_to_check:
         if not mo.insitu_options[col] in df.columns.tolist():
-            print(f'[ERROR]{mo.insitu_options[col]} is not a valid column in the input csv file. Please review {col} in the [insitu_options] of the configuration file')
+            print(
+                f'[ERROR]{mo.insitu_options[col]} is not a valid column in the input csv file. Please review {col} in the [insitu_options] of the configuration file')
             return
     col_vars = mo.insitu_options['col_vars']
     if col_vars is None:
-        print(f'[ERROR] No valid variable names were given. Please set col_vars key in the [insitu_options] of the configuration file')
+        print(
+            f'[ERROR] No valid variable names were given. Please set col_vars key in the [insitu_options] of the configuration file')
         return
     for var in col_vars:
         if var not in df.columns.tolist():
-            print(f'[ERROR] Variable {var} is not a valid variable in the csv file {insitu_file}. Please review col_vars key in the [insitu_options] of the configuration file ')
+            print(
+                f'[ERROR] Variable {var} is not a valid variable in the csv file {insitu_file}. Please review col_vars key in the [insitu_options] of the configuration file ')
             return
-    #print(mo.insitu_options)
+    # print(mo.insitu_options)
     col_extract = mo.insitu_options['col_extract']
-    col_extract_index = mo.insitu_options['col_extract_index']
-    df = df.sort_values([col_extract,col_extract_index])
-    col_names = df.columns
+
+    extra_extracts = mo.insitu_options['col_extract_extra']
+    if extra_extracts is None:
+        extra_extracts = {}
+
+    extra_extracts_info = {}
+    for key in extra_extracts:
+        vals = extra_extracts[key]
+        path = vals[0]
+        variables = [x.strip() for x in vals[1:]]
+        if os.path.exists(path) and key in df.columns.tolist():
+            extra_extracts_info[key] = {
+                'path': vals[0],
+                'variables': variables
+            }
+            extracts = np.array(df[key])
+            for extract in extracts:
+                file_ref = os.path.join(path, f'extract_{extract}')
+
+                if os.path.exists(file_ref):
+                    dref = Dataset(file_ref)
+                    for variable in variables:
+                        if variable in dref.variables:
+                            extra_extracts_info[key][f'{variable}.dtype'] = dref.variables[variable].datatype
+                            extra_extracts_info[key][f'{variable}.dims'] = dref.variables[variable].dimensions
+                            extra_extracts_info[key][f'{variable}.atts'] = dref.variables[variable].__dict__
+                    dref.close()
+                    break
+            ##checking
+            all_var = True
+            for variable in variables:
+                if not f'{variable}.dtype' in extra_extracts_info[key]: all_var = False
+                if not f'{variable}.dims' in extra_extracts_info[key]: all_var = False
+                if not f'{variable}.atts' in extra_extracts_info[key]: all_var = False
+
+            if not all_var:
+                del extra_extracts_info[key]
+                print(
+                    f'[ERROR] col_extract_extra {key} is not correctly defined. Please review if the following variable names: ')
+                print(f'[ERROR] {variables}')
+                print(f'[ERROR] are available in extract files in {path}')
+                return
+        else:
+            if not os.path.exists(path): print(
+                f'[ERROR] Extract path: {path} for col_extract_extra {key} does not exist')
+            if not key in df.columns.tolist(): print(
+                f'[ERROR] col_extract_extra {key} is not available in the CSV file {insitu_file}')
+            return
 
     extract_list = {}
-    for index,row in df.iterrows():
-        file_extract = os.path.join(mo.satellite_path_source,f'extract_{row[col_extract]}')
+    nrows = len(df.index)
+    from INSITU_base import INSITUBASE
+    ibase = INSITUBASE(mo)
+    for index, row in df.iterrows():
+        name_extract = f'extract_{row[col_extract]}'
+        file_extract = os.path.join(mo.satellite_path_source, name_extract)
         if not os.path.exists(file_extract):
             print(f'[WARNING] Extract file {row[col_extract]} is not available. Skipping row {index}')
             continue
-        mdb_extract = mo.get_mdb_extract_path(row[col_extract],None)
-        #print(mdb_extract)
-        insitu_lat = get_float_value_from_row(index,row,mo.insitu_options['col_lat'])
-        insitu_lon = get_float_value_from_row(index,row,mo.insitu_options['col_lon'])
-        insitu_time = get_datetime_from_row(index,row,mo.insitu_options['col_date'],mo.insitu_options['format_date'],mo.insitu_options['col_time'],mo.insitu_options['format_time'],mo.insitu_options['insitu_time'])
-        #print(insitu_time,insitu_lat,insitu_lon,mdb_extract,row[col_extract_index])
+        mdb_extract = mo.get_mdb_extract_path(row[col_extract], None)
+        insitu_lat = get_float_value_from_row(index, row, mo.insitu_options['col_lat'])
+        insitu_lon = get_float_value_from_row(index, row, mo.insitu_options['col_lon'])
+        insitu_time = get_datetime_from_row(index, row, mo.insitu_options['col_date'], mo.insitu_options['format_date'],
+                                            mo.insitu_options['col_time'], mo.insitu_options['format_time'],
+                                            mo.insitu_options['insitu_time'])
+        if insitu_time is None:
+            print(f'[WARNING] Please review date and time formats in config file and/or data in the CSV file')
+            break
+        if (index % 100) == 0: print(
+            f'[INFO] Row: {index}/{nrows} In situ time: {insitu_time.strftime("%Y-%m-%dT%H:%M:%S")} Latitude: {insitu_lat} Longitude: {insitu_lon}')
 
-def get_datetime_from_row(index,row,col_date,format_date,col_time,format_time,insitu_time):
+        if name_extract not in extract_list:
+            if os.path.exists(mdb_extract):
+                os.remove(mdb_extract)
+            ibase.start_add_insitu_no_rrs(file_extract, mdb_extract)
+            ibase.add_shipborne_variables()
+            ##adding variables and data for extra_extrats
+            if len(extra_extracts_info) > 0:
+                for extra in extra_extracts_info:
+                    variables = extra_extracts_info[extra]['variables']
+                    for variable in variables:
+                        ibase.add_general_variable(variable, extra_extracts_info[extra][f'{variable}.dims'],
+                                                   extra_extracts_info[extra][f'{variable}.dtype'],
+                                                   extra_extracts_info[extra][f'{variable}.atts'])
+                    path = extra_extracts_info[extra]['path']
+                    file_extract = os.path.join(path,f'extract_{row[extra]}')
+                    if os.path.exists(file_extract):
+                        for variable in variables:
+                            ibase.add_data_variable(file_extract,variable,ibase.get_name_satellite_variable(variable))
+            for col in col_vars:
+                name_var = f'insitu_{col}' if not col.startswith('insitu_') else col
+                ats = mo.insitu_options[col] if col in mo.insitu_options else None
+                ibase.add_insitu_variable(name_var, 'f4', ats)
+            ibase.close()
+            extract_list[name_extract] = {
+                'path': mdb_extract,
+                'lat': [insitu_lat],
+                'lon': [insitu_lon],
+                'time': [insitu_time.timestamp()]
+            }
+            for col in col_vars:
+                extract_list[name_extract][col] = [float(row[col])]
+        else:
+            extract_list[name_extract]['lat'].append(insitu_lat)
+            extract_list[name_extract]['lon'].append(insitu_lon)
+            extract_list[name_extract]['time'].append(insitu_time.timestamp())
+            for col in col_vars:
+                extract_list[name_extract][col].append(float(row[col]))
+
+    mdb_paths_to_concatenate = []
+    for extract in extract_list:
+        print(f'[INFO] Setting data for extract {extract}')
+        mdb_path = extract_list[extract]['path']
+        time_array = np.array(extract_list[extract]['time'])
+        indices_sort = np.argsort(time_array)
+        time_array = time_array[indices_sort]
+        lat_array = np.array(extract_list[extract]['lat'])[indices_sort]
+        lon_array = np.array(extract_list[extract]['lon'])[indices_sort]
+
+        max_time_diff = mo.insitu_options['time_window']
+        dataset_w = Dataset(mdb_path, 'a')
+
+
+        if max_time_diff > 0:
+            time_diff = np.abs(time_array - dataset_w.variables['satellite_time'][0])
+        elif max_time_diff <= 0:
+            ##redundant check to be sure, satellite and in situ time on the same day
+            max_time_diff = 0
+            sat_time = dt.utcfromtimestamp(float(dataset_w.variables['satellite_time'][0])).strftime('%Y%m%d')
+            time_diff = np.zeros(time_array.shape)
+            for idx in range(len(time_array)):
+                ins_time = dt.utcfromtimestamp(time_array[idx]).strftime('%Y%m%d')
+                if sat_time != ins_time:
+                    time_diff[idx] = 1
+
+        time_array = time_array[time_diff <= max_time_diff]
+        lat_array = lat_array[time_diff <= max_time_diff]
+        lon_array = lon_array[time_diff <= max_time_diff]
+        n_valid = len(time_array)
+
+        if n_valid == 0:
+            print(f'[WARNING] No valid data were found for extract {extract} Removing MDB path and skipping...')
+            dataset_w.close()
+            os.remove(mdb_path)
+            continue
+
+        dataset_w.variables['insitu_latitude'][0, 0:n_valid] = lat_array[:]
+        dataset_w.variables['insitu_longitude'][0, 0:n_valid] = lon_array[:]
+        dataset_w.variables['insitu_time'][0, 0:n_valid] = time_array[:]
+
+        dataset_w.variables['time_difference'][0, 0:n_valid] = time_diff[:]
+        for col in col_vars:
+            name_var = f'insitu_{col}' if not col.startswith('insitu_') else col
+            array = np.array(extract_list[extract][col])[indices_sort]
+            if max_time_diff > (-1):
+                array = array[time_diff <= max_time_diff]
+            dataset_w.variables[name_var][0, 0:n_valid] = array[:]
+
+        dataset_w.close()
+        if os.path.exists(mdb_path):
+            mdb_paths_to_concatenate.append(mdb_path)
+
+    if len(mdb_paths_to_concatenate) == 0:
+        print(f'[WARNING] No MDB mini-files found for concatenation, no MDB file was created')
+        return
+
+    path_mdb = mo.get_mdb_path()
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
+    concatenate_nc_impl(mdb_paths_to_concatenate, mo.path_out, path_mdb)
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
+
+
+def get_datetime_from_row(index, row, col_date, format_date, col_time, format_time, insitu_time):
     date_row = str(row[col_date])
     format_row = format_date
     if col_time is not None:
         date_row = f'{date_row}{row[col_time]}'
         format_row = f'{format_row}{format_time}'
     try:
-        date_here = dt.strptime(date_row,format_row)
+        date_here = dt.strptime(date_row, format_row).replace(tzinfo=pytz.UTC)
     except:
-        print(f'Datetime {date_row} for row {index} could not be parsed using the format {format_row}')
+        print(f'[WARNING] Datetime {date_row} for row {index} could not be parsed using the format {format_row}')
         return None
 
     if insitu_time is not None:
         date_here_str = f'{date_here.strftime("%Y-%m-%d")}T{insitu_time}'
         try:
-            date_here = dt.strptime(date_here_str,'%Y-%m-%dT%H:%M')
+            date_here = dt.strptime(date_here_str, '%Y-%m-%dT%H:%M')
         except:
-            print(f'insitu_time {insitu_time} for row {index} could not be parsed using the format %H:%M. Please review config file')
+            print(
+                f'[WARNING] insitu_time {insitu_time} for row {index} could not be parsed using the format %H:%M. Please review config file')
             return None
     date_here = date_here.replace(tzinfo=pytz.utc)
     return date_here
 
 
-def get_float_value_from_row(index,row,col_name):
+def get_float_value_from_row(index, row, col_name):
     try:
         value = float(row[col_name])
     except:
         value = -999.0
         print(f'[WARNING] {col_name} value {row[col_name]} for row {index} is a not a valid float value')
     return value
+
 
 def concatenate_nc_impl(list_files, path_out, ncout_file):
     if len(list_files) == 0:
