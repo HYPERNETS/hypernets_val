@@ -270,13 +270,13 @@ valid_stats = {
     'RMSD':{
         'name': 'RMSD',
         'desc': 'Root Mean Square Deviation',
-        'format': 'e1+units'
+        'format': 'f3+units'
     },
     'BIAS':{
         'name': 'BIAS',
         'name_plot': 'bias',
         'desc': 'Bias value',
-        'format': 'e1+units'
+        'format': 'f3+units'
     },
     'APD':{
         'name': 'APD',
@@ -530,7 +530,7 @@ options_scatterplots = {
         'type': 'boolean'
     },
     'type_regression':{
-        'default': 'I',
+        'default': 'II',
         'type': 'str',
         'values': ['i','ii']
     },
@@ -838,6 +838,22 @@ options_sequences = {
     'frequency':{
         'default': -999.0,
         'type': 'float',
+    },
+    'flagBy':{
+        'default': None,
+        'type': 'str'
+    },
+    'flagValues':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'legendValues':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'color':{
+        'default': None,
+        'type': 'strlist'
     }
 }
 

@@ -1,12 +1,17 @@
 import pytz
 
-from MDB_reader.MDBFile import MDBFile
+try:
+    from MDB_reader.MDBFile import MDBFile
+    from MDB_reader.OptionsManager import OptionsManager
+except:
+    from MDBFile import MDBFile
+    from OptionsManager import OptionsManager
 import os
 import numpy as np
 from datetime import datetime as dt
 from netCDF4 import Dataset
 import configparser
-from MDB_reader.OptionsManager import OptionsManager
+
 import math
 
 
@@ -47,22 +52,34 @@ class FlagBuilder:
 
         # flag_insitu_spatial
         self.flag_options = {
-            'type': {'type_param': 'str', 'list_values': ['spatial', 'temporal', 'ranges']},
-            'typevirtual': {'type_param': 'str', 'list_values': ['spatial', 'temporal', 'ranges']},
-            'use_pow2_vflags': {'type_param': 'boolean', 'default': False},
+            'type': {'type_param': 'str', 'list_values': ['virtual_flag', 'spatial', 'temporal', 'ranges', 'csv']},
+            'typevirtual': {'type_param': 'str', 'list_values': ['spatial', 'temporal', 'flag', 'ranges', 'csv']},
+            'level': {'type_param': 'str', 'list_values': ['l1', 'l2']},
             'var_limit_to_valid': {'type_param': 'str', 'default': None},
             'limit_to_central_pixel': {'type_param': 'boolean', 'default': False},
-            'flag_spatial_index': {'type_group': 'spatial', 'type_param': 'strlist'},
-            'lat_variable': {'type_group': 'spatial', 'type_param': 'str', 'default': 'insitu_latitude'},
-            'lon_variable': {'type_group': 'spatial', 'type_param': 'str', 'default': 'insitu_longitude'},
-            'time_variable': {'type_group': 'temporal', 'type_param': 'str', 'default': 'insitu_time'},
-            'time_ini': {'type_group': 'temporal', 'type_param': 'str', 'default': None},
-            'time_fin': {'type_group': 'temporal', 'type_param': 'str', 'default': None},
-            'time_flag_type': {'type_group': 'temporal', 'type_param': 'str', 'default': 'ranges',
+            'default_flag': {'type_param': 'str', 'default': 'DEFAULT'},
+            'default_value': {'type_param': 'int', 'default': 0},
+            'default_masked': {'type_param': 'boolean', 'default': False},
+            'flag_spatial_index': {'type_group': ['spatial'], 'type_param': 'strlist'},
+            'lat_variable': {'type_group': ['spatial'], 'type_param': 'str', 'default': 'insitu_latitude'},
+            'lon_variable': {'type_group': ['spatial'], 'type_param': 'str', 'default': 'insitu_longitude'},
+            'time_variable': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'insitu_time'},
+            'time_ini': {'type_group': ['temporal'], 'type_param': 'str', 'default': None},
+            'time_fin': {'type_group': ['temporal'], 'type_param': 'str', 'default': None},
+            'time_flag_type': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'ranges',
                                'list_values': ['ranges', 'yearjday', 'yearmonth', 'jday', 'month', 'yearmonthday',
                                                'monthday', 'flag_satellite_yearmonthday']},
-            'var_ranges': {'type_group': 'ranges', 'type_param': 'str'},
-            'flag_ranges_indexm': {'type_group': 'ranges', 'type_param': 'strlist'}
+            'flag_ranges_indexm': {'type_group': ['ranges'], 'type_param': 'strlist'},
+            'flag_indexm': {'type_group': ['flag'], 'type_param': 'strlist'},
+            'path_csv': {'type_group': ['csv'], 'type_param': 'file', 'default': None},
+            'col_date': {'type_group': ['csv'], 'type_param': 'str', 'default': None},
+            'format_date': {'type_group': ['csv'], 'type_param': 'str', 'default': '%Y-%m-%d'},
+            'col_time': {'type_group': ['csv'], 'type_param': 'str', 'default': None},
+            'format_time': {'type_group': ['csv'], 'type_param': 'str', 'default': '%H:%M'},
+            'col_flag': {'type_group': ['csv'], 'type_param': 'str'},
+            'var_ref_time': {'type_group': ['csv'], 'type_param': 'str', 'default': 'insitu_time'},
+            'flag_list': {'type_group': ['csv'], 'type_param': 'strlist'}
+
         }
 
     def get_virtual_flag_list(self):
@@ -81,8 +98,11 @@ class FlagBuilder:
         return options_dict
 
     def create_flag_array(self, flag_ref, create_copy):
+        # print(self.flag_options,flag_ref)
         options_dict = self.omanager.read_options_as_dict(flag_ref, self.flag_options)
-        # print(options_dict)
+        if options_dict is None:
+            return None, None, None
+
         type = options_dict['type']
         if type is None:
             type = options_dict['typevirtual']
@@ -103,91 +123,246 @@ class FlagBuilder:
             if create_copy:
                 self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_names, dims)
 
+        if type == 'csv':
+            array, dims, flag_names, flag_values = self.create_flag_array_csv(options_dict)
+            if create_copy:
+                self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_values, dims)
+
+        if type == 'flag':
+            array, dims, flag_names, flag_values = self.create_flag_array_flag(options_dict)
+            if create_copy:
+                self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_values, dims)
+
         return flag_values, flag_names, array
 
-    def create_flag_array_ranges_v2(self, options_dict):
+    def check_level(self, dataset, level, required_arrays):
+        # getting nseries and nscan
+        nseries = -1
+        nscan = -1
+        for variable in dataset.variables:
+            if nseries == -1 and variable.startswith('l1') and len(dataset.variables[variable].shape) == 2:
+                nseries = dataset.variables[variable].shape[0]
+                nscan = dataset.variables[variable].shape[1]
+        # start output array
+        if level == 'l1':
+            array = np.ma.zeros((nseries, nscan))
+        if level == 'l2':
+            array = np.ma.zeros((nseries,))
 
-        default_value = 0
-        flag_names = []
-        flag_values = []
-        fl_info = {}
-        array = None
-        nscans = 1
+        ##checking required arrays
+        for name_var in required_arrays:
+            array_check = required_arrays[name_var]['array']
+            if level == 'l1' and len(array_check.shape) == 1 and array_check.shape[0] == nseries:
+                ##convert l2 into level1
+                array_check = self.replicate_scans(array_check, nscan)
+            if level == 'l2' and len(array_check.shape) == 2 and array_check.shape[0] == nseries and array_check.shape[
+                1] == nscan:
+                ##convert l1 into level2
+                array_check = np.squeeze(array_check[:, 0])
+            required_arrays[name_var]['array'] = array_check
+
+        return array, required_arrays
+
+    def create_flag_array_ranges_v2(self, options_dict):
         dataset = Dataset(self.nc_file)
+        default_value = options_dict['default_value']
+        default_flag = options_dict['default_flag']
+        indices_ranges = {}
+        required_arrays = {}
         for fl in options_dict:
             if fl.startswith('flag_ranges'):
-                if options_dict[fl]['is_default']:
-                    default_value = int(options_dict[fl]['flag_value'])
-                value = options_dict[fl]['flag_value']
-                if value not in flag_values:
-                    flag_values.append(value)
-                    flag_names.append(options_dict[fl]['flag_name'])
-                value_s = str(options_dict[fl]['flag_value'])
-                if value_s not in fl_info.keys():
-                    fl_info[value_s] = [fl]
+                index_range = fl.split('_')[2]
+                index_and = fl.split('_')[3]
+                if not index_range in indices_ranges.keys():
+                    indices_ranges[index_range] = {
+                        'flag_name': options_dict[fl]['flag_name'],
+                        'flag_value': options_dict[fl]['flag_value'],
+                        index_and: options_dict[fl]['condition_list'],
+                        'n_and': 1
+                    }
                 else:
-                    fl_info[value_s].append(fl)
-                if array is None:
-                    r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
-                    array = r_array.copy().astype(np.int64)
-                if array is not None and len(dataset.variables[options_dict[fl]['flag_var']].dimensions)==2:
+                    indices_ranges[index_range][index_and] = options_dict[fl]['condition_list']
+                    indices_ranges[index_range]['n_and'] = indices_ranges[index_range]['n_and'] + 1
 
-                    r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
-                    array = r_array.copy().astype(np.int64)
-                    nscans = array.shape[1]
+                for condition in options_dict[fl]['condition_list']:
+                    name_var = condition['name_var']
+                    is_flag = True if condition['flag_or_range'] == 'flag' else False
+                    if name_var not in required_arrays.keys():
+                        if name_var in dataset.variables:
+                            if is_flag:
+                                flag_info = self.get_flag_info_from_variable(dataset.variables[name_var])
+                                required_arrays[name_var] = flag_info
+                            else:
+                                required_arrays[name_var] = {
+                                    'array': dataset.variables[name_var][:]
+                                }
+                        else:
+                            if name_var in self.omanager.get_virtual_flag_list():
+                                flag_values, flag_names, array = self.create_flag_array(name_var, False)
+                                options_dict_f = self.omanager.read_options_as_dict(name_var, self.flag_options)
+                                required_arrays[name_var] = {
+                                    'array': array,
+                                    'flag_meanings': ' '.join(flag_names),
+                                    'flag_values': flag_values,
+                                    'user_pow2_flags': options_dict_f['use_pow2_flags']
+                                }
 
+        ##checking level
+        level = options_dict['level']
+        if level == 'l1' or level == 'l2':
+            array, required_arrays = self.check_level(dataset, level, required_arrays)
+
+        # starting array
         array[:] = default_value
+        if default_flag != 'DEFAULT':
+            flag_names = [default_flag]
+            flag_values = [default_value]
+        else:
+            flag_names = []
+            flag_values = []
 
-        for svalue in fl_info:
-            value = int(svalue)
-            nranges = len(fl_info[svalue])
-            if nranges == 1:
-                fl = fl_info[svalue][0]
-                r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
-                if nscans>1 and len(r_array.shape)==1:
-                    r_array = self.replicate_scans(r_array,nscans)
-                v_min = options_dict[fl]['min_range']
-                v_max = options_dict[fl]['max_range']
-                if v_min is not None and v_max is not None:
-                    array[np.logical_and(r_array >= v_min, r_array <= v_max)] = value
-                elif v_min is None and v_max is not None:
-                    array[r_array <= v_max] = value
-                elif v_min is not None and v_max is None:
-                    array[r_array >= v_min] = value
-            else:
 
-                array_check = np.zeros(array.shape)
-                for fl in fl_info[svalue]:
-                    r_array = np.array(dataset.variables[options_dict[fl]['flag_var']][:])
-                    if nscans > 1 and len(r_array.shape) == 1:
-                        r_array = self.replicate_scans(r_array,nscans)
-                    v_min = options_dict[fl]['min_range']
-                    v_max = options_dict[fl]['max_range']
-
+        print(indices_ranges)
+        # creating array
+        for irange in indices_ranges:
+            flag_value = indices_ranges[irange]['flag_value']
+            print('..............................................')
+            print('--->',flag_value)
+            flag_values.append(flag_value)
+            flag_names.append(indices_ranges[irange]['flag_name'])
+            array_here = np.zeros(array.shape)
+            n_and = indices_ranges[irange]['n_and']
+            for iand in range(n_and):
+                iand_s = f'{iand:.0f}'
+                array_or = None
+                for orcondition in indices_ranges[irange][iand_s]:
+                    array_info = required_arrays[orcondition['name_var']]
+                    r_array = array_info['array']
+                    if orcondition['flag_or_range'] == 'flag':
+                        name_flag = orcondition['name_flag']
+                        or_flag_list = array_info['flag_meanings'].split(' ')
+                        if name_flag in or_flag_list:
+                            index_name_flag = or_flag_list.index(name_flag)
+                            v_flag_value = array_info['flag_values'][index_name_flag]
+                            v_min = v_flag_value
+                            v_max = v_flag_value
+                        else:
+                            print(f'[WARNING] {name_flag} is not defined in flag band {orcondition["name_var"]}')
+                            v_min = -1
+                            v_min = -1
+                    else:
+                        v_min = orcondition['min_val']
+                        v_max = orcondition['max_val']
+                    if array_or is None:
+                        array_or = np.zeros(r_array.shape)
                     if v_min is not None and v_max is not None:
-                        array_check[np.logical_and(r_array >= v_min, r_array <= v_max)] = array_check[np.logical_and(
-                            r_array >= v_min, r_array <= v_max)] + 1
+                        array_or[np.logical_and(r_array >= v_min, r_array <= v_max)] = 1
                     elif v_min is None and v_max is not None:
-                        array_check[r_array <= v_max] = array_check[r_array <= v_max] + 1
+                        array_or[r_array <= v_max] = 1
                     elif v_min is not None and v_max is None:
-                        array_check[r_array >= v_min] = array_check[r_array >= v_min] + 1
-                condition = options_dict[fl]['flag_condition']
+                        array_or[r_array >= v_min] = 1
 
-                if condition=='and':
-                    array[array_check == nranges] = value
-                elif condition=='or':
-                    array[array_check>0] = value
+                array_here = array_here + array_or
+
+            print(indices_ranges[irange]['flag_name'],'il flag value: ',flag_value,'n_and',n_and)
+            print(np.count_nonzero(array_here==n_and))
+            print('............................................')
+            array[array_here == n_and] = array[array_here == n_and] + flag_value
+
         dataset.close()
 
         return array, flag_names, flag_values
 
+    def replicate_scans(self, array, nscan):
+        nseries = array.shape[0]
+        array = np.repeat(array.reshape(1, nseries), nscan, axis=1).reshape((nseries, nscan))
+        return array
+        # ndata = array.shape[0]
+        # new_array = np.zeros((ndata, nscans))
+        # for iscan in range(nscans):
+        #     new_array[:, iscan] = array[:]
+        # return new_array
 
-    def replicate_scans(self,array,nscans):
-        ndata = array.shape[0]
-        new_array = np.zeros((ndata,nscans))
-        for iscan in range(nscans):
-            new_array[:,iscan] = array[:]
-        return new_array
+    def create_flag_array_flag(self, options_dict):
+        dataset = Dataset(self.nc_file)
+        default_value = options_dict['default_value']
+        default_flag = options_dict['default_flag']
+        indices_ranges = {}
+        required_arrays = {}
+        ##check options
+        for fl in options_dict:
+            if fl.startswith('flag_'):
+                index_range = fl.split('_')[1]
+                index_and = fl.split('_')[2]
+                if not index_range in indices_ranges.keys():
+                    indices_ranges[index_range] = {
+                        'flag_name': options_dict[fl]['flag_name'],
+                        'flag_value': options_dict[fl]['flag_value'],
+                        index_and: options_dict[fl]['condition_list'],
+                        'n_and': 1
+                    }
+                else:
+                    indices_ranges[index_range][index_and] = options_dict[fl]['condition_list'],
+                    indices_ranges[index_range]['n_and'] = indices_ranges[index_range]['n_and'] + 1
+
+                for condition in options_dict[fl]['condition_list']:
+                    name_var = condition['flag_var']
+                    if name_var not in required_arrays.keys():
+                        if name_var in dataset.variables:
+                            info = self.get_flag_info_from_variable(dataset.variables[name_var])
+                            required_arrays[name_var] = info
+                        else:
+                            print('NO IMPLEMENTED YET')
+                            # if name_var in self.omanager.get_virtual_flag_list():
+                            #     print('aqui no deberiamos estar-->', name_var)
+                            #     self.create_flag_array(name_var, False)
+                            #     # print(options_vf)
+
+        ##checking level
+        level = options_dict['level']
+        if level == 'l1' or level == 'l2':
+            array, required_arrays = self.check_level(dataset, level, required_arrays)
+
+        # starting array
+        array[:] = default_value
+        if default_flag != 'DEFAULT':
+            flag_names = [default_flag]
+            flag_values = [default_value]
+        else:
+            flag_names = []
+            flag_values = []
+
+        # creating array
+        for irange in indices_ranges:
+            flag_value = indices_ranges[irange]['flag_value']
+            flag_values.append(flag_value)
+            flag_names.append(indices_ranges[irange]['flag_name'])
+            array_here = np.zeros(array.shape)
+            n_and = indices_ranges[irange]['n_and']
+            for iand in range(n_and):
+                iand_s = f'{iand:.0f}'
+                array_or = None
+                for orcondition in indices_ranges[irange][iand_s]:
+                    info_flag = required_arrays[orcondition['flag_var']]
+                    if array_or is None:
+                        array_or = self.get_array_or(info_flag, orcondition['flag_list'])
+                    else:
+                        array_or_here = self.get_array_or(info_flag, orcondition['flag_list'])
+                        array_or[array_or_here == 1] = 1
+
+                array_here = array_here + array_or
+
+            array[array_here == n_and] = array[array_here == n_and] + flag_value
+
+        dims = None
+        if level == 'l1':
+            dims = ('series', 'scan')
+        if level == 'l2':
+            dims = ('series',)
+        dataset.close()
+
+        return array, dims, flag_names, flag_values
+
     def create_flag_array_ranges(self, options_dict):
         var_ranges = options_dict['var_ranges']
         r_array = self.mfile.get_full_array(var_ranges)
@@ -339,6 +514,181 @@ class FlagBuilder:
 
         return array, dims, flag_names, flag_values
 
+    def create_flag_array_csv(self, options_dict):
+        if not self.VALID:
+            print(f'[ERROR] Flag builder instance is not valid')
+            return None
+
+        path_csv = options_dict['path_csv']
+        if path_csv is None:
+            print(f'[ERROR] path_csv is not available or does not exist. Review configuration file.')
+            return None
+        col_date = options_dict['col_date']
+        if col_date is None:
+            print(f'[ERROR] col_date option is required. Review configuration file.')
+            return None
+        col_flag = options_dict['col_flag']
+        if col_flag is None:
+            print(f'[ERROR] col_flag option is required. Review configuration file.')
+            return None
+        import pandas as pd
+        try:
+            dset = pd.read_csv(path_csv, sep=';')
+        except:
+            print(f'[ERROR] Problems reading CSV path: {path_csv}')
+            return None
+        col_names = dset.columns.tolist()
+        if col_date not in col_names:
+            print(f'[ERROR] col_date {col_date} is not avaialable in the CSV file')
+            return None
+        if col_flag not in col_names:
+            print(f'[ERROR] col_date {col_flag} is not avaialable in the CSV file')
+            return None
+        col_time = options_dict['col_time']
+        if col_time is not None and col_time not in col_names:
+            print(f'[ERROR] col_time {col_time} is not avaialable in the CSV file')
+            return None
+
+        date_csv = dset[col_date]
+        time_csv = dset[col_time] if col_time is not None else None
+        flag_csv = dset[col_flag]
+        all_flag_list = np.unique(flag_csv).tolist()
+
+        if 'flag_list' in options_dict and options_dict['flag_list'] is not None:
+            flag_list = options_dict['flag_list']
+            for f in flag_list:
+                if f not in all_flag_list:
+                    print(f'[ERROR] Flag: {f} is not in the flag list: {all_flag_list} in col_flag {col_flag}')
+                    return None
+        else:
+            flag_list = all_flag_list
+
+        if self.mfile is None:
+            dataset = Dataset(self.path_mdb_file)
+        else:
+            dataset = self.mfile.nc
+        var_time = options_dict['var_ref_time']
+        if var_time not in dataset.variables:
+            print(f'[ERROR] {var_time} is not included in the input dataset.')
+            if self.mfile is None:
+                dataset.close()
+            return None
+        time_array = dataset.variables[var_time][:]
+        array = np.zeros(time_array.shape)
+        array[time_array.mask] = -999
+
+        format_date = options_dict['format_date']
+        if col_time is not None:
+            format_date = f'{format_date}T{options_dict["format_time"]}'
+        print(f'[INFO] Format date: {format_date}')
+        list_times = {}
+        if len(time_array.shape) == 2:
+            for isatellite in range(time_array.shape[0]):
+                for iinsitu in range(time_array.shape[1]):
+                    if not np.ma.is_masked(time_array[isatellite, iinsitu]):
+                        ts = float(time_array[isatellite, iinsitu])
+                        ts_s = dt.utcfromtimestamp(ts).strftime(format_date)
+                        list_times[ts_s] = {
+                            'satellite_id': isatellite,
+                            'insitu_id': iinsitu,
+                            'assigned': False
+                        }
+        elif len(time_array.shape) == 1:
+            for isatellite in range(time_array.shape[0]):
+                if not np.ma.is_masked(time_array[isatellite]):
+                    ts = float(time_array[isatellite])
+                    ts_s = dt.utcfromtimestamp(ts).strftime(format_date)
+                    list_times[ts_s] = {
+                        'satellite_id': isatellite,
+                        'assigned': False
+                    }
+
+        print(f'[INFO] Retrieved {len(list_times)} time stamps')
+        use_pow2_flags = options_dict['use_pow2_flags']
+        if use_pow2_flags:
+            flag_values = [2 ** x for x in range(len(flag_list))]
+        else:
+            flag_values = [x + 1 for x in range(len(flag_list))]
+        nassigned = 0
+        for index, date_c in enumerate(date_csv):
+            if col_time is not None:
+                date_c = f'{date_c}T{time_csv[index]}'
+            flag_here = flag_csv[index]
+            index_flag_here = flag_list.index(flag_here)
+            if date_c in list_times:
+                nassigned = nassigned + 1
+                if len(time_array.shape) == 2:
+                    satellite_id = list_times[date_c]['satellite_id']
+                    insitu_id = list_times[date_c]['insitu_id']
+                    array[satellite_id, insitu_id] = np.int32(flag_values[index_flag_here])
+                    list_times[date_c]['assigned'] = True
+                elif len(time_array.shape) == 1:
+                    satellite_id = list_times[date_c]['satellite_id']
+                    array[satellite_id] = np.int32(flag_values[index_flag_here])
+                    list_times[date_c]['assigned'] = True
+        print(f'[INFO] Number of assigned values: {nassigned}')
+
+        dims = dataset.variables[var_time].dimensions
+        if self.mfile is None:
+            dataset.close()
+
+        return array, dims, flag_list, flag_values
+
+    def get_flag_info_from_variable(self, variable):
+        array = variable[:]
+        flag_meanings = None
+        if 'flag_meanings' in variable.ncattrs():
+            if isinstance(flag_meanings, list):
+                flag_meanings = ' '.join(flag_meanings)
+            else:
+                flag_meanings = variable.flag_meanings
+        if 'flag_values' in variable.ncattrs():
+            flag_values = np.array([int(x) for x in variable.flag_values.split(',')])
+        elif 'flag_masks' in variable.ncattrs():
+            flag_values = np.array([int(x) for x in variable.flag_masks.split(',')])
+        else:
+            flag_values = np.unique(array).tolist()
+        # print(flag_values, type(flag_values))
+        flag_values = np.sort(flag_values).tolist()
+        use_pow2_flags = False
+        if len(flag_values) >= 3 and flag_values[2] == 4:
+            use_pow2_flags = True
+
+        return {'array': array, 'flag_meanings': flag_meanings, 'flag_values': flag_values,
+                'user_pow2_flags': use_pow2_flags}
+
+    def get_array_or(self, flag_info, flag_list):
+        flag_list_real = []
+        compute_all = False
+        is_all = False
+        for flag in flag_list:
+            if flag == '[NONE]' or flag == '[ALL]':
+                compute_all = True
+                if flag == '[ALL]': is_all = True
+            else:
+                flag_list_real.append(flag)
+        from COMMON.Class_Flags_OLCI import Class_Flags_OLCI
+        flag_array = flag_info['array']
+        fflags = Class_Flags_OLCI(flag_info['flag_values'], flag_info['flag_meanings'])
+        if compute_all:
+            array_all = fflags.Mask(flag_array, flag_info['flag_meanings'].split(' '))
+            if is_all:  ##or condition, if ALL selected, or arry is array_all
+                array_all[array_all > 0] = 1
+                return array_all
+
+        if len(flag_list_real) == 0 and compute_all:
+            array_here = np.zeros(array_all.shape)
+            array_here[array_all == 0] = 1
+            array_here[array_all > 0] = 0
+            return array_here
+
+        if len(flag_list_real) > 0:
+            array_here = fflags.Mask(flag_array, flag_list_real)
+            array_here[array_here > 0] = 1
+            if compute_all:
+                array_here[array_all == 0] = 1
+            return array_here
+
     def get_flag_value(self, vorig, use_pow2_vflags):
         if use_pow2_vflags:
             fvalue = int(math.pow(2, vorig))
@@ -411,7 +761,7 @@ class FlagBuilder:
         if name_flag in file_nc.variables:
             print(f'[INFO] Flag name {name_flag} is already in the original file')
         else:
-            var = ncout.createVariable(name_flag, 'i4', dims, zlib=True, shuffle=True, complevel=6)
+            var = ncout.createVariable(name_flag, 'i4', dims, zlib=True, complevel=6, fill_value=-999)
 
         flag_meanings = ' '.join(flag_list)
         var.flag_meanings = flag_meanings
@@ -420,4 +770,5 @@ class FlagBuilder:
 
         file_nc.close()
         ncout.close()
-        # os.rename(temp_file,self.path_mdb_file)
+
+        os.rename(temp_file, self.path_mdb_file)

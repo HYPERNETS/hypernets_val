@@ -2,7 +2,7 @@ import numpy as np
 import COMMON.Class_Flags_OLCI as flag
 import math
 import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
-from QCBase import QCBase
+
 
 
 class QC_SAT:

@@ -44,6 +44,7 @@ class MDBFile:
             self.variables = self.nc.variables
             self.dimensions = self.nc.dimensions
             self.flag_band_name = 'satellite_WQSF'
+            self.qc_single = None  ##Quality Control single is started as is used even with VALID==False
             if self.check_structure() == 0:
                 self.VALID = False
 
@@ -52,9 +53,9 @@ class MDBFile:
             print(f'[ERROR] Exception starting NetCDF file: {e}')
             return
 
-
         if not self.VALID:
-            print(f'[ERROR] MDB File: {file_path} is not a valid MDB file with the correct structure.')
+            print(
+                f'[WARNING] MDB File: {file_path} is not a valid MDB file with the correct structure for spectral match-ups')
             return
 
         if self.VALID:
@@ -288,6 +289,131 @@ class MDBFile:
         os.rename(file_temp, self.file_path)
         print(f'[INFO] Completed')
 
+    def get_name_mu_single_variable(self, new_MDB, variable, overwrite, add_new, suffix_new):
+        variable_mu = f'mu_{variable}'
+        if suffix_new is not None:
+            variable_mu = f'{variable_mu}_{suffix_new}'
+        create_new = True
+        skip = False
+        if variable_mu in new_MDB.variables:
+            if not overwrite and not add_new:
+                print(f'[WARNING] Variable {variable_mu} already exists. Skipping')
+                skip = True
+                create_new = False
+            elif overwrite and not add_new:
+                print(f'[WARNING] Variable {variable_mu} already existed. It will be overwritten')
+                skip = False
+                create_new = False
+            elif add_new:
+                if suffix_new is None:
+                    index = 1
+                    variable_mu_n = f'{variable_mu}_{index}'
+                    while variable_mu_n not in new_MDB.variables:
+                        index = index + 1
+                        variable_mu_n = f'{variable_mu}_{index}'
+                    variable_mu = variable_mu_n
+                else:
+                    variable_mu = f'{variable_mu}_{suffix_new}'
+                    if variable_mu in new_MDB.variables:
+                        if overwrite:
+                            print(f'[WARNING] Variable {variable_mu} already existed. It will be overwritten')
+                            skip = False
+                            create_new = False
+                        else:
+                            print(
+                                f'[ERROR] Variable: {variable_mu} already exists. Please use a different suffix or the overwrite option')
+                            variable_mu = None
+        return variable_mu, create_new, skip
+
+    def create_mu_single_variables(self, new_MDB, overwrite, add_new, suffix_new):
+        if self.qc_single is None:
+            print(f'[ERROR] QC Single should be defined using a configuration file with section QC_SINGLE')
+            return False
+        # VARIABLE SAT
+        variable_sat = self.qc_single.satellite_variable
+        if not variable_sat in self.variables:
+            print(f'[ERROR] Satellite variable {variable_sat} is not available in input dataset {self.file_path}')
+            return False
+        variable_sat_mu, create_sat, skip_sat = self.get_name_mu_single_variable(new_MDB, variable_sat, overwrite,
+                                                                                 add_new, suffix_new)
+
+        # VARIABLE INS
+        variable_ins = self.qc_single.insitu_variable
+        if not variable_ins in self.variables:
+            print(f'[ERROR] In situ variable {variable_ins} is not available in input dataset {self.file_path}')
+            return False
+        variable_ins_mu, create_ins, skip_ins = self.get_name_mu_single_variable(new_MDB, variable_ins, overwrite,
+                                                                                 add_new, suffix_new)
+
+        # VARIABLE IN SITU ID
+        variable_ins_mu_id, create_ins_id, skip_ins_id = self.get_name_mu_single_variable(new_MDB, f'{variable_ins}_id', overwrite, add_new, suffix_new)
+
+        if skip_sat and skip_ins: return True
+        if variable_sat_mu is None: return False
+        if variable_ins_mu is None: return False
+        if variable_ins_mu_id is None: return False
+
+        fill_value = -999.0
+
+        if create_sat:
+            print(f'[INFO] Creating satellite variable: {variable_sat_mu}')
+            new_var_sat = new_MDB.createVariable(variable_sat_mu, 'f4', ('mu_id',), zlib=True, complevel=6,
+                                                 fill_value=fill_value)
+        else:
+            print(f'[INFO] Retrieving in situ variable: {variable_ins_mu}')
+            new_var_sat = new_MDB.variables[variable_sat_mu]
+
+        if create_ins:
+            print(f'[INFO] Creating insitu variable: {variable_ins_mu}')
+            new_var_ins = new_MDB.createVariable(variable_ins_mu, 'f4', ('mu_id',), zlib=True, complevel=6,
+                                                 fill_value=fill_value)
+        else:
+            print(f'[INFO] Retrieving insitu variable: {variable_ins_mu}')
+            new_var_ins = new_MDB.variables[variable_ins_mu]
+
+        if create_ins_id:
+            print(f'[INFO] Creating insitu variable: {variable_ins_mu_id}')
+            new_var_ins_id = new_MDB.createVariable(variable_ins_mu_id, 'i2', ('mu_id',), zlib=True, complevel=6,
+                                                 fill_value=fill_value)
+        else:
+            print(f'[INFO] Retrieving insitu id variable: {variable_ins_mu_id}')
+            new_var_ins_id = new_MDB.variables[variable_ins_mu_id]
+
+        ##time difference variable
+        if 'time_difference' in new_MDB.variables:
+            var_time_diff = new_MDB.variables['time_difference']
+        else:
+            var_time_diff = new_MDB.createVariable('time_difference', 'f4', ('satellite_id','insitu_id'), zlib=True, complevel=6,
+                                                 fill_value=fill_value)
+
+        if not len(self.variables[variable_sat].shape) == 3:
+            print(f'[ERROR] Single satellite variable {variable_sat} should hava three dimensions: satellite_id, row, column')
+            return False
+        if not len(self.variables[variable_ins].shape) == 2:
+            print(f'[ERROR] Single satellite variable {variable_ins} should hava two dimensions: satellite_id, insitu_id')
+            return False
+        nmu = self.variables[variable_sat].shape[0]
+        if nmu != self.qc_single.nmu:
+            return False
+        if nmu != self.variables[variable_ins].shape[0]:
+            return False
+
+        for index_mu in range(nmu):
+            if (index_mu % 100) == 0: print(f'[INFO] Getting match-ups values {index_mu}/{nmu}')
+            if not skip_sat:
+                cond_min_pixels, cond_stats, valid_mu, value = self.qc_single.get_match_up_value(index_mu)
+                new_var_sat[index_mu] = value
+            if not skip_ins or not skip_ins_id:
+                time_diff_array,insitu_id,time_diff, value = self.qc_single.get_ins_value(index_mu)
+                if 0 < self.qc_single.time_diff_max < time_diff:
+                    value = -999.0
+                var_time_diff[index_mu] = time_diff_array
+                if not skip_ins: new_var_ins[index_mu]=value
+                if not skip_ins_id: new_var_ins_id[index_mu]=insitu_id
+
+        return True
+
+
     def create_file_with_flag_bands(self, file_out):
 
         ncout = Dataset(file_out, 'w', format='NETCDF4')
@@ -319,11 +445,11 @@ class MDBFile:
 
         for var in VAR_NAMES:
             if var not in self.variables:
-                print(f'[ERROR] Variable: {var} is not available in MDB file')
+                print(f'[WARNING] Variable: {var} is not available in MDB file')
                 return 0
         for dim in DIMENSION_NAMES:
             if dim not in self.dimensions:
-                print(f'[ERROR] Dimension: {dim} is not available in MDB file')
+                print(f'[WARNING] Dimension: {dim} is not available in MDB file')
                 return 0
 
         check_atrib = True
@@ -333,7 +459,6 @@ class MDBFile:
             if atrib not in self.nc.ncattrs():
                 print(f'[WARNING] Attribute: {atrib} is not available in MDB file')
                 check_atrib = False
-
 
         if not self.flag_band_name in self.variables:
             if self.nc.satellite_aco_processor.upper() == 'POLYMER' and 'satellite_bitmask' in self.variables:

@@ -9,7 +9,7 @@ from hypernets_day import HYPERNETS_DAY
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
-                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL','CORRECTANGLES','COPYFROMCSV'],
+                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLESUN'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -73,15 +73,20 @@ def test():
 
 def test2():
     print('test2')
-    import hypernets_day
-    import sys
-    code_home = os.path.dirname(os.path.dirname(hypernets_day.__file__))
-    sys.path.append(code_home)
-    code_eistools = os.path.join(os.path.dirname(code_home), 'eistools')
-    if os.path.exists(code_eistools):
-        sys.path.append(code_eistools)
-        import download_tool
-        download_tool.test()
+    ref = 'SEQ20240604T100039'
+    file_sun = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/TODAY/01_016_0000_0_0000.jpg'
+    file_out = f'/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/TODAY/sun_image_{ref}.jpg'
+
+    # import hypernets_day
+    # import sys
+    # code_home = os.path.dirname(os.path.dirname(hypernets_day.__file__))
+    # sys.path.append(code_home)
+    # code_eistools = os.path.join(os.path.dirname(code_home), 'eistools')
+    # if os.path.exists(code_eistools):
+    #     sys.path.append(code_eistools)
+    #     import download_tool
+    #     download_tool.test()
+
     # work_date = dt(2023,10,5)
     # hdayfile = hday.get_hypernets_day_file(site, work_date)
     # hdayfile.set_path_images_date(site, work_date)
@@ -125,7 +130,9 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
     if args.ndays_interval:
         interval = 24 * int(args.ndays_interval)
 
-    config_file_summary = os.path.join(output_path, 'ConfigPlotSummary.ini')
+    config_file_summary = os.path.join(output_path, site, 'ConfigPlotSummary.ini')
+    if not os.path.exists(config_file_summary):
+        config_file_summary = os.path.join(output_path, 'ConfigPlotSummary.ini')
     print('[INFO] Config file summary: ', config_file_summary)
 
     while work_date <= end_date:
@@ -190,9 +197,9 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             import configparser
             options = configparser.ConfigParser()
             options.read(config_file_summary)
-            if options.has_option('GLOBAL_OPTIONS',f'public_link_{site}'):
+            if options.has_option('GLOBAL_OPTIONS', f'public_link_{site}'):
                 public_link = options['GLOBAL_OPTIONS'][f'public_link_{site}'].strip()
-        #public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
+        # public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
         print(f'[INFO] Creating e-mail file: {file_mail}')
         fout = open(file_mail, 'w')
         fout.write(f'QUALITY CONTROL - {site} - {start_date.strftime("%Y-%m-%d")}')
@@ -337,6 +344,8 @@ def plot_from_options(input_path, config_file, output_path_images):
     from MDB_reader.PlotOptions import PlotOptions
     poptions = PlotOptions(options, None)
     poptions.set_global_options()
+
+
     if output_path_images is not None:
         if not os.path.exists(output_path_images):
             try:
@@ -345,6 +354,11 @@ def plot_from_options(input_path, config_file, output_path_images):
                 pass
         if os.path.exists(output_path_images):
             poptions.global_options['output_path'] = output_path_images
+
+
+
+    if poptions.global_options['output_path'] is None:
+        poptions.global_options['output_path'] = os.path.dirname(input_path)
 
     from MDB_reader.FlagBuilder import FlagBuilder
     fbuilder = FlagBuilder(input_path, None, options)
@@ -451,26 +465,25 @@ def make_flagged_nc_from_csv(config_file):
     if dataset_w is not None:
         dataset_w.close()
 
-def make_copy_from_csv(site,input_path,output_directory):
+
+def make_copy_from_csv(site, input_path, output_directory):
     import pandas as pd
     from datetime import datetime as dt
     base_folder = '/store3/HYPERNETS/INPUT_HYPSTARv2.0_QC/'
     df = pd.read_csv(input_path, sep=';')
-    for index,row in df.iterrows():
+    for index, row in df.iterrows():
         sref = row['sequence_ref']
-        date_ref = dt.strptime(sref,'%Y%m%dT%H%M')
-        date_folder = os.path.join(base_folder,site,date_ref.strftime('%Y'),date_ref.strftime('%m'),date_ref.strftime('%d'))
+        date_ref = dt.strptime(sref, '%Y%m%dT%H%M')
+        date_folder = os.path.join(base_folder, site, date_ref.strftime('%Y'), date_ref.strftime('%m'),
+                                   date_ref.strftime('%d'))
         report_name = f'{site}_{sref}_Report.png'
-        input_file = os.path.join(date_folder,report_name)
-        output_file = os.path.join(output_directory,report_name)
+        input_file = os.path.join(date_folder, report_name)
+        output_file = os.path.join(output_directory, report_name)
         if os.path.exists(input_file):
-            shutil.copy(input_file,output_file)
+            shutil.copy(input_file, output_file)
             print(f'[INFO] Input file: {input_file} coppied to {output_directory}')
         else:
             print(f'[WARNING] Input file: {input_file} is not available. Skipping...')
-
-
-
 
 
 def get_flags(options):
@@ -649,7 +662,7 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
 
         dir_out = hday.get_output_folder_date(site, work_date)
 
-        file_out = os.path.join(dir_out, f'SunImages_{work_date.strftime("%Y%m%d")}.png')
+        file_out = os.path.join(dir_out, f'{site}_SunImages_{work_date.strftime("%Y%m%d")}.png')
         hday.save_sun_images(file_out, sun_images_list, sun_images_time_list)
         work_date = work_date + timedelta(hours=interval)
 
@@ -702,7 +715,7 @@ def prepare_sun_plot_email(input_path, output_path, site, start_date):
     lines.append(f'End date for checking: {start_date.strftime("%Y-%m-%d")}')
     path_sun = os.path.join(output_path, site, start_date.strftime('%Y'), start_date.strftime('%m'),
                             start_date.strftime('%d'))
-    path_file = os.path.join(path_sun, f'SunImages_{start_date.strftime("%Y%m%d")}.png')
+    path_file = os.path.join(path_sun, f'{site}_SunImages_{start_date.strftime("%Y%m%d")}.png')
     if os.path.exists(path_file):
         lines.append(f'Image file path: {path_file}')
     else:
@@ -718,18 +731,19 @@ def prepare_sun_plot_email(input_path, output_path, site, start_date):
     else:
         print('NONE')
 
-def correct_angles(input_path,output_path,site,start_date,end_date):
+
+def correct_angles(input_path, output_path, site, start_date, end_date):
     print('[INFO] Correctiong angles')
     interval = 24
     if args.ndays_interval:
         interval = 24 * int(args.ndays_interval)
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
     hd = HYPERNETS_DAY(input_path, output_path)
-    while work_date<=end_date:
+    while work_date <= end_date:
         if args.verbose:
             print(f'[INFO] Date: {work_date.strftime("%Y-%m-%d")}')
-        hday = hd.get_hypernets_day_file(site,work_date)
-        input_path_date = hd.get_folder_date(site,work_date)
+        hday = hd.get_hypernets_day_file(site, work_date)
+        input_path_date = hd.get_folder_date(site, work_date)
         if hday is not None:
             list_metadata = hday.get_metadata_files(input_path_date)
             array_angles = hday.get_angles_from_metadata_files(list_metadata)
@@ -737,6 +751,59 @@ def correct_angles(input_path,output_path,site,start_date,end_date):
         else:
             print(f'[WARNING] QC file for date {work_date.strftime("%Y-%m-%d")} is not available. Skipping...')
         work_date = work_date + timedelta(hours=interval)
+
+
+def make_single_sun(site, sequence, output_path):
+    if not os.path.exists(output_path):
+        try:
+            os.mkdir(output_path)
+        except:
+            print(f'[ERROR] {output_path} does not exist and could not be created')
+            return
+    import subprocess
+    base_download = f'rsync -a -e \'ssh -p 9022\' hypstar@enhydra.naturalsciences.be:/home/hypstar/'
+    suffix = 'RADIOMETER/01_016_0000_0_0000.jpg'
+    cmd = f'{base_download}{site}/DATA/{sequence}/{suffix} {output_path}'
+    prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    out, err = prog.communicate()
+    if err:
+        print(err)
+
+    file_sun = os.path.join(output_path, '01_016_0000_0_0000.jpg')
+    if not os.path.exists(file_sun):
+        print(f'[ERROR] {file_sun} could not be downloaded')
+        return
+    file_out = os.path.join(output_path, f'{site}_SunImage_{sequence}.jpg')
+    from PIL import Image
+    from matplotlib import pyplot as plt
+
+    image = Image.open(file_sun)
+    rimage = image.rotate(270, expand=True)
+    fig = plt.figure()
+    axhere = fig.gca()
+    axhere.imshow(rimage)
+
+    w, h = rimage.size
+
+    ##central point
+    axhere.axvline(w / 2, 0.48, 0.52, color='red', linewidth=0.25)
+    axhere.axhline(h / 2, 0.48, 0.52, color='red', linewidth=0.25)
+    ##grid
+    incremx = int(w / 4)
+    incremy = int(h / 4)
+    for x in range(0, w, incremx):
+        axhere.axvline(x, color='red', linewidth=0.5)
+    for y in range(0, h, incremy):
+        axhere.axhline(y, color='red', linewidth=0.5)
+
+    axhere.set_xticks([])
+    axhere.set_yticks([])
+    axhere.set_title(sequence)
+    plt.tight_layout()
+    plt.savefig(file_out, bbox_inches='tight')
+    os.remove(file_sun)
+    print(f'Completed. File saved: {file_out}')
+
 
 def main():
     if args.verbose:
@@ -784,7 +851,7 @@ def main():
         make_flagged_nc_from_csv(args.config_path)
 
     if args.mode == 'COPYFROMCSV':
-        make_copy_from_csv(site,input_path,output_path)
+        make_copy_from_csv(site, input_path, output_path)
 
     if args.mode == 'PLOT':
         plot_from_options(input_path, args.config_path, None)
@@ -799,7 +866,11 @@ def main():
         prepare_sun_plot_email(input_path, output_path, site, start_date)
 
     if args.mode == 'CORRECTANGLES':
-        correct_angles(input_path,output_path,site,start_date,end_date)
+        correct_angles(input_path, output_path, site, start_date, end_date)
+
+    if args.mode == 'SINGLESUN':
+        sequence = args.input_path
+        make_single_sun(site, sequence, output_path)
 
 
 # %%

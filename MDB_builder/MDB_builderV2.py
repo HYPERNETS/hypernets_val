@@ -664,7 +664,17 @@ def create_mdb_single_csv_var(mo, insitu_file):
 
         if name_extract not in extract_list:
             if os.path.exists(mdb_extract):
-                os.remove(mdb_extract)
+                extract_list[name_extract] = {
+                    'path': mdb_extract,
+                    'lat': [insitu_lat],
+                    'lon': [insitu_lon],
+                    'time': [insitu_time.timestamp()]
+                }
+                for col in col_vars:
+                    extract_list[name_extract][col] = [float(row[col])]
+                if (index % 100) == 0: print(f'[INFO] MDB extract file already exists. Skipping...')
+                continue
+                #os.remove(mdb_extract)
             ibase.start_add_insitu_no_rrs(file_extract, mdb_extract)
             ibase.add_shipborne_variables()
             ##adding variables and data for extra_extrats
@@ -825,11 +835,10 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
             out, err = prog.communicate()
             if err:
                 print(f'[ERROR]{err}')
+
         list_files_tmp.append(ncout_file)
         cmd = [f"ncrcat -O -h"] + list_files_tmp
-
         cmd = " ".join(cmd)
-        # print(cmd)
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:

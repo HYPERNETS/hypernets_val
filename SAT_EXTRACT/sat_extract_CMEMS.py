@@ -1730,7 +1730,6 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
                 print(path_source)
                 print(ods)
                 clois.make_cmems_download(cmems_download_options, True, path_source, ods,True)
-
             else:
                 print(f'[WARNING] Code {code_eistools} for downloading is not available')
 

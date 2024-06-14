@@ -10,6 +10,161 @@ class QC_OPTIONS:
         # options.read(config_file)
         self.options = options
 
+    # def get_satellite_variable(self):
+    #     return self.get_value_param('QC_SINGLE','satellite_variable',None,'str')
+    # def get_insitu_variable(self):
+    #     return self.get_value_param('QC_SINGLE','insitu_variable',None,'str')
+
+    def get_qc_single(self,file_path):
+        section = 'QC_SINGLE'
+        if not self.options.has_section(section):
+            print(f'[ERROR] QC_SINGLE section is not included in the configuration file')
+            return None
+        options_qcsingle = {
+            'satellite_variable': {'valid': 0, 'value': None, 'type': 'str'},
+            'insitu_variable': {'valid': 0, 'value': None, 'type': 'str'},
+            'window_size': {'valid': 0, 'value': None, 'type': 'int'},
+            'min_valid_pixels': {'valid': 0, 'value': None, 'type': 'int'},
+            'use_Bailey_Werdell': {'valid': 0, 'value': None, 'type': 'boolean'},
+            'stat_value': {'valid': 0, 'value': None, 'type': 'str'},
+            'apply_outliers': {'valid': 0, 'value': None, 'type': 'boolean'},
+            'outliers_info': {'valid': 0, 'value': None, 'type': 'dict',
+                              'keys': {'central_stat': 'str', 'dispersion_stat': 'str', 'factor': 'float'}
+                              },
+            'info_flag_X': {'valid': 0, 'value': None, 'type': 'dict',
+                            'keys': {'name': 'str', 'flag_list': 'str', 'flag_land': 'str', 'flag_inlandwater': 'str',
+                                     'ac_processor': 'str'}
+                            },
+            'band_th_X': {'valid': 0, 'value': None, 'type': 'dict',
+                          'keys': {'band_name': 'str', 'th_value': 'float', 'th_type': 'str'}
+                          },
+            'macropixel_filter_band_X': {'valid': 0, 'value': None, 'type': 'dict',
+                                         'keys': {'band': 'str', 'stat': 'str', 'th_value': 'float', 'th_type': 'str'}
+                        },
+
+            'time_diff_max': {'valid': 0, 'value': None, 'type': 'float'},
+            'temporal_sampling_method': {'valid':0, 'value':None, 'type': 'str'},
+
+            'insitu_flag_X': {'valid': 0, 'value': None, 'type': 'dict',
+                            'keys': {'name_band': 'str', 'flag_list': 'str', 'remove_data': 'boolean'}
+                            },
+            'insitu_th_X': {'valid': 0, 'value': None, 'type': 'dict',
+                          'keys': {'name_band': 'str', 'th_type': 'str', 'th_min': 'float', 'th_max': 'float',
+                                   'isangle': 'boolean'}
+                          }
+        }
+
+        for option in options_qcsingle:
+            if option.endswith('_X'):
+                val = self.get_value_param_list(section, option, options_qcsingle[option])
+            else:
+                if options_qcsingle[option]['type'] == 'dict':
+                    val = self.get_value_param_dict(section, option, 'N/A', options_qcsingle[option]['keys'])
+                else:
+                    val = self.get_value_param(section, option, 'N/A', options_qcsingle[option]['type'])
+            if val is None:
+                options_qcsingle[option]['valid'] = -1  # invalid
+            elif val != 'N/A':
+                options_qcsingle[option]['valid'] = 1  # valid
+                options_qcsingle[option]['value'] = val
+
+        ##CHECKING INVALID OPTIONS
+        invalid_options = False
+        for option in options_qcsingle:
+                if options_qcsingle[option]['valid'] == -1:
+                    print(f'[ERROR] Option {option} is not valid. Please review configuration file')
+                    invalid_options = True
+        if invalid_options:
+            print(f'[ERROR] Invalid options. Please review configuration file')
+            return None
+
+        if options_qcsingle['satellite_variable']['valid']==0:
+            print('[ERROR] satellite_variable option is required')
+            return None
+        if options_qcsingle['insitu_variable']['valid']==0:
+            print('[ERROR] insitu_variable option is required')
+            return None
+
+        satellite_variable = options_qcsingle['satellite_variable']['value']
+        insitu_variable = options_qcsingle['insitu_variable']['value']
+        from QC_SINGLE import QC_SINGLE
+        qc_single = QC_SINGLE(file_path,satellite_variable,insitu_variable)
+        if qc_single.check_sat_insitu_variables():
+            for option in options_qcsingle:
+                if options_qcsingle[option]['valid'] == 0:
+                    continue
+                elif option == 'window_size':
+                    qc_single.set_window_size(options_qcsingle[option]['value'])
+                    print(f'[INFO] Set window size: {qc_single.window_size}')
+                elif option == 'min_valid_pixels':
+                    qc_single.min_valid_pixels = options_qcsingle[option]['value']
+                    print(f'[INFO] Set min. valid pixels: {qc_single.min_valid_pixels}')
+                elif option == 'use_Bailey_Werdell':
+                    qc_single.use_Bailey_Werdell = options_qcsingle[option]['value']
+                    print(f'[INFO] Set use Bailey Werdell: {qc_single.use_Bailey_Werdell}')
+                elif option == 'stat_value':
+                    qc_single.stat_value = options_qcsingle[option]['value']
+                    print(f'[INFO] Set stat. value: {qc_single.stat_value}')
+                elif option == 'apply_outliers':
+                    qc_single.apply_outliers = options_qcsingle[option]['value']
+                    print(f'[INFO] Set apply outliers: {qc_single.apply_outliers}')
+                elif option == 'outliers_info':
+                    qc_single.outliers_info = options_qcsingle[option]['value']
+                    print(f'[INFO] Set outliers info: {qc_single.outliers_info}')
+                elif option == 'info_flag_X':
+                    list_vals = options_qcsingle[option]['value']
+                    if len(list_vals)>0:
+                        qc_single.info_flag = {}
+                    for val in list_vals:
+                        variable = qc_single.dataset.variables[name_var] if name_var in qc_single.dataset.variables else None
+                        if val['flag_land']=='N/A':val['flag_land'] = None
+                        if val['flag_inlandwater']=='N/A':val['flag_inlandwater'] = None
+                        if val['ac_processor']!='N/A':acp = val['ac_processor']
+                        qc_single.info_flag[name_var] = {
+                            'variable': variable,
+                            'flag_list': val['flag_list'],
+                            'flag_land': val['flag_land'],
+                            'flag_inlandwater': val['flag_inlandwater'],
+                            'ac_processor': acp,
+                            'nflagged': 0,
+                            'flag_stats': None
+                        }
+                    for name_var in qc_single.info_flag:
+                        print(f'[INFO] Flag band: {name_var}')
+                        flist = qc_single.info_flag[name_var]['flag_list']
+                        print(f'[INFO] Flag list: {flist}')
+                elif option == 'band_th_X':
+                    list_vals = options_qcsingle[option]['value']
+                    for val in list_vals:
+                        qc_single.add_threshold_mask(val['band_name'],val['th_value'],val['th_type'])
+                elif option == 'macropixel_filter_band_X':
+                    list_vals = options_qcsingle[option]['value']
+                    for val in list_vals:
+                        qc_single.add_bands_statistics(val['band'],val['stat'],val['th_value'],val['th_type'])
+                elif option.endswith('_variable'):
+                    continue
+                elif option=='time_diff_max':
+                    qc_single.time_diff_max = options_qcsingle[option]['value'] * 60  ##in seconds
+                    print(f'[INFO] Set maximum time difference to: {qc_single.time_diff_max} seconds')
+                elif option=='temporal_sampling_method':
+                    qc_single.temporal_sampling_method = options_qcsingle[option]['value']
+                    print(f'[INFO] Set sampling method to: {qc_single.temporal_sampling_method}')
+                elif option == 'insitu_flag_X':
+                    list_vals = options_qcsingle[option]['value']
+                    for val in list_vals:
+                        qc_single.add_insitu_flag_expression(val['name_band'], val['flag_list'], val['remove_spectra'])
+                elif option == 'insitu_th_X':
+                    list_vals = options_qcsingle[option]['value']
+                    for val in list_vals:
+                        qc_single.add_insitu_band_thersholds(val['name_band'], val['th_type'], val['th_min'],
+                                                            val['th_max'], val['isangle'])
+                else:
+                    print(f'[ERROR] Option: {option} is not defined for Quality Control - Single. Skipping...')
+                    continue
+
+
+        return qc_single
+
     def get_wllist(self):
         section = 'QC_SAT'
         wllist = self.get_value_param(section, 'wllist', 'N/A', 'floatlist')

@@ -20,7 +20,8 @@ parser = argparse.ArgumentParser(
     description="Match-ups extraction from MDB files.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument("-m", "--mode", help="Mode",
-                    choices=["GENERATEMU", "CONCATENATE", "REMOVEREP", "PLOT", "PLOT_CSV", "COMMONMU", "COMMONMU_NOSAT",
+                    choices=["GENERATEMU", "GENERATEMU_S", "CONCATENATE", "REMOVEREP", "PLOT", "PLOT_CSV", "COMMONMU",
+                             "COMMONMU_NOSAT",
                              "COMMONMU_INS", "CHECK_WL", "UPDATE_SAT_WL", "UPDATE_INSITU_WL", "CHECK_SAT_TIME",
                              "CHECK_PROTOCOLS", "TEST", "ADDFLAGBAND"],
                     required=True)
@@ -244,6 +245,31 @@ class MDB_READER():
             print(f'[INFO] Completed')
 
         return nmu_valid
+
+    def create_mdb_results_single(self, fout):
+        if not os.path.exists(fout):
+            print(f'[INFO] Creating copy of {self.mfile.file_path}...')
+            ibase = INSITUBASE(None)
+            new_MDB = ibase.copy_nc(self.mfile.file_path, fout)
+            new_MDB.createDimension('mu_id', None)
+            print(f'[INFO] Copy completed')
+        else:
+            from netCDF4 import Dataset
+            new_MDB = Dataset(fout, 'a')
+
+        create = self.mfile.create_mu_single_variables(new_MDB,False,False,None)
+
+        new_MDB.close()
+
+        if not create:
+            print(f'[ERROR] Error creating file: {fout}')
+            #os.remove(fout)
+        else:
+            print(f'[INFO] File created: {fout}')
+
+
+        # if self.mfile.df_validation is None:
+        #     nmu_valid, df_valid = self.mfile.prepare_df_validation_single()
 
     def set_defaults_olci_wfr_hypstar(self):
         wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8]
@@ -2826,12 +2852,15 @@ def do_temporal_owt_comparison(input_path):
 
     pspectra.save_plot(file_out)
 
+
 def do_temporal_spectra_stats_from_csv(input_path):
-    do_temporal_spectra_stats_from_csv_impl(input_path,-1)
-    for owt in range(1,18):
+    do_temporal_spectra_stats_from_csv_impl(input_path, -1)
+    for owt in range(1, 18):
         do_temporal_spectra_stats_from_csv_impl(input_path, owt)
-def do_temporal_spectra_stats_from_csv_impl(input_path,owt):
-    #owt = 13
+
+
+def do_temporal_spectra_stats_from_csv_impl(input_path, owt):
+    # owt = 13
     file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/SpectraComparison_OWT_{owt}.tif'
     from PlotSpectra import PlotSpectra
     import pandas as pd
@@ -2895,18 +2924,18 @@ def do_temporal_spectra_stats_from_csv_impl(input_path,owt):
     pspectra.save_plot(file_out)
 
 
-def do_temporal_wl_stats_from_csv(type,input_path):
+def do_temporal_wl_stats_from_csv(type, input_path):
     stats = ['N', 'slope', 'intercept', 'BIAS', 'RMSD', 'DETER(r2)', 'RPD', 'APD']
     ytitles = ['N', 'SLOPE TYPE-II REGRESSION', 'OFFSET TYPE-II REGRESSION', 'bias', 'RMSD', f'R$^2$', 'RPD', 'APD']
-    for stat,ytitle in zip(stats,ytitles):
-        do_temporal_wl_stats_from_csv_impl(type,input_path,stat,ytitle)
+    for stat, ytitle in zip(stats, ytitles):
+        do_temporal_wl_stats_from_csv_impl(type, input_path, stat, ytitle)
 
 
-def do_temporal_wl_stats_from_csv_impl(type,input_path,stat,ytitle):
+def do_temporal_wl_stats_from_csv_impl(type, input_path, stat, ytitle):
     # N, slope, intercept, BIAS, RMSD, DETER(r2)
-    #stat = 'DETER(r2)'
+    # stat = 'DETER(r2)'
     # f'R$^2$'
-    #ytitle = f'R$^2$'
+    # ytitle = f'R$^2$'
     file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/Stats_{stat}_{type}.tif'
     from PlotSpectra import PlotSpectra
     import pandas as pd
@@ -2917,10 +2946,10 @@ def do_temporal_wl_stats_from_csv_impl(type,input_path,stat,ytitle):
     wl_list = [float(x.replace('_', '.')) for x in wl_list_str]
     wl_ticks = [str(x) for x in wl_list]
     # owt_list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
-    if type=='4owt':
+    if type == '4owt':
         owt_list = [3, 6, 9, 13]
-    if type=='6owt':
-        owt_list = [1,2, 3, 6, 9, 13]
+    if type == '6owt':
+        owt_list = [1, 2, 3, 6, 9, 13]
 
     colors = ['Blue', 'Red', 'Green', 'm', 'Cyan', 'Orange', 'Yellow']
     legend = [f'OWT {x}' for x in owt_list]
@@ -2938,7 +2967,7 @@ def do_temporal_wl_stats_from_csv_impl(type,input_path,stat,ytitle):
         cplot = CSVPLOT(file_csv)
         for owt in owt_list:
             options_out['selectValue'] = owt
-            print(wls,owt)
+            print(wls, owt)
             valid_stats = cplot.compute_statistics(options_out)
             df.loc[owt].at[wls] = valid_stats[stat]
     print(df)
@@ -2947,10 +2976,10 @@ def do_temporal_wl_stats_from_csv_impl(type,input_path,stat,ytitle):
         data = np.array(df.loc[owt])
         pspectra.plot_single_line(data, colors[index], '-', 1, 'o', 6)
     pspectra.set_xticks(wl_list, wl_ticks, 45, 8)
-    if stat=='APD':
-        pspectra.set_y_range(0,100)
+    if stat == 'APD':
+        pspectra.set_y_range(0, 100)
     if stat == 'RPD':
-        pspectra.set_y_range(-100,100)
+        pspectra.set_y_range(-100, 100)
     pspectra.set_xaxis_title('Wavelength (nm)')
     pspectra.set_yaxis_title(ytitle)
     pspectra.set_grid()
@@ -2974,7 +3003,7 @@ def do_temporal_all_owt_stats_impl(input_path, type, stat, ytitle):
     from PlotSpectra import PlotSpectra
     from CSVPlot import CSVPLOT
     param = 'Chla'
-    if type=='TSM':
+    if type == 'TSM':
         param = 'tsm'
     file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/PLOTS/Stats_{param}_{stat}.tif'
 
@@ -2988,11 +3017,12 @@ def do_temporal_all_owt_stats_impl(input_path, type, stat, ytitle):
     }
 
     owt = list(range(18))
-    if type=='CHL':
-        indices = ['CERTO_blended_chla', 'CERTO_blended_chla_from_predominant_owt', 'CERTO_blended_chla_top_2_weighted','CERTO_blended_chla_top_3_weighted']
-    if type=='TSM':
+    if type == 'CHL':
+        indices = ['CERTO_blended_chla', 'CERTO_blended_chla_from_predominant_owt', 'CERTO_blended_chla_top_2_weighted',
+                   'CERTO_blended_chla_top_3_weighted']
+    if type == 'TSM':
         options_out['xvar'] = 'CMEMS_tsmnn'
-        indices = ['CERTO_blended_tsm', 'CERTO_blended_tsm_top_2_weighted','CERTO_blended_tsm_top_3_weighted']
+        indices = ['CERTO_blended_tsm', 'CERTO_blended_tsm_top_2_weighted', 'CERTO_blended_tsm_top_3_weighted']
 
     colors = ['Blue', 'Red', 'Green', 'm', 'Cyan', 'Orange', 'Yellow']
     df = pd.DataFrame(index=indices, columns=owt)
@@ -3023,7 +3053,7 @@ def do_temporal_all_owt_stats_impl(input_path, type, stat, ytitle):
     pspectra.set_yaxis_title(ytitle)
     pspectra.set_grid()
     legend = ['Blended', 'OWT', 'Top-2', 'Top-3']
-    if type=='TSM':
+    if type == 'TSM':
         legend = ['Blended', 'Top-2', 'Top-3']
     pspectra.legend_options['loc'] = 'lower center'
     pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.4)
@@ -3035,12 +3065,35 @@ def do_temporal_all_owt_stats_impl(input_path, type, stat, ytitle):
 
     print(df)
 
+def check_n_values_cmems_certo():
+    file_nc = '/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/Coverage_CMEMS_CERTO.nc'
+    file_out = '/mnt/c/DATA_LUIS/DOORS_WORK/SummaryCoverage.csv'
+    certo_bands = ['400','412','443','490','510','560','620','665','674','681','709','754','779','865','885','1020','blended_chla_from_predominant_owt','blended_chla','blended_chla_top_2_weighted','blended_chla_top_3_weighted']
+    cmems_bands = ['400','412_5','442_5','490','510','560','620','665','673_75','681_25','708_75','753_75','778_75','865','885','1020','chl','chl','chl','chl']
+    fout = open(file_out,'w')
+    fout.write('CERTO_Ref;CMEMS_Ref;N_CERTO;N_CMEMS')
+
+
+    from netCDF4 import Dataset
+    dataset = Dataset(file_nc)
+    for idx in range(len(certo_bands)):
+        certo_var = f'CERTO_{certo_bands[idx]}_N'
+        cmems_var = f'CMEMS_{cmems_bands[idx]}_N'
+        ncerto = np.ma.sum(dataset.variables[certo_var][:])
+        ncmems = np.ma.sum(dataset.variables[cmems_var][:])
+        line = f'{certo_bands[idx]};{cmems_bands[idx]};{ncerto};{ncmems}'
+        fout.write('\n')
+        fout.write(line)
+    dataset.close()
+    fout.close()
+
 
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
+        check_n_values_cmems_certo()
         # do_image_with_centro()
 
         # get_certo_dates_olci_step1()
@@ -3051,7 +3104,7 @@ def main():
         # get_certo_dates_msi()
         # get_certo_dates_olci()
         # check_dates()
-        set_certo_dates_extracts()
+        # set_certo_dates_extracts()
 
         # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import MDBFile
@@ -3479,6 +3532,10 @@ def main():
         if not fbuilder.VALID:
             return
         for flag_here in fbuilder.flag_list:
+            b = fbuilder.omanager.get_value_param(flag_here,'apply',True,'boolean')
+            if b is not None and not b:
+                continue
+            print(f'[INFO] Working with flag: {flag_here}')
             fbuilder.create_flag_array(flag_here, True)
 
         return
@@ -3563,6 +3620,38 @@ def main():
             os.rename(file_temp, output_path)
 
         return
+
+    if args.input_path and mode == 'GENERATEMU_S':
+        input_path = args.input_path
+        if not os.path.exists(input_path):
+            print(f'[ERROR] Input path {input_path} does not exist')
+            return
+        output_folder = os.path.dirname(input_path)
+        if args.output and os.path.isdir(args.output):
+            output_folder = args.output
+        output_path = get_mdb_output_path(input_path, output_folder)
+        reader = MDB_READER(input_path, True)
+        if not reader.mfile.VALID:
+            print(f'[INFO] No spectral variables are required for match-ups for single variables. No problem!')
+        if not args.config_file:
+            print(f'[ERROR] Config. file with Quality Control options (-c option) is required')
+            return
+        if not os.path.exists(args.config_file):
+            print(f'[ERROR] Config. file {args.config_file} with Quality Control options does not exist')
+            return
+        if args.config_file and os.path.exists(args.config_file):
+            if args.verbose:
+                print(f'[INFO] Using file: {args.config_file} to set quality control options...')
+            import configparser
+            from QC_OPTIONS import QC_OPTIONS
+
+            options = configparser.ConfigParser()
+            options.read(args.config_file)
+            qco = QC_OPTIONS(options)
+            reader.mfile.qc_single = qco.get_qc_single(reader.mfile.file_path)
+            reader.create_mdb_results_single(output_path)
+            reader.mfile.qc_single.close_dataset()
+            reader.mfile.close()
 
     ##CONCATENATING MDB READER FILES INCLUDING FLAGS BANDS FOR SATELLITE+PLATFORM, SENSOR, AC, SITE
     if args.input_path and mode == 'CONCATENATE':
@@ -3931,13 +4020,13 @@ def main():
 
         ##temporal,stats plots from multiple csv files
         if os.path.isdir(input_path):
-            #do_temporal_wl_stats_from_csv('4owt',input_path)
-            #do_temporal_wl_stats_from_csv('6owt', input_path)
+            # do_temporal_wl_stats_from_csv('4owt',input_path)
+            # do_temporal_wl_stats_from_csv('6owt', input_path)
             do_temporal_spectra_stats_from_csv(input_path)
             # do_temporal_owt_comparison(input_path)
             return
         if os.path.basename(config_file) == 'skip.ini':
-            #do_temporal_all_owt_stats('CHL',input_path)
+            # do_temporal_all_owt_stats('CHL',input_path)
             do_temporal_all_owt_stats('TSM', input_path)
             return
 

@@ -174,8 +174,8 @@ def bsc_qaa(rrs_in, band_in, band_out, g0=0.089, g1=0.1245):
     band_in = ma.array(band_in)
     band_out = ma.array(band_out)
     # print(rrs_in)
-    # print(band_in)
-    # print(band_out)
+    # print(band_in,type(band_in),band_in.shape)
+    # print(band_out,type(band_out),band_out.shape)
 
     shaper = len(rrs_in.shape)
     # if array is not 3D (bands, lat, lon) we create a fictional 3D array

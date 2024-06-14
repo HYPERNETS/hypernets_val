@@ -14,6 +14,9 @@ class OptionsManager():
         else:
             self.options = options
 
+
+
+
         # config_file = 'a'
         # self.options = configparser.ConfigParser()
         # self.options.read(config_file)
@@ -47,6 +50,7 @@ class OptionsManager():
         return sfinal
 
     ##when type option is selected, then the rest of options are only applied if type_group=type
+    ##it includes also overall options for virtual_flags
     def read_options_as_dict(self, section, poptions):
         options_dict = {}
         type = None
@@ -54,10 +58,18 @@ class OptionsManager():
 
         if self.options.has_option(section, 'type'):
             type = self.read_option(section, 'type', 'type', poptions, -1, use_pow2_flags)
-        if type is None and self.options.has_option(section, 'typevirtual'):  ##typevirtual overwrites type
+
+        if (type == 'virtual_flag' or type is None) and self.options.has_option(section,
+                                                                                'typevirtual'):  ##typevirtual overwrites type
             type = self.read_option(section, 'typevirtual', 'typevirtual', poptions, -1, use_pow2_flags)
-        if self.options.has_option(section, 'use_pow2_flags'):
-            use_pow2_flags = self.options[section]['use_pow2_flags']
+        if type is None:
+            print(
+                f'[ERROR] type (or typevirtual) are not define. Potential types: {poptions["typevirtual"]["list_values"]}')
+            return None
+
+        use_pow2_flags = self.get_value_param(section,'use_pow2_flags',False,'boolean')
+
+
         options_dict = self.assign_options(options_dict, 'type', type)
         options_dict = self.assign_options(options_dict, 'use_pow2_flags', use_pow2_flags)
 
@@ -66,10 +78,8 @@ class OptionsManager():
                 continue
 
             if type is not None and 'type_group' in poptions[opt]:
-
-                if poptions[opt]['type_group'] != type:
+                if type not in poptions[opt]['type_group']:
                     continue
-
 
             if not opt.find('_index') >= 0:
                 if self.options.has_option(section, opt):
@@ -79,7 +89,7 @@ class OptionsManager():
                     if 'default' in poptions[opt].keys():
                         options_dict[opt] = poptions[opt]['default']
             else:
-                if opt.find('_indexm')>=0:
+                if opt.find('_indexm') >= 0:
                     idx = 0
                     has_option = True
                     while has_option:
@@ -87,7 +97,7 @@ class OptionsManager():
                         has_inner = True
                         while has_inner:
                             opt_here = opt.replace('_indexm', f'_{idx}_{inner_idx}')
-                            #print(opt_here,idx, inner_idx)
+                            # print(opt_here,idx, inner_idx)
                             if self.options.has_option(section, opt_here):
                                 value = self.read_option(section, opt, opt_here, poptions, idx, use_pow2_flags)
 
@@ -95,7 +105,7 @@ class OptionsManager():
                                 inner_idx = inner_idx + 1
                             else:
                                 has_inner = False
-                            if inner_idx==0:
+                            if inner_idx == 0:
                                 has_option = False
                         idx = idx + 1
                 else:
@@ -109,7 +119,6 @@ class OptionsManager():
                         else:
                             has_option = False
                         idx = idx + 1
-
 
         return options_dict
 
@@ -138,7 +147,6 @@ class OptionsManager():
             # use_pow2_vflags = poptions[opt]['user_pow2_vflags']
             value = self.get_strlist_as_dict(value, opt, idx, use_pow2_flags)
 
-
         return value
 
     def get_strlist_as_dict(self, values, opt, idx, use_pow2_flags):
@@ -146,43 +154,96 @@ class OptionsManager():
             return self.get_dict_flag_spatial_index(values, idx, use_pow2_flags)
         if opt.startswith('flag_ranges_index'):
             return self.get_dict_flag_ranges_index(values, idx, use_pow2_flags)
+        if opt.startswith('flag_index'):
+            return self.get_dict_flag_index(values,idx,use_pow2_flags)
         return values
 
     def get_dict_flag_ranges_index(self, values, idx, use_pow2_flags):
-        value_dict = {}
         if use_pow2_flags:
             fvalue = int(math.pow(2, idx))
         else:
             fvalue = int(idx + 1)
-        if len(values) == 3:
-            value_dict = {
-                'flag_var': values[0],
-                'is_default': True,
-                'flag_name': values[1],
-                'flag_value': fvalue,
-                'flag_condition': 'and'
-            }
-        if len(values) >= 4:
-            try:
-                minV = float(values[2])
-            except:
-                minV = None
-            try:
-                maxV = float(values[3])
-            except:
-                maxV = None
-            value_dict = {
-                'is_default': False,
-                'flag_var': values[0],
-                'flag_name': values[1],
-                'flag_value': fvalue,
-                'min_range': minV,
-                'max_range': maxV,
-                'flag_condition': 'and'
-            }
-            if len(values)==5:
-                value_dict['flag_condition']=values[4]
+        value_dict = {
+            'flag_name': values[0],
+            'flag_value': fvalue,
+            'condition_list': [],
+        }
+        for idx in range(1,len(values)):
+            val_condition = values[idx]
+            if val_condition.strip().startswith('[') and val_condition.strip().endswith(']'):
+                conditions = val_condition.strip()[1:-1].split(';')
+
+                if len(conditions)==2:
+                    value_dict['condition_list'].append({
+                        'name_var': conditions[0].strip(),
+                        'name_flag': conditions[1].strip(),
+                        'flag_or_range': 'flag'
+                    })
+            if val_condition.strip().startswith('(') and val_condition.strip().endswith(')'):
+                val_condition = val_condition.strip()
+                conditions = val_condition.strip()[1:-1].split(';')
+                if len(conditions)==3:
+                    value_dict['condition_list'].append({
+                        'name_var': conditions[0].strip(),
+                        'min_val': float(conditions[1].strip()) if conditions[1].strip().lower()!='none' else None,
+                        'max_val': float(conditions[2].strip()) if conditions[2].strip().lower()!='none' else None,
+                        'flag_or_range': 'range'
+                    })
+
+        ###DEPRECATED
+        # if len(values) == 3:
+        #     value_dict = {
+        #         'flag_var': values[0],
+        #         'flag_name': values[1],
+        #         'flag_value': fvalue,
+        #     }
+        # if len(values) >= 4:
+        #     try:
+        #         minV = float(values[2])
+        #     except:
+        #         minV = None
+        #     try:
+        #         maxV = float(values[3])
+        #     except:
+        #         maxV = None
+        #     value_dict = {
+        #         'is_default': False,
+        #         'flag_var': values[0],
+        #         'flag_name': values[1],
+        #         'flag_value': fvalue,
+        #         'min_range': minV,
+        #         'max_range': maxV,
+        #         'flag_condition': 'and'
+        #     }
+        #     if len(values) == 5:
+        #         value_dict['flag_condition'] = values[4]
         return value_dict
+
+    def get_dict_flag_index(self, values, idx, use_pow2_flags):
+        if use_pow2_flags:
+            fvalue = int(math.pow(2, idx))
+        else:
+            fvalue = int(idx + 1)
+        value_dict = {
+            'flag_name': values[0],
+            'flag_value': fvalue,
+            'condition_list': []
+        }
+        nconditions = int((len(values)-1)/2)
+
+        for idx in range(nconditions):
+            il = (2*idx)+1
+
+            value_dict['condition_list'].append(
+                {
+                    'flag_var': values[il].strip()[1:],
+                    'flag_list': [x.strip() for x in values[il+1].strip()[:-1].split(';')]
+                }
+            )
+
+
+        return value_dict
+
 
     def get_dict_flag_spatial_index(self, values, idx, use_pow2_flags):
         value_dict = {}

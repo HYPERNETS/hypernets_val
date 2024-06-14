@@ -35,7 +35,7 @@ class Class_Flags_OLCI(object):
         return res, mask
 
     def __init__(self, flagMasks, flagMeanings):
-        self.maskValues = flagMasks
+        self.maskValues = [np.uint64(x) for x in flagMasks]
         self.maskNames = flagMeanings.split(' ')
 
 

@@ -1101,9 +1101,24 @@ class HYPERNETS_DAY_FILE():
             dataset.close()
             print('[ERROR] Plot is only created for a single day')
             return
+        print(options_figure)
 
-        qf_array = dataset.variables['l2_quality_flag'][:]
-        epsilon_array = dataset.variables['l2_epsilon'][:]
+        use_default_flag = True
+        if options_figure['flagBy'] is not None:
+            print('=================================')
+            options_figure['flagType'] = 'flag'
+
+            options_figure = self.check_gs_options_impl(options_figure,'flagBy','flagType','flagValues')
+            if options_figure['flagBy'] in options_figure.keys() and len(options_figure[options_figure['flagBy']]['flag_values'])==4:
+                use_default_flag = False
+                flag_meanings = options_figure[options_figure['flagBy']]['flag_meanings']
+                flag_values = options_figure[options_figure['flagBy']]['flag_values']
+                flag_array = options_figure[options_figure['flagBy']]['flag_array']
+                print(options_figure[options_figure['flagBy']])
+            print('********************************************************')
+        if use_default_flag:
+            qf_array = dataset.variables['l2_quality_flag'][:]
+            epsilon_array = dataset.variables['l2_epsilon'][:]
 
         time_fix_axis = self.get_fix_axis_time(options_figure, start_time_real, end_time_real)
         ntime = len(time_fix_axis)
@@ -1126,17 +1141,26 @@ class HYPERNETS_DAY_FILE():
             if mtick not in minutes_ticks: minutes_ticks.append(mtick)
 
             if np.count_nonzero(time_valid) == 1:
-                qf_value = qf_array[time_valid][0]
-                epsilon_value = epsilon_array[time_valid][0]
-                if qf_value == 0:
-                    if epsilon_value < (-0.05):
-                        yarray[itime] = 2
-                    elif (-0.05) <= epsilon_value < 0.05:
-                        yarray[itime] = 3
-                    elif epsilon_value > 0.05:
-                        yarray[itime] = 4
+                print('time_valid_good-->',time_valid,time_valid.shape,)
+                if use_default_flag:
+                    qf_value = qf_array[time_valid][0]
+                    epsilon_value = epsilon_array[time_valid][0]
+                    if qf_value == 0:
+                        if epsilon_value < (-0.05):
+                            yarray[itime] = 2
+                        elif (-0.05) <= epsilon_value < 0.05:
+                            yarray[itime] = 3
+                        elif epsilon_value > 0.05:
+                            yarray[itime] = 4
+                    else:
+                        yarray[itime] = 1
                 else:
-                    yarray[itime] = 1
+                    try:
+                        fvalue = flag_array[time_valid]
+                        index_flag = flag_values.index(int(fvalue))
+                        yarray[itime] = index_flag+1
+                    except:
+                        pass
 
 
         hours_ticks.reverse()
@@ -1146,7 +1170,10 @@ class HYPERNETS_DAY_FILE():
         for itime, tf in enumerate(time_fix_axis):
             data.loc[tf.strftime('%H')].at[tf.strftime('%M')] = yarray[itime]
 
-        colors = ['red', 'cyan', 'green', 'magenta']
+        if options_figure['color'] is not None:
+            colors = options_figure['color']
+        else:
+            colors = ['red', 'cyan', 'green', 'magenta']
         ax = sns.heatmap(data, vmin=1, vmax=4, cmap=colors, linewidths=0.5, linecolor='gray')
         plt.yticks(rotation='horizontal')
         colorbar = ax.collections[0].colorbar
@@ -1429,12 +1456,15 @@ class HYPERNETS_DAY_FILE():
         time_array = dataset.variables[time_var][:]
         time_array = np.ma.filled(time_array.astype(np.float64), -999.0)
 
-        if nscan > 1:
+        if nscan > 1:##level 1: ndata should be nseries x nscan
             time_array = self.reduce_l1_dimensions(time_array)
 
         ngroups, groupValues, groupArray, str_legend = self.check_group_and_legend(options_figure, nseries, nscan)
+
         if options_figure['legend_values'] is not None and len(options_figure['legend_values']) == ngroups:
             str_legend = options_figure['legend_values']
+
+
 
         start_time_real = dt.utcfromtimestamp(np.min(time_array[time_array != -999.0]))
         end_time_real = dt.utcfromtimestamp(np.max(time_array[time_array != -999.0]))
@@ -1481,11 +1511,16 @@ class HYPERNETS_DAY_FILE():
                 elif len(avg_array.shape) == 2:
                     avg_array = avg_array[:, index_ref]
                 avg_array = np.squeeze(avg_array)
-            print(f'[INFO] NSeries:  {nseries} NScans: {nscan} Variablel: {avg_var} Array shape: {avg_array.shape}')
+            print(f'[INFO] NSeries:  {nseries} NScans: {nscan} Variable: {avg_var} Array shape: {avg_array.shape}')
             if nscan > 1 and nseries > 1 and  len(avg_array.shape) == 1:
                 avg_array = self.multiply_array_by_scan(avg_array, nseries, nscan)
             if nscan > 1 and len(avg_array.shape) == 2:
                 avg_array = self.reduce_l1_dimensions(avg_array)
+
+            # print(avg_array.shape,groupArray.shape)
+            # for idx in range(avg_array.shape[0]):
+            #     print(idx,avg_array[idx],groupArray[idx])
+
             handles = []
             str_legend_valid = []
             for icolor, gvalue in enumerate(groupValues):

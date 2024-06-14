@@ -26,6 +26,8 @@ class MDBPlot:
         self.groupdata = []
         self.yregress = []
         self.xregress = []
+        self.xdata = []
+        self.ydata = []
         self.valid_stats = {}
         for s in defaults.valid_stats:
             self.valid_stats[defaults.valid_stats[s]['name']] = 0.0
@@ -44,7 +46,7 @@ class MDBPlot:
         # Generated linear fit
         xdatal = []
         ydatal = []
-        maxxy = 0
+        maxxy = None
         minxy = None
         for x, y in zip(self.xdata, self.ydata):
             if use_log_scale:
@@ -52,27 +54,23 @@ class MDBPlot:
                     xdatal.append(math.log10(x))
                     ydatal.append(math.log10(y))
             else:
-                # if np.isnan(x) or np.isnan(y):
-                #     print(x, y)
                 if use_rhow:
                     x = x * np.pi
                     y = y * np.pi
                 xdatal.append(x)
                 ydatal.append(y)
-            if minxy is None:
+            if minxy is None and maxxy is None:
                 if x <= y:
                     minxy = x
+                    maxxy = y
                 else:
                     minxy = y
+                    maxxy = x
             else:
-                if x < minxy:
-                    minxy = x
-                if y < minxy:
-                    minxy = y
-            if x > maxxy:
-                maxxy = x
-            if y > maxxy:
-                maxxy = y
+                if x < minxy: minxy = x
+                if y < minxy: minxy = y
+                if x > maxxy: maxxy = x
+                if y > maxxy: maxxy = y
 
         ##REGRESSION I
         slope, intercept, r_value, p_value, std_err = stats.linregress(xdatal, ydatal)
@@ -192,8 +190,10 @@ class MDBPlot:
             options_figure = poptions.get_options(figure)
             if options_figure is None:
                 continue
-            if 'selecteBy' in options_figure and options_figure['selectBy'] is not None:
+            if 'selectBy' in options_figure and options_figure['selectBy'] is not None:
                 options_figure = self.check_gs_options_impl(options_figure, 'selectBy', 'selectType', 'selectValues')
+            if 'groupBy' in options_figure and options_figure['groupBy'] is not None:
+                options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
             self.plot_from_options_impl(options_figure)
 
     def plot_from_options_impl(self, options_figure):
@@ -223,59 +223,63 @@ class MDBPlot:
 
         time = np.array(self.mrfile.nc.variables[time_var])
         from datetime import datetime as dt
-        time_ini_year = [dt.utcfromtimestamp(float(x)).replace(day=1,month=1,hour=0,minute=0,second=0,microsecond=0,tzinfo=pytz.UTC).timestamp() for x in time]
-        time_fin_year = [dt.utcfromtimestamp(float(x)).replace(tzinfo=pytz.UTC,year=dt.utcfromtimestamp(float(x)).year+1).timestamp() for x in time_ini_year]
-        seconds_year = np.array(time_fin_year)-np.array(time_ini_year)
+        time_ini_year = [
+            dt.utcfromtimestamp(float(x)).replace(day=1, month=1, hour=0, minute=0, second=0, microsecond=0,
+                                                  tzinfo=pytz.UTC).timestamp() for x in time]
+        time_fin_year = [dt.utcfromtimestamp(float(x)).replace(tzinfo=pytz.UTC,
+                                                               year=dt.utcfromtimestamp(float(x)).year + 1).timestamp()
+                         for x in time_ini_year]
+        seconds_year = np.array(time_fin_year) - np.array(time_ini_year)
         time_array = []
-        for there,ini_year,total_year in zip(time,time_ini_year,seconds_year):
-            val = dt.utcfromtimestamp(there).year + ((there-ini_year)/total_year)
+        for there, ini_year, total_year in zip(time, time_ini_year, seconds_year):
+            val = dt.utcfromtimestamp(there).year + ((there - ini_year) / total_year)
             time_array.append(val)
         time_array = np.array(time_array)
-        width = (time_array[-1]-time_array[0])/len(time_array)
-
+        width = (time_array[-1] - time_array[0]) / len(time_array)
 
         dispersion_min_var = options_figure['dispersion_min_var']
         dispersion_max_var = options_figure['dispersion_max_var']
-
 
         from PlotSpectra import PlotSpectra
         import MDBPlotDefaults as defaults
         pspectra = PlotSpectra()
         pspectra.xdata = time_array
         style = pspectra.line_style_default.copy()
-        style['linewidth']  = 0
+        style['linewidth'] = 0
         style['marker'] = 'o'
         style['markersize'] = 1
         handles = []
-        for index,avg_var in enumerate(avg_vars):
+        for index, avg_var in enumerate(avg_vars):
             style['color'] = defaults.colors_default[index]
             var_array = np.array(self.mrfile.nc.variables[avg_var]).astype(np.float)
-            var_array[var_array<-1] = np.nan
-            if index==1 and not options_figure['log_scale']:
-                var_array[~np.isnan(var_array)] = var_array[~np.isnan(var_array)]/np.pi
+            var_array[var_array < -1] = np.nan
+            if index == 1 and not options_figure['log_scale']:
+                var_array[~np.isnan(var_array)] = var_array[~np.isnan(var_array)] / np.pi
             if options_figure['log_scale']:
                 var_array[~np.isnan(var_array)] = np.log10(var_array[~np.isnan(var_array)])
-            h = pspectra.plot_data(var_array,style)
+            h = pspectra.plot_data(var_array, style)
 
             ##temporal, owt
-            #h = pspectra.plot_single_bar_series(var_array,style['color'],width,0,0)
+            # h = pspectra.plot_single_bar_series(var_array,style['color'],width,0,0)
 
             handles.append(h[0])
             if dispersion_min_var is not None and dispersion_max_var is not None:
-                if len(dispersion_min_var)==len(avg_vars) and len(dispersion_max_var)==len(avg_vars):
+                if len(dispersion_min_var) == len(avg_vars) and len(dispersion_max_var) == len(avg_vars):
                     min_dispersion_array = np.array(self.mrfile.nc.variables[dispersion_min_var[index]])
                     max_dispersion_array = np.array(self.mrfile.nc.variables[dispersion_max_var[index]])
-                    min_dispersion_array[min_dispersion_array<-1.0] = np.nan
-                    max_dispersion_array[max_dispersion_array<-1.0] = np.nan
+                    min_dispersion_array[min_dispersion_array < -1.0] = np.nan
+                    max_dispersion_array[max_dispersion_array < -1.0] = np.nan
                     if index == 1 and not options_figure['log_scale']:
-                        min_dispersion_array[~np.isnan(min_dispersion_array)] = min_dispersion_array[~np.isnan(min_dispersion_array)] / np.pi
+                        min_dispersion_array[~np.isnan(min_dispersion_array)] = min_dispersion_array[~np.isnan(
+                            min_dispersion_array)] / np.pi
                         max_dispersion_array[~np.isnan(max_dispersion_array)] = max_dispersion_array[~np.isnan(
                             max_dispersion_array)] / np.pi
                     if options_figure['log_scale']:
-                        min_dispersion_array[~np.isnan(min_dispersion_array)] = np.log10(min_dispersion_array[~np.isnan(min_dispersion_array)])
+                        min_dispersion_array[~np.isnan(min_dispersion_array)] = np.log10(
+                            min_dispersion_array[~np.isnan(min_dispersion_array)])
                         max_dispersion_array[~np.isnan(max_dispersion_array)] = np.log10(
                             max_dispersion_array[~np.isnan(max_dispersion_array)])
-                    pspectra.plot_iqr_basic(min_dispersion_array,max_dispersion_array,style['color'])
+                    pspectra.plot_iqr_basic(min_dispersion_array, max_dispersion_array, style['color'])
 
         ##temporal, for owt
         # yticks = np.arange(1,19)
@@ -285,7 +289,7 @@ class MDBPlot:
         ymin = options_figure['y_min']
         ymax = options_figure['y_max']
         if ymin is not None or ymax is not None:
-            pspectra.set_y_range(ymin,ymax)
+            pspectra.set_y_range(ymin, ymax)
         if options_figure['ylabel'] is not None:
             pspectra.set_yaxis_title(options_figure['ylabel'])
         if options_figure['xlabel'] is not None:
@@ -293,11 +297,11 @@ class MDBPlot:
         pspectra.set_grid()
         if options_figure['legend'] and options_figure['legend_values'] is not None:
             pspectra.legend_options['loc'] = 'lower center'
-            pspectra.legend_options['bbox_to_anchor'] = (0.5,-0.25)
+            pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.25)
             pspectra.legend_options['ncols'] = 2
             pspectra.legend_options['markerscale'] = 5
 
-            pspectra.set_legend_h(handles,options_figure['legend_values'])
+            pspectra.set_legend_h(handles, options_figure['legend_values'])
         if options_figure['title'] is not None:
             pspectra.set_title(options_figure['title'])
 
@@ -306,21 +310,25 @@ class MDBPlot:
         if file_out is not None:
             pspectra.save_plot(file_out)
 
-
     def plot_scatterplot_from_options(self, options_figure):
 
         ##WORKING WITH ALL THE DATA
-        if options_figure['selectBy'] is None:
-            if not options_figure['selectByWavelength']:  # GLOBAL SCATTERPLOT
-                self.plot_global_scatterplot(options_figure)
-            else:  # AN SCATTERPLOT BY WAVELENGTH
-                if options_figure['multiple_plot'] is not None:  # single file
-                    self.plot_multiple_wavelength_scatterplots_single_file(options_figure)
-                else:  # multiple files
-                    self.plot_multiple_wavelength_scatterplots_multiple_files(options_figure)
+        # options_figure['individual_plots'] = False
+        if options_figure['selectBy'] is None:  # or not options_figure['individual_plots']:
+            if options_figure['type_scatterplot'] == 'rrs':
+                if not options_figure['selectByWavelength']:  # GLOBAL SCATTERPLOT
+                    self.plot_global_scatterplot(options_figure)
+                else:  # AN SCATTERPLOT BY WAVELENGTH
+                    if options_figure['multiple_plot'] is not None:  # single file
+                        self.plot_multiple_wavelength_scatterplots_single_file(options_figure)
+                    else:  # multiple files
+                        self.plot_multiple_wavelength_scatterplots_multiple_files(options_figure)
+            else:
+                print(f'[INFO] Type scatterplot: {options_figure["type_scatterplot"]}')
+                self.plot_general_scatterplot(options_figure)
 
         ##WORKING WITH SELECTED OPTIONS
-        if options_figure['selectBy'] is not None:
+        if options_figure['selectBy'] is not None and options_figure['individual_plots']:
             selectValues = options_figure['selectValues']
             file_out_base = options_figure['file_out']
             title_base = options_figure['title']
@@ -336,6 +344,11 @@ class MDBPlot:
                         self.plot_multiple_wavelength_scatterplots_single_file(options_figure)
                     else:  # multiple files
                         self.plot_multiple_wavelength_scatterplots_multiple_files(options_figure)
+
+    def plot_general_scatterplot(self, options_figure):
+        self.set_data_scatterplot_general(options_figure['groupBy'], options_figure['selectBy'],
+                                          options_figure['selectValues'], options_figure)
+        self.plot_scatter_plot(options_figure, None, -1, -1, -1)
 
     def plot_global_scatterplot(self, options_figure):
         if options_figure['apply_wavelength_color'] and options_figure['groupBy'] is None:
@@ -435,14 +448,12 @@ class MDBPlot:
 
     # MAIN FUNCTION TO PLOT SCATTERPLOT
     def plot_scatter_plot(self, options, plot, index, wl, index_col_adjust):
-
         ##compute statistics if neeed
         use_rhow = options['use_rhow']
-
         if options['include_stats'] or options['regression_line']:
             use_log_scale = options['log_scale']
             self.compute_statistics(use_log_scale, use_rhow, options['type_regression'])
-
+            print(self.valid_stats)
         # check groups and get legend if applicable
         ngroup = 1
         str_legend = []
@@ -455,6 +466,7 @@ class MDBPlot:
             str_legend = self.get_str_legend(options)
         if ngroup > 1:
             self.valid_stats['NGROUP'] = int(self.valid_stats['N'] / ngroup)
+
         if options['wlvalues'] is not None:
             nwl = len(options['wlvalues'])
             self.valid_stats['NMU'] = int(self.valid_stats['N'] / nwl)
@@ -556,10 +568,10 @@ class MDBPlot:
                     xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
                     plot.set_cmap('jet')
 
-                    plot.plot_data(xhere, yhere, marker, markersize, z, edgecolor, linewidth)
+                    plot.plot_data(xhere, yhere, marker, markersize, z, None, 0)
 
                 except:
-
+                    print(f'[ERROR] Error creating density plot. Using default style')
                     plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
 
             else:
@@ -568,6 +580,16 @@ class MDBPlot:
         ##limitss
         if options['log_scale']:
             plot.set_log_scale()
+            if options['min_xy'] is None:
+                options['min_xy'] = 0.1
+                if options['type_scatterplot'] == 'kd':
+                    options['min_xy'] = 0.01
+            min_xy = options['min_xy']
+            if options['max_xy'] is None:
+                options['max_xy'] = 100
+                if options['type_scatterplot'] == 'kd':
+                    options['max_xy'] = 10
+            max_xy = options['max_xy']
         else:
             if options['min_xy'] is None or options['max_xy'] is None:
                 min_xy, max_xy = self.get_min_max_xy()
@@ -579,9 +601,15 @@ class MDBPlot:
 
         # ticks
         if options['ticks'] is None:
-            ticks = self.get_ticks_from_min_max_xy(min_xy, max_xy)
+            if not options['log_scale']:
+                ticks = self.get_ticks_from_min_max_xy(min_xy, max_xy)
+            else:
+                min_t = int(np.log10(min_xy))
+                max_t = int(np.log10(max_xy))
+                ticks = [10 ** x for x in range(min_t, max_t + 1)]
         else:
             ticks = options['ticks']
+
         if ticks is not None:
             if options['log_scale']:
                 tlabels = self.get_labels_for_log_ticks(ticks)
@@ -626,6 +654,13 @@ class MDBPlot:
             plot.plot_text(xpos, ypos, str0)
 
         # regression lines
+        if options['log_scale']:
+            if options['regression_line']:
+                xr = np.array([self.xregress[0], self.xregress[-1], self.xregress[-2]])
+                yr = np.array([self.yregress[0], self.yregress[-1], self.yregress[-2]])
+                xr = xr[xr.argsort()]
+                yr = yr[yr.argsort()]
+                plot.plot_regress_line(xr, yr, 'black')
         if not options['log_scale']:
             if options['regression_line']:
                 plot.plot_regress_line(self.xregress, self.yregress, 'black')
@@ -661,27 +696,26 @@ class MDBPlot:
 
         return plot
 
-    def plot_spectraplot_from_options(self,options_figure):
-        if options_figure['type_rrs']=='ins':
+    def plot_spectraplot_from_options(self, options_figure):
+        if options_figure['type_rrs'] == 'ins':
             self.plot_insitu_spectraplots(options_figure)
 
-    def plot_insitu_spectraplots(self,options_figure):
+    def plot_insitu_spectraplots(self, options_figure):
         ##GETTING DATA
         wavelength = self.mrfile.get_insitu_wl()
-        all_spectra, all_spectra_validity, spectra_stats = self.mrfile.get_all_insitu_spectra(options_figure['scale_factor'],options_figure['use_rhow'],options_figure['plot_stats'])
-
-
+        all_spectra, all_spectra_validity, spectra_stats = self.mrfile.get_all_insitu_spectra(
+            options_figure['scale_factor'], options_figure['use_rhow'], options_figure['plot_stats'])
 
         from PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = wavelength
         for ps in options_figure['plot_spectra']:
-            if ps.lower()=='none':
+            if ps.lower() == 'none':
                 continue
-            if ps.lower()=='valid':
-                spectra_valid = all_spectra[all_spectra_validity==1]
+            if ps.lower() == 'valid':
+                spectra_valid = all_spectra[all_spectra_validity == 1]
                 for spectra in spectra_valid:
-                    pspectra.plot_data(spectra,options_figure['valid_line_style'])
+                    pspectra.plot_data(spectra, options_figure['valid_line_style'])
 
         pspectra.set_grid()
 
@@ -754,11 +788,12 @@ class MDBPlot:
                     if flag_config.strip() == 'GLOBAL':
                         flag_values_config.append(-1)
                         continue
+
                     try:
                         iflag = flag_meanings.index(flag_config.strip())
                         flag_values_config.append(flag_values[iflag])
                     except:
-                        print(f'[WARNING] Flag {flag_config.strip()} is not in the list')
+                        print(f'[WARNING] Flag {flag_config.strip()} is not in the list.')
                         return None
                 options_figure[values] = flag_values_config
 
@@ -780,6 +815,61 @@ class MDBPlot:
                         return None
                 options_figure[values] = group_values
         return options_figure
+
+    def set_data_scatterplot_general(self, groupBy, selectBy, selectValues, options_out):
+        self.xdata = []
+        self.ydata = []
+        xarray = self.mrfile.nc.variables[options_out['xvar']][:]
+        yarray = self.mrfile.nc.variables[options_out['yvar']][:]
+        if len(xarray.shape) > 1 or len(yarray.shape) > 1:
+            return
+        ndata = xarray.shape[0]
+        if ndata != yarray.shape[0]:
+            return
+        valid_all = np.ones(xarray.shape)
+        valid_all[xarray.mask] = 0
+        valid_all[yarray.mask] = 0
+
+        if selectBy is not None:
+            select_array, all_select_values, all_select_meanings = self.get_flag_array(options_out, 'selectBy')
+            # if len(select_array.shape) == 1 and select_array.shape[0] == ndata:
+            #     select_data = select_array
+            if len(select_array.shape) == 2 and select_array.shape[0] == ndata:
+                select_array_1D = np.squeeze(select_array[:, 0])
+                var_id = f'{options_out["xvar"]}_id'
+                if var_id in self.mrfile.nc.variables:
+                    var_id_array = np.array(self.mrfile.nc.variables[var_id])
+                    max_id = np.max(var_id_array[:])
+                    for id in range(1, max_id + 1):
+                        select_array_1D[var_id_array == id] = select_array[var_id_array == id, id]
+                select_array = select_array_1D
+
+            valid_all_s = np.zeros(xarray.shape)
+            for val in selectValues:
+                valid_all_s[np.logical_and(select_array == val, valid_all == 1)] = 1
+            valid_all = valid_all_s
+
+        self.xdata = np.array(xarray[valid_all == 1])
+        self.ydata = np.array(yarray[valid_all == 1])
+
+        if groupBy is not None:
+            self.groupdata = []
+            group_array, all_group_values, all_group_meanings = self.get_flag_array(options_out, 'groupBy')
+            if len(group_array.shape) == 1 and group_array.shape[0] == ndata:
+                self.groupdata = group_array[valid_all == 1]
+            if len(group_array.shape) == 2 and group_array.shape[0] == ndata:
+                group_array_1D = np.squeeze(group_array[:, 0])
+                var_id = f'{options_out["xvar"]}_id'
+                if var_id in self.mrfile.nc.variables:
+                    var_id_array = np.array(self.mrfile.nc.variables[var_id])
+                    max_id = np.max(var_id_array[:])
+                    for id in range(1, max_id + 1):
+                        group_array_1D[var_id_array == id] = group_array[var_id_array == id, id]
+                self.groupdata = group_array_1D[valid_all == 1]
+
+            # if len(group_array) == len(mu_valid_satelliteid):
+            #     group_array = self.get_array_muid_from_array_satelliteid(id_mu, group_array)
+            # self.groupdata = group_array[valid_all == 1]
 
     def set_data_scatterplot(self, groupBy, selectBy, valSelect, wl_value, options_out):
         rrs_ins = np.array(self.mrfile.nc.variables['mu_ins_rrs'])
@@ -919,8 +1009,11 @@ class MDBPlot:
                 str0 = f'{str0}y = {val_slope.strip()}x {sign} {val_offset.strip()}'
             else:
                 val = self.valid_stats[defaults.valid_stats[stat.upper()]['name']]
+                print(stat.upper(), val)
 
                 valstr = self.get_str_stat(val, options[f'{stat.upper()}_FORMAT'], options['units'])
+                if stat.upper() == 'APD' or stat.upper() == 'RPD':
+                    valstr = f'{valstr}%'
                 name_plot = options[f'{stat.upper()}_NAMEPLOT']
                 str0 = f'{str0}{name_plot} = {valstr}'
 
