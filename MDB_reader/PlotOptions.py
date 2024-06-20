@@ -68,6 +68,15 @@ class PlotOptions:
                 list_figures.append(s)
         return list_figures
 
+    def get_list_virtual_flags(self):
+        sections = self.options.sections()
+        list_virtual = []
+        for s in sections:
+            type = self.get_value_param(s, 'type', False, 'str', None)
+            if type=='virtual_flag':
+                list_virtual.append(s)
+        return list_virtual
+
     def get_options(self, section):
         options_out = {'apply': self.get_value_param(section, 'apply', False, 'boolean', None)}
         if not options_out['apply']:
@@ -95,10 +104,10 @@ class PlotOptions:
         #     options_out = self.get_options_spectraplot(section, options_out)
 
         if options_out['type'].startswith('statstable'):
-            print(f'[INFO] Plot type: statstable')
+            print(f'[INFO] Getting options for plot type: statstable')
             options_out = self.get_options_csv_statstable(section, options_out)
         else:
-            print(f'[INFO] Plot type: {options_out["type"]}')
+            print(f'[INFO] Getting options for plot type: {options_out["type"]}')
             options_out = self.get_options_impl(options_out['type'], section, options_out)
 
         # if options_out['type'] == 'histogram':
@@ -126,7 +135,8 @@ class PlotOptions:
         #      options_out = self.get_options_flag(section, options_out)
         if options_out is not None:
             for option in options_out:
-                print(option, '->', options_out[option])
+                print(f'[INFO] [{options_out["type"]} OPTIONS] {option}->{options_out[option]}')
+                #print(option, '->', options_out[option])
 
         return options_out
 
@@ -146,6 +156,8 @@ class PlotOptions:
             doptions = defaults.get_options_flag_plot()
         if type == 'angleplot':
             doptions = defaults.get_options_angleplot()
+        if type == 'mapplot':
+            doptions = defaults.get_options_mapplot()
 
         if doptions is None:
             print(f'[ERROR] Options for plot {type} are not implemented yet')
@@ -154,11 +166,51 @@ class PlotOptions:
             pvalues = None
             if 'values' in doptions[option]:
                 pvalues = doptions[option]['values']
+
+
             options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
                                                        doptions[option]['type'], pvalues)
+
+        options_out = self.update_dicts(section,options_out)
+
         if type == 'scatterplot':
             options_out = self.get_options_scatterplot(section, options_out)
 
+
+
+        return options_out
+
+    def update_dicts(self,section,options_out):
+        type = options_out['type']
+        dicts_to_update = []
+        if type=='mapplot':
+            dicts_to_update = ['default_style','valid_style']
+        if type=='timeseries':
+            dicts_to_update = ['fix_axis_options']
+        for dict in dicts_to_update:
+            keys = []
+            if dict.endswith('style'):
+                for key in options_out[dict]:
+                    keys.append(f'{dict}.{key}')
+                    options_out[dict][key] = [options_out[dict][key]]
+                for key in keys:
+                    keytype = 'strlist'
+                    if key.endswith('markersize') or key.endswith('linewidth'):
+                        keytype = 'floatlist'
+                    vals = self.get_value_param(section,key,None,keytype,None)
+                    if vals is not None:
+                        options_out[dict][key.split('.')[1]] = vals
+
+            if dict=='fix_axis_options':
+                for key in options_out[dict]:
+                    keys.append(f'{dict}.{key}')
+                for key in keys:
+                    keytype = 'int'
+                    if key.find('format')>0:
+                        keytype = 'str'
+                    vals = self.get_value_param(section, key, None, keytype, None)
+                    if vals is not None:
+                        options_out[dict][key.split('.')[1]] = vals
         return options_out
 
     def get_fix_time_axis(self, frequency, units, time_start, time_stop):
@@ -366,6 +418,7 @@ class PlotOptions:
 
     def get_value_param(self, section, key, default, type, potential_values):
         value = self.get_value(section, key)
+
         if value is None:
             return default
         if type == 'str':
@@ -424,6 +477,19 @@ class PlotOptions:
                 vals = vals.strip()
                 list.append(float(vals))
             return list
+
+        if type == 'fix_axis_options':
+            list_str = [x.strip() if x.lower()!='none' else None for x in value.split(',')]
+            #format,ini,fin,formatRel,ini,fin
+            fix_axis_options = defaults.default_fix_axis_options
+            fix_axis_options['format_abs'] = list_str[0]
+            if len(list_str) >= 2: fix_axis_options['min_abs'] = int(list_str[1])
+            if len(list_str) >= 3: fix_axis_options['max_abs'] = int(list_str[2])
+            if len(list_str) >= 4: fix_axis_options['format_rel'] = list_str[3]
+            if len(list_str) >= 5: fix_axis_options['min_rel'] = int(list_str[4])
+            if len(list_str) >= 6: fix_axis_options['max_rel'] = int(list_str[5])
+            return fix_axis_options
+
         if type == 'floattuple':
             list_str = value.split(',')
             list = []
@@ -484,6 +550,8 @@ class PlotOptions:
             except:
                 print(f'[WARNING] {section}-{key} is not valid fill style, using default style')
                 return default
+
+
 
         if type == 'date':
             from datetime import datetime as dt

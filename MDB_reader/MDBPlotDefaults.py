@@ -173,6 +173,36 @@ sat_fill_style_default ={
     'color': 'blue',
     'alpha': 0.5
 }
+map_points_default_style = {
+    'color': 'blue',
+    'marker': 'o',
+    'markersize': 3,
+    'linestyle': None,
+    'linewidth': 0
+}
+map_points_valid_style = {
+    'color': 'green',
+    'marker': 'o',
+    'markersize': 3,
+    'linestyle': None,
+    'linewidth': 0
+}
+default_fix_axis_options = {
+    'format_abs':'%Y',
+    'min_abs': None,
+    'max_abs': None,
+    'format_rel': None,
+    'min_rel': None,
+    'max_rel': None,
+    'plot_all': False,
+    'plot_central': 'avg',
+    'plot_dispersion': None,
+    'fill_dispersion': None,
+    'plot_minmax': False,
+    'fill_minmax': False
+}
+
+
 global_options = {
     'output_path': {
         'default': None,
@@ -194,7 +224,7 @@ global_options = {
     }
 }
 
-type_list = ['scatterplot','statswlplot','spectraplot','multipleplot','flagplot','histogram','timeseries','sequence','angleplot']
+type_list = ['scatterplot','statswlplot','spectraplot','multipleplot','flagplot','histogram','timeseries','sequence','angleplot','mapplot']
 
 valid_stats = {
     'N':{
@@ -561,6 +591,10 @@ options_scatterplots = {
     'apply_wavelength_color ':{
         'default': True,
         'type': 'boolean'
+    },
+    'individual_plots':{
+        'default': False,
+        'type': 'boolean'
     }
 
 }
@@ -758,6 +792,10 @@ options_timeseries = {
         'default': None,
         'type': 'strlist'
     },
+    'insitu_id_variable':{
+        'default': None,
+        'type': 'str'
+    },
     'dispersion_min_var':{
         'default': None,
         'type': 'strlist'
@@ -793,7 +831,11 @@ options_timeseries = {
     'method_fix_axis':{
         'default': 'all',
         'type': 'str',
-        'values': ['all','nearest']
+        'values': ['all','nearest','stat']
+    },
+    'fix_axis_options':{
+        'default': default_fix_axis_options,
+        'type': 'fix_axis_options',
     },
     'xticks_range':{
         'default': 1,
@@ -941,6 +983,52 @@ options_angleplot = {
 
 }
 
+
+options_maplot = {
+    'latitude_variable': {
+        'default': 'insitu_latitude',
+        'type': 'str',
+    },
+    'longitude_variable':{
+        'default': 'insitu_longitude',
+        'type': 'str'
+    },
+    'insitu_id_variable':{
+        'default': None,
+        'type': 'str'
+    },
+    'valid_variable_binary':{
+        'default': None,
+        'type': 'str'
+    },
+    'valid_variable_masked':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'limit_to_valid':{
+        'default': False,
+        'type': 'boolean'
+    },
+    'default_style':{
+        'default': map_points_default_style,
+        'type': 'linestyle'
+    },
+    'valid_style': {
+        'default': map_points_valid_style,
+        'type': 'linestyle'
+    },
+    'groupByValid': {
+        'default': False,
+        'type': 'boolean'
+    },
+    'geo_limits':{
+        'default': None,
+        'type': 'floatlist'
+    }
+
+
+}
+
 def get_options_spectraplots():
     options = options_spectraplots
     for op in options_legend:
@@ -1002,6 +1090,19 @@ def get_options_angleplot():
 
     return options
 
+
+def get_options_mapplot():
+    options = options_maplot
+    for op in options_legend:
+        options[op] = options_legend[op]
+    for op in options_title:
+        options[op] = options_title[op]
+    for op in options_group:
+        options[op] = options_group[op]
+    for op in options_select:
+        options[op] = options_select[op]
+
+    return options
 
 def get_options_sequence():
     options =  options_sequences

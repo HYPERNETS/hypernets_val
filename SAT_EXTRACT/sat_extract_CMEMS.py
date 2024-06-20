@@ -1691,6 +1691,10 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
     file = os.path.join(path_day, f'{namefile}')
 
     if not os.path.exists(file):
+
+        print('ARRIVA QUA: ')
+        print(cmems_download_options)
+        print('===========================')
         ods = None
         if org == 'YYYYjjj':
             ods = '%Y/%j'

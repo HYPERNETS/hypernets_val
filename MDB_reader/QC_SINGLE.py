@@ -1,4 +1,6 @@
 import os
+
+import pytz
 from netCDF4 import Dataset
 import numpy as np
 import COMMON.Class_Flags_OLCI as flag
@@ -401,8 +403,16 @@ class QC_SINGLE:
         data_ins_mu = self.dataset.variables[self.insitu_variable][index_mu]
 
         if 'satellite_time' in self.dataset.variables and 'insitu_time' in self.dataset.variables:
+            from datetime import datetime as dt
             satellite_time = self.dataset.variables['satellite_time'][index_mu]
             insitu_time = self.dataset.variables['insitu_time'][index_mu]
+            ##temporal, change satellite time
+            satellite_time_r = dt.utcfromtimestamp(float(satellite_time))
+            satellite_time_r = satellite_time_r.replace(hour=13,tzinfo = pytz.UTC)
+            #print('estamos aqui...',satellite_time_r)
+            satellite_time = satellite_time_r.timestamp()
+            ##fin temporal
+
             nid = insitu_time.shape[0]
             satellite_time_n = np.ma.repeat(satellite_time,nid)
             time_diff_mu = np.ma.abs(insitu_time-satellite_time_n)

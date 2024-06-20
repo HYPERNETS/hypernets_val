@@ -32,6 +32,8 @@ class MDBPlot:
         for s in defaults.valid_stats:
             self.valid_stats[defaults.valid_stats[s]['name']] = 0.0
 
+        self.virtual_flags = {}
+
     def compute_statistics(self, use_log_scale, use_rhow, type_regression):
 
         self.valid_stats['N'] = len(self.xdata)
@@ -183,6 +185,7 @@ class MDBPlot:
         poptions.set_global_options()
         self.global_options = poptions.global_options
         list_figures = poptions.get_list_figures()
+        list_virtual = poptions.get_list_virtual_flags()
         # print(list_figures)
         for figure in list_figures:
             print('------------------------------------------------------------------------------------------')
@@ -191,8 +194,12 @@ class MDBPlot:
             if options_figure is None:
                 continue
             if 'selectBy' in options_figure and options_figure['selectBy'] is not None:
+                if options_figure['selectBy'] in list_virtual:
+                    self.create_virtual_flag(poptions, options_figure['selectBy'])
                 options_figure = self.check_gs_options_impl(options_figure, 'selectBy', 'selectType', 'selectValues')
             if 'groupBy' in options_figure and options_figure['groupBy'] is not None:
+                if options_figure['selectBy'] in list_virtual:
+                    self.create_virtual_flag(poptions, options_figure['groupBy'])
                 options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
             self.plot_from_options_impl(options_figure)
 
@@ -203,6 +210,182 @@ class MDBPlot:
             self.plot_spectraplot_from_options(options_figure)
         if options_figure['type'] == 'timeseries':
             self.plot_time_series(options_figure)
+        if options_figure['type'] == 'mapplot':
+            self.plot_map_plot(options_figure)
+
+    def plot_map_plot(self, options_figure):
+        import cartopy
+        import cartopy.crs as ccrs
+        import matplotlib.pyplot as plt
+        import matplotlib.ticker as mticker
+
+        if not self.VALID and not os.path.isfile(self.mrfile.file_path):
+            print(f'[ERROR] {self.mrfile.file_path} shoud be a valid NetCDF file')
+            return
+
+        print(f'[INFO] [mapplot PLOT] Getting arrays...')
+        latitude_var = self.mrfile.nc.variables[options_figure['latitude_variable']]
+        longitude_var = self.mrfile.nc.variables[options_figure['longitude_variable']]
+        if latitude_var.dimensions != longitude_var.dimensions:
+            print(
+                f'[ERROR] Latitude ({options_figure["latitude_variable"]}) and longitude ({options_figure["longitude_variable"]}) variable shoud have the same dimensions')
+            return
+        lat_array = self.mrfile.get_full_array_1D(options_figure['latitude_variable'],
+                                                  options_figure['insitu_id_variable'], False)
+        lon_array = self.mrfile.get_full_array_1D(options_figure['longitude_variable'],
+                                                  options_figure['insitu_id_variable'], False)
+        valid_array = np.ones(lat_array.shape)
+        if options_figure['valid_variable_masked'] is not None:
+            for mask_variable in options_figure['valid_variable_masked']:
+                marray = self.mrfile.get_full_array_1D(mask_variable, options_figure['insitu_id_variable'], False)
+                valid_array[marray.mask] = 0
+        valid_lat_lon = np.ones(lat_array.shape)
+        valid_lat_lon[lat_array.mask] = 0
+        valid_lat_lon[lon_array.mask] = 0
+        lat_array = lat_array[valid_lat_lon == 1]
+        lon_array = lon_array[valid_lat_lon == 1]
+        valid_array = valid_array[valid_lat_lon == 1]
+        if options_figure['limit_to_valid']:
+            lat_array = lat_array[valid_array==1]
+            lon_array = lon_array[valid_array==1]
+            valid_array = valid_array[valid_array==1]
+
+
+        print(f'[INFO] [mapplot PLOT] Getting geographical limits...')
+        geo_limits = self.get_geo_limits(options_figure, lat_array, lon_array)
+        extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+
+        print(
+            f'[INFO] [mapplot PLOT] Maps limits: Latitude-> {geo_limits[0]} to {geo_limits[1]}; Longitude: {geo_limits[2]} to {geo_limits[3]}')
+
+        print(f'[INFO] [mapplot PLOT] Plotting...')
+        ax = plt.axes(projection=ccrs.PlateCarree(), extent=extent)
+
+        # # ax.coastlines(linewidth=0.5)
+        ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+
+        gl = ax.gridlines(linewidth=0.5, linestyle='dotted', draw_labels=True)
+        gl.xlabels_top = False
+        gl.ylabels_right = False
+
+        # # lon_labels = [-15,-10,-5,0,5,10,15,20,25]
+        # # gl.xlocator = mticker.FixedLocator(lon_labels)
+        #
+        # # ax.set_yticks(ax.get_yticks())
+        # # ax.set_xticks(ax.get_xticks())
+        #
+        if options_figure['groupBy'] is None:
+            if options_figure['groupByValid']:
+                lat_array_valid = lat_array[valid_array==1]
+                lon_array_valid = lon_array[valid_array==1]
+                lat_array_invalid = lat_array[valid_array == 0]
+                lon_array_invalid = lon_array[valid_array == 0]
+                if len(lat_array_valid)>0 and len(lon_array_valid)>0:
+                    plt.plot(lon_array_valid.tolist(), lat_array_valid.tolist(),
+                             color=options_figure['valid_style']['color'][0],
+                             marker=options_figure['valid_style']['marker'][0],
+                             markersize=options_figure['valid_style']['markersize'][0],
+                             linestyle=options_figure['valid_style']['linestyle'][0],
+                             linewidth=options_figure['valid_style']['linewidth'][0])
+                if len(lat_array_invalid)>0 and len(lon_array_invalid)>0:
+                    plt.plot(lon_array_invalid.tolist(), lat_array_invalid.tolist(),
+                             color=options_figure['default_style']['color'][0],
+                             marker=options_figure['default_style']['marker'][0],
+                             markersize=options_figure['default_style']['markersize'][0],
+                             linestyle=options_figure['default_style']['linestyle'][0],
+                             linewidth=options_figure['default_style']['linewidth'][0])
+            else:
+                style = 'default_style'
+                if options_figure['limit_to_valid']:
+                    style = 'valid_style'
+                plt.plot(lon_array.tolist(), lat_array.tolist(),
+                     color=options_figure[style]['color'][0],
+                     marker=options_figure[style]['marker'][0],
+                     markersize=options_figure[style]['markersize'][0],
+                     linestyle=options_figure[style]['linestyle'][0],
+                     linewidth=options_figure[style]['linewidth'][0])
+        else:
+            pass
+            # all_group_array, all_group_values, all_group_meanings = self.get_flag_array(options_out, 'groupBy')
+            # group_values = options_out['groupValues']
+        #
+        #     print(options_out)
+        #     if 'groupArraySelect' in options_out:
+        #         groupArray = options_out['groupArraySelect']
+        #     else:
+        #         groupArray = all_group_array
+        #
+        #     ngroup = len(group_values)
+        #     for idx in range(ngroup):
+        #         gvalue = group_values[idx]
+        #         ghere = self.get_flag_flag(gvalue, np.array(all_group_values), all_group_meanings)
+        #         color = self.get_option_from_list(options_out['point_color'], idx, ngroup)
+        #         if len(options_out['point_color']) == 1 and ngroup > 1:
+        #             color = defaults.get_color_default(idx, 0, ngroup - 1)
+        #         size = self.get_option_from_list(options_out['point_size'], idx, ngroup)
+        #         print(f'[INFO] Plotting group: {ghere} with value: {gvalue} Color: {color}')
+        #         array_lon_here = array_lon[groupArray == group_values[idx]]
+        #         array_lat_here = array_lat[groupArray == group_values[idx]]
+        #         plt.plot(array_lon_here.tolist(), array_lat_here.tolist(), color=color, marker='o', markersize=size,
+        #                  linestyle='none')
+        if options_figure['title'] is not None:
+            plt.title(options_figure['title'])
+
+        file_out = options_figure['file_out']
+        if file_out is not None:
+            if file_out.endswith('.tif'):
+                plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+            else:
+                plt.savefig(file_out, dpi=300, bbox_inches='tight')
+
+        # ax.close()
+        plt.close()
+        print(f'[INFO] [mapplot PLOT] Completed')
+
+    def get_geo_limits(self, options_figure, array_lat, array_lon):
+        geo_limits = options_figure['geo_limits']
+        if geo_limits is None:
+            min_lat = np.min(array_lat)
+            max_lat = np.max(array_lat)
+            min_lon = np.min(array_lon)
+            max_lon = np.max(array_lon)
+            # if options_out['plot_extracts'] is True:
+            #     extract_list = options_out['plot_extract_list']
+            #     if extract_list is None:
+            #         extract_list = self.get_extract_list(dt.strptime('20230610', '%Y%m%d'))
+            #         options_out['plot_extract_list'] = extract_list
+            #
+            #     for iextract in extract_list:
+            #         lat_line_all, lon_line_all = self.get_polygon_extract(iextract, -1)
+            #         min_lat_extract = np.min(np.array(lat_line_all))
+            #         max_lat_extract = np.max(np.array(lat_line_all))
+            #         min_lon_extract = np.min(np.array(lon_line_all))
+            #         max_lon_extract = np.max(np.array(lon_line_all))
+            #         if min_lat_extract < min_lat:
+            #             min_lat = min_lat_extract
+            #         if max_lat_extract > max_lat:
+            #             max_lat = max_lat_extract
+            #         if min_lon_extract < min_lon:
+            #             min_lon = min_lon_extract
+            #         if max_lon_extract > max_lon:
+            #             max_lon = max_lon_extract
+
+            if abs(max_lat - min_lat) > 1:
+                min_lat = np.floor(min_lat)
+                max_lat = np.ceil(max_lat)
+            else:
+                min_lat = min_lat - 0.01
+                max_lat = max_lat + 0.01
+            if abs(max_lon - min_lon) > 1:
+                min_lon = np.floor(min_lon)
+                max_lon = np.ceil(max_lon)
+            else:
+                min_lon = min_lon - 0.01
+                max_lon = max_lon + 0.01
+
+            geo_limits = [float(min_lat), float(max_lat), float(min_lon), float(max_lon)]
+
+        return geo_limits
 
     def plot_time_series(self, options_figure):
         if not self.VALID and not os.path.isfile(self.mrfile.file_path):
@@ -220,88 +403,134 @@ class MDBPlot:
             if avg_var not in self.mrfile.nc.variables:
                 print(f'[ERROR] {avg_var} is not defined in {self.mrfile.file_path}')
                 return
+        time_array = self.mrfile.get_full_array_1D(options_figure['time_var'],options_figure['insitu_id_variable'], False)
+        print(time_array.shape)
+        valid_array = np.ones(time_array.shape)
+        valid_array[time_array.mask] = 0
+        time_array = time_array[valid_array==1]
+        print(time_array.shape)
 
-        time = np.array(self.mrfile.nc.variables[time_var])
-        from datetime import datetime as dt
-        time_ini_year = [
-            dt.utcfromtimestamp(float(x)).replace(day=1, month=1, hour=0, minute=0, second=0, microsecond=0,
-                                                  tzinfo=pytz.UTC).timestamp() for x in time]
-        time_fin_year = [dt.utcfromtimestamp(float(x)).replace(tzinfo=pytz.UTC,
-                                                               year=dt.utcfromtimestamp(float(x)).year + 1).timestamp()
-                         for x in time_ini_year]
-        seconds_year = np.array(time_fin_year) - np.array(time_ini_year)
-        time_array = []
-        for there, ini_year, total_year in zip(time, time_ini_year, seconds_year):
-            val = dt.utcfromtimestamp(there).year + ((there - ini_year) / total_year)
-            time_array.append(val)
-        time_array = np.array(time_array)
-        width = (time_array[-1] - time_array[0]) / len(time_array)
-
-        dispersion_min_var = options_figure['dispersion_min_var']
-        dispersion_max_var = options_figure['dispersion_max_var']
+        if options_figure['type_time_axis']=='fix':
+            instant_values, time_array_instants = self.get_fix_time_axis(time_array,options_figure['fix_axis_options'])
 
         from PlotSpectra import PlotSpectra
         import MDBPlotDefaults as defaults
         pspectra = PlotSpectra()
-        pspectra.xdata = time_array
+        pspectra.xdata = instant_values
+
         style = pspectra.line_style_default.copy()
         style['linewidth'] = 0
         style['marker'] = 'o'
         style['markersize'] = 1
         handles = []
-        for index, avg_var in enumerate(avg_vars):
-            style['color'] = defaults.colors_default[index]
-            var_array = np.array(self.mrfile.nc.variables[avg_var]).astype(np.float)
-            var_array[var_array < -1] = np.nan
-            if index == 1 and not options_figure['log_scale']:
-                var_array[~np.isnan(var_array)] = var_array[~np.isnan(var_array)] / np.pi
-            if options_figure['log_scale']:
-                var_array[~np.isnan(var_array)] = np.log10(var_array[~np.isnan(var_array)])
-            h = pspectra.plot_data(var_array, style)
+        for index,avg_var in enumerate(avg_vars):
+            #style['color'] = defaults.colors_default[index]
+            var_array =  self.mrfile.get_full_array_1D(avg_var,options_figure['insitu_id_variable'], False)
+            var_array = var_array[valid_array == 1]
+            if options_figure['type_time_axis']=='fix':
+                if options_figure['method_fix_axis']=='all':
+                    for ivalue in instant_values:
+                        #xdata = instant_values[instant_values==ivalue]
+                        ydata = var_array[time_array_instants==ivalue]
+                        ydata = ydata[~ydata.mask]
+                        print(ivalue,np.min(ydata),np.max(ydata))
+                        xdata = np.zeros(len(ydata))
+                        xdata[:] = ivalue
+                        pspectra.plot_single_data(xdata,ydata,style)
 
-            ##temporal, owt
-            # h = pspectra.plot_single_bar_series(var_array,style['color'],width,0,0)
 
-            handles.append(h[0])
-            if dispersion_min_var is not None and dispersion_max_var is not None:
-                if len(dispersion_min_var) == len(avg_vars) and len(dispersion_max_var) == len(avg_vars):
-                    min_dispersion_array = np.array(self.mrfile.nc.variables[dispersion_min_var[index]])
-                    max_dispersion_array = np.array(self.mrfile.nc.variables[dispersion_max_var[index]])
-                    min_dispersion_array[min_dispersion_array < -1.0] = np.nan
-                    max_dispersion_array[max_dispersion_array < -1.0] = np.nan
-                    if index == 1 and not options_figure['log_scale']:
-                        min_dispersion_array[~np.isnan(min_dispersion_array)] = min_dispersion_array[~np.isnan(
-                            min_dispersion_array)] / np.pi
-                        max_dispersion_array[~np.isnan(max_dispersion_array)] = max_dispersion_array[~np.isnan(
-                            max_dispersion_array)] / np.pi
-                    if options_figure['log_scale']:
-                        min_dispersion_array[~np.isnan(min_dispersion_array)] = np.log10(
-                            min_dispersion_array[~np.isnan(min_dispersion_array)])
-                        max_dispersion_array[~np.isnan(max_dispersion_array)] = np.log10(
-                            max_dispersion_array[~np.isnan(max_dispersion_array)])
-                    pspectra.plot_iqr_basic(min_dispersion_array, max_dispersion_array, style['color'])
+        #     var_array = np.array(self.mrfile.nc.variables[avg_var]).astype(np.float)
+        #     var_array[var_array < -1] = np.nan
+        #     if index == 1 and not options_figure['log_scale']:
+        #         var_array[~np.isnan(var_array)] = var_array[~np.isnan(var_array)] / np.pi
+        #     if options_figure['log_scale']:
+        #         var_array[~np.isnan(var_array)] = np.log10(var_array[~np.isnan(var_array)])
+        #     h = pspectra.plot_data(var_array, style)
 
-        ##temporal, for owt
-        # yticks = np.arange(1,19)
-        # pspectra.set_yticks(yticks,yticks,0,10)
 
-        ##temporal
-        ymin = options_figure['y_min']
-        ymax = options_figure['y_max']
-        if ymin is not None or ymax is not None:
-            pspectra.set_y_range(ymin, ymax)
-        if options_figure['ylabel'] is not None:
-            pspectra.set_yaxis_title(options_figure['ylabel'])
-        if options_figure['xlabel'] is not None:
-            pspectra.set_xaxis_title(options_figure['xlabel'])
-        pspectra.set_grid()
-        if options_figure['legend'] and options_figure['legend_values'] is not None:
-            pspectra.legend_options['loc'] = 'lower center'
-            pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.25)
-            pspectra.legend_options['ncols'] = 2
-            pspectra.legend_options['markerscale'] = 5
 
-            pspectra.set_legend_h(handles, options_figure['legend_values'])
+
+        # time = np.array(self.mrfile.nc.variables[time_var])
+        # from datetime import datetime as dt
+        # time_ini_year = [
+        #     dt.utcfromtimestamp(float(x)).replace(day=1, month=1, hour=0, minute=0, second=0, microsecond=0,
+        #                                           tzinfo=pytz.UTC).timestamp() for x in time]
+        # time_fin_year = [dt.utcfromtimestamp(float(x)).replace(tzinfo=pytz.UTC,
+        #                                                        year=dt.utcfromtimestamp(float(x)).year + 1).timestamp()
+        #                  for x in time_ini_year]
+        # seconds_year = np.array(time_fin_year) - np.array(time_ini_year)
+        # time_array = []
+        # for there, ini_year, total_year in zip(time, time_ini_year, seconds_year):
+        #     val = dt.utcfromtimestamp(there).year + ((there - ini_year) / total_year)
+        #     time_array.append(val)
+        # time_array = np.array(time_array)
+        # width = (time_array[-1] - time_array[0]) / len(time_array)
+        #
+        # dispersion_min_var = options_figure['dispersion_min_var']
+        # dispersion_max_var = options_figure['dispersion_max_var']
+
+
+        # pspectra.xdata = time_array
+        # style = pspectra.line_style_default.copy()
+        # style['linewidth'] = 0
+        # style['marker'] = 'o'
+        # style['markersize'] = 1
+        # handles = []
+        # for index, avg_var in enumerate(avg_vars):
+        #     style['color'] = defaults.colors_default[index]
+        #     var_array = np.array(self.mrfile.nc.variables[avg_var]).astype(np.float)
+        #     var_array[var_array < -1] = np.nan
+        #     if index == 1 and not options_figure['log_scale']:
+        #         var_array[~np.isnan(var_array)] = var_array[~np.isnan(var_array)] / np.pi
+        #     if options_figure['log_scale']:
+        #         var_array[~np.isnan(var_array)] = np.log10(var_array[~np.isnan(var_array)])
+        #     h = pspectra.plot_data(var_array, style)
+        #
+        #     ##temporal, owt
+        #     # h = pspectra.plot_single_bar_series(var_array,style['color'],width,0,0)
+        #
+        #     handles.append(h[0])
+        #     if dispersion_min_var is not None and dispersion_max_var is not None:
+        #         if len(dispersion_min_var) == len(avg_vars) and len(dispersion_max_var) == len(avg_vars):
+        #             min_dispersion_array = np.array(self.mrfile.nc.variables[dispersion_min_var[index]])
+        #             max_dispersion_array = np.array(self.mrfile.nc.variables[dispersion_max_var[index]])
+        #             min_dispersion_array[min_dispersion_array < -1.0] = np.nan
+        #             max_dispersion_array[max_dispersion_array < -1.0] = np.nan
+        #             if index == 1 and not options_figure['log_scale']:
+        #                 min_dispersion_array[~np.isnan(min_dispersion_array)] = min_dispersion_array[~np.isnan(
+        #                     min_dispersion_array)] / np.pi
+        #                 max_dispersion_array[~np.isnan(max_dispersion_array)] = max_dispersion_array[~np.isnan(
+        #                     max_dispersion_array)] / np.pi
+        #             if options_figure['log_scale']:
+        #                 min_dispersion_array[~np.isnan(min_dispersion_array)] = np.log10(
+        #                     min_dispersion_array[~np.isnan(min_dispersion_array)])
+        #                 max_dispersion_array[~np.isnan(max_dispersion_array)] = np.log10(
+        #                     max_dispersion_array[~np.isnan(max_dispersion_array)])
+        #             pspectra.plot_iqr_basic(min_dispersion_array, max_dispersion_array, style['color'])
+        #
+        # ##temporal, for owt
+        # # yticks = np.arange(1,19)
+        # # pspectra.set_yticks(yticks,yticks,0,10)
+        #
+        # ##temporal
+        # ymin = options_figure['y_min']
+        # ymax = options_figure['y_max']
+        # if ymin is not None or ymax is not None:
+        #     pspectra.set_y_range(ymin, ymax)
+        # if options_figure['ylabel'] is not None:
+        #     pspectra.set_yaxis_title(options_figure['ylabel'])
+        # if options_figure['xlabel'] is not None:
+        #     pspectra.set_xaxis_title(options_figure['xlabel'])
+        # pspectra.set_grid()
+        # if options_figure['legend'] and options_figure['legend_values'] is not None:
+        #     pspectra.legend_options['loc'] = 'lower center'
+        #     pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.25)
+        #     pspectra.legend_options['ncols'] = 2
+        #     pspectra.legend_options['markerscale'] = 5
+        #
+        #     pspectra.set_legend_h(handles, options_figure['legend_values'])
+
+
         if options_figure['title'] is not None:
             pspectra.set_title(options_figure['title'])
 
@@ -310,11 +539,38 @@ class MDBPlot:
         if file_out is not None:
             pspectra.save_plot(file_out)
 
+    def get_fix_time_axis(self,time_array,options):
+        print('aqui')
+        print(options)
+        from datetime import datetime as dt
+        time_array_instants = time_array.copy().astype(np.int32)
+        format_abs = options['format_abs']
+        min_time_abs = options['min_abs']
+        max_time_abs = options['max_abs']
+        check_min_time = False if min_time_abs is None else True
+        check_max_time = False if max_time_abs is None else True
+
+        for index,time in enumerate(time_array):
+            time_here = dt.utcfromtimestamp(time)
+            instant_here = int(time_here.strftime(format_abs))
+            time_array_instants[index] = instant_here
+            if check_min_time and instant_here < min_time_abs: time_array_instants[index] = -1
+            if check_max_time and instant_here > max_time_abs: time_array_instants[index] = -1
+            if not check_min_time and ((min_time_abs is None) or (min_time_abs is not None and instant_here<min_time_abs)):
+                min_time_abs = instant_here
+            if not check_max_time and ((max_time_abs is None) or (max_time_abs is not None and instant_here>max_time_abs)):
+                max_time_abs = instant_here
+
+        print(min_time_abs,max_time_abs)
+        instant_values = np.arange(min_time_abs,max_time_abs+1,1).astype(np.int32)
+        print(instant_values )
+
+        return instant_values,time_array_instants
+
     def plot_scatterplot_from_options(self, options_figure):
 
         ##WORKING WITH ALL THE DATA
-        # options_figure['individual_plots'] = False
-        if options_figure['selectBy'] is None:  # or not options_figure['individual_plots']:
+        if options_figure['selectBy'] is None or not options_figure['individual_plots']:
             if options_figure['type_scatterplot'] == 'rrs':
                 if not options_figure['selectByWavelength']:  # GLOBAL SCATTERPLOT
                     self.plot_global_scatterplot(options_figure)
@@ -337,13 +593,16 @@ class MDBPlot:
                 flag = self.get_str_select_value(options_figure, svalue)
                 options_figure['file_out'] = self.get_file_out_name(file_out_base, None, flag)
                 options_figure['title'] = self.get_title(title_base, None, flag, None)
-                if not options_figure['selectByWavelength']:  # GLOBAL SCATTERPLOT
-                    self.plot_global_scatterplot(options_figure)
-                else:  # AN SCATTERPLOT BY WAVELENGTH
-                    if options_figure['multiple_plot'] is not None:  # single file
-                        self.plot_multiple_wavelength_scatterplots_single_file(options_figure)
-                    else:  # multiple files
-                        self.plot_multiple_wavelength_scatterplots_multiple_files(options_figure)
+                if options_figure['type_scatterplot'] != 'rrs': ##GENERAL SCATTER PLOT
+                    self.plot_general_scatterplot(options_figure)
+                else:
+                    if not options_figure['selectByWavelength']:  # GLOBAL SCATTERPLOT
+                        self.plot_global_scatterplot(options_figure)
+                    else:  # AN SCATTERPLOT BY WAVELENGTH
+                        if options_figure['multiple_plot'] is not None:  # single file
+                            self.plot_multiple_wavelength_scatterplots_single_file(options_figure)
+                        else:  # multiple files
+                            self.plot_multiple_wavelength_scatterplots_multiple_files(options_figure)
 
     def plot_general_scatterplot(self, options_figure):
         self.set_data_scatterplot_general(options_figure['groupBy'], options_figure['selectBy'],
@@ -778,7 +1037,14 @@ class MDBPlot:
                     'flag_meanings': flag_meanings
                 }
             else:  ##virtual flag
-                print('virtual flag')
+                print(f'[INFO] Using virtual flag: {var_group_name}')
+                flag_values = self.virtual_flags[var_group_name]['flag_values']
+                flag_meanings = self.virtual_flags[var_group_name]['flag_meanings']
+                options_figure[var_group_name] = {
+                    'flag_values': flag_values,
+                    'flag_meanings': flag_meanings
+                }
+
             if options_figure[values] is None:
                 options_figure[values] = flag_values
             else:
@@ -845,7 +1111,11 @@ class MDBPlot:
                 select_array = select_array_1D
 
             valid_all_s = np.zeros(xarray.shape)
-            for val in selectValues:
+            try:
+                for val in selectValues:
+                    valid_all_s[np.logical_and(select_array == val, valid_all == 1)] = 1
+            except:##selectValues is a single non-iterable value
+                val = selectValues
                 valid_all_s[np.logical_and(select_array == val, valid_all == 1)] = 1
             valid_all = valid_all_s
 
@@ -916,9 +1186,9 @@ class MDBPlot:
             flag_values = self.mrfile.variables[var_flag].flag_values
             flag_meanings = self.mrfile.variables[var_flag].flag_meanings.split(' ')
         else:  ##previously virtual flag
-            array_flag = options_out[var_flag]['flag_array']
-            flag_values = options_out[var_flag]['flag_values']
-            flag_meanings = options_out[var_flag]['flag_meanings']
+            array_flag = self.virtual_flags[var_flag]['flag_array']
+            flag_values = self.virtual_flags[var_flag]['flag_values']
+            flag_meanings = self.virtual_flags[var_flag]['flag_meanings']
 
         return array_flag, flag_values, flag_meanings
 
@@ -1147,3 +1417,25 @@ class MDBPlot:
             title = title.replace('$PARAM$', param)
 
         return title
+
+    def create_virtual_flag(self, poptions, vflag):
+        if vflag in self.virtual_flags:
+            return
+        from FlagBuilder import FlagBuilder
+        fbuilder = FlagBuilder(self.path_mdbr_file, None, poptions.options)
+        flag_values, flag_names, array = fbuilder.create_flag_array(vflag, False)
+
+        self.virtual_flags[vflag] = {
+            'flag_array': array,
+            'flag_values': flag_values,
+            'flag_meanings': flag_names
+        }
+
+        # options_flag = fbuilder.get_options_dict(vflag)
+        # print(options_flag)
+        # potential_types = fbuilder.flag_options['typevirtual']['list_values']
+        # #poptions = PlotOptions()
+        # type_v = poptions.get_value_param(vflag,'typevirtual',None,'str',potential_types)
+        # print(type_v)
+
+        # print('aqui')

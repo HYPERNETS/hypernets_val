@@ -57,6 +57,7 @@ class FlagBuilder:
             'level': {'type_param': 'str', 'list_values': ['l1', 'l2']},
             'var_limit_to_valid': {'type_param': 'str', 'default': None},
             'limit_to_central_pixel': {'type_param': 'boolean', 'default': False},
+            'output_dim': {'type_param': 'str','default':'satellite_id'},
             'default_flag': {'type_param': 'str', 'default': 'DEFAULT'},
             'default_value': {'type_param': 'int', 'default': 0},
             'default_masked': {'type_param': 'boolean', 'default': False},
@@ -64,11 +65,11 @@ class FlagBuilder:
             'lat_variable': {'type_group': ['spatial'], 'type_param': 'str', 'default': 'insitu_latitude'},
             'lon_variable': {'type_group': ['spatial'], 'type_param': 'str', 'default': 'insitu_longitude'},
             'time_variable': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'insitu_time'},
-            'time_ini': {'type_group': ['temporal'], 'type_param': 'str', 'default': None},
-            'time_fin': {'type_group': ['temporal'], 'type_param': 'str', 'default': None},
+            'time_ini_abs': {'type_group': ['temporal'], 'type_param': 'str', 'default': None},
+            'time_fin_abs': {'type_group': ['temporal'], 'type_param': 'str', 'default': None},
             'time_flag_type': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'ranges',
-                               'list_values': ['ranges', 'yearjday', 'yearmonth', 'jday', 'month', 'yearmonthday',
-                                               'monthday', 'flag_satellite_yearmonthday']},
+                               'list_values': ['ranges', 'instants']},
+            'instant_format':{'type_group':['temporal'],'type_param':'str','default': '%Y'},
             'flag_ranges_indexm': {'type_group': ['ranges'], 'type_param': 'strlist'},
             'flag_indexm': {'type_group': ['flag'], 'type_param': 'strlist'},
             'path_csv': {'type_group': ['csv'], 'type_param': 'file', 'default': None},
@@ -114,7 +115,7 @@ class FlagBuilder:
                 self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_names, dims)
 
         if type == 'temporal':
-            array, dims, flag_names, flag_values = self.create_flag_array_temporal(options_dict)
+            array, dims, flag_names, flag_values = self.create_flag_array_temporal_v2(options_dict)
             if create_copy:
                 self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_names, dims)
 
@@ -162,6 +163,53 @@ class FlagBuilder:
             required_arrays[name_var]['array'] = array_check
 
         return array, required_arrays
+
+    def create_flag_array_temporal_v2(self, options_dict):
+        if self.mfile is None and self.nc_file is not None:
+            dataset = Dataset(self.nc_file)
+        else:
+            dataset = self.mfile.nc
+
+        default_value = options_dict['default_value']
+        default_flag = options_dict['default_flag']
+        var_time = options_dict['time_variable']
+
+        use_pow2_flags = options_dict['use_pow2_flags']
+        time_array = dataset.variables[var_time][:]
+        if var_time=='insitu_time' and  options_dict['output_dim']=='satellite_id':
+            pass
+
+        array = time_array.copy().astype(np.int32)
+        array[:] = default_value
+        if default_flag is None or default_flag=='DEFAULT':
+            flag_names = []
+            flag_values = []
+        else:
+            flag_names = [default_flag]
+            flag_values = [default_value]
+        flag_type = options_dict['time_flag_type']
+
+        if flag_type=='instants':
+            ins_format = options_dict['instant_format']
+            index_flag = 0
+            for idx,t in enumerate(time_array):
+                print(idx,t)
+                str_instant = dt.utcfromtimestamp(float(t)).strftime(ins_format)
+                if str_instant not in flag_names:
+                    flag_names.append(str_instant)
+                    flag_value = self.get_flag_value(index_flag,use_pow2_flags)
+                    flag_values.append(flag_value)
+                    index_flag = index_flag + 1
+                else:
+                    index_here = flag_names.index(str_instant)
+                    flag_value = self.get_flag_value(index_here,use_pow2_flags)
+                array[idx] = np.int64(flag_value)
+
+        if self.mfile is None:
+            dataset.close()
+
+
+        return array, None, flag_names, flag_values
 
     def create_flag_array_ranges_v2(self, options_dict):
         dataset = Dataset(self.nc_file)
@@ -402,7 +450,8 @@ class FlagBuilder:
         var_time = options_dict['time_variable']
 
         flag_type = options_dict['time_flag_type']
-        use_pow2_vflags = options_dict['use_pow2_vflags']
+        use_pow2_vflags = options_dict['use_pow2_flags']
+
         time_array = self.mfile.get_full_array(var_time)
         array = time_array.copy().astype(np.int32)
         flag_names = []
