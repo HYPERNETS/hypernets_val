@@ -217,13 +217,13 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         file_pdf = os.path.join(folder_day, name_pdf)
         file_qc_mail = os.path.join(output_path, site, 'QCMail.mail')
         public_link = ''
-        # if os.path.exists(config_file_summary):
-        #     import configparser
-        #     options = configparser.ConfigParser()
-        #     options.read(config_file_summary)
-        #     if options.has_option('GLOBAL_OPTIONS', f'public_link_{site}'):
-        #         public_link = options['GLOBAL_OPTIONS'][f'public_link_{site}'].strip()
-        # # public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
+        if os.path.exists(config_file_summary):
+            import configparser
+            options = configparser.ConfigParser()
+            options.read(config_file_summary)
+            if options.has_option('GLOBAL_OPTIONS', f'public_link'):
+                public_link = options['GLOBAL_OPTIONS'][f'public_link'].strip()
+        # public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
         print(f'[INFO] Creating e-mail file: {file_qc_mail}')
         extra_info = {
             'folder_day': folder_day,
