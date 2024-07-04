@@ -5,9 +5,9 @@ from datetime import timedelta
 import argparse
 
 from hypernets_day import HYPERNETS_DAY
-import __init__
-from MDB_reader.PlotMultiple import PlotMultiple
-import numpy as np
+#import __init__
+#from MDB_reader.PlotMultiple import PlotMultiple
+#import numpy as np
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
@@ -289,6 +289,7 @@ def create_daily_mail_file(file_qc_mail,site,start_date,daily_sequences_summary,
     fout.close()
 
 def get_lines_disk_usage(file_log):
+    import numpy as np
     lines = ['']
     if not os.path.exists(file_log):return lines
     import pandas as pd
@@ -916,6 +917,9 @@ def correct_angles(input_path, output_path, site, start_date, end_date):
 
 
 def make_single_image(site, sequence, key, output_path):
+    import __init__
+    from MDB_reader.PlotMultiple import PlotMultiple
+    import numpy as np
     if key == 'all':
         keys = ['skiirrad1', 'skirad1', 'water', 'skirad2', 'skiirrad2', 'sun']
         if os.path.basename(output_path) != sequence:
