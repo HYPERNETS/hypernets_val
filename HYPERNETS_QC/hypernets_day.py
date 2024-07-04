@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+from datetime import timedelta
 import os
 import subprocess
 
@@ -38,6 +39,9 @@ class HYPERNETS_DAY():
         self.n_series = 50
         self.files_dates = {}
         self.dataset_w = None
+
+        self.rgb_refs = ['003', '006', '009', '012', '015', '016']
+        self.rgb_pictures_names = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
 
     def get_files_date_nodownload(self, site, date_here):
         self.files_dates = {}
@@ -101,6 +105,76 @@ class HYPERNETS_DAY():
                         self.files_dates[sequence_ref]['file_images'] = file_images
                 except:
                     pass
+
+    def get_disk_usage_log_file(self,site,ndw):
+        file_log = os.path.join(self.path_data, site,f'disk-usage_{site}.log')
+        if ndw:
+            if os.path.exists(file_log):
+                return file_log
+            else:
+                return None
+        if site == 'JSIT':
+            path_log = f'{self.base_folder_l2_npl}/{site}/LOGS/disk-usage.log'
+            self.transfer_file_ssh_npl(path_log, file_log)
+        else:
+            path_log=f'{self.base_folder_l2_rbins}/{site}/LOGS/disk-usage.log'
+            self.transfer_file_ssh(path_log, file_log)
+        if os.path.exists(file_log):
+            return file_log
+        else:
+            return None
+
+    def get_last_available_log(self,site,type_log,ndw):
+        file_log = os.path.join(self.path_data, site, f'last_{type_log}_{site}.log')
+        if ndw:
+            if os.path.exists(file_log):
+                return file_log
+            else:
+                return None
+
+        list_files = self.get_list_log_files_date(dt.now(),site,type_log)
+        if len(list_files)==0: list_files = self.get_list_log_files_date(dt.now()-timedelta(hours=24),site,type_log)
+        if len(list_files)==0:
+            print(f'[WARNING]{type_log} log for {site} was not found in the last 2 days')
+            return None
+        date_ref = dt.now()-timedelta(days=3)
+        file_server_last = None
+        for name in list_files:
+            try:
+                date_file = dt.strptime(name.split('/')[-1][:15],'%Y-%m-%d-%H%M')
+                if date_file>date_ref:
+                    file_server_last = name
+                    date_ref = date_file
+            except:
+                pass
+
+
+        if site=='JSIT':
+            self.transfer_file_ssh_npl(file_server_last,file_log)
+        else:
+            self.transfer_file_ssh(file_server_last, file_log)
+        if os.path.exists(file_log):
+            return file_log
+        else:
+            return None
+
+    #type_log: hello, access, webcam, sequence
+    def get_list_log_files_date(self,work_date,site,type_log):
+        url_base = self.url_base
+        ssh_base = self.ssh_base
+        base_folder = self.base_folder_l2_rbins
+        if site == 'JSIT':
+            url_base = self.url_base_npl
+            ssh_base = self.ssh_base_npl
+            base_folder = self.base_folder_l2_npl
+        work_date_str = work_date.strftime('%Y-%m-%d')
+        path_log = f'{base_folder}/{site}/LOGS/{work_date_str}*{type_log}.log'
+        cmd = f'{ssh_base} {url_base} ls {path_log}'
+        list_files = self.get_list_files_from_ls_cmd(cmd)
+        return list_files
+
+
+
 
     def get_sun_images_date(self, site, date_here,ndw):
         sun_images = {}
@@ -172,6 +246,22 @@ class HYPERNETS_DAY():
         date_img_str = date_img.strftime('%Y%m%dT%H%M')
         name_new = f'HYPTERNETS_{type}_{site}_IMG_{seq[3:-2]}_{date_img_str}_{picture}_0_0_v2.0.jpg'
         return name_new
+
+    def get_sequences_info(self,site,date_here,sequences_with_data):
+        all_sequences = self.get_sequences_date_from_file_list(site,date_here)
+        all_sequences = [x[:-2] for x  in all_sequences]
+        sequences_with_data = [f'SEQ{x}' for x in sequences_with_data]
+
+        sequences_without_data = []
+        all_sequences_info = {}
+        for seq in all_sequences:
+            if seq not in sequences_with_data:
+                sequences_without_data.append(seq)
+                all_sequences_info[seq]=-1
+            else:
+                all_sequences_info[seq]=sequences_with_data.index(seq)
+
+        return sequences_without_data,all_sequences_info
 
     def get_files_date(self, site, date_here):
         self.files_dates = {}
@@ -250,6 +340,28 @@ class HYPERNETS_DAY():
 
         return file_date
 
+    def get_files_img_for_sequences_no_data(self,site,date_here,seq):
+        files_img = {}
+        for name_img,ref in zip(self.rgb_pictures_names,self.rgb_refs):
+            files_img[ref]={
+                'name_img': name_img,
+                'file_img': None
+            }
+        date_folder = self.get_folder_date(site, date_here)
+        if date_folder is None:
+            return
+        seq_ref = seq.replace('SEQ','IMG_')
+        print('--------------------------------------->',seq)
+        for name in os.listdir(date_folder):
+            #print(name,seq_ref)
+            if name.endswith('.jpg') and name.find(seq_ref)>0:
+                name_s = name.split('_')
+                ref = name_s[6]
+                if ref not in files_img.keys():
+                    continue
+                files_img[ref]['file_img'] = os.path.join(date_folder,name)
+        return files_img
+
     def get_hypernets_day_file(self, site, date_here):
         import __init__
         from hypernets_day_file import HYPERNETS_DAY_FILE
@@ -259,6 +371,7 @@ class HYPERNETS_DAY():
         if os.path.exists(file_date):
             return HYPERNETS_DAY_FILE(file_date, self.path_data)
         else:
+            print(f'[WARNING] Expected HYPERNETS day file {file_date} does not exist')
             return None
 
     def start_file_date_complete(self, site, date_here, overwrite):

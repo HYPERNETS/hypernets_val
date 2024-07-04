@@ -270,12 +270,12 @@ class FlagBuilder:
             flag_values = []
 
 
-        print(indices_ranges)
+        #print(indices_ranges)
         # creating array
         for irange in indices_ranges:
             flag_value = indices_ranges[irange]['flag_value']
-            print('..............................................')
-            print('--->',flag_value)
+            # print('..............................................')
+            # print('--->',flag_value)
             flag_values.append(flag_value)
             flag_names.append(indices_ranges[irange]['flag_name'])
             array_here = np.zeros(array.shape)
@@ -312,9 +312,9 @@ class FlagBuilder:
 
                 array_here = array_here + array_or
 
-            print(indices_ranges[irange]['flag_name'],'il flag value: ',flag_value,'n_and',n_and)
-            print(np.count_nonzero(array_here==n_and))
-            print('............................................')
+            # print(indices_ranges[irange]['flag_name'],'il flag value: ',flag_value,'n_and',n_and)
+            # print(np.count_nonzero(array_here==n_and))
+            # print('............................................')
             array[array_here == n_and] = array[array_here == n_and] + flag_value
 
         dataset.close()

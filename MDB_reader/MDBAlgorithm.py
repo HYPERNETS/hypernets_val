@@ -20,7 +20,49 @@ parser.add_argument('-o', "--output", help="Path to output")
 args = parser.parse_args()
 
 
+def do_test():
+    ####TEMPORAL
+    #file_nc = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/MDBs/MDBr__MULTI_CCI_1KM_OC-CCI-BALCHL2021_19970316T000000_20240415T000000.nc'
+    file_nc = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/MDBs/MDBr__S3_OLCI_300M_CMEMS-OLCI_20160404T000000_20240415T000000.nc'
+    dataset = Dataset(file_nc)
+    insitu_id = dataset.variables['mu_insitu_CHLA_id'][:]
+    insitu_time = dataset.variables['insitu_time'][:]
+    flag_cyano_array = dataset.variables['satellite_flag_cyano'][:]
+    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/MDBs/FlagCyanoOlci.csv'
+    fout = open(file_out, 'w')
+    fout.write('DATE;HOUR;FLAG_CYANO;N_VALID;N_CYANO')
+    for idx in range(flag_cyano_array.shape[0]):
+        if idx%100==0: print(idx)
+        insitu_id_here = insitu_id[idx]
+        if np.ma.is_masked(insitu_id_here):
+            continue
+
+        insitu_time_here = float(insitu_time[idx][insitu_id_here])
+        insitu_time_here_dt = dt.utcfromtimestamp(insitu_time_here)
+        date = insitu_time_here_dt.strftime('%Y-%m-%d')
+        time = insitu_time_here_dt.strftime('%H:%M:%S')
+        # rrs_555 = satellite_Rrs_555[idx, 12, 12]
+        # rrs_670 = satellite_Rrs_670[idx, 12, 12]
+        flag_cyano_here = flag_cyano_array[idx,12,12]
+        flag_cyano_values = flag_cyano_array[idx,11:14,11:14]
+        flag_cyano_values_good = flag_cyano_values[~flag_cyano_values.mask]
+        n_all = len(flag_cyano_values_good)
+        flag_cyano_centre = flag_cyano_values_good[flag_cyano_values_good==flag_cyano_here]
+        n_cyano = len(flag_cyano_centre)
+        #line = f'{date};{time};{rrs_555};{rrs_670};{flag_cyano_here}'
+        line = f'{date};{time};{flag_cyano_here};{n_all};{n_cyano}'
+        fout.write('\n')
+        fout.write(line)
+    fout.close()
+    dataset.close()
+
+    ####
+
+    return True
+
 def main():
+    if do_test():
+        return
     print('Started MDBAlgorithm')
     input_path = args.input_path
     if not os.path.exists(input_path):
@@ -75,6 +117,7 @@ def create_cyano_flag(input_path, output_path):
         return
     else:
         print(f'[INFO] Wavelength for 555 nm (sub-surface blooms): {wl_555}')
+
     index_670 = np.argmin(np.abs(satellite_bands - 670.0))
     wl_670 = satellite_bands[index_670]
     diff_670 = abs(wl_670 - 670.0)
@@ -82,6 +125,15 @@ def create_cyano_flag(input_path, output_path):
         print(f'[ERROR] Band at 670 nm is not avaialable (nearest band is {wl_670})')
         return
     else:
+        if wl_670>670: ##665 better than 673.75
+            satellite_bands_l = satellite_bands[satellite_bands<670]
+            index_670_l = np.argmin(np.abs(satellite_bands_l - 670.0))
+            wl_670_l = satellite_bands[index_670_l]
+            diff_670_l = abs(wl_670_l - 670.0)
+            if diff_670_l<=5:
+                index_670 = index_670_l
+                wl_670 = wl_670_l
+                diff_670 = diff_670_l
         print(f'[INFO] Wavelength for 670 nm (sub-surface blooms): {wl_670}')
 
     satellite_Rrs = dataset_w.variables['satellite_Rrs']
@@ -100,8 +152,7 @@ def create_cyano_flag(input_path, output_path):
                 satellite_Rrs_555[index_mu,:,:] = np.ma.masked
             else:
                 satellite_Rrs_555[index_mu,:,:]  = bsc.bsc_qaa(rrs_in, satellite_bands,np.ma.array([555.0]))
-            if index_mu == 689:
-                print('555',satellite_Rrs_555[index_mu, 12, 12])
+
 
     if diff_670==0.0:
         satellite_Rrs_670 = np.ma.squeeze(satellite_Rrs[:, index_670, :, :])
@@ -117,8 +168,7 @@ def create_cyano_flag(input_path, output_path):
                 satellite_Rrs_670[index_mu, :, :] = np.ma.masked
             else:
                 satellite_Rrs_670[index_mu, :, :] = bsc.bsc_qaa(rrs_in, satellite_bands, np.ma.array([670.0]))
-            if index_mu==689:
-                print('670',satellite_Rrs_670[index_mu,12,12])
+
 
     if 'satellite_flag_cyano' not in dataset_w.variables:
         print(f'[INFO] Creating variable satellite_flag_cyano')
@@ -154,7 +204,7 @@ def create_cyano_flag(input_path, output_path):
         flag_cyano_var[:] = flag_cyano_array
     else:
         print(f'[WARNING] Variable flag_cyano already exits. Skipping...')
-        flag_cyano_array = np.ma.squeeze(satellite_cyano_array[:, 12, 12])
+        #flag_cyano_array = np.ma.squeeze(satellite_cyano_array[:, 12, 12])
 
         # flag_cyano_var = dataset_w.variables['flag_cyano']
         # flag_cyano_var.flag_values = [0, 1, 2, 3]
@@ -162,35 +212,19 @@ def create_cyano_flag(input_path, output_path):
         # flag_cyano_var[:] = flag_cyano_array
 
 
-    insitu_time = dataset_w.variables['insitu_time'][:]
-    insitu_id = dataset_w.variables['mu_insitu_CHLA_id'][:]
+    # insitu_time = dataset_w.variables['insitu_time'][:]
+    # insitu_id = dataset_w.variables['mu_insitu_CHLA_id'][:]
 
     dataset_w.close()
 
-    ####TEMPORAL
-    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/MDBs/FlagCyano.csv'
-    fout = open(file_out,'w')
-    fout.write('DATE;HOUR;RRS555;RRR670;FLAG_CYANO')
-    for idx in range(10294):
-        insitu_id_here = insitu_id[idx]
-        insitu_time_here = float(insitu_time[idx][insitu_id_here])
-        insitu_time_here_dt = dt.utcfromtimestamp(insitu_time_here)
-        date = insitu_time_here_dt.strftime('%Y-%m-%d')
-        time = insitu_time_here_dt.strftime('%H:%M:%S')
-        rrs_555 = satellite_Rrs_555[idx,12,12]
-        rrs_670 = satellite_Rrs_670[idx,12,12]
-        flag_cyano_here = flag_cyano_array[idx]
-        line = f'{date};{time};{rrs_555};{rrs_670};{flag_cyano_here}'
-        fout.write('\n')
-        fout.write(line)
-    fout.close()
 
-    ####
 
 
     if output_path is None:
         output_path = input_path
     print(f'[INFO] Completed. Output file {output_path}')
+
+
 
 if __name__ == '__main__':
     main()

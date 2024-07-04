@@ -893,6 +893,10 @@ options_sequences = {
         'default': None,
         'type': 'strlist'
     },
+    'legendTicks':{
+        'default': None,
+        'type': 'floatlist'
+    },
     'color':{
         'default': None,
         'type': 'strlist'

@@ -40,6 +40,9 @@ class HYPERNETS_DAY_FILE():
         self.rho = r'ρ$_w$'
 
         self.flag_builder = None
+        self.sequences_no_data = None
+
+
 
     def get_sequences(self):
         from netCDF4 import Dataset
@@ -57,7 +60,16 @@ class HYPERNETS_DAY_FILE():
         dataset.close()
         return sequences
 
-    def get_metadata_files(self,input_path):
+    def get_site(self):
+        from netCDF4 import Dataset
+        site = None
+        if self.VALID:
+            dataset = Dataset(self.file_nc)
+            site = dataset.site if 'site' in dataset.ncattrs() else None
+            dataset.close()
+        return site
+
+    def get_metadata_files(self, input_path):
         from netCDF4 import Dataset
         import numpy as np
         metadata_files = []
@@ -66,8 +78,8 @@ class HYPERNETS_DAY_FILE():
         metadata_files_keys = {}
         for name in os.listdir(input_path):
             if name.endswith('_metadata.txt'):
-                time_metadata = dt.strptime(name[3:name.find('_metadata.txt')],'%Y%m%dT%H%M%S')
-                metadata_files_keys[time_metadata.strftime('%Y%m%dT%H%M')] = os.path.join(input_path,name)
+                time_metadata = dt.strptime(name[3:name.find('_metadata.txt')], '%Y%m%dT%H%M%S')
+                metadata_files_keys[time_metadata.strftime('%Y%m%dT%H%M')] = os.path.join(input_path, name)
 
         for idx in range(len(seq_var)):
             val = seq_var[idx]
@@ -84,29 +96,29 @@ class HYPERNETS_DAY_FILE():
         dataset.close()
         return metadata_files
 
-    def get_angles_from_metadata_files(self,metadata_files):
+    def get_angles_from_metadata_files(self, metadata_files):
         if metadata_files is None:
             return None
         import configparser
         offset_tilt = 56
         nseries = len(metadata_files)
-        array_angles = np.zeros((nseries,3)).astype(np.float64) #paa, vaa, vza
+        array_angles = np.zeros((nseries, 3)).astype(np.float64)  # paa, vaa, vza
         array_angles[:] = np.nan
-        for idx,file in enumerate(metadata_files):
+        for idx, file in enumerate(metadata_files):
             if file is not None:
                 options = configparser.ConfigParser()
                 options.read(file)
-                if options.has_option('01_008_0270_2_0040','pt_ref'):
+                if options.has_option('01_008_0270_2_0040', 'pt_ref'):
                     val = options['01_008_0270_2_0040']['pt_ref']
                     paa_ref = float(val.split(';')[0].strip())
                     vza_ref = float(val.split(';')[1].strip())
-                    array_angles[idx,0] = self.normalizeddeg(paa_ref,0,360)
-                    array_angles[idx,1] = self.normalizeddeg(array_angles[idx,0]+180,0,360)
-                    array_angles[idx,2] = self.normalizeddeg(vza_ref+float(offset_tilt),0,360)
+                    array_angles[idx, 0] = self.normalizeddeg(paa_ref, 0, 360)
+                    array_angles[idx, 1] = self.normalizeddeg(array_angles[idx, 0] + 180, 0, 360)
+                    array_angles[idx, 2] = self.normalizeddeg(vza_ref + float(offset_tilt), 0, 360)
 
         return array_angles
 
-    def normalizeddeg(self,num, lower=0.0, upper=360.0, b=False):
+    def normalizeddeg(self, num, lower=0.0, upper=360.0, b=False):
         from math import floor, ceil
         res = num
         if not b:
@@ -136,7 +148,6 @@ class HYPERNETS_DAY_FILE():
             res = num * 1.0  # Make all numbers float, to be consistent
 
         return res
-
 
     ##methods for multiple dates. start_date and end_date are dt objects, start_time and end_time with format %H:%M
     ##these parameters are retrieved from options_figures using check_dates_times
@@ -346,7 +357,7 @@ class HYPERNETS_DAY_FILE():
         title = f'{site} {self.sequences[self.isequence]} - {date_str} {time_str} - {self.isequence + 1}/{len(self.sequences)}'
         return title
 
-    def get_array_variable(self,name_var):
+    def get_array_variable(self, name_var):
         from netCDF4 import Dataset
         import numpy as np
         dataset = Dataset(self.file_nc)
@@ -354,13 +365,13 @@ class HYPERNETS_DAY_FILE():
         dataset.close()
         return array
 
-    def creating_copy_with_new_angles(self,array_angles):
+    def creating_copy_with_new_angles(self, array_angles):
         from netCDF4 import Dataset
-        file_nc_old = self.file_nc[:-3]+'_old.nc'
+        file_nc_old = self.file_nc[:-3] + '_old.nc'
         if os.path.exists(file_nc_old):
             print('[WARNING] Angle correction has already been done. Skipping...')
             return
-        os.rename(self.file_nc,file_nc_old)
+        os.rename(self.file_nc, file_nc_old)
         file_nc_new = self.file_nc
         # file_nc_old = self.file_nc
         # file_nc_new = self.file_nc[:-3] + '_new.nc'
@@ -382,26 +393,27 @@ class HYPERNETS_DAY_FILE():
             if '_FillValue' in list(variable.ncattrs()):
                 fill_value = variable._FillValue
 
-            ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True, complevel=6)
+            ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                                 complevel=6)
 
             # copy variable attributes all at once via dictionary
             ncout[name].setncatts(input_dataset[name].__dict__)
 
-            if name=='l2_pointing_azimuth_angle':
-                ncout[name][:] = array_angles[:,0]
-            elif name=='l2_viewing_azimuth_angle':
+            if name == 'l2_pointing_azimuth_angle':
+                ncout[name][:] = array_angles[:, 0]
+            elif name == 'l2_viewing_azimuth_angle':
                 ncout[name][:] = array_angles[:, 1]
-            elif name=='l2_viewing_zenith_angle':
+            elif name == 'l2_viewing_zenith_angle':
                 ncout[name][:] = array_angles[:, 2]
-            elif name=='l1_pointing_azimuth_angle':
+            elif name == 'l1_pointing_azimuth_angle':
                 nscan = input_dataset[name].shape[1]
-                array_new = array_angles[:,0].reshape(nseries,1).repeat(nscan,axis=1)
+                array_new = array_angles[:, 0].reshape(nseries, 1).repeat(nscan, axis=1)
                 ncout[name][:] = array_new[:]
-            elif name=='l1_viewing_azimuth_angle':
+            elif name == 'l1_viewing_azimuth_angle':
                 nscan = input_dataset[name].shape[1]
                 array_new = array_angles[:, 1].reshape(nseries, 1).repeat(nscan, axis=1)
                 ncout[name][:] = array_new[:]
-            elif name=='l1_viewing_zenith_angle':
+            elif name == 'l1_viewing_zenith_angle':
                 nscan = input_dataset[name].shape[1]
                 array_new = array_angles[:, 2].reshape(nseries, 1).repeat(nscan, axis=1)
                 ncout[name][:] = array_new[:]
@@ -598,7 +610,10 @@ class HYPERNETS_DAY_FILE():
             pm.save_fig(f'{file_out_base}_all{self.format_img}')
             pm.close_plot()
 
-    def save_report_summary_image(self, site, date_here, dir_img_summary):
+
+
+
+    def save_report_summary_image(self, site, date_here, dir_img_summary, daily_sequences_summary):
 
         file_out = os.path.join(os.path.dirname(self.file_nc),
                                 f'{site}_{date_here.strftime("%Y%m%d")}_DailySummary{self.format_img}')
@@ -624,11 +639,15 @@ class HYPERNETS_DAY_FILE():
         pmtop.plot_image(os.path.join(dir_img_summary, 'flag_plot.tif'), 0, 1)
         pmtop.plot_image(file_out_ts, 0, 2)
         pmtop.set_text(-1250, 50, f'DAILY SUMMARY REPORT - {date_here.strftime("%Y-%m-%d")}')
-        daily_sequences_summary = self.get_sequence_info()
-        line = f'Total sequences: {daily_sequences_summary["Total"]}. Available: {daily_sequences_summary["Available"]}.'
-        line = f'{line} QC Flagged: {daily_sequences_summary["QFlagged"]}.'
-        line = f'{line} Epsilon Flagged: {daily_sequences_summary["EFlagged"]}.'
-        line = f'{line} Valid: {daily_sequences_summary["Valid"]}'
+        # daily_sequences_summary = self.get_sequence_info()
+        line = f'Total sequences: {daily_sequences_summary["NTotal"]}. Available L2: {daily_sequences_summary["NAvailable"]}.'
+        for key in daily_sequences_summary.keys():
+            if key=='NTotal' or key=='NAvailable': continue
+            if daily_sequences_summary[key]==0: continue
+            line = f'{line} {key}: {daily_sequences_summary[key]}. '
+        # line = f'{line} QC Flagged: {daily_sequences_summary["QFlagged"]}.'
+        # line = f'{line} Epsilon Flagged: {daily_sequences_summary["EFlagged"]}.'
+        # line = f'{line} Valid: {daily_sequences_summary["Valid"]}'
         pmtop.set_text_size(-1750, 850, line, 8)
         pmtop.save_fig(file_out_top)
         pmtop.close_plot()
@@ -688,6 +707,79 @@ class HYPERNETS_DAY_FILE():
             os.remove(os.path.join(dir_img_summary, name))
 
         os.rmdir(dir_img_summary)
+
+    def save_report_image_only_pictures(self,site,delete_images,overwrite,seq,files_img):
+        print(f'[INFO] Sequence {seq} (No Level-2 data available)')
+        seq_time_str = seq[3:]
+        seq_time = dt.strptime(seq_time_str,'%Y%m%dT%H%M')
+        file_out = os.path.join(os.path.dirname(self.file_nc),f'{site}_{seq_time_str}_Report{self.format_img}')
+        if os.path.exists(file_out) and not overwrite:
+            return
+        names_img = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
+        names_img_files = {}
+        for ref in files_img:
+            name_img = files_img[ref]['name_img']
+            if name_img in names_img:
+                names_img_files[name_img] = files_img[ref]['file_img']
+
+        dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
+        if not os.path.exists(dir_img):
+            os.mkdir(dir_img)
+
+        #file_out_base = os.path.join(dir_img, f'CameraImages_{self.isequence}')
+
+        pm = PlotMultiple()
+        nrow = 2
+        ncol = 3
+        pm.start_multiple_plot_advanced(nrow, ncol, 10, 7.0, 0.02,0.15, True)
+        index_row = 0
+        index_col = 0
+        for name_img in names_img_files:
+            file_img = names_img_files[name_img]
+            title = name_img
+            if index_col == ncol:
+                index_col = 0
+                index_row = index_row + 1
+
+
+            if file_img is not None:
+                pm.plot_image_hypernets(file_img, index_row, index_col, title)
+            else:
+                pm.plot_blank_with_title(index_row, index_col, title)
+
+            index_col = index_col + 1
+
+        date_str = seq_time.strftime('%Y-%m-%d')
+        time_str = seq_time.strftime('%H:%M')
+        title = f'{site} {seq_time_str} - {date_str} {time_str} - No L2 Data'
+        pm.fig.suptitle(title)
+        line = f'ANOMALY: ?'
+        pm.fig.text(0.20,0.05,line)
+        #pm.get_axes(0,0).set_title(title)
+        pm.save_fig(file_out)
+        pm.close_plot()
+
+
+        # dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
+        # if not os.path.exists(dir_img):
+        #     os.mkdir(dir_img)
+        # file_img = os.path.join(dir_img, f'CameraImages_{seq_time}_all{self.format_img}')
+        # if not os.path.isfile(file_img) or (os.path.isfile(file_img) and overwrite):
+        #     self.save_img_files(True)
+        # pm = PlotMultiple()
+        # nrow = 1
+        # ncol = 1
+        # pm.start_multiple_plot_advanced(nrow, ncol, 10, 18, 0.1, 0.1, True)
+        # pm.get_axes(0, 0).set_title(self.get_title(site), fontsize=20)
+        # pm.plot_image(file_img, 0, 0)
+        # pm.save_fig(file_out)
+        # pm.close_plot()
+        #
+        # if delete_images:
+        #     for name in os.listdir(dir_img):
+        #         file_here = os.path.join(dir_img, name)
+        #         os.remove(file_here)
+        #     os.rmdir(dir_img)
 
     def save_report_image(self, site, delete_images, overwrite):
         print(f'[INFO] Sequence {self.isequence}: SEQ{self.sequences[self.isequence]}')
@@ -982,24 +1074,27 @@ class HYPERNETS_DAY_FILE():
 
     def plot_from_options_impl(self, options_figure):
         if not options_figure['apply']:
-            return
+            return None
         if options_figure['type'] == 'spectraplot' and options_figure['type_rrs'] == 'user_defined':
-            print(f'[INFO] Spectra plot')
+            print(f'[INFO] Plotting spectra plot...')
             self.plot_spectra_plot_from_options(options_figure)
         if options_figure['type'] == 'timeseries':
-            print(f'[INFO] Time series plot')
+            print(f'[INFO] Plotting time series plot...')
             self.plot_time_series_from_options(options_figure)
         if options_figure['type'] == 'sequence':
-            print(f'[INFO] Sequence plot')
-            self.plot_sequence_plot_from_options(options_figure)
+            print(f'[INFO] Plotting sequence plot...')
+            daily_sequence_summary = self.plot_sequence_plot_from_options(options_figure)
+            return daily_sequence_summary
         if options_figure['type'] == 'flagplot' and options_figure['type_flagplot'] == 'comparison':
-            print(f'[INFO] Flag plot')
+            print(f'[INFO] Plotting flag plot...')
             self.plot_flag_plot_comparison(options_figure)
         if options_figure['type'] == 'angleplot':
-            print(f'[INFO] Angle plot')
+            print(f'[INFO] Plotting angle plot...')
             self.plot_angle_plot_from_options(options_figure)
 
-    def get_sequence_info(self):
+        return None
+
+    def get_sequence_info_deprecated(self):
         from netCDF4 import Dataset
         import COMMON.Class_Flags_OLCI as flag
         dataset = Dataset(self.file_nc)
@@ -1094,31 +1189,33 @@ class HYPERNETS_DAY_FILE():
 
         dataset = Dataset(self.file_nc)
         time_array = dataset.variables['l2_acquisition_time'][:]
-        time_array = np.ma.masked_values(time_array, 0)##solving a problem find 0n 30/05/2023, it shouln't be happen
+        time_array = np.ma.masked_values(time_array, 0)  ##solving a problem find 0n 30/05/2023, it shouln't be happen
         start_time_real = dt.utcfromtimestamp(np.min(time_array))
         end_time_real = dt.utcfromtimestamp(np.max(time_array))
         if start_time_real.strftime('%Y%m%d') != end_time_real.strftime('%Y%m%d'):
             dataset.close()
             print('[ERROR] Plot is only created for a single day')
             return
-        print(options_figure)
+
+        # print(options_figure)
 
         use_default_flag = True
         if options_figure['flagBy'] is not None:
-            print('=================================')
+            # print('===========================================================================================================')
             options_figure['flagType'] = 'flag'
-
-            options_figure = self.check_gs_options_impl(options_figure,'flagBy','flagType','flagValues')
-            if options_figure['flagBy'] in options_figure.keys() and len(options_figure[options_figure['flagBy']]['flag_values'])==4:
+            options_figure = self.check_gs_options_impl(options_figure, 'flagBy', 'flagType', 'flagValues')
+            if options_figure['flagBy'] in options_figure.keys() and len(
+                    options_figure[options_figure['flagBy']]['flag_values']) == 4:
                 use_default_flag = False
                 flag_meanings = options_figure[options_figure['flagBy']]['flag_meanings']
                 flag_values = options_figure[options_figure['flagBy']]['flag_values']
                 flag_array = options_figure[options_figure['flagBy']]['flag_array']
-                print(options_figure[options_figure['flagBy']])
-            print('********************************************************')
+                # print(options_figure[options_figure['flagBy']])
+            # print('********************************************************')
         if use_default_flag:
             qf_array = dataset.variables['l2_quality_flag'][:]
             epsilon_array = dataset.variables['l2_epsilon'][:]
+            flag_meanings = ['FLAGGED', 'ENEG', 'EHIGH', 'VALID']
 
         time_fix_axis = self.get_fix_axis_time(options_figure, start_time_real, end_time_real)
         ntime = len(time_fix_axis)
@@ -1131,6 +1228,24 @@ class HYPERNETS_DAY_FILE():
         yarray = np.zeros(xarray.shape)
         hours_ticks = []
         minutes_ticks = []
+
+
+
+
+
+        daily_summary_sequences = {
+            'NTotal': 0,
+            'NAvailable': 0,
+            'start_time': time_fix_axis[0].strftime('%Y-%m-%d %H:%M'),
+            'end_time': time_fix_axis[-1].strftime('%Y-%m-%d %H:%M'),
+            'expected_sequences': ntime
+        }
+        legend_values = flag_meanings
+        if options_figure['legendValues'] is not None:
+            legend_values = options_figure['legendValues']
+        for f in legend_values:
+            daily_summary_sequences[f] = 0
+
         for itime in range(ntime):
             time_valid = np.logical_and(time_array >= time_fix_min_max[itime, 0],
                                         time_array < time_fix_min_max[itime, 1])
@@ -1141,27 +1256,33 @@ class HYPERNETS_DAY_FILE():
             if mtick not in minutes_ticks: minutes_ticks.append(mtick)
 
             if np.count_nonzero(time_valid) == 1:
-                print('time_valid_good-->',time_valid,time_valid.shape,)
+                daily_summary_sequences['NAvailable'] = daily_summary_sequences['NAvailable'] + 1
+                # print('time_valid_good-->',time_valid,time_valid.shape,)
                 if use_default_flag:
                     qf_value = qf_array[time_valid][0]
                     epsilon_value = epsilon_array[time_valid][0]
                     if qf_value == 0:
                         if epsilon_value < (-0.05):
                             yarray[itime] = 2
+                            daily_summary_sequences['ENEG'] = daily_summary_sequences['ENEG'] + 1
                         elif (-0.05) <= epsilon_value < 0.05:
+                            daily_summary_sequences['VALID'] = daily_summary_sequences['VALID'] + 1
                             yarray[itime] = 3
                         elif epsilon_value > 0.05:
+                            daily_summary_sequences['EHIGH'] = daily_summary_sequences['EHIGH'] + 1
                             yarray[itime] = 4
                     else:
+                        daily_summary_sequences['FLAGGED'] = daily_summary_sequences['FLAGGED']+1
                         yarray[itime] = 1
                 else:
                     try:
                         fvalue = flag_array[time_valid]
                         index_flag = flag_values.index(int(fvalue))
-                        yarray[itime] = index_flag+1
+                        flag_meaning = legend_values[index_flag]
+                        daily_summary_sequences[flag_meaning] = daily_summary_sequences[flag_meaning]+1
+                        yarray[itime] = index_flag + 1
                     except:
                         pass
-
 
         hours_ticks.reverse()
         plt.Figure()
@@ -1170,15 +1291,33 @@ class HYPERNETS_DAY_FILE():
         for itime, tf in enumerate(time_fix_axis):
             data.loc[tf.strftime('%H')].at[tf.strftime('%M')] = yarray[itime]
 
-        if options_figure['color'] is not None:
-            colors = options_figure['color']
+        ##identifying sequences with SEQ folders without L2 data
+        # print(self.sequences_no_data)
+
+        if self.sequences_no_data is not None and len(self.sequences_no_data) > 0:
+            daily_summary_sequences['NTotal'] = daily_summary_sequences['NAvailable'] + len(self.sequences_no_data)
+            for seq in self.sequences_no_data:
+                date_seq = dt.strptime(seq[3:], '%Y%m%dT%H%M')
+                # print(date_seq, date_seq.strftime('%H'), date_seq.strftime('%M'))
+                data.loc[date_seq.strftime('%H')].at[date_seq.strftime('%M')] = 0
         else:
-            colors = ['red', 'cyan', 'green', 'magenta']
-        ax = sns.heatmap(data, vmin=1, vmax=4, cmap=colors, linewidths=0.5, linecolor='gray')
+            daily_summary_sequences['NTotal'] = daily_summary_sequences['NAvailable']
+
+        if options_figure['color'] is not None:
+            colors = ['gray'] + options_figure['color']
+        else:
+            colors = ['gray', 'red', 'cyan', 'green', 'magenta']
+        vmax = len(colors) - 1
+        ax = sns.heatmap(data, vmin=0, vmax=vmax, cmap=colors, linewidths=0.5, linecolor='gray')
         plt.yticks(rotation='horizontal')
         colorbar = ax.collections[0].colorbar
-        colorbar.set_ticks([1.5, 2.25, 3, 3.75])
-        colorbar.set_ticklabels(['FLAGGED', 'ENEG', 'VALID', 'EHIGH'], rotation=90)
+        ticks = np.arange(0.5, vmax, 0.75).tolist()
+        if options_figure['legendTicks'] is not None:
+            ticks = options_figure['legendTicks']
+        colorbar.set_ticks(ticks)
+
+        legend_values = ['NO-L2'] + legend_values
+        colorbar.set_ticklabels(legend_values, rotation=90)
         colorbar.ax.tick_params(size=0)
         plt.xlabel('Minutes')
         plt.ylabel('Hours')
@@ -1212,6 +1351,7 @@ class HYPERNETS_DAY_FILE():
 
         # time_array = np.ma.filled(time_array.astype(np.float), -999.0)
         dataset.close()
+        return daily_summary_sequences
 
     def plot_angle_plot_from_options(self, options_figure):
         from netCDF4 import Dataset
@@ -1456,15 +1596,13 @@ class HYPERNETS_DAY_FILE():
         time_array = dataset.variables[time_var][:]
         time_array = np.ma.filled(time_array.astype(np.float64), -999.0)
 
-        if nscan > 1:##level 1: ndata should be nseries x nscan
+        if nscan > 1:  ##level 1: ndata should be nseries x nscan
             time_array = self.reduce_l1_dimensions(time_array)
 
         ngroups, groupValues, groupArray, str_legend = self.check_group_and_legend(options_figure, nseries, nscan)
 
         if options_figure['legend_values'] is not None and len(options_figure['legend_values']) == ngroups:
             str_legend = options_figure['legend_values']
-
-
 
         start_time_real = dt.utcfromtimestamp(np.min(time_array[time_array != -999.0]))
         end_time_real = dt.utcfromtimestamp(np.max(time_array[time_array != -999.0]))
@@ -1476,7 +1614,8 @@ class HYPERNETS_DAY_FILE():
             ntime = len(time_fix_axis)
             time_fix_min_max = np.zeros((ntime, 2))
             seconds_ref = self.get_time_interval_seconds(options_figure['frequency'], options_figure['frequency_units'])
-            time_fix_axis_ts = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in time_fix_axis]).astype(np.float64)
+            time_fix_axis_ts = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in time_fix_axis]).astype(
+                np.float64)
             time_fix_min_max[:, 0] = time_fix_axis_ts - seconds_ref
             time_fix_min_max[:, 1] = time_fix_axis_ts + seconds_ref
             xarray = np.arange(ntime)
@@ -1512,7 +1651,7 @@ class HYPERNETS_DAY_FILE():
                     avg_array = avg_array[:, index_ref]
                 avg_array = np.squeeze(avg_array)
             print(f'[INFO] NSeries:  {nseries} NScans: {nscan} Variable: {avg_var} Array shape: {avg_array.shape}')
-            if nscan > 1 and nseries > 1 and  len(avg_array.shape) == 1:
+            if nscan > 1 and nseries > 1 and len(avg_array.shape) == 1:
                 avg_array = self.multiply_array_by_scan(avg_array, nseries, nscan)
             if nscan > 1 and len(avg_array.shape) == 2:
                 avg_array = self.reduce_l1_dimensions(avg_array)
@@ -1592,7 +1731,7 @@ class HYPERNETS_DAY_FILE():
         nvalid = np.count_nonzero(valid_time)
         if nvalid == 0:
             return None, None
-        print(dt.utcfromtimestamp(time_min), dt.utcfromtimestamp(time_max))
+        # print(dt.utcfromtimestamp(time_min), dt.utcfromtimestamp(time_max))
         xdata = np.array([output_value] * nvalid).astype(np.float64)
         ydata = var_array[valid_time]
 

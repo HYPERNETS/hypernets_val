@@ -5,11 +5,14 @@ from datetime import timedelta
 import argparse
 
 from hypernets_day import HYPERNETS_DAY
+import __init__
+from MDB_reader.PlotMultiple import PlotMultiple
+import numpy as np
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
-                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLESUN'],
+                             'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG','LOGDOWNLOAD'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -19,6 +22,8 @@ parser.add_argument('-i', "--input_path", help="Input path")
 parser.add_argument('-o', "--output_path", help="Output path")
 parser.add_argument('-c', "--config_path", help="Configuration file path")
 parser.add_argument('-site', "--site_name", help="Site name")
+parser.add_argument('-key', "--key_image", help="Key for single images",
+                    choices=['all', 'sun', 'water', 'skirad1', 'skiirrad1', 'skirad2', 'skiirrad2'])
 parser.add_argument('-sopt', "--summary_options", help="Summary options,separated by '_': csv,nc,copy")
 parser.add_argument('-ndays', "--ndays_interval", help="Interval days between start date and end date")
 parser.add_argument('-ndel', "--nodelfiles", help="Do not delete temp files.", action="store_true")
@@ -135,11 +140,13 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         config_file_summary = os.path.join(output_path, 'ConfigPlotSummary.ini')
     print('[INFO] Config file summary: ', config_file_summary)
 
+    daily_sequences_summary  = None
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
             print(f'[INFO] Date: {work_date}')
         hdayfile = hday.get_hypernets_day_file(site, work_date)
+        sequences_no_data,sequences_all = hday.get_sequences_info(site, work_date, hdayfile.get_sequences())
         output_folder_date = hday.get_output_folder_date(site, work_date)
         if output_folder_date is None:
             print(f'[ERROR] Path image date could not be created in {output_path}. Please review permissions')
@@ -154,25 +161,42 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             continue
         hdayfile.set_path_images_date(site, work_date)
 
-        # file_summary = None
+        file_summary = None
         if os.path.exists(config_file_summary):
             dir_img_summary = os.path.join(os.path.dirname(hdayfile.file_nc), 'SUMMARY')
             file_summary = os.path.join(os.path.dirname(hdayfile.file_nc),
                                         f'{site}_{work_date.strftime("%Y%m%d")}_DailySummary{hdayfile.format_img}')
             if os.path.exists(file_summary) and not args.overwrite:
                 print(f'[WARNING] Summary file: {output_path} alreaday exist. Skipping...')
+                if start_date==end_date:##required daily sequences summary:
+                    print(f'[INFO] Retrieving daily sequences summary...')
+                    daily_sequences_summary = plot_from_options(hdayfile.file_nc, config_file_summary, dir_img_summary, sequences_no_data,True)
+                    file_info = os.path.join(dir_img_summary, 'sequence_info.tif')
+                    os.remove(file_info)
+                    os.rmdir(dir_img_summary)
             else:
-                plot_from_options(hdayfile.file_nc, config_file_summary, dir_img_summary)
-                hdayfile.save_report_summary_image(site, work_date, dir_img_summary)
+                daily_sequences_summary = plot_from_options(hdayfile.file_nc, config_file_summary, dir_img_summary,sequences_no_data,False)
+                hdayfile.save_report_summary_image(site, work_date, dir_img_summary,daily_sequences_summary)
 
-        for isequence in range(len(hdayfile.sequences)):
-            hdayfile.isequence = isequence
-            delete = False if args.nodelfiles else True
-            # if isequence==32:
-            #     hdayfile.save_report_image(site,delete, args.overwrite)
-            hdayfile.save_report_image(site, delete, args.overwrite)
-            # hdayfile.save_angle_files(True)
+        delete = False if args.nodelfiles else True
+        for seq in sequences_all:
+            isequence = sequences_all[seq]
+            if isequence>=0:
+                hdayfile.isequence = isequence
+                hdayfile.save_report_image(site, delete, args.overwrite)
+            else:
+                files_img = hday.get_files_img_for_sequences_no_data(site,work_date,seq)
+                hdayfile.save_report_image_only_pictures(site,delete,args.overwrite,seq,files_img)
 
+        ##DEPRECATED
+        # for isequence in range(len(hdayfile.sequences)):
+        #     hdayfile.isequence = isequence
+        #     delete = False if args.nodelfiles else True
+        #     # if isequence==32:
+        #     #     hdayfile.save_report_image(site,delete, args.overwrite)
+        #     hdayfile.save_report_image(site, delete, args.overwrite)
+        #     # hdayfile.save_angle_files(True)
+        ##TEST
         # hdayfile.save_img_files(True)
         # hdayfile.save_spectra_files(True)
         # hdayfile.save_angle_files(True)
@@ -180,7 +204,7 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         # hdayfile.get_title()
         # hdayfile.save_report_image(False)
 
-        create_daily_pdf_report(input_path, output_path, site, work_date, file_summary, hdayfile.sequences)
+        create_daily_pdf_report(input_path, output_path, site, work_date, file_summary, sequences_all)
 
         work_date = work_date + timedelta(hours=interval)
 
@@ -191,35 +215,152 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         name_summary = f'{site}_{date_str}_DailySummary.png'
         name_pdf = f'Report_{site}_{date_str}.pdf'
         file_pdf = os.path.join(folder_day, name_pdf)
-        file_mail = os.path.join(output_path, site, 'QCMail.mail')
+        file_qc_mail = os.path.join(output_path, site, 'QCMail.mail')
         public_link = ''
-        if os.path.exists(config_file_summary):
-            import configparser
-            options = configparser.ConfigParser()
-            options.read(config_file_summary)
-            if options.has_option('GLOBAL_OPTIONS', f'public_link_{site}'):
-                public_link = options['GLOBAL_OPTIONS'][f'public_link_{site}'].strip()
-        # public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
-        print(f'[INFO] Creating e-mail file: {file_mail}')
-        fout = open(file_mail, 'w')
-        fout.write(f'QUALITY CONTROL - {site} - {start_date.strftime("%Y-%m-%d")}')
-        fout.write('\n')
-        fout.write(f'Ouput folder: {folder_day}')
-        fout.write('\n')
-        fout.write(
-            f'Summary file: {os.path.join(folder_day, name_summary) if os.path.exists(os.path.join(folder_day, name_summary)) else "Not. Av."}')
-        fout.write('\n')
-        fout.write(f'PDF file: {file_pdf if os.path.exists(file_pdf) else "Not. Av."}')
-        fout.write('\n')
-        fout.write(f'Link to PDF file: {public_link}')
-        fout.write('\n')
-        fout.close()
-        if os.path.exists(file_pdf):
-            import owncloud
-            session = owncloud.Client('https://file.sic.rm.cnr.it/')
-            session.login('Luis.Gonzalezvilas@artov.ismar.cnr.it', 'BigRoma_21')
-            session.put_file(f'/ESA-HYP-POP/LastQC_Reports/{site}_LastQC.pdf', file_pdf)
+        # if os.path.exists(config_file_summary):
+        #     import configparser
+        #     options = configparser.ConfigParser()
+        #     options.read(config_file_summary)
+        #     if options.has_option('GLOBAL_OPTIONS', f'public_link_{site}'):
+        #         public_link = options['GLOBAL_OPTIONS'][f'public_link_{site}'].strip()
+        # # public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
+        print(f'[INFO] Creating e-mail file: {file_qc_mail}')
+        extra_info = {
+            'folder_day': folder_day,
+            'name_summary': name_summary,
+            'file_pdf': file_pdf,
+            'public_link': public_link,
+            'file_log_disk_usage': hday.get_disk_usage_log_file(site,True),
+            'file_log_last_sequence': hday.get_last_available_log(site,'sequence',True)
+        }
+        create_daily_mail_file(file_qc_mail,site,start_date,daily_sequences_summary,extra_info)
 
+
+
+
+        # if os.path.exists(file_pdf):
+        #     import owncloud
+        #     session = owncloud.Client('https://file.sic.rm.cnr.it/')
+        #     session.login('Luis.Gonzalezvilas@artov.ismar.cnr.it', 'BigRoma_21')
+        #     session.put_file(f'/ESA-HYP-POP/LastQC_Reports/{site}_LastQC.pdf', file_pdf)
+
+
+def create_daily_mail_file(file_qc_mail,site,start_date,daily_sequences_summary,extra_info):
+    fout = open(file_qc_mail, 'w')
+    fout.write(f'QUALITY CONTROL - {site} - {start_date.strftime("%Y-%m-%d")}')
+    add_new_line(fout,'===================================')
+    add_new_line(fout,'')
+    if daily_sequences_summary is not None:
+        add_new_line(fout,'SEQUENCES SUMMARY')
+        add_new_line(fout,'=================')
+        add_new_line(fout, f'Start time:  {daily_sequences_summary["start_time"]}')
+        add_new_line(fout, f'End time: {daily_sequences_summary["end_time"]}')
+        add_new_line(fout, f'Expected sequences: {daily_sequences_summary["expected_sequences"]}')
+        add_new_line(fout, f'Available sequences: {daily_sequences_summary["NTotal"]}')
+        add_new_line(fout, f'Sequences processed to L2: {daily_sequences_summary["NAvailable"]}')
+        add_new_line(fout, f'Valid sequences after quality control: {daily_sequences_summary["VALID"]}')
+        add_new_line(fout, '')
+
+    file_log_disk_usage = extra_info['file_log_disk_usage']
+    file_log_last_sequence = extra_info['file_log_last_sequence']
+    if os.path.exists(file_log_disk_usage) or os.path.exists(file_log_last_sequence):
+        add_new_line(fout, 'SYSTEM STATUS')
+        add_new_line(fout, '=============')
+        lines_disk_usage = get_lines_disk_usage(file_log_disk_usage)
+        for line in lines_disk_usage:
+            add_new_line(fout,line)
+
+    add_new_line(fout, 'DAILY CHECKING FILES')
+    add_new_line(fout, '====================')
+    add_new_line(fout, f'Ouput folder: {extra_info["folder_day"]}')
+    file_summary = os.path.join(extra_info["folder_day"],extra_info["name_summary"])
+    add_new_line(fout, f'Summary file: {file_summary if os.path.exists(file_summary) else "Not. Av."}')
+    add_new_line(fout,'')
+    add_new_line(fout,f'PDF file: {extra_info["file_pdf"] if os.path.exists(extra_info["file_pdf"]) else "Not. Av."}')
+    if os.path.exists(extra_info["file_pdf"]):
+        add_new_line(fout,f'Link to PDF file: {extra_info["public_link"]}')
+    add_new_line(fout,'')
+
+
+
+    fout.close()
+
+
+    fout.close()
+
+def get_lines_disk_usage(file_log):
+    lines = ['']
+    if not os.path.exists(file_log):return lines
+    import pandas as pd
+    df = pd.read_csv(file_log,sep=' ')
+    lines.append('DISK USAGE')
+    lines.append('----------')
+    last_line = df.iloc[-1]
+    used = float(last_line[1])/(1024*1024)
+    av = float(last_line[2])/(1024*1024)
+    lines.append(f' Last measurement: {last_line[0]} Used: {used:.2f} Gb. Available: {av:.2f} Gb. %Use: {last_line[4]}')
+
+    porc_ref = float(str(last_line[4])[:-1])
+
+    nlines = len(df.index)
+    last_five_dates = []
+    date_ref = dt.strptime(last_line[0],'%Y-%m-%d-%H%M').replace(hour=12,minute=0,second=12)-timedelta(hours=24)
+    date_ref_str = date_ref.strftime('%Y-%m-%d')
+    first_date_here_str = None
+    last_date_here_str = None
+    used_array  = []
+    porc_use_array = []
+
+    for idx in range(nlines-1,0,-1):
+        line_here = df.loc[idx]
+        date_here_str = str(line_here[0])[:10]
+        if date_here_str==date_ref_str:
+            if len(last_five_dates)<5:
+                last_five_dates.append(line_here)
+            if last_date_here_str is None:
+                last_date_here_str = str(line_here[0])
+
+            porc_here = float(str(line_here[4])[:-1])
+            if abs(porc_ref-porc_here)<2:
+                porc_ref = porc_here
+                used_array.append(float(line_here[1]))
+                porc_use_array.append(line_here[4])
+                date_ref = dt.strptime(line_here[0], '%Y-%m-%d-%H%M').replace(hour=12, minute=0, second=12) - timedelta(hours=24)
+                date_ref_str = date_ref.strftime('%Y-%m-%d')
+                first_date_here_str = str(line_here[0])
+            else:
+                break
+
+    lines.append(f' Overall period:')
+    start_used = used_array[-1] /(1024*1024)
+    end_used = used_array[0] / (1024 * 1024)
+    used_increase = []
+    porc_used_increase = []
+    for idx in range(1,len(used_array)):
+        used_increase.append(used_array[idx-1]-used_array[idx])
+        porc_used_increase.append(float(str(porc_use_array[idx-1])[:-1])-float(str(porc_use_array[idx])[:-1]))
+
+    avg_increase_mb = np.mean(np.array(used_increase))/1024
+    avg_increase_porc = np.mean(np.array(porc_used_increase))
+
+    lines.append(f'  Start: {first_date_here_str} Used: {start_used:.2f} Gg. %Used: {porc_use_array[-1]}')
+    lines.append(f'  End: {last_date_here_str} Used: {end_used:.2f} Gg. %Used: {porc_use_array[0]}')
+    lines.append(f'  Average daily increase: {avg_increase_mb:.2f} Mb. ({avg_increase_porc:.3f}%).')
+
+    lines.append(' Last five days: ')
+    for line_here in last_five_dates:
+        used = float(line_here[1]) / (1024 * 1024)
+        av = float(line_here[2]) / (1024 * 1024)
+        lines.append(f'  {line_here[0]} Used: {used:.2f} Gb. Available: {av:.2f} Gb. %Use: {line_here[4]}')
+    lines.append('')
+
+
+    return lines
+
+
+def add_new_line(fout,str):
+    fout.write('\n')
+    fout.write(str)
 
 def create_empty_image(file_img, site, date_here):
     from matplotlib import pyplot as plt
@@ -253,8 +394,9 @@ def create_daily_pdf_report(input_path, output_path, site, date_here, file_summa
         fig.tight_layout()
         pdf.savefig(dpi=300, bbox_inches='tight')
     for sequence in sequences:
+        print(f'[INFO] Adding sequence to PDF file: {sequence}')
         if sequence is not None:
-            file_img = os.path.join(folder_day, f'VEIT_{sequence}_Report.png')
+            file_img = os.path.join(folder_day, f'{site}_{sequence[3:]}_Report.png')
             if os.path.exists(file_img):
                 plt.close()
                 fig = plt.figure(figsize=(10, 18))
@@ -329,7 +471,7 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     # red_array = np.array(img.getdata(0)).reshape(img.size).astype(np.uint8)
 
 
-def plot_from_options(input_path, config_file, output_path_images):
+def plot_from_options(input_path, config_file, output_path_images,sequences_no_data,only_sequences_summary):
     if not os.path.exists(config_file):
         print(f'[ERROR] Plot configuration file: {config_file} does not exist. ')
         return None
@@ -341,10 +483,10 @@ def plot_from_options(input_path, config_file, output_path_images):
     options = configparser.ConfigParser()
     options.read(config_file)
     hfile = HYPERNETS_DAY_FILE(input_path, None)
+    hfile.sequences_no_data = sequences_no_data
     from MDB_reader.PlotOptions import PlotOptions
     poptions = PlotOptions(options, None)
     poptions.set_global_options()
-
 
     if output_path_images is not None:
         if not os.path.exists(output_path_images):
@@ -354,8 +496,6 @@ def plot_from_options(input_path, config_file, output_path_images):
                 pass
         if os.path.exists(output_path_images):
             poptions.global_options['output_path'] = output_path_images
-
-
 
     if poptions.global_options['output_path'] is None:
         poptions.global_options['output_path'] = os.path.dirname(input_path)
@@ -373,14 +513,20 @@ def plot_from_options(input_path, config_file, output_path_images):
     list_figures = poptions.get_list_figures()
 
     # print(list_figures)
+    daily_sequences_summary = None
     for figure in list_figures:
         print('------------------------------------------------------------------------------------------')
         print(f'[INFO] Starting figure: {figure}')
         options_figure = poptions.get_options(figure)
         if options_figure is None:
             continue
-        hfile.plot_from_options_impl(options_figure)
+        if options_figure['apply'] and options_figure['type']=='sequence':
+            daily_sequences_summary = hfile.plot_from_options_impl(options_figure)
+        else:
+            if not only_sequences_summary:
+                hfile.plot_from_options_impl(options_figure)
 
+    return daily_sequences_summary
 
 def make_flagged_nc_from_csv(config_file):
     if args.verbose:
@@ -598,6 +744,22 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
     if dataset_w is not None:
         dataset_w.close()
 
+def make_log_download(input_path, site):
+    if args.verbose:
+        print(f'[INFO] Downloading log files')
+    hday = HYPERNETS_DAY(input_path, input_path)
+    last_log_disk_usage = hday.get_disk_usage_log_file(site,False)
+    last_log_sequence = hday.get_last_available_log(site,'sequence',False)
+
+    if last_log_disk_usage is not None and args.verbose:
+        print(f'[INFO] Completed download of disk usage log file {last_log_disk_usage} for {site}')
+    if last_log_sequence is not None and args.verbose:
+        print(f'[INFO] Completed download of last sequence log file: {last_log_disk_usage} for {site}')
+    if last_log_disk_usage is None:
+        print(f'[ERROR] Error downloading the disk usage log file for {site}')
+    if last_log_sequence is None:
+        print(f'[ERROR] Error downloading the last sequence log file for {site}')
+
 
 def make_sun_download(input_path, site, start_date, end_date):
     if args.verbose:
@@ -753,7 +915,54 @@ def correct_angles(input_path, output_path, site, start_date, end_date):
         work_date = work_date + timedelta(hours=interval)
 
 
-def make_single_sun(site, sequence, output_path):
+def make_single_image(site, sequence, key, output_path):
+    if key == 'all':
+        keys = ['skiirrad1', 'skirad1', 'water', 'skirad2', 'skiirrad2', 'sun']
+        if os.path.basename(output_path) != sequence:
+            output_path_seq = os.path.join(output_path, sequence)
+            if not os.path.isdir(output_path_seq):
+                os.mkdir(output_path_seq)
+
+        else:
+            output_path_seq = output_path
+
+        files_out = []
+        for k in keys:
+            file_out = make_single_image_impl(site, sequence, k, output_path_seq)
+            files_out.append(file_out)
+
+        pm = PlotMultiple()
+        nrow = 2
+        ncol = 3
+        pm.start_multiple_plot_advanced(nrow, ncol, 10, 7.0, 0.1, 0.15, True)
+        for index, file_img in enumerate(files_out):
+            index_row = int(np.floor(index / 3))
+            index_col = index - (index_row * 3)
+            pm.plot_image(file_img, index_row, index_col)
+            # title = keys[index]
+            # pm.plot_image_hypernets(file_img, index_row, index_col, title)
+
+        file_out = os.path.join(output_path, f'{site}_{sequence}.jpg')
+        pm.save_fig(file_out)
+        pm.close_plot()
+
+    else:
+        make_single_image_impl(site, sequence, key, output_path)
+
+
+# key: sun, water, skirad1, skiirrad1, skirad2, skiirrad2
+def make_single_image_impl(site, sequence, key, output_path):
+    info = {
+        'skiirrad1': '01_003_0090_2_0180.jpg',
+        'skirad1': '01_006_0090_2_0140.jpg',
+        'water': '01_009_0090_2_0040.jpg',
+        'skirad2': '01_012_0090_2_0140.jpg',
+        'skiirrad2': '01_015_0090_2_0180.jpg',
+        'sun': '01_016_0000_0_0000.jpg'
+    }
+
+    name_img = info[key]
+    # name_img = name_img.replace('0090','0270')
     if not os.path.exists(output_path):
         try:
             os.mkdir(output_path)
@@ -762,18 +971,19 @@ def make_single_sun(site, sequence, output_path):
             return
     import subprocess
     base_download = f'rsync -a -e \'ssh -p 9022\' hypstar@enhydra.naturalsciences.be:/home/hypstar/'
-    suffix = 'RADIOMETER/01_016_0000_0_0000.jpg'
+    suffix = f'RADIOMETER/{name_img}'
+
     cmd = f'{base_download}{site}/DATA/{sequence}/{suffix} {output_path}'
     prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     out, err = prog.communicate()
     if err:
         print(err)
 
-    file_sun = os.path.join(output_path, '01_016_0000_0_0000.jpg')
+    file_sun = os.path.join(output_path, name_img)
     if not os.path.exists(file_sun):
         print(f'[ERROR] {file_sun} could not be downloaded')
         return
-    file_out = os.path.join(output_path, f'{site}_SunImage_{sequence}.jpg')
+    file_out = os.path.join(output_path, f'{site}_{key}_{sequence}.jpg')
     from PIL import Image
     from matplotlib import pyplot as plt
 
@@ -803,6 +1013,7 @@ def make_single_sun(site, sequence, output_path):
     plt.savefig(file_out, bbox_inches='tight')
     os.remove(file_sun)
     print(f'Completed. File saved: {file_out}')
+    return file_out
 
 
 def main():
@@ -859,6 +1070,9 @@ def main():
     if args.mode == 'SUNDOWNLOAD':
         make_sun_download(input_path, site, start_date, end_date)
 
+    if args.mode == 'LOGDOWNLOAD':
+        make_log_download(input_path, site)
+
     if args.mode == 'SUNPLOTS':
         make_sun_plots(input_path, output_path, site, start_date, end_date, args.nodownload)
 
@@ -868,9 +1082,12 @@ def main():
     if args.mode == 'CORRECTANGLES':
         correct_angles(input_path, output_path, site, start_date, end_date)
 
-    if args.mode == 'SINGLESUN':
+    if args.mode == 'SINGLEIMG':
         sequence = args.input_path
-        make_single_sun(site, sequence, output_path)
+        key = 'sun'
+        if args.key_image:
+            key = args.key_image
+        make_single_image(site, sequence, key, output_path)
 
 
 # %%

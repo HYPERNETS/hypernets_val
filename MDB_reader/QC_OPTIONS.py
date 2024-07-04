@@ -43,6 +43,7 @@ class QC_OPTIONS:
                         },
 
             'time_diff_max': {'valid': 0, 'value': None, 'type': 'float'},
+            'fix_time_sat': {'valid': 0, 'value': None, 'type':'str'},
             'temporal_sampling_method': {'valid':0, 'value':None, 'type': 'str'},
 
             'insitu_flag_X': {'valid': 0, 'value': None, 'type': 'dict',
@@ -146,6 +147,15 @@ class QC_OPTIONS:
                 elif option=='time_diff_max':
                     qc_single.time_diff_max = options_qcsingle[option]['value'] * 60  ##in seconds
                     print(f'[INFO] Set maximum time difference to: {qc_single.time_diff_max} seconds')
+                elif option=='fix_time_sat':
+                    val = options_qcsingle[option]['value']
+                    try:
+                        from datetime import datetime as dt
+                        dt.strptime(f'{dt.now().strftime("%Y-%m-%d")}T{val}','%Y-%m-%dT%H:%M')
+                        qc_single.fix_time_sat = val
+                        print(f'[INFO] Set satellite time to compute time difference at: {qc_single.fix_time_sat}')
+                    except:
+                        print(f'[WARTING] fix_time_sat option {val} is not in the correct time format (HH:MM)')
                 elif option=='temporal_sampling_method':
                     qc_single.temporal_sampling_method = options_qcsingle[option]['value']
                     print(f'[INFO] Set sampling method to: {qc_single.temporal_sampling_method}')

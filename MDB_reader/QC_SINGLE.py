@@ -30,6 +30,7 @@ class QC_SINGLE:
             'factor': 1.5
         }
         self.time_diff_max = 120.0 * 60.0
+        self.fix_time_sat = None
 
         self.nmu = -1
         self.NTP = self.window_size * self.window_size  # total number of pixels
@@ -406,12 +407,16 @@ class QC_SINGLE:
             from datetime import datetime as dt
             satellite_time = self.dataset.variables['satellite_time'][index_mu]
             insitu_time = self.dataset.variables['insitu_time'][index_mu]
-            ##temporal, change satellite time
-            satellite_time_r = dt.utcfromtimestamp(float(satellite_time))
-            satellite_time_r = satellite_time_r.replace(hour=13,tzinfo = pytz.UTC)
-            #print('estamos aqui...',satellite_time_r)
-            satellite_time = satellite_time_r.timestamp()
-            ##fin temporal
+            if self.fix_time_sat:
+                satellite_time_day = dt.utcfromtimestamp(float(satellite_time)).strftime('%Y-%m-%d')
+                satellite_time = dt.strptime(f'{satellite_time_day}T{self.fix_time_sat}','%Y-%m-%dT%H:%M').replace(tzinfo=pytz.utc).timestamp()
+                #print('-->',dt.utcfromtimestamp(satellite_time))
+            # ##temporal, change satellite time
+            # satellite_time_r = dt.utcfromtimestamp(float(satellite_time))
+            # satellite_time_r = satellite_time_r.replace(hour=13,tzinfo = pytz.UTC)
+            # #print('estamos aqui...',satellite_time_r)
+            # satellite_time = satellite_time_r.timestamp()
+            # ##fin temporal
 
             nid = insitu_time.shape[0]
             satellite_time_n = np.ma.repeat(satellite_time,nid)

@@ -403,6 +403,7 @@ class MDBPlot:
             if avg_var not in self.mrfile.nc.variables:
                 print(f'[ERROR] {avg_var} is not defined in {self.mrfile.file_path}')
                 return
+        print(avg_vars)
         time_array = self.mrfile.get_full_array_1D(options_figure['time_var'],options_figure['insitu_id_variable'], False)
         print(time_array.shape)
         valid_array = np.ones(time_array.shape)
@@ -421,23 +422,69 @@ class MDBPlot:
         style = pspectra.line_style_default.copy()
         style['linewidth'] = 0
         style['marker'] = 'o'
-        style['markersize'] = 1
+        style['markersize'] = 5
+        colors = ['blue','red','green']
+
+        ##temporal
+        print('??????????????????????????????????')
+        print(instant_values.shape)
+        insitu_array = np.ma.masked_all((225,))
+        global_array = np.ma.masked_all((225,))
+        regional_array = np.ma.masked_all((225,))
+
         handles = []
         for index,avg_var in enumerate(avg_vars):
             #style['color'] = defaults.colors_default[index]
-            var_array =  self.mrfile.get_full_array_1D(avg_var,options_figure['insitu_id_variable'], False)
-            var_array = var_array[valid_array == 1]
+            style['color'] = colors[index]
+            print(f'[INFO] [PLOT] Plotting variable: {avg_var}')
+            #var_array =  self.mrfile.get_full_array_1D(avg_var,options_figure['insitu_id_variable'], False)
+            var_array = self.mrfile.nc.variables[avg_var][:]
+
             if options_figure['type_time_axis']=='fix':
                 if options_figure['method_fix_axis']=='all':
                     for ivalue in instant_values:
-                        #xdata = instant_values[instant_values==ivalue]
                         ydata = var_array[time_array_instants==ivalue]
-                        ydata = ydata[~ydata.mask]
-                        print(ivalue,np.min(ydata),np.max(ydata))
-                        xdata = np.zeros(len(ydata))
-                        xdata[:] = ivalue
-                        pspectra.plot_single_data(xdata,ydata,style)
+                        #ydata = ydata[~ydata.mask]
+                        #print(ivalue,len(ydata),ydata)
+                        if len(ydata)==0:
+                            continue
+                        #print(ydata,len(ydata))
+                        ydata = ydata[0]
 
+                        if index==0:
+                            print(ivalue,'--->',ydata)
+                            insitu_array[instant_values==ivalue] = ydata
+                        if index==1:
+                            print(ivalue, '--->', ydata)
+                            global_array[instant_values==ivalue] = ydata
+                        if index==2:
+                            regional_array[instant_values==ivalue] = ydata
+                        # ydata = var_array[time_array_instants==ivalue]
+                        # ydata = ydata[~ydata.mask]
+                        # if len(ydata)==0:
+                        #     continue
+                        # xdata = np.zeros(len(ydata))
+                        # xdata[:] = ivalue
+                        # pspectra.plot_single_data(xdata,ydata,style)
+
+        print('??????????????????????????????????')
+        print(instant_values.shape)
+        print(pspectra.xdata.shape)
+        print(insitu_array.shape)
+        print(global_array.shape)
+        print(regional_array.shape)
+        print(style)
+        style['linewidth']=1
+        style['markersize']=0
+        style['color'] = 'gray'
+        pspectra.plot_data(insitu_array,style)
+        style['color'] = 'blue'
+        style['markersize'] = 5
+        pspectra.plot_data(global_array, style)
+        style['color'] = 'green'
+        style['markersize'] = 5
+        pspectra.plot_data(regional_array, style)
+        pspectra.set_grid()
 
         #     var_array = np.array(self.mrfile.nc.variables[avg_var]).astype(np.float)
         #     var_array[var_array < -1] = np.nan
@@ -561,9 +608,9 @@ class MDBPlot:
             if not check_max_time and ((max_time_abs is None) or (max_time_abs is not None and instant_here>max_time_abs)):
                 max_time_abs = instant_here
 
-        print(min_time_abs,max_time_abs)
+        #print(min_time_abs,max_time_abs)
         instant_values = np.arange(min_time_abs,max_time_abs+1,1).astype(np.int32)
-        print(instant_values )
+        #print(instant_values )
 
         return instant_values,time_array_instants
 
@@ -1095,6 +1142,11 @@ class MDBPlot:
         valid_all = np.ones(xarray.shape)
         valid_all[xarray.mask] = 0
         valid_all[yarray.mask] = 0
+
+        if 'mu_valid' in self.mrfile.nc.variables:
+            print('===============================================================================>')
+            mu_valid = self.mrfile.nc.variables['mu_valid'][:]
+            valid_all = np.array(mu_valid)
 
         if selectBy is not None:
             select_array, all_select_values, all_select_meanings = self.get_flag_array(options_out, 'selectBy')

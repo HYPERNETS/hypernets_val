@@ -17,6 +17,7 @@ parser.add_argument('-check', "--check_mode", help="Check mode.", action="store_
 parser.add_argument('-meta',"--download_metadata",help="Option do download metadata",action="store_true")
 
 
+
 args = parser.parse_args()
 
 
@@ -25,6 +26,9 @@ def main():
     if args.config_file:
         print('[ERROR] Option config file is not implemented yet')
         return
+
+
+
     start_date, end_date = get_dates_from_arg()
     if start_date is None or end_date is None:
         return
