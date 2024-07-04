@@ -640,9 +640,10 @@ class HYPERNETS_DAY_FILE():
         pmtop.plot_image(file_out_ts, 0, 2)
         pmtop.set_text(-1250, 50, f'DAILY SUMMARY REPORT - {date_here.strftime("%Y-%m-%d")}')
         # daily_sequences_summary = self.get_sequence_info()
-        line = f'Total sequences: {daily_sequences_summary["NTotal"]}. Available L2: {daily_sequences_summary["NAvailable"]}.'
+        line = f'Total sequences: {daily_sequences_summary["NTotal"]}/{daily_sequences_summary["expected_sequences"]}. Processed to L2: {daily_sequences_summary["NAvailable"]}.'
+        skip = ['NTotal','NAvailable','start_time','end_time','expected_sequences']
         for key in daily_sequences_summary.keys():
-            if key=='NTotal' or key=='NAvailable': continue
+            if key in skip: continue
             if daily_sequences_summary[key]==0: continue
             line = f'{line} {key}: {daily_sequences_summary[key]}. '
         # line = f'{line} QC Flagged: {daily_sequences_summary["QFlagged"]}.'
@@ -1228,11 +1229,6 @@ class HYPERNETS_DAY_FILE():
         yarray = np.zeros(xarray.shape)
         hours_ticks = []
         minutes_ticks = []
-
-
-
-
-
         daily_summary_sequences = {
             'NTotal': 0,
             'NAvailable': 0,
@@ -1297,16 +1293,19 @@ class HYPERNETS_DAY_FILE():
         if self.sequences_no_data is not None and len(self.sequences_no_data) > 0:
             daily_summary_sequences['NTotal'] = daily_summary_sequences['NAvailable'] + len(self.sequences_no_data)
             for seq in self.sequences_no_data:
-                date_seq = dt.strptime(seq[3:], '%Y%m%dT%H%M')
-                # print(date_seq, date_seq.strftime('%H'), date_seq.strftime('%M'))
-                data.loc[date_seq.strftime('%H')].at[date_seq.strftime('%M')] = 0
+                time_stamp_seq = dt.strptime(seq[3:], '%Y%m%dT%H%M').replace(tzinfo=pytz.utc).timestamp()
+                iwhere = np.where(np.logical_and(time_stamp_seq>=time_fix_min_max[:,0],time_stamp_seq<time_fix_min_max[:,1]))
+                if len(iwhere[0])>0:
+                    index = iwhere[0][0]
+                    date_seq = dt.utcfromtimestamp(time_fix_axis_ts[index])
+                    data.loc[date_seq.strftime('%H')].at[date_seq.strftime('%M')] = 0
         else:
             daily_summary_sequences['NTotal'] = daily_summary_sequences['NAvailable']
 
         if options_figure['color'] is not None:
-            colors = ['gray'] + options_figure['color']
+            colors = ['gainsboro'] + options_figure['color']
         else:
-            colors = ['gray', 'red', 'cyan', 'green', 'magenta']
+            colors = ['gainsboro', 'red', 'cyan', 'green', 'magenta']
         vmax = len(colors) - 1
         ax = sns.heatmap(data, vmin=0, vmax=vmax, cmap=colors, linewidths=0.5, linecolor='gray')
         plt.yticks(rotation='horizontal')

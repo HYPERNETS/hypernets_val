@@ -484,7 +484,7 @@ def plot_from_options(input_path, config_file, output_path_images,sequences_no_d
     options = configparser.ConfigParser()
     options.read(config_file)
     hfile = HYPERNETS_DAY_FILE(input_path, None)
-    hfile.sequences_no_data = sequences_no_data
+
     from MDB_reader.PlotOptions import PlotOptions
     poptions = PlotOptions(options, None)
     poptions.set_global_options()
@@ -513,7 +513,9 @@ def plot_from_options(input_path, config_file, output_path_images,sequences_no_d
 
     list_figures = poptions.get_list_figures()
 
-    # print(list_figures)
+
+
+
     daily_sequences_summary = None
     for figure in list_figures:
         print('------------------------------------------------------------------------------------------')
@@ -521,6 +523,21 @@ def plot_from_options(input_path, config_file, output_path_images,sequences_no_d
         options_figure = poptions.get_options(figure)
         if options_figure is None:
             continue
+
+        if options_figure['type']=='sequence':
+            start_time_str = options_figure['start_time']
+            end_time_str = options_figure['end_time']
+            sequences_no_data_real = []
+            for seq in sequences_no_data:
+                seq_time = dt.strptime(seq[3:],'%Y%m%dT%H%M')
+                seq_min = dt.strptime(f'{seq_time.strftime("%Y%m%d")}T{start_time_str}','%Y%m%dT%H:%M')
+                seq_max = dt.strptime(f'{seq_time.strftime("%Y%m%d")}T{end_time_str}', '%Y%m%dT%H:%M')
+                if seq_min<=seq_time<=seq_max:
+                    print(seq)
+                    sequences_no_data_real.append(seq)
+            hfile.sequences_no_data = sequences_no_data_real
+
+
         if options_figure['apply'] and options_figure['type']=='sequence':
             daily_sequences_summary = hfile.plot_from_options_impl(options_figure)
         else:
