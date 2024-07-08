@@ -328,7 +328,8 @@ class HYPERNETS_DAY():
                     pm.plot_blank_with_title(irow, icol, title)
 
         print(f'[INFO] Saving sun plot to: {output_file}')
-        pm.save_fig(output_file)
+        #pm.save_fig(output_file)
+        pm.save_fig_with_resolution(output_file,150)
         pm.close_plot()
 
     def get_file_date_complete(self, site, date_here):

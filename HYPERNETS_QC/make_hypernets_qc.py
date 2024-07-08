@@ -533,7 +533,7 @@ def plot_from_options(input_path, config_file, output_path_images,sequences_no_d
                 seq_min = dt.strptime(f'{seq_time.strftime("%Y%m%d")}T{start_time_str}','%Y%m%dT%H:%M')
                 seq_max = dt.strptime(f'{seq_time.strftime("%Y%m%d")}T{end_time_str}', '%Y%m%dT%H:%M')
                 if seq_min<=seq_time<=seq_max:
-                    print(seq)
+                    #print(seq)
                     sequences_no_data_real.append(seq)
             hfile.sequences_no_data = sequences_no_data_real
 
@@ -889,7 +889,7 @@ def get_start_and_end_times():
 def prepare_sun_plot_email(input_path, output_path, site, start_date):
     output_path_site = os.path.join(output_path, site)
     file_mail_text = os.path.join(output_path_site, 'SunMail.mail')
-    lines = [f'SUN PICTURES CHECK {start_date.strftime("%Y-%m-%d")}']
+    lines = ['',f'SUN PICTURES CHECK','--------------------']
     ini_date = start_date - timedelta(days=5)
     lines.append(f'Start date for checking: {ini_date.strftime("%Y-%m-%d")}')
     lines.append(f'End date for checking: {start_date.strftime("%Y-%m-%d")}')
@@ -900,6 +900,7 @@ def prepare_sun_plot_email(input_path, output_path, site, start_date):
         lines.append(f'Image file path: {path_file}')
     else:
         lines.append(f'Error: No image file was found for date: {start_date.strftime("%Y-%m-%d")}')
+    lines.append('')
     fout = open(file_mail_text, 'w')
     fout.write(lines[0])
     for idx in range(1, len(lines)):

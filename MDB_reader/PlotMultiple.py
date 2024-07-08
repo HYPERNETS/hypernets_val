@@ -186,6 +186,14 @@ class PlotMultiple():
             plt.savefig(file_out, dpi=300, bbox_inches='tight', facecolor='white')
         # plt.savefig(file_out, dpi=300)
 
+    def save_fig_with_resolution(self, file_out,resolution):
+        if file_out.endswith('.tif'):
+
+            plt.savefig(file_out, dpi=resolution, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+        else:
+
+            plt.savefig(file_out, dpi=resolution, bbox_inches='tight', facecolor='white')
+
 
 
     def close_plot(self):
