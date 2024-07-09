@@ -776,11 +776,11 @@ class HYPERNETS_DAY_FILE():
         # pm.save_fig(file_out)
         # pm.close_plot()
         #
-        # if delete_images:
-        #     for name in os.listdir(dir_img):
-        #         file_here = os.path.join(dir_img, name)
-        #         os.remove(file_here)
-        #     os.rmdir(dir_img)
+        if delete_images:
+            for name in os.listdir(dir_img):
+                file_here = os.path.join(dir_img, name)
+                os.remove(file_here)
+            os.rmdir(dir_img)
 
     def save_report_image(self, site, delete_images, overwrite):
         print(f'[INFO] Sequence {self.isequence}: SEQ{self.sequences[self.isequence]}')

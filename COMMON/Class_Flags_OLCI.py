@@ -39,8 +39,6 @@ class Class_Flags_OLCI(object):
         self.maskNames = flagMeanings.split(' ')
 
 
-        # print(type(self.maskValues))
-        # print(type(self.maskNames))
 
 
 class Class_Flags_Idepix(object):

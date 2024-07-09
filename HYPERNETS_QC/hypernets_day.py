@@ -249,6 +249,7 @@ class HYPERNETS_DAY():
 
     def get_sequences_info(self,site,date_here,sequences_with_data):
         all_sequences = self.get_sequences_date_from_file_list(site,date_here)
+
         all_sequences = [x[:-2] for x  in all_sequences]
         sequences_with_data = [f'SEQ{x}' for x in sequences_with_data]
 
@@ -421,49 +422,49 @@ class HYPERNETS_DAY():
 
         ##rgb variables
         print(f'[INFO] Creating image variables...')
+        #self.rgb_refs = ['003', '006', '009', '012', '015', '016']
         rgb_variables = {
             'pictures_sky_irr_1': {
-                'ref': '003',
+                'ref': self.rgb_refs[0],
                 'oza': 180,
                 'oaa': 90,
                 'prefix': 'HYPERNETS_W_VEIT_IMG',
-                'suffix': '003_180_90_v2.0.jpg'
+                'suffix': f'{self.rgb_refs[0]}_180_90_v2.0.jpg'
             },
             'pictures_sky_rad_1': {
-                'ref': '006',
+                'ref': self.rgb_refs[1],
                 'oza': 140,
                 'oaa': 90,
                 'prefix': 'HYPERNETS_W_VEIT_IMG',
-                'suffix': '006_140_90_v2.0.jpg'
+                'suffix': f'{self.rgb_refs[1]}_140_90_v2.0.jpg'
             },
             'pictures_water_rad': {
-                'ref': '009',
+                'ref': self.rgb_refs[2],
                 'oza': 40,
                 'oaa': 90,
                 'prefix': 'HYPERNETS_W_VEIT_IMG',
-                'suffix': '009_40_90_v2.0.jpg'
+                'suffix': f'{self.rgb_refs[2]}_40_90_v2.0.jpg'
             },
             'pictures_sky_rad_2': {
-                'ref': '012',
+                'ref': self.rgb_refs[3],
                 'oza': 140,
                 'oaa': 90,
                 'prefix': 'HYPERNETS_W_VEIT_IMG',
-                'suffix': '012_140_90_v2.0.jpg'
+                'suffix': f'{self.rgb_refs[3]}_140_90_v2.0.jpg'
             },
             'pictures_sky_irr_2': {
-                'ref': '015',
+                'ref': self.rgb_refs[4],
                 'oza': 180,
                 'oaa': 90,
                 'prefix': 'HYPERNETS_W_VEIT_IMG',
-                'suffix': '015_180_90_v2.0.jpg'
+                'suffix': f'{self.rgb_refs[4]}_180_90_v2.0.jpg'
             },
             'pictures_sun': {
-                'ref': '016',
+                'ref': self.rgb_refs[5],
                 'oza': 0,
                 'oaa': 0,
                 'prefix': 'HYPERNETS_W_VEIT_IMG',
-                'suffix': '016_0_0_v2.0.jpg'
-
+                'suffix': f'{self.rgb_refs[5]}_0_0_v2.0.jpg'
             }
         }
         for rgb_var in rgb_variables:
@@ -550,17 +551,28 @@ class HYPERNETS_DAY():
 
             dataset.close()
 
+    def set_rgb_refs(self,config_file_summary):
+        import configparser
+        options = configparser.ConfigParser()
+        options.read(config_file_summary)
+        if options.has_option('GLOBAL_OPTIONS', 'rgb_refs'):
+            value = options['GLOBAL_OPTIONS']['rgb_refs'].strip()
+            if len(value.split(','))==6:
+                self.rgb_refs = [x.strip() for x in value.split(',')]
+                print(f'[INFO] Camera image refs sets to: {self.rgb_refs}')
+
     def set_rgb_images_data(self):
         import pytz
         seq_list = list(self.files_dates.keys())
         seq_list.sort()
+        # self.rgb_refs = ['003', '006', '009', '012', '015', '016']
         rgb_variables = {
-            '003': {'name_var': 'pictures_sky_irr_1', 'check_at': False},
-            '006': {'name_var': 'pictures_sky_rad_1', 'check_at': False},
-            '009': {'name_var': 'pictures_water_rad', 'check_at': False},
-            '012': {'name_var': 'pictures_sky_rad_2', 'check_at': False},
-            '015': {'name_var': 'pictures_sky_irr_2', 'check_at': False},
-            '016': {'name_var': 'pictures_sun', 'check_at': False}
+            self.rgb_refs[0]: {'name_var': 'pictures_sky_irr_1', 'check_at': False},
+            self.rgb_refs[1]: {'name_var': 'pictures_sky_rad_1', 'check_at': False},
+            self.rgb_refs[2]: {'name_var': 'pictures_water_rad', 'check_at': False},
+            self.rgb_refs[3]: {'name_var': 'pictures_sky_rad_2', 'check_at': False},
+            self.rgb_refs[4]: {'name_var': 'pictures_sky_irr_2', 'check_at': False},
+            self.rgb_refs[5]: {'name_var': 'pictures_sun', 'check_at': False}
         }
         for idx in range(len(seq_list)):
             seq = seq_list[idx]
