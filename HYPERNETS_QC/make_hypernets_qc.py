@@ -380,21 +380,32 @@ def get_lines_disk_usage(file_log):
 
     porc_ref = float(str(last_line[4])[:-1])
 
+
     nlines = len(df.index)
-    last_five_dates = []
-    date_ref = dt.strptime(last_line[0], '%Y-%m-%d-%H%M').replace(hour=12, minute=0, second=12) - timedelta(hours=24)
-    date_ref_str = date_ref.strftime('%Y-%m-%d')
+    last_five_dates = {}
+    date_ref = dt.strptime(last_line[0][:15], '%Y-%m-%d-%H%M').replace(hour=12, minute=0, second=12)
+    date_ref_str_loop = date_ref.strftime('%Y-%m-%d')
+    for i in range(5):
+        date_ref = date_ref - timedelta(hours=24)
+        date_ref_str = date_ref.strftime('%Y-%m-%d')
+        last_five_dates[date_ref_str] = None
+
     first_date_here_str = None
     last_date_here_str = None
     used_array = []
+    total_array = []
     porc_use_array = []
+
 
     for idx in range(nlines - 1, 0, -1):
         line_here = df.loc[idx]
         date_here_str = str(line_here[0])[:10]
-        if date_here_str == date_ref_str:
-            if len(last_five_dates) < 5:
-                last_five_dates.append(line_here)
+
+        if date_here_str != date_ref_str_loop:
+            date_ref_str_loop = date_here_str
+            date_here_str_basic = dt.strptime(date_here_str, '%Y-%m-%d').replace(hour=12, minute=0, second=12).strftime('%Y-%m-%d')
+            if date_here_str_basic in last_five_dates.keys():
+                last_five_dates[date_here_str_basic] = line_here
             if last_date_here_str is None:
                 last_date_here_str = str(line_here[0])
 
@@ -402,13 +413,14 @@ def get_lines_disk_usage(file_log):
             if abs(porc_ref - porc_here) < 2:
                 porc_ref = porc_here
                 used_array.append(float(line_here[1]))
+                total_array.append(float(line_here[1])+float(line_here[2]))
                 porc_use_array.append(line_here[4])
-                date_ref = dt.strptime(line_here[0], '%Y-%m-%d-%H%M').replace(hour=12, minute=0, second=12) - timedelta(
-                    hours=24)
-                date_ref_str = date_ref.strftime('%Y-%m-%d')
                 first_date_here_str = str(line_here[0])
             else:
                 break
+
+
+
 
     lines.append(f' Overall period:')
     start_used = used_array[-1] / (1024 * 1024)
@@ -419,18 +431,32 @@ def get_lines_disk_usage(file_log):
         used_increase.append(used_array[idx - 1] - used_array[idx])
         porc_used_increase.append(float(str(porc_use_array[idx - 1])[:-1]) - float(str(porc_use_array[idx])[:-1]))
 
-    avg_increase_mb = np.mean(np.array(used_increase)) / 1024
+    avg_increase = np.mean(np.array(used_increase))
+    avg_increase_mb = avg_increase / 1024
     avg_increase_porc = np.mean(np.array(porc_used_increase))
+
+
+    total_99 = np.min(total_array) * 0.99
+
+    remaining = total_99 - used_array[-1]
+    ndays = np.floor(remaining/avg_increase)
+    last_day = dt.strptime(last_date_here_str[:10],'%Y-%m-%d')
+    day_fill = last_day + timedelta(days=ndays)
 
     lines.append(f'  Start: {first_date_here_str} Used: {start_used:.2f} Gg. %Used: {porc_use_array[-1]}')
     lines.append(f'  End: {last_date_here_str} Used: {end_used:.2f} Gg. %Used: {porc_use_array[0]}')
     lines.append(f'  Average daily increase: {avg_increase_mb:.2f} Mb. ({avg_increase_porc:.3f}%).')
+    lines.append(f'  Number of days until 99%: {ndays:.0f} ({day_fill.strftime("%Y-%m-%d")}).')
 
     lines.append(' Last five days: ')
-    for line_here in last_five_dates:
-        used = float(line_here[1]) / (1024 * 1024)
-        av = float(line_here[2]) / (1024 * 1024)
-        lines.append(f'  {line_here[0]} Used: {used:.2f} Gb. Available: {av:.2f} Gb. %Use: {line_here[4]}')
+    for last_five_date in last_five_dates:
+        line_here = last_five_dates[last_five_date]
+        if line_here is None:
+            lines.append(f'  {last_five_date}: Data are not available')
+        else:
+            used = float(line_here[1]) / (1024 * 1024)
+            av = float(line_here[2]) / (1024 * 1024)
+            lines.append(f'  {line_here[0]} Used: {used:.2f} Gb. Available: {av:.2f} Gb. %Use: {line_here[4]}')
     lines.append('')
 
     return lines
