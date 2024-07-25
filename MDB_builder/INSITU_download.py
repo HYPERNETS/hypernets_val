@@ -171,17 +171,17 @@ def make_download(start_date, end_date, site, output_folder):
                 print(f'[ERROR] Output folder date does not exist and could not be created')
                 date_download = date_download + timedelta(hours=24)
                 continue
-            # for seq in sequence_folders:
-            #     print('[INFO] Downloading images for sequence:', seq)
-            #     list_img = ih.get_files_img_download_land(site, seq)
-            #     if list_img is not None and len(list_img) > 0:
-            #         ih.transfer_files_to_output_folder_via_ssh_land(list_img, output_folder_date)
-            #         for file_img_orig in list_img:
-            #             file_img = os.path.join(output_folder_date,os.path.basename(file_img_orig))
-            #             if os.path.exists(file_img):
-            #                 name_new = get_name_new_file_img(file_img, site, seq)
-            #                 file_img_new = os.path.join(output_folder_date, name_new)
-            #                 os.rename(file_img, file_img_new)
+            for seq in sequence_folders:
+                print('[INFO] Downloading images for sequence:', seq)
+                list_img = ih.get_files_img_download_land(site, seq)
+                if list_img is not None and len(list_img) > 0:
+                    ih.transfer_files_to_output_folder_via_ssh_land(list_img, output_folder_date)
+                    for file_img_orig in list_img:
+                        file_img = os.path.join(output_folder_date,os.path.basename(file_img_orig))
+                        if os.path.exists(file_img):
+                            name_new = get_name_new_file_img(file_img, site, seq)
+                            file_img_new = os.path.join(output_folder_date, name_new)
+                            os.rename(file_img, file_img_new)
             files_download_all = None
             ih.find_ref = 'HYPERNETS_L_SITE_L1C_ALL*'
             files_download_l1 = ih.get_files_download_land(date_download, site)
