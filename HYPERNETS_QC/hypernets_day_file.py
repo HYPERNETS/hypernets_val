@@ -660,9 +660,9 @@ class HYPERNETS_DAY_FILE():
         pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_sza.tif'), 0, 0)
         pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_saa.tif'), 0, 1)
         pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_paa.tif'), 0, 2)
-        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_sza.tif'), 1, 0)
-        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_saa.tif'), 1, 1)
-        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_nosc_paa.tif'), 1, 2)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_sza.tif'), 1, 0)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_saa.tif'), 1, 1)
+        pmmiddle.plot_image(os.path.join(dir_img_summary, 'angle_800_paa.tif'), 1, 2)
         pmmiddle.save_fig(file_out_middle)
         pmmiddle.close_plot()
 
@@ -1180,6 +1180,11 @@ class HYPERNETS_DAY_FILE():
 
         dataset.close()
 
+
+
+
+
+
     def plot_sequence_plot_from_options(self, options_figure):
         from netCDF4 import Dataset
         import numpy as np
@@ -1187,6 +1192,7 @@ class HYPERNETS_DAY_FILE():
         import pandas as pd
         import seaborn as sns
         from matplotlib import pyplot as plt
+
 
         dataset = Dataset(self.file_nc)
         time_array = dataset.variables['l2_acquisition_time'][:]
@@ -1198,21 +1204,18 @@ class HYPERNETS_DAY_FILE():
             print('[ERROR] Plot is only created for a single day')
             return
 
-        # print(options_figure)
-
         use_default_flag = True
         if options_figure['flagBy'] is not None:
-            # print('===========================================================================================================')
             options_figure['flagType'] = 'flag'
             options_figure = self.check_gs_options_impl(options_figure, 'flagBy', 'flagType', 'flagValues')
-            if options_figure['flagBy'] in options_figure.keys() and len(
-                    options_figure[options_figure['flagBy']]['flag_values']) == 4:
+            #noptions = len(options_figure[options_figure['flagBy']]['flag_values'])
+            if options_figure['flagBy'] in options_figure.keys():
                 use_default_flag = False
                 flag_meanings = options_figure[options_figure['flagBy']]['flag_meanings']
                 flag_values = options_figure[options_figure['flagBy']]['flag_values']
                 flag_array = options_figure[options_figure['flagBy']]['flag_array']
-                # print(options_figure[options_figure['flagBy']])
-            # print('********************************************************')
+
+
         if use_default_flag:
             qf_array = dataset.variables['l2_quality_flag'][:]
             epsilon_array = dataset.variables['l2_epsilon'][:]
@@ -2055,15 +2058,17 @@ class HYPERNETS_DAY_FILE():
                 }
             else:  ##virtual flag
                 virtual_flags_options = self.flag_builder.get_virtual_flags_options()
-
-                array, flag_meanings, flag_values = self.flag_builder.create_flag_array_ranges_v2(
-                    virtual_flags_options[var_group_name])
+                if virtual_flags_options[var_group_name]['type']=='ranges':
+                    array, flag_meanings, flag_values = self.flag_builder.create_flag_array_ranges_v2(virtual_flags_options[var_group_name])
+                elif virtual_flags_options[var_group_name]['type']=='flag':
+                    array, dims, flag_meanings, flag_values = self.flag_builder.create_flag_array_flag(virtual_flags_options[var_group_name])
 
                 options_figure[var_group_name] = {
                     'flag_values': flag_values,
                     'flag_meanings': flag_meanings,
                     'flag_array': array
                 }
+
 
             if options_figure[values] is None:
                 options_figure[values] = flag_values

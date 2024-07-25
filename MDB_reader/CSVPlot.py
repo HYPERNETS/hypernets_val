@@ -27,7 +27,7 @@ class CSVPLOT:
 
             options_out = poptions.get_options(plot)
 
-            if options_out['apply']:
+            if options_out is not None:
                 self.plot_from_options_impl(options_out)
 
     def plot_from_options_impl(self,options_out):
@@ -104,7 +104,7 @@ class CSVPLOT:
 
 
     def plot_scatter_plot(self,options_out):
-        from MDBPlotV2 import MDBPlot
+        from MDBPlotV3 import MDBPlot
         import numpy as np
         mplot = MDBPlot(None)
         xdata = np.array(self.dataset[options_out['xvar']])
@@ -241,7 +241,7 @@ class CSVPLOT:
                 #     options_out['ticks'] = vals[wls]['ticks']
                 # print('-------------->',wls,options_out['max_xy'])
 
-        mplot.plot_scatter_plot(options_out,None,-1,-1)
+        mplot.plot_scatter_plot(options_out,None,-1,-1,-1)
 
 
     def compute_statistics(self,options_out):

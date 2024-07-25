@@ -14,9 +14,7 @@ parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM
 parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-check', "--check_mode", help="Check mode.", action="store_true")
-parser.add_argument('-meta',"--download_metadata",help="Option do download metadata",action="store_true")
-
-
+parser.add_argument('-meta', "--download_metadata", help="Option do download metadata", action="store_true")
 
 args = parser.parse_args()
 
@@ -26,8 +24,6 @@ def main():
     if args.config_file:
         print('[ERROR] Option config file is not implemented yet')
         return
-
-
 
     start_date, end_date = get_dates_from_arg()
     if start_date is None or end_date is None:
@@ -48,7 +44,7 @@ def main():
         return
     if args.download_metadata:
         print('[INFO] Entering metadata mode...')
-        make_download_metadata(start_date,end_date,site,output_folder)
+        make_download_metadata(start_date, end_date, site, output_folder)
         return
 
     make_download(start_date, end_date, site, output_folder)
@@ -105,66 +101,128 @@ def make_download_metadata(start_date, end_date, site, output_folder):
             continue
         for seq in sequence_folders:
             print(f'[INFO] Donwload metadata file for {site}/{seq} to {output_folder_date}')
-            ih.download_sequence_metadata(site,seq,output_folder_date)
-            file_metadata = os.path.join(output_folder_date,'metadata.txt')
-            file_metadata_new = os.path.join(output_folder_date,f'{seq}_metadata.txt')
-            os.rename(file_metadata,file_metadata_new)
+            ih.download_sequence_metadata(site, seq, output_folder_date)
+            file_metadata = os.path.join(output_folder_date, 'metadata.txt')
+            file_metadata_new = os.path.join(output_folder_date, f'{seq}_metadata.txt')
+            os.rename(file_metadata, file_metadata_new)
         date_download = date_download + timedelta(hours=24)
+
 
 def make_download(start_date, end_date, site, output_folder):
     ih = INSITU_HYPERNETS_DAY(None, None, args.verbose)
 
     date_download = start_date
     while date_download <= end_date:
-        sequence_folders = ih.get_sequences_day_ssh(site, date_download)
+        if site == 'JSIT':
+            sequence_folders = ih.get_sequences_date_l2(site, date_download)
+        else:
+            sequence_folders = ih.get_sequences_day_ssh(site, date_download)
         if len(sequence_folders) == 0:
             if args.verbose:
                 print(f'[WARNING] No sequences are available for site: {site} and date: {date_download}')
             date_download = date_download + timedelta(hours=24)
             continue
-        files_download_all = None
+        # print(sequence_folders)
 
-        ih.find_ref = 'HYPERNETS_W_SITE_L1C_ALL*'
-        files_download_l1 = ih.get_files_download(date_download, site)
-        if files_download_l1 is not None:
-            files_download_all = files_download_l1
-        ih.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
-        files_download_l2 = ih.get_files_download(date_download, site)
-        if files_download_l2 is not None:
+
+
+        ##water sites
+        if site != 'JSIT':
+            files_download_all = None
+            ih.find_ref = 'HYPERNETS_W_SITE_L1C_ALL*'
+            files_download_l1 = ih.get_files_download(date_download, site)
+            if files_download_l1 is not None:
+                files_download_all = files_download_l1
+            ih.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
+            files_download_l2 = ih.get_files_download(date_download, site)
+            if files_download_l2 is not None:
+                if files_download_all is None:
+                    files_download_all = files_download_l2
+                else:
+                    files_download_all = files_download_all + files_download_l2
+
+            ih.find_ref = 'HYPERNETS_W_SITE_IMG*jpg'
+            files_download_img = ih.get_files_download(date_download, site)
+            if files_download_img is not None:
+                if files_download_all is None:
+                    files_download_all = files_download_img
+                else:
+                    files_download_all = files_download_all + files_download_img
+
             if files_download_all is None:
-                files_download_all = files_download_l2
-            else:
-                files_download_all = files_download_all + files_download_l2
+                print(f'[WARNING] Files are not available for downloading. Skipping date: {date_download}')
+                date_download = date_download + timedelta(hours=24)
+                continue
+            output_folder_site = get_folder_new(output_folder, site)
+            output_folder_date = get_folder_date(output_folder_site, date_download)
+            if output_folder_date is None:
+                print(f'[ERROR] Output folder date does not exist and could not be created')
+                date_download = date_download + timedelta(hours=24)
+                continue
+            if args.verbose:
+                print(f'[INFO] Output folder date: {output_folder_date}')
+                print(f'[INFO] Files available for download: {len(files_download_all)}')
+            ih.transfer_files_to_output_folder_via_ssh(files_download_all, output_folder_date)
 
-        ih.find_ref = 'HYPERNETS_W_SITE_IMG*jpg'
-        files_download_img = ih.get_files_download(date_download, site)
-        if files_download_img is not None:
+        if site == 'JSIT':
+            output_folder_site = get_folder_new(output_folder, site)
+            output_folder_date = get_folder_date(output_folder_site, date_download)
+            if output_folder_date is None:
+                print(f'[ERROR] Output folder date does not exist and could not be created')
+                date_download = date_download + timedelta(hours=24)
+                continue
+            # for seq in sequence_folders:
+            #     print('[INFO] Downloading images for sequence:', seq)
+            #     list_img = ih.get_files_img_download_land(site, seq)
+            #     if list_img is not None and len(list_img) > 0:
+            #         ih.transfer_files_to_output_folder_via_ssh_land(list_img, output_folder_date)
+            #         for file_img_orig in list_img:
+            #             file_img = os.path.join(output_folder_date,os.path.basename(file_img_orig))
+            #             if os.path.exists(file_img):
+            #                 name_new = get_name_new_file_img(file_img, site, seq)
+            #                 file_img_new = os.path.join(output_folder_date, name_new)
+            #                 os.rename(file_img, file_img_new)
+            files_download_all = None
+            ih.find_ref = 'HYPERNETS_L_SITE_L1C_ALL*'
+            files_download_l1 = ih.get_files_download_land(date_download, site)
+            #print('-->',files_download_l1)
+            if files_download_l1 is not None:
+                files_download_all = files_download_l1
+            ih.find_ref = 'HYPERNETS_L_SITE_L2A_REF*'
+            files_download_l2 = ih.get_files_download_land(date_download, site)
+            if files_download_l2 is not None:
+                if files_download_all is None:
+                    files_download_all = files_download_l2
+                else:
+                    files_download_all = files_download_all + files_download_l2
             if files_download_all is None:
-                files_download_all = files_download_img
-            else:
-                files_download_all = files_download_all + files_download_img
+                print(f'[WARNING] Files are not available for downloading. Skipping date: {date_download}')
+                date_download = date_download + timedelta(hours=24)
+                continue
+            if args.verbose:
+                print(f'[INFO] Output folder date: {output_folder_date}')
+                print(f'[INFO] Files available for download: {len(files_download_all)}')
+            ih.transfer_files_to_output_folder_via_ssh_land(files_download_all, output_folder_date)
 
-        if files_download_all is None:
-            print(f'[WARNING] Files are not available for downloading. Skipping date: {date_download}')
-            date_download = date_download + timedelta(hours=24)
-            continue
 
-        output_folder_site = get_folder_new(output_folder, site)
-        output_folder_date = get_folder_date(output_folder_site, date_download)
-        if output_folder_date is None:
-            print(f'[ERROR] Output folder date does not exist and could not be created')
-            date_download = date_download + timedelta(hours=24)
-            continue
-        if args.verbose:
-            print(f'[INFO] Output folder date: {output_folder_date}')
-            print(f'[INFO] Files available for download: {len(files_download_all)}')
-
-        ih.transfer_files_to_output_folder_via_ssh(files_download_all, output_folder_date)
         if len(sequence_folders) > 0:
             save_sequence_list(sequence_folders, output_folder_date)
 
         date_download = date_download + timedelta(hours=24)
 
+
+def get_name_new_file_img(file_img,site,seq):
+    type = 'W'
+    if site=='JSIT':
+        type = 'L'
+    name_split = os.path.basename(file_img)[:-4].split('_')
+    picture = name_split[1]
+    zenith = str(int(name_split[4]))
+    azimuth = str(int(name_split[2]))
+    date_img =  dt.fromtimestamp(os.path.getmtime(file_img))
+    date_img_str = date_img.strftime('%Y%m%dT%H%M')
+    name_new = f'HYPTERNETS_{type}_{site}_IMG_{seq[3:-2]}_{date_img_str}_{picture}_{zenith}_{azimuth}_v2.0.jpg'
+    return name_new
 
 def save_sequence_list(sequence_folders, output_folder_date):
     file_out = os.path.join(output_folder_date, 'sequence_list.txt')

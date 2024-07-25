@@ -16,14 +16,28 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             rsync_user = mdb_options.insitu_options['rsync_user']
         if rsync_user is None:
             rsync_user = 'hypstar'
+
+
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
         self.base_folder = '/waterhypernet/hypstar/processed_v2/'
+        self.base_folder_l2_rbins = '/home/hypstar/'
         self.ssh_base = 'ssh -X -Y -p 9022'
         self.ls_base = 'ls processed_v2/'
         self.find_ref = 'HYPERNETS_W_SITE_L2A_REF*'
-
         self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'
         self.rsync_url = f'rsync -a -e \'ssh -p 9022\' {self.url_base}'
+
+
+        ##land
+        self.url_base_npl = f'cnr@hypernetssvr1.npl.co.uk'
+        self.base_folder_npl = '/home/cnr/processed'
+        self.base_folder_l2_npl = '/home/cnr/'
+        self.ssh_base_npl = 'ssh -Y'
+        self.ls_base_npl  = 'ls /home/cnr/processed/'
+        self.rsync_url_npl = f'rsync -a -e \'ssh\' {self.url_base_npl}'
+
+
+
 
         self.CHECK_SSH = self.check_ssh()
 
@@ -313,6 +327,33 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         sequence_list = self.get_list_sequence_folders(cmd)
         return sequence_list
 
+    def get_sequences_day_ssh_land(self,sitename,date_here):
+
+        year_str = date_here.strftime('%Y')
+        month_str = date_here.strftime('%m')
+        day_str = date_here.strftime('%d')
+        cmd = f'{self.ssh_base_npl} {self.url_base_npl} {self.ls_base_npl}{sitename}/{year_str}/{month_str}/{day_str}'
+        sequence_list = self.get_list_sequence_folders(cmd)
+        return sequence_list
+
+    def get_sequences_date_l2(self, site, date_here):
+        base_folder_l2 = self.base_folder_l2_rbins
+        url_base = self.url_base
+        ssh_base = self.ssh_base
+        if site == 'JSIT':
+            base_folder_l2 = self.base_folder_l2_npl
+            url_base = self.url_base_npl
+            ssh_base = self.ssh_base_npl
+        path_search = f'{base_folder_l2}{site}/DATA/SEQ{date_here.strftime("%Y%m%d")}*'
+
+        cmd = f'{ssh_base} {url_base} ls -d {path_search}'
+
+        list_sequences = self.get_list_sequence_folders(cmd)
+
+        list_sequences = [x.split('/')[-1] for x in list_sequences]
+
+        return list_sequences
+
     def get_files_day_ssh(self, sat_time, dotransfer):
         if self.verbose:
             print(f'[INFO] =====================================================================')
@@ -396,6 +437,22 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             if self.verbose:
                 print(f'[INFO] Transfering file: {file} to {output_folder}')
             cmd = f'{self.rsync_url}:{file} {output_folder}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)
+        if self.verbose:
+            print(f'[INFO] Transfering files completed')
+            print(f'[INFO] =====================================================================')
+
+    def transfer_files_to_output_folder_via_ssh_land(self, lista_files, output_folder):
+        if self.verbose:
+            print(f'[INFO] =====================================================================')
+            print(f'[INFO] Starting transfer of {len(lista_files)} files via SSH...')
+        for file in lista_files:
+            if self.verbose:
+                print(f'[INFO] Transfering file: {file} to {output_folder}')
+            cmd = f'{self.rsync_url_npl}:{file} {output_folder}'
             prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = prog.communicate()
             if err:
@@ -526,6 +583,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         listd = []
         for l in list:
             try:
+                l = l.split('/')[-1]
                 if l.startswith('SEQ'):
                     listd.append(l)
             except:
@@ -560,6 +618,45 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         return list_files
 
+    def get_files_download_land(self, date_here, site):
+        folder_date = os.path.join(self.base_folder_npl, site, date_here.strftime('%Y'), date_here.strftime('%m'),
+                                   date_here.strftime('%d'))
+
+        self.find_ref = self.find_ref.replace('SITE', site)
+
+
+        cmd = f'{self.ssh_base_npl} {self.url_base_npl} find {folder_date} -name {self.find_ref}'
+
+
+        list_files = self.get_list_files(cmd)
+
+        if len(list_files) == 0:
+            return None
+
+        return list_files
+
+    def get_list_files_from_ls_cmd(self, cmd):
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        out, err = prog.communicate()
+        list = out.decode('utf-8').split('\n')
+        listd = []
+        for l in list:
+            if l == '':
+                continue
+            try:
+                listd.append(l)
+            except:
+                pass
+        return listd
+
+
+    def get_files_img_download_land(self,site,sequence_folder):
+
+        ssh_path = f'{self.base_folder_l2_npl}{site}/DATA/{sequence_folder}'
+        path_image = f'{ssh_path}/RADIOMETER/*.jpg'
+        cmd = f'{self.ssh_base_npl} {self.url_base_npl} ls {path_image}'
+        list_images = self.get_list_files_from_ls_cmd(cmd)
+        return list_images
 
 
 

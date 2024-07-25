@@ -213,9 +213,6 @@ class FlagBuilder:
 
     def create_flag_array_ranges_v2(self, options_dict):
         dataset = Dataset(self.nc_file)
-        # print('****************************************************************************************************')
-        # print(options_dict)
-        # print('======================================================================================================')
         default_value = options_dict['default_value']
         default_flag = options_dict['default_flag']
         indices_ranges = {}

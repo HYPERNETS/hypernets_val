@@ -38,43 +38,81 @@ args = parser.parse_args()
 
 
 def test():
-    import os
-    from netCDF4 import Dataset
-    import numpy as np
-    start_date = dt(2023, 10, 1)
-    end_date = dt(2023, 10, 10)
-    work_date = start_date
-    path = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/QUALITY_CONTROL/VEIT'
-    output_file = os.path.join(path, 'VEIT_20241001_20241010')
-    f1 = open(output_file, 'w')
-    f1.write('TimeSeq;sza;saa;paa;epsilon')
-    while work_date <= end_date:
-        yearstr = work_date.strftime('%Y')
-        monthstr = work_date.strftime('%m')
-        daystr = work_date.strftime('%d')
-        datestr = work_date.strftime('%Y%m%d')
-        name_file = f'HYPERNETES_W_DAY_{datestr}.nc'
-        path_date = os.path.join(path, yearstr, monthstr, daystr, name_file)
-        if os.path.exists(path_date):
-            dataset = Dataset(path_date)
-            seq_ref = dataset.variables['sequence_ref'][:]
-            for idx in range(len(seq_ref)):
-                seq = seq_ref[idx]
-                if np.ma.is_masked(seq):
-                    continue
-                time_here = dt.utcfromtimestamp(float(seq)).strftime('%Y-%m-%dT%H:%M')
-                sza = dataset.variables['l2_solar_zenith_angle'][idx]
-                saa = dataset.variables['l2_solar_azimuth_angle'][idx]
-                paa = dataset.variables['l2_pointing_azimuth_angle'][idx]
-                epsilon = dataset.variables['l2_epsilon'][idx]
-                line = f'{time_here};{sza};{saa};{paa};{epsilon}'
-                print(line)
-                f1.write('\n')
-                f1.write(line)
+    fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_nr.sh'
+    fw = open(fout,'w')
+    fw.write('#!/bin/bash')
+    fw.write('\n')
+    from datetime import datetime as dt
+    from datetime import timedelta
+    work_date = dt(2017,1,1)
+    end_date = dt(2023,12,31)
+    index = 0
+    while work_date<=end_date:
 
-            dataset.close()
-        work_date = work_date + timedelta(hours=24)
-    f1.close()
+        str_date = work_date.strftime('%Y-%m-%d')
+
+        index = index + 1
+
+        if index<=6:
+
+            #line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
+            fw.write('\n')
+            fw.write(line)
+            line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
+            fw.write('\n')
+            fw.write(line)
+            fw.write('\n')
+        else:
+            index_prev = index - 6
+            #line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
+            fw.write('\n')
+            fw.write(line)
+            line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
+            fw.write('\n')
+            fw.write(line)
+            fw.write('\n')
+
+        work_date = work_date + timedelta(hours=240)
+    fw.close()
+    # import os
+    # from netCDF4 import Dataset
+    # import numpy as np
+    # start_date = dt(2023, 10, 1)
+    # end_date = dt(2023, 10, 10)
+    # work_date = start_date
+    # path = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/QUALITY_CONTROL/VEIT'
+    # output_file = os.path.join(path, 'VEIT_20241001_20241010')
+    # f1 = open(output_file, 'w')
+    # f1.write('TimeSeq;sza;saa;paa;epsilon')
+    # while work_date <= end_date:
+    #     yearstr = work_date.strftime('%Y')
+    #     monthstr = work_date.strftime('%m')
+    #     daystr = work_date.strftime('%d')
+    #     datestr = work_date.strftime('%Y%m%d')
+    #     name_file = f'HYPERNETES_W_DAY_{datestr}.nc'
+    #     path_date = os.path.join(path, yearstr, monthstr, daystr, name_file)
+    #     if os.path.exists(path_date):
+    #         dataset = Dataset(path_date)
+    #         seq_ref = dataset.variables['sequence_ref'][:]
+    #         for idx in range(len(seq_ref)):
+    #             seq = seq_ref[idx]
+    #             if np.ma.is_masked(seq):
+    #                 continue
+    #             time_here = dt.utcfromtimestamp(float(seq)).strftime('%Y-%m-%dT%H:%M')
+    #             sza = dataset.variables['l2_solar_zenith_angle'][idx]
+    #             saa = dataset.variables['l2_solar_azimuth_angle'][idx]
+    #             paa = dataset.variables['l2_pointing_azimuth_angle'][idx]
+    #             epsilon = dataset.variables['l2_epsilon'][idx]
+    #             line = f'{time_here};{sza};{saa};{paa};{epsilon}'
+    #             print(line)
+    #             f1.write('\n')
+    #             f1.write(line)
+    #
+    #         dataset.close()
+    #     work_date = work_date + timedelta(hours=24)
+    # f1.close()
     return True
 
 
@@ -145,14 +183,33 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             config_file_summary = os.path.join(output_path, 'ConfigPlotSummary.ini')
     print('[INFO] Config file summary: ', config_file_summary)
 
+
     daily_sequences_summary = None
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
             print(f'[INFO] Date: {work_date}')
-        hdayfile = hday.get_hypernets_day_file(site, work_date)
 
-        sequences_no_data, sequences_all = hday.get_sequences_info(site, work_date, hdayfile.get_sequences())
+        sequence_abs_range = None
+        if os.path.exists(config_file_summary):
+            sequence_abs_range = hday.get_sequence_range(work_date,config_file_summary,True)
+        if sequence_abs_range is not None:
+            print(f'[INFO] Absolute sequence range: {dt.utcfromtimestamp(sequence_abs_range[0]).strftime("%Y-%m-%d %H:%M")}-{dt.utcfromtimestamp(sequence_abs_range[1]).strftime("%Y-%m-%d %H:%M")}')
+
+        hdayfile = hday.get_hypernets_day_file(site, work_date)
+        if hdayfile is None:
+            sequences_all = hday.get_sequences_date_from_file_list(site,work_date)
+            sequences_all = [x[:-2] if len(x)==18 else x for x in sequences_all]
+            sequences_no_data = sequences_all
+        else:
+            sequences_no_data, sequences_all = hday.get_sequences_info(site, work_date, hdayfile.get_sequences(),sequence_abs_range)
+
+        
+
+        print(f'[INFO] Total number of sequences with folders: {len(sequences_all)}')
+
+        print(f'[INFO] Sequences without L2 data: {len(sequences_no_data)}')
+
         output_folder_date = hday.get_output_folder_date(site, work_date)
         if output_folder_date is None:
             print(f'[ERROR] Path image date could not be created in {output_path}. Please review permissions')
@@ -163,6 +220,22 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
                 f'[WARNING] HYPERNETS day file for date {work_date} is not available. Creating empty daily summary plot and skipping...')
             file_img = os.path.join(output_folder_date, f'{site}_{work_date.strftime("%Y%m%d")}_DailySummary.png')
             create_empty_image(file_img, site, work_date)
+            delete = False if args.nodelfiles else True
+            for seq in sequences_all:
+                if os.path.exists(config_file_summary):
+                    hday.set_rgb_refs(config_file_summary)
+                files_img = hday.get_files_img_for_sequences_no_data(site, work_date, seq)
+                #print(files_img)
+                hday.save_report_image_only_pictures(site, delete, args.overwrite, seq, files_img,output_folder_date)
+
+            sequence_range = hday.get_sequence_range(work_date, config_file_summary, False)
+            daily_sequences_summary = {
+                'NTotal': 0,
+                'NAvailable': 0,
+                'start_time': dt.utcfromtimestamp(sequence_range[0]).strftime('%Y-%m-%d %H:%M'),
+                'end_time': dt.utcfromtimestamp(sequence_range[1]).strftime('%Y-%m-%d %H:%M'),
+                'expected_sequences': sequence_range[2]
+            }
             work_date = work_date + timedelta(hours=interval)
             continue
         hdayfile.set_path_images_date(site, work_date)
@@ -174,16 +247,15 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
                                         f'{site}_{work_date.strftime("%Y%m%d")}_DailySummary{hdayfile.format_img}')
             if os.path.exists(file_summary) and not args.overwrite:
                 print(f'[WARNING] Summary file: {output_path} alreaday exist. Skipping...')
-                if start_date == end_date:  ##required daily sequences summary:
+                if start_date == end_date:  ##required daily_sequences_summary:
                     print(f'[INFO] Retrieving daily sequences summary...')
-                    daily_sequences_summary = plot_from_options(hdayfile.file_nc, config_file_summary, dir_img_summary,
+                    daily_sequences_summary = plot_from_options(hdayfile, config_file_summary, dir_img_summary,
                                                                 sequences_no_data, True)
                     file_info = os.path.join(dir_img_summary, 'sequence_info.tif')
                     os.remove(file_info)
                     os.rmdir(dir_img_summary)
             else:
-                daily_sequences_summary = plot_from_options(hdayfile.file_nc, config_file_summary, dir_img_summary,
-                                                            sequences_no_data, False)
+                daily_sequences_summary = plot_from_options(hdayfile, config_file_summary, dir_img_summary,sequences_no_data, False)
                 hdayfile.save_report_summary_image(site, work_date, dir_img_summary, daily_sequences_summary)
 
         delete = False if args.nodelfiles else True
@@ -197,27 +269,11 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
                 files_img = hday.get_files_img_for_sequences_no_data(site, work_date, seq)
                 hdayfile.save_report_image_only_pictures(site, delete, args.overwrite, seq, files_img)
 
-        ##DEPRECATED
-        # for isequence in range(len(hdayfile.sequences)):
-        #     hdayfile.isequence = isequence
-        #     delete = False if args.nodelfiles else True
-        #     # if isequence==32:
-        #     #     hdayfile.save_report_image(site,delete, args.overwrite)
-        #     hdayfile.save_report_image(site, delete, args.overwrite)
-        #     # hdayfile.save_angle_files(True)
-        ##TEST
-        # hdayfile.save_img_files(True)
-        # hdayfile.save_spectra_files(True)
-        # hdayfile.save_angle_files(True)
-        # hdayfile.get_flags_sequence()
-        # hdayfile.get_title()
-        # hdayfile.save_report_image(False)
-
-
-
         create_daily_pdf_report(input_path, output_path, site, work_date, file_summary, sequences_all)
 
         work_date = work_date + timedelta(hours=interval)
+
+
 
     if start_date == end_date:
         hday = HYPERNETS_DAY(input_path, output_path)
@@ -269,14 +325,21 @@ def create_daily_mail_file(file_qc_mail, site, start_date, daily_sequences_summa
     add_new_line(fout, '===================================')
     add_new_line(fout, '')
     if daily_sequences_summary is not None:
+        if daily_sequences_summary['NTotal']==0:
+            add_new_line(fout,f'WARNING: No folder sequences found for {site} on {start_date.strftime("%Y-%m-%d")}')
+            add_new_line(fout,f'Please review if the system is working and folders are available in the server')
+            add_new_line(fout,'')
+
         add_new_line(fout, 'SEQUENCES SUMMARY')
         add_new_line(fout, '=================')
+
         add_new_line(fout, f'Start time:  {daily_sequences_summary["start_time"]}')
         add_new_line(fout, f'End time: {daily_sequences_summary["end_time"]}')
         add_new_line(fout, f'Expected sequences: {daily_sequences_summary["expected_sequences"]}')
         add_new_line(fout, f'Available sequences: {daily_sequences_summary["NTotal"]}')
         add_new_line(fout, f'Sequences processed to L2: {daily_sequences_summary["NAvailable"]}')
-        add_new_line(fout, f'Valid sequences after quality control: {daily_sequences_summary["VALID"]}')
+        if 'VALID' in daily_sequences_summary.keys():
+            add_new_line(fout, f'Valid sequences after quality control: {daily_sequences_summary["VALID"]}')
         add_new_line(fout, '')
 
     file_log_disk_usage = extra_info['file_log_disk_usage']
@@ -474,16 +537,21 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
             work_date = work_date + timedelta(hours=interval)
             continue
 
+
         if args.verbose:
-            print(f'[INFO] Number of sequences: {len(hday.files_dates)}')
-        nseq = hday.start_file_date_complete(site, work_date, args.overwrite)
+            print(f'[INFO] Number of sequences with files: {len(hday.files_dates)}')
+
+        if site=='JSIT':##LAND
+            nseq = hday.start_file_date_land_complete(site, work_date, args.overwrite)
+        else:
+            nseq = hday.start_file_date_complete(site, work_date, args.overwrite)
         if nseq < 0:
             work_date = work_date + timedelta(hours=interval)
             continue
         else:
             if args.verbose:
-                print(f'[INFO] Valid sequences: {nseq}')
-        hday.set_data(site, work_date)
+                print(f'[INFO] Sequences with L2 data: {nseq}')
+        hday.set_data_land(site, work_date)
         hday.close_datafile_complete()
         work_date = work_date + timedelta(hours=interval)
 
@@ -500,18 +568,20 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     # red_array = np.array(img.getdata(0)).reshape(img.size).astype(np.uint8)
 
 
-def plot_from_options(input_path, config_file, output_path_images, sequences_no_data, only_sequences_summary):
+def plot_from_options(hfile, config_file, output_path_images, sequences_no_data, only_sequences_summary):
     if not os.path.exists(config_file):
         print(f'[ERROR] Plot configuration file: {config_file} does not exist. ')
         return None
 
     if args.verbose:
-        print(f'[INFO] Started plotting from file: {input_path}')
+        print(f'[INFO] Started plotting from file: {hfile.file_nc}')
     import configparser
-    from hypernets_day_file import HYPERNETS_DAY_FILE
+    #from hypernets_day_file import HYPERNETS_DAY_FILE
+    #from hypernets_day_file_land import HYPERNETS_DAY_FILE_LAND
     options = configparser.ConfigParser()
     options.read(config_file)
-    hfile = HYPERNETS_DAY_FILE(input_path, None)
+
+    #hfile = HYPERNETS_DAY_FILE(input_path, None)
 
     from MDB_reader.PlotOptions import PlotOptions
     poptions = PlotOptions(options, None)
@@ -527,13 +597,11 @@ def plot_from_options(input_path, config_file, output_path_images, sequences_no_
             poptions.global_options['output_path'] = output_path_images
 
     if poptions.global_options['output_path'] is None:
-        poptions.global_options['output_path'] = os.path.dirname(input_path)
+        poptions.global_options['output_path'] = os.path.dirname(hfile.file_nc)
 
     from MDB_reader.FlagBuilder import FlagBuilder
-    fbuilder = FlagBuilder(input_path, None, options)
+    fbuilder = FlagBuilder(hfile.file_nc, None, options)
     hfile.flag_builder = fbuilder
-
-
 
     list_figures = poptions.get_list_figures()
 
@@ -626,11 +694,7 @@ def make_flagged_nc_from_csv(config_file):
             if dataset_w is not None:  ##set data
                 dataset_w = hdayfile.set_data_dataset_w(dataset_w, sindices, index_w)
                 for flag in flags:
-                    print(pindices)
-                    print(flags)
-                    print(flag)
                     flag_array = get_flag_array(pindices, df, flags, flag)
-                    print(flag_array)
                     dataset_w = hdayfile.set_data_flag(dataset_w, index_w, flag, flag_array)
                 index_w = index_w + len(sindices)
                 hdayfile = HYPERNETS_DAY_FILE(file_nc_here, None)
@@ -695,10 +759,7 @@ def get_flags(options):
 
 def get_flag_array(indices, df, flags, flag):
     import numpy as np
-    print('Columna: ', df.columns)
-    print('Indices: ', indices)
-    print(type(indices))
-    print('Flag', flag)
+
     data_flag = df.loc[indices, flag]
     try:
         data_flag_array = np.array(data_flag).astype(np.int64)
@@ -763,7 +824,7 @@ def make_summary_files(input_path, output_path, site, start_date, end_date, star
             if dataset_w is None:
                 file_nc = os.path.join(output_path, f'Comparison_{site}_{start_date_str}_{end_date_str}.nc')
                 dataset_w = hdayfile.start_dataset_w(file_nc)
-            print('Setting data->', len(sequence_indices))
+            print('[INFO] Setting data->', len(sequence_indices))
             dataset_w = hdayfile.set_data_dataset_w(dataset_w, sequence_indices, index_w)
             index_w = index_w + len(sequence_indices)
 
@@ -1060,7 +1121,7 @@ def make_single_image_impl(site, sequence, key, output_path):
     prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     out, err = prog.communicate()
     if err:
-        print(err)
+        print(f'[ERROR]{err}')
 
     file_sun = os.path.join(output_path, name_img)
     if not os.path.exists(file_sun):
@@ -1095,14 +1156,14 @@ def make_single_image_impl(site, sequence, key, output_path):
     plt.tight_layout()
     plt.savefig(file_out, bbox_inches='tight')
     os.remove(file_sun)
-    print(f'Completed. File saved: {file_out}')
+    print(f'[INFO]Completed. File saved: {file_out}')
     return file_out
 
 
 def main():
     if args.verbose:
-        print('STARTED')
-    # b = test2()
+        print('[INFO] STARTED')
+    # b = test()
     # if b:
     #     return
     start_date, end_date = get_start_and_end_dates()
@@ -1151,6 +1212,8 @@ def main():
         make_copy_from_csv(site, input_path, output_path)
 
     if args.mode == 'PLOT':
+        from hypernets_day_file import HYPERNETS_DAY_FILE
+        hfile = HYPERNETS_DAY_FILE(input_path,None)
         plot_from_options(input_path, args.config_path, None)
 
     if args.mode == 'SUNDOWNLOAD':

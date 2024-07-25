@@ -136,6 +136,18 @@ class MDBPlot:
         # deter(r2)
         self.valid_stats['DETER(r2)'] = r_value * r_value
 
+
+
+        if use_log_scale:
+            ##convert statistict to linear scale again
+            stats_to_convert = ['RMSD','XAVG','YAVG','CRMSE','MAE']
+            for stat in stats_to_convert:
+                self.valid_stats[stat] = np.power(10,self.valid_stats[stat])
+            bias_neg = self.valid_stats['BIAS']<0
+            self.valid_stats['BIAS'] = np.power(10,np.abs(self.valid_stats['BIAS']))
+            if bias_neg:
+                self.valid_stats['BIAS'] = self.valid_stats['BIAS']*(-1)
+
         # print(self.valid_stats)
 
     def get_regression_line(self, xdatal, ydatal, slope, intercept, minxy, maxxy):
