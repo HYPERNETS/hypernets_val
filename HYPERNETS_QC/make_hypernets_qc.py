@@ -38,7 +38,7 @@ args = parser.parse_args()
 
 
 def test():
-    #fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_nr.sh'
+    # fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_nr.sh'
     fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_processing_2.sh'
 
     from datetime import datetime as dt
@@ -46,30 +46,30 @@ def test():
     list_dates_done = []
     work_date = dt(2017, 1, 1)
     end_date = dt(2023, 12, 31)
-    while work_date<=end_date:
+    while work_date <= end_date:
         str_date = work_date.strftime('%Y-%m-%d')
         list_dates_done.append(str_date)
         work_date = work_date + timedelta(hours=240)
     list_dates_to_do = []
     file_list = '/mnt/c/DATA_LUIS/OCTACWORK/DateList.csv'
     import pandas as pd
-    df = pd.read_csv(file_list,sep=';')
-    for index,row in df.iterrows():
-        if row['NFilesMissing']==0:
+    df = pd.read_csv(file_list, sep=';')
+    for index, row in df.iterrows():
+        if row['NFilesMissing'] == 0:
             date_here = row['Date']
             if date_here not in list_dates_done:
                 list_dates_to_do.append(row['Date'])
 
-    print('LIST DATES TO DO:',len(list_dates_to_do))
+    print('LIST DATES TO DO:', len(list_dates_to_do))
 
-    fw = open(fout,'w')
+    fw = open(fout, 'w')
     fw.write('#!/bin/bash')
     fw.write('\n')
 
-    work_date = dt(2017,1,1)
-    end_date = dt(2023,12,31)
+    work_date = dt(2017, 1, 1)
+    end_date = dt(2023, 12, 31)
     index = 0
-    while work_date<=end_date:
+    while work_date <= end_date:
 
         str_date = work_date.strftime('%Y-%m-%d')
         if str_date not in list_dates_to_do:
@@ -78,10 +78,10 @@ def test():
 
         index = index + 1
 
-        if index<=8:
+        if index <= 8:
 
             line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            #line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
+            # line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
             fw.write('\n')
             fw.write(line)
             line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
@@ -91,7 +91,7 @@ def test():
         else:
             index_prev = index - 8
             line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            #line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
+            # line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
             fw.write('\n')
             fw.write(line)
             line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
@@ -203,11 +203,10 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
     if args.config_path:
         config_file_summary = args.config_path
     else:
-        config_file_summary = os.path.join(output_path,site,'ConfigPlotSummary.ini')
+        config_file_summary = os.path.join(output_path, site, 'ConfigPlotSummary.ini')
         if not os.path.exists(config_file_summary):
             config_file_summary = os.path.join(output_path, 'ConfigPlotSummary.ini')
     print('[INFO] Config file summary: ', config_file_summary)
-
 
     daily_sequences_summary = None
     while work_date <= end_date:
@@ -217,19 +216,19 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
 
         sequence_abs_range = None
         if os.path.exists(config_file_summary):
-            sequence_abs_range = hday.get_sequence_range(work_date,config_file_summary,True)
+            sequence_abs_range = hday.get_sequence_range(work_date, config_file_summary, True)
         if sequence_abs_range is not None:
-            print(f'[INFO] Absolute sequence range: {dt.utcfromtimestamp(sequence_abs_range[0]).strftime("%Y-%m-%d %H:%M")}-{dt.utcfromtimestamp(sequence_abs_range[1]).strftime("%Y-%m-%d %H:%M")}')
+            print(
+                f'[INFO] Absolute sequence range: {dt.utcfromtimestamp(sequence_abs_range[0]).strftime("%Y-%m-%d %H:%M")}-{dt.utcfromtimestamp(sequence_abs_range[1]).strftime("%Y-%m-%d %H:%M")}')
 
         hdayfile = hday.get_hypernets_day_file(site, work_date)
         if hdayfile is None:
-            sequences_all = hday.get_sequences_date_from_file_list(site,work_date)
-            sequences_all = [x[:-2] if len(x)==18 else x for x in sequences_all]
+            sequences_all = hday.get_sequences_date_from_file_list(site, work_date)
+            sequences_all = [x[:-2] if len(x) == 18 else x for x in sequences_all]
             sequences_no_data = sequences_all
         else:
-            sequences_no_data, sequences_all = hday.get_sequences_info(site, work_date, hdayfile.get_sequences(),sequence_abs_range)
-
-        
+            sequences_no_data, sequences_all = hday.get_sequences_info(site, work_date, hdayfile.get_sequences(),
+                                                                       sequence_abs_range)
 
         print(f'[INFO] Total number of sequences with folders: {len(sequences_all)}')
 
@@ -250,8 +249,8 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
                 if os.path.exists(config_file_summary):
                     hday.set_rgb_refs(config_file_summary)
                 files_img = hday.get_files_img_for_sequences_no_data(site, work_date, seq)
-                #print(files_img)
-                hday.save_report_image_only_pictures(site, delete, args.overwrite, seq, files_img,output_folder_date)
+                # print(files_img)
+                hday.save_report_image_only_pictures(site, delete, args.overwrite, seq, files_img, output_folder_date)
 
             sequence_range = hday.get_sequence_range(work_date, config_file_summary, False)
             daily_sequences_summary = {
@@ -280,7 +279,8 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
                     os.remove(file_info)
                     os.rmdir(dir_img_summary)
             else:
-                daily_sequences_summary = plot_from_options(hdayfile, config_file_summary, dir_img_summary,sequences_no_data, False)
+                daily_sequences_summary = plot_from_options(hdayfile, config_file_summary, dir_img_summary,
+                                                            sequences_no_data, False)
                 hdayfile.save_report_summary_image(site, work_date, dir_img_summary, daily_sequences_summary)
 
         delete = False if args.nodelfiles else True
@@ -297,8 +297,6 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         create_daily_pdf_report(input_path, output_path, site, work_date, file_summary, sequences_all)
 
         work_date = work_date + timedelta(hours=interval)
-
-
 
     if start_date == end_date:
         hday = HYPERNETS_DAY(input_path, output_path)
@@ -335,7 +333,8 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         }
         create_daily_mail_file(file_qc_mail, site, start_date, daily_sequences_summary, extra_info)
 
-
+        print(f'[INFO] PDF file: {file_pdf} --> {os.path.exists(file_pdf)}')
+        print(f'[INFO] Owncloud info: {owncloud_info}')
         if os.path.exists(file_pdf) and owncloud_info is not None:
             import owncloud
             session = owncloud.Client('https://file.sic.rm.cnr.it/')
@@ -350,10 +349,10 @@ def create_daily_mail_file(file_qc_mail, site, start_date, daily_sequences_summa
     add_new_line(fout, '===================================')
     add_new_line(fout, '')
     if daily_sequences_summary is not None:
-        if daily_sequences_summary['NTotal']==0:
-            add_new_line(fout,f'WARNING: No folder sequences found for {site} on {start_date.strftime("%Y-%m-%d")}')
-            add_new_line(fout,f'Please review if the system is working and folders are available in the server')
-            add_new_line(fout,'')
+        if daily_sequences_summary['NTotal'] == 0:
+            add_new_line(fout, f'WARNING: No folder sequences found for {site} on {start_date.strftime("%Y-%m-%d")}')
+            add_new_line(fout, f'Please review if the system is working and folders are available in the server')
+            add_new_line(fout, '')
 
         add_new_line(fout, 'SEQUENCES SUMMARY')
         add_new_line(fout, '=================')
@@ -405,7 +404,6 @@ def get_lines_disk_usage(file_log):
 
     porc_ref = float(str(last_line[4])[:-1])
 
-
     nlines = len(df.index)
     last_five_dates = {}
     date_ref = dt.strptime(last_line[0][:15], '%Y-%m-%d-%H%M').replace(hour=12, minute=0, second=12)
@@ -421,14 +419,14 @@ def get_lines_disk_usage(file_log):
     total_array = []
     porc_use_array = []
 
-
     for idx in range(nlines - 1, 0, -1):
         line_here = df.loc[idx]
         date_here_str = str(line_here[0])[:10]
 
         if date_here_str != date_ref_str_loop:
             date_ref_str_loop = date_here_str
-            date_here_str_basic = dt.strptime(date_here_str, '%Y-%m-%d').replace(hour=12, minute=0, second=12).strftime('%Y-%m-%d')
+            date_here_str_basic = dt.strptime(date_here_str, '%Y-%m-%d').replace(hour=12, minute=0, second=12).strftime(
+                '%Y-%m-%d')
             if date_here_str_basic in last_five_dates.keys():
                 last_five_dates[date_here_str_basic] = line_here
             if last_date_here_str is None:
@@ -438,14 +436,11 @@ def get_lines_disk_usage(file_log):
             if abs(porc_ref - porc_here) < 2:
                 porc_ref = porc_here
                 used_array.append(float(line_here[1]))
-                total_array.append(float(line_here[1])+float(line_here[2]))
+                total_array.append(float(line_here[1]) + float(line_here[2]))
                 porc_use_array.append(line_here[4])
                 first_date_here_str = str(line_here[0])
             else:
                 break
-
-
-
 
     lines.append(f' Overall period:')
     start_used = used_array[-1] / (1024 * 1024)
@@ -460,12 +455,11 @@ def get_lines_disk_usage(file_log):
     avg_increase_mb = avg_increase / 1024
     avg_increase_porc = np.mean(np.array(porc_used_increase))
 
-
     total_99 = np.min(total_array) * 0.99
 
     remaining = total_99 - used_array[-1]
-    ndays = np.floor(remaining/avg_increase)
-    last_day = dt.strptime(last_date_here_str[:10],'%Y-%m-%d')
+    ndays = np.floor(remaining / avg_increase)
+    last_day = dt.strptime(last_date_here_str[:10], '%Y-%m-%d')
     day_fill = last_day + timedelta(days=ndays)
 
     lines.append(f'  Start: {first_date_here_str} Used: {start_used:.2f} Gg. %Used: {porc_use_array[-1]}')
@@ -560,7 +554,7 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
     if args.config_path:
         config_file_summary = args.config_path
     else:
-        config_file_summary = os.path.join(output_path,site,'ConfigPlotSummary.ini')
+        config_file_summary = os.path.join(output_path, site, 'ConfigPlotSummary.ini')
         if not os.path.exists(config_file_summary):
             config_file_summary = os.path.join(output_path, 'ConfigPlotSummary.ini')
     print('[INFO] Config file summary: ', config_file_summary)
@@ -588,11 +582,10 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
             work_date = work_date + timedelta(hours=interval)
             continue
 
-
         if args.verbose:
             print(f'[INFO] Number of sequences with files: {len(hday.files_dates)}')
 
-        if site=='JSIT':##LAND
+        if site == 'JSIT':  ##LAND
             nseq = hday.start_file_date_land_complete(site, work_date, args.overwrite)
         else:
             nseq = hday.start_file_date_complete(site, work_date, args.overwrite)
@@ -602,10 +595,10 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
         else:
             if args.verbose:
                 print(f'[INFO] Sequences with L2 data: {nseq}')
-        if site=='JSIT':##LAND
+        if site == 'JSIT':  ##LAND
             hday.set_data_land(site, work_date)
         else:
-            hday.set_data(site,work_date)
+            hday.set_data(site, work_date)
         hday.close_datafile_complete()
         work_date = work_date + timedelta(hours=interval)
 
@@ -630,12 +623,12 @@ def plot_from_options(hfile, config_file, output_path_images, sequences_no_data,
     if args.verbose:
         print(f'[INFO] Started plotting from file: {hfile.file_nc}')
     import configparser
-    #from hypernets_day_file import HYPERNETS_DAY_FILE
-    #from hypernets_day_file_land import HYPERNETS_DAY_FILE_LAND
+    # from hypernets_day_file import HYPERNETS_DAY_FILE
+    # from hypernets_day_file_land import HYPERNETS_DAY_FILE_LAND
     options = configparser.ConfigParser()
     options.read(config_file)
 
-    #hfile = HYPERNETS_DAY_FILE(input_path, None)
+    # hfile = HYPERNETS_DAY_FILE(input_path, None)
 
     from MDB_reader.PlotOptions import PlotOptions
     poptions = PlotOptions(options, None)
@@ -951,7 +944,6 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
             config_file_summary = os.path.join(output_path, 'ConfigPlotSummary.ini')
     print('[INFO] Config file summary: ', config_file_summary)
 
-
     hday = HYPERNETS_DAY(input_path, output_path)
     ndays = 5
 
@@ -971,7 +963,7 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
                     sun_hours.append(x.strip())
                 except:
                     print(f'[WARNING] {x.strip()} is not a valid sun time in format HH:MM. Using default values')
-            if len(sun_hours)==6:
+            if len(sun_hours) == 6:
                 print(f'[INFO] Sun time hours set to: {sun_hours}')
                 hours = sun_hours
 
@@ -981,13 +973,12 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
                 max_time_diff = float(value) * 60
                 print(f'[INFO] Maximum time difference to select sun images set to: {max_time_diff} minutes')
             except:
-                print(f'[WARNING] {value} is not a valid max. time difference for sun images. Use a numeric value (minutes)')
-
+                print(
+                    f'[WARNING] {value} is not a valid max. time difference for sun images. Use a numeric value (minutes)')
 
     nhours = len(hours)
     sun_images_list = [[''] * ndays] * nhours
     sun_images_time_list = [[''] * ndays] * nhours
-
 
     while work_date <= end_date:
         if args.verbose:
@@ -1267,7 +1258,7 @@ def main():
 
     if args.mode == 'PLOT':
         from hypernets_day_file import HYPERNETS_DAY_FILE
-        hfile = HYPERNETS_DAY_FILE(input_path,None)
+        hfile = HYPERNETS_DAY_FILE(input_path, None)
         plot_from_options(input_path, args.config_path, None)
 
     if args.mode == 'SUNDOWNLOAD':
