@@ -689,6 +689,7 @@ class HYPERNETS_DAY():
                 if ndim == 2:
                     self.dataset_w.variables[var_name_new][index_add, :] = dataset.variables[var_name][:]
                 elif ndim == 3:
+                    print('es aqui donde esta el fallo...')
                     self.dataset_w.variables[var_name_new][index_add, :, :] = dataset.variables[var_name][:].transpose()
 
             dataset.close()

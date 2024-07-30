@@ -38,25 +38,50 @@ args = parser.parse_args()
 
 
 def test():
-    fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_nr.sh'
+    #fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_nr.sh'
+    fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_processing_2.sh'
+
+    from datetime import datetime as dt
+    from datetime import timedelta
+    list_dates_done = []
+    work_date = dt(2017, 1, 1)
+    end_date = dt(2023, 12, 31)
+    while work_date<=end_date:
+        str_date = work_date.strftime('%Y-%m-%d')
+        list_dates_done.append(str_date)
+        work_date = work_date + timedelta(hours=240)
+    list_dates_to_do = []
+    file_list = '/mnt/c/DATA_LUIS/OCTACWORK/DateList.csv'
+    import pandas as pd
+    df = pd.read_csv(file_list,sep=';')
+    for index,row in df.iterrows():
+        if row['NFilesMissing']==0:
+            date_here = row['Date']
+            if date_here not in list_dates_done:
+                list_dates_to_do.append(row['Date'])
+
+    print('LIST DATES TO DO:',len(list_dates_to_do))
+
     fw = open(fout,'w')
     fw.write('#!/bin/bash')
     fw.write('\n')
-    from datetime import datetime as dt
-    from datetime import timedelta
+
     work_date = dt(2017,1,1)
     end_date = dt(2023,12,31)
     index = 0
     while work_date<=end_date:
 
         str_date = work_date.strftime('%Y-%m-%d')
+        if str_date not in list_dates_to_do:
+            work_date = work_date + timedelta(hours=24)
+            continue
 
         index = index + 1
 
-        if index<=6:
+        if index<=8:
 
-            #line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
+            line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            #line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
             fw.write('\n')
             fw.write(line)
             line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
@@ -64,9 +89,9 @@ def test():
             fw.write(line)
             fw.write('\n')
         else:
-            index_prev = index - 6
-            #line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
+            index_prev = index - 8
+            line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            #line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
             fw.write('\n')
             fw.write(line)
             line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
@@ -74,7 +99,7 @@ def test():
             fw.write(line)
             fw.write('\n')
 
-        work_date = work_date + timedelta(hours=240)
+        work_date = work_date + timedelta(hours=24)
     fw.close()
     # import os
     # from netCDF4 import Dataset
@@ -577,7 +602,10 @@ def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
         else:
             if args.verbose:
                 print(f'[INFO] Sequences with L2 data: {nseq}')
-        hday.set_data_land(site, work_date)
+        if site=='JSIT':##LAND
+            hday.set_data_land(site, work_date)
+        else:
+            hday.set_data(site,work_date)
         hday.close_datafile_complete()
         work_date = work_date + timedelta(hours=interval)
 
