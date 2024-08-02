@@ -275,9 +275,12 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
                     print(f'[INFO] Retrieving daily sequences summary...')
                     daily_sequences_summary = plot_from_options(hdayfile, config_file_summary, dir_img_summary,
                                                                 sequences_no_data, True)
-                    file_info = os.path.join(dir_img_summary, 'sequence_info.tif')
-                    os.remove(file_info)
-                    os.rmdir(dir_img_summary)
+                    # file_info = os.path.join(dir_img_summary, 'sequence_info.tif')
+                    # os.remove(file_info)
+                    if os.path.isdir(dir_img_summary):
+                        for name in os.listdir(dir_img_summary):
+                            os.remove(os.path.join(dir_img_summary,name))
+                        os.rmdir(dir_img_summary)
             else:
                 daily_sequences_summary = plot_from_options(hdayfile, config_file_summary, dir_img_summary,
                                                             sequences_no_data, False)
@@ -307,12 +310,13 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
         file_pdf = os.path.join(folder_day, name_pdf)
         file_qc_mail = os.path.join(output_path, site, 'QCMail.mail')
         public_link = ''
-        owncloud_info = {}
+        owncloud_info = None
         if os.path.exists(config_file_summary):
             import configparser
             options = configparser.ConfigParser()
             options.read(config_file_summary)
             if options.has_option('GLOBAL_OPTIONS', f'public_link'):
+                owncloud_info = {}
                 public_link = options['GLOBAL_OPTIONS'][f'public_link'].strip()
                 owncloud_options = ['owncloud_client', 'owncloud_user', 'owncloud_password']
                 for owc in owncloud_options:
@@ -321,6 +325,7 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
                     else:
                         owncloud_info = None
                         break
+
         # public_link = 'https://file.sic.rm.cnr.it/index.php/s/rBeO2UMtdJ4F3Gx'
         print(f'[INFO] Creating e-mail file: {file_qc_mail}')
         extra_info = {
@@ -421,6 +426,7 @@ def get_lines_disk_usage(file_log):
 
     for idx in range(nlines - 1, 0, -1):
         line_here = df.loc[idx]
+        if pd.isna(line_here[0]): continue
         date_here_str = str(line_here[0])[:10]
 
         if date_here_str != date_ref_str_loop:

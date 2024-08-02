@@ -5,11 +5,6 @@ import subprocess
 import __init__
 from MDB_reader.PlotMultiple import PlotMultiple
 
-
-# import pytz
-# from netCDF4 import Dataset
-
-
 class HYPERNETS_DAY():
 
     def __init__(self, path_data, path_output):
@@ -54,6 +49,7 @@ class HYPERNETS_DAY():
         date_folder = self.get_folder_date(site, date_here)
         if date_folder is None:
             return
+
         list_sequences = self.get_sequences_date_from_file_list(site, date_here)
         if len(list_sequences) == 0:
             print(f'[WARNING] No sequences found for date: {date_here}')

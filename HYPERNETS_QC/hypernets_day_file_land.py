@@ -47,8 +47,8 @@ class HYPERNETS_DAY_FILE_LAND():
         self.context = {
             'bad_pointing_threshold_zenith': 3,
             'bad_pointing_threshold_azimuth': 3,
-            'plot_polar_min': None,
-            'plot_polar_max': None,
+            'plot_polar_min': 0.0,
+            'plot_polar_max': 0.8,
             'legendfontsize': 8,
             'fontsize': 14,
             'ylim_irradiance': None,
@@ -525,11 +525,46 @@ class HYPERNETS_DAY_FILE_LAND():
             mtick = time_fix_axis[itime].strftime('%M')
             time_ticks.append(f'{htick}:{mtick}')
         nseries = flag_array.shape[1]
+
         vza = np.round(dataset.variables['l2_viewing_zenith_angle'][0])
         vaa = np.round(dataset.variables['l2_viewing_azimuth_angle'][0])
-        series_ticks = []
+
+
+        angles_dict = {}
         for idx in range(nseries):
-            series_ticks.append(f'{vza[idx]:.0f},{vaa[idx]:.0f}')
+            vza_str = f'{vza[idx]:.0f}'
+            vaa_str = f'{vaa[idx]:.0f}'
+            if vza_str not in angles_dict.keys():
+                angles_dict[vza_str] = {vaa_str:False}
+            else:
+                angles_dict[vza_str][vaa_str] = False
+
+        valid_vza = [30, 20, 30, 20, 10, 5, 0, 20, 10, 5, 30, 20, 30, 20]
+        valid_vaa = [113, 113, 293, 293, 98, 98, 98, 278, 278, 278, 83, 83, 263, 263]
+
+
+        for valid_zn,valid_az in zip(valid_vza,valid_vaa):
+            vza_str = f'{valid_zn:.0f}'
+            vaa_str = f'{valid_az:.0f}'
+
+            angles_dict[vza_str][vaa_str] = True
+
+
+
+
+
+
+        series_ticks = []
+        series_valid = []
+
+        for idx in range(nseries):
+            vza_str = f'{vza[idx]:.0f}'
+            vaa_str = f'{vaa[idx]:.0f}'
+            series_ticks.append(f'{vza_str},{vaa_str}')
+            if angles_dict[vza_str][vaa_str]:
+                series_valid.append(True)
+            else:
+                series_valid.append(False)
 
         daily_summary_sequences = {
             'NTotal': 0,
@@ -595,13 +630,15 @@ class HYPERNETS_DAY_FILE_LAND():
         else:
             daily_summary_sequences['NTotal'] = daily_summary_sequences['NAvailable']
 
+
         plt.Figure()
         if options_figure['color'] is not None:
             colors = ['gainsboro'] + options_figure['color']
         else:
             colors = ['gainsboro', 'red', 'cyan', 'green', 'magenta']
         vmax = len(colors) - 1
-        ax = sns.heatmap(data, vmin=0, vmax=vmax, cmap=colors, linewidths=0.5, linecolor='gray')
+        data_valid = data.loc[series_valid,:]
+        ax = sns.heatmap(data_valid, vmin=0, vmax=vmax, cmap=colors, linewidths=0.5, linecolor='gray')
         plt.yticks(rotation='horizontal')
         colorbar = ax.collections[0].colorbar
         ticks = np.arange(0.5, vmax, 0.75).tolist()
