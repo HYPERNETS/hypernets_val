@@ -363,6 +363,7 @@ def create_extracts_day_by_day(date_list, path_source, site_name, insitu_lat, in
                 print(f'GRANULE: {path_product}')
             res_str = path_product.split('/')[-1].split('_')[3]
 
+
             ofname = create_extract(size_box, site_name, path_product, path_out, insitu_lat, insitu_lon, res_str,
                                     make_brdf, None)
             if ofname is not None:
@@ -2131,6 +2132,7 @@ def main():
         if not os.path.isdir(path_csv):
             print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
             return
+
         col_date, col_lat, col_lon, format_date, col_sep = get_csv_options_from_file_config(options,'MULTIPLE_CSV_SELECTION')
 
         path_source, org, wce, time_start, time_stop = get_find_product_info(options)
@@ -2215,6 +2217,15 @@ def main():
         col_date, col_lat, col_lon, format_date, col_sep = get_csv_options_from_file_config(options,
                                                                                             'CSV_SELECTION')
 
+        with open(path_csv) as f:
+            first_line = f.readline().strip()
+        if options.has_option('CSV_SELECTION', 'path_csv_out'):
+            path_csv_out = options['CSV_SELECTION']['path_csv_out']
+        else:
+            path_csv_out = f'{path_csv[:-4]}_out.csv'
+        fcsv_out = open(path_csv_out, 'w')
+        fcsv_out.write(f'{first_line};Extract;Index')
+
 
         path_source, org, wce, time_start, time_stop = get_find_product_info(options)
         tmp_path = path_source
@@ -2230,14 +2241,20 @@ def main():
             return
 
         for idx, row in df.iterrows():
+            list = [str(x).strip() for x in row.to_list()]
+            line_orig = ";".join(list)
             try:
                 datestr = row[col_date].strip()
                 datehere = datetime.strptime(datestr, format_date)
                 lathere = float(row[col_lat])
                 lonhere = float(row[col_lon])
             except:
+                fcsv_out.write('\n')
+                fcsv_out.write(f'{line_orig};NaN;-1')
                 print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
                 continue
+
+
             fproducts, iszipped = get_olci_products_day(path_source, tmp_path, org, wce, lathere, lonhere, datehere)
             nproducts = len(fproducts)
             if nproducts == 0:
@@ -2250,6 +2267,8 @@ def main():
                                                tmp_path,
                                                path_out, size_box, make_brdf)
                     continue
+                fcsv_out.write('\n')
+                fcsv_out.write(f'{line_orig};NaN;-2')
                 continue
             insitu_time = datehere.timestamp()
             insitu_info = [lathere, lonhere, insitu_time]

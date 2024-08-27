@@ -36,10 +36,87 @@ parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true"
 
 args = parser.parse_args()
 
+def test_bis():
+    from datetime import datetime as dt
+    from datetime import timedelta
+    list_dates_done = []
+    work_date = dt(2017, 1, 1)
+    end_date = dt(2023, 12, 31)
+    while work_date <= end_date:
+        str_date = work_date.strftime('%Y-%m-%d')
+        list_dates_done.append(str_date)
+        work_date = work_date + timedelta(hours=240)
+    list_dates_to_delete = []
+    file_list = '/mnt/c/DATA_LUIS/OCTACWORK/DateListPrev.csv'
+    import pandas as pd
+    df = pd.read_csv(file_list, sep=';')
+    for index, row in df.iterrows():
+        if row['NFilesMissing'] > 0:
+            date_here = row['Date']
+            if date_here in list_dates_done:
+                year = dt.strptime(date_here,'%Y-%m-%d').strftime('%Y')
+                jday = dt.strptime(date_here, '%Y-%m-%d').strftime('%j')
+                line = f'rm /store3/OC/OLCI_BAL/POLYMER_BAL202411/{year}/{jday}/*'
+                print(line)
+                line = f'rmdir /store3/OC/OLCI_BAL/POLYMER_BAL202411/{year}/{jday}'
+                print(line)
+    return True
+
+def test_trim_polymer():
+    file_list = '/mnt/c/DATA_LUIS/OCTACWORK/GranulesToDownload_UPDATED.txt'
+    list_dates_to_do = []
+    fr = open(file_list,'r')
+
+    for line in fr:
+
+        date_here = line.strip().split(';')[0].strip()
+
+        if date_here not in list_dates_to_do:
+            list_dates_to_do.append(date_here)
+
+    fr.close()
+    print('NDATES: ',len(list_dates_to_do))
+
+    fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer.sh'
+    fw = open(fout,'w')
+    fw.write('#!/bin/bash')
+    fw.write('\n')
+    index = 0
+    for date in list_dates_to_do:
+        print(date)
+
+        index = index + 1
+
+        if index <= 8:
+            #line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {date})'
+            line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_polymer.slurm NT {date})'
+            fw.write('\n')
+            fw.write(line)
+            line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
+            fw.write('\n')
+            fw.write(line)
+            fw.write('\n')
+        else:
+            index_prev = index - 8
+            #line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {date})'
+            line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_polymer.slurm NT {date})'
+            fw.write('\n')
+            fw.write(line)
+            line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
+            fw.write('\n')
+            fw.write(line)
+            fw.write('\n')
+
+
+
+    return True
 
 def test():
     # fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_nr.sh'
-    fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_processing_2.sh'
+    #fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_processing_pending.sh'
+    #fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_pending.sh'
+
+    fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim.sh'
 
     from datetime import datetime as dt
     from datetime import timedelta
@@ -51,14 +128,16 @@ def test():
         list_dates_done.append(str_date)
         work_date = work_date + timedelta(hours=240)
     list_dates_to_do = []
-    file_list = '/mnt/c/DATA_LUIS/OCTACWORK/DateList.csv'
+    file_list = '/mnt/c/DATA_LUIS/OCTACWORK/DateListPrev.csv'
     import pandas as pd
     df = pd.read_csv(file_list, sep=';')
     for index, row in df.iterrows():
-        if row['NFilesMissing'] == 0:
-            date_here = row['Date']
-            if date_here not in list_dates_done:
-                list_dates_to_do.append(row['Date'])
+        # if row['NFilesMissing'] == 0:
+        #     date_here = row['Date']
+        #     if date_here not in list_dates_done:
+        #         list_dates_to_do.append(row['Date'])
+        if row['NFilesMissing'] > 0:
+            list_dates_to_do.append(row['Date'])
 
     print('LIST DATES TO DO:', len(list_dates_to_do))
 
@@ -80,8 +159,8 @@ def test():
 
         if index <= 8:
 
-            line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            # line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
+            #line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
             fw.write('\n')
             fw.write(line)
             line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
@@ -90,8 +169,8 @@ def test():
             fw.write('\n')
         else:
             index_prev = index - 8
-            line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            # line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NR {str_date})'
+            #line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
             fw.write('\n')
             fw.write(line)
             line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
@@ -138,6 +217,68 @@ def test():
     #         dataset.close()
     #     work_date = work_date + timedelta(hours=24)
     # f1.close()
+    return True
+
+def test_aug():
+    #type = 'processing'
+    type = 'complete'
+    if type=='processing':
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_processing_2016.sh'
+    if type=='complete':
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_remaining.sh'
+
+    file_dates = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/dates_to_complete.txt'
+    list_dates_to_do = []
+    if os.path.exists(file_dates):
+        fr = open(file_dates,'r')
+        for line in fr:
+            date_here = line.strip()
+            if len(date_here)>0:
+                list_dates_to_do.append(date_here)
+        fr.close()
+
+
+    fw = open(fout, 'w')
+    fw.write('#!/bin/bash')
+    fw.write('\n')
+
+    work_date = dt(2017, 1, 1)
+    end_date = dt(2023, 12, 31)
+    index = 0
+    while work_date <= end_date:
+        str_date = work_date.strftime('%Y-%m-%d')
+        if len(list_dates_to_do)>0:
+            if str_date not in list_dates_to_do:
+                work_date = work_date + timedelta(hours=24)
+                continue
+        index = index + 1
+
+        if index <= 8:
+            if type=='processing':
+                line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            if type=='complete':
+                line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
+            fw.write('\n')
+            fw.write(line)
+            line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
+            fw.write('\n')
+            fw.write(line)
+            fw.write('\n')
+        else:
+            index_prev = index - 8
+            if type == 'processing':
+                line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            if type == 'complete':
+                line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
+            fw.write('\n')
+            fw.write(line)
+            line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
+            fw.write('\n')
+            fw.write(line)
+            fw.write('\n')
+        work_date = work_date + timedelta(hours=24)
+
+    fw.close()
     return True
 
 
@@ -1214,7 +1355,7 @@ def make_single_image_impl(site, sequence, key, output_path):
 def main():
     if args.verbose:
         print('[INFO] STARTED')
-    # b = test()
+    # b = test_aug()
     # if b:
     #     return
     start_date, end_date = get_start_and_end_dates()

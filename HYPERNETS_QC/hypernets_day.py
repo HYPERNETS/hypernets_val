@@ -5,6 +5,7 @@ import subprocess
 import __init__
 from MDB_reader.PlotMultiple import PlotMultiple
 
+
 class HYPERNETS_DAY():
 
     def __init__(self, path_data, path_output):
@@ -247,7 +248,7 @@ class HYPERNETS_DAY():
         name_new = f'HYPTERNETS_{type}_{site}_IMG_{seq[3:-2]}_{date_img_str}_{picture}_0_0_v2.0.jpg'
         return name_new
 
-    def get_sequences_info(self, site, date_here, sequences_with_data,sequences_abs_range):
+    def get_sequences_info(self, site, date_here, sequences_with_data, sequences_abs_range):
         import pytz
         all_sequences = self.get_sequences_date_from_file_list(site, date_here)
         all_sequences = [x[:-2] for x in all_sequences]
@@ -256,11 +257,9 @@ class HYPERNETS_DAY():
             all_sequences_orig = all_sequences.copy()
             all_sequences = []
             for seq in all_sequences_orig:
-                date_here = dt.strptime(seq[3:],'%Y%m%dT%H%M').replace(tzinfo=pytz.utc).timestamp()
+                date_here = dt.strptime(seq[3:], '%Y%m%dT%H%M').replace(tzinfo=pytz.utc).timestamp()
                 if sequences_abs_range[0] <= date_here <= sequences_abs_range[1]:
                     all_sequences.append(seq)
-
-
 
         sequences_with_data = [f'SEQ{x}' for x in sequences_with_data]
 
@@ -381,52 +380,51 @@ class HYPERNETS_DAY():
                 files_img[ref]['file_img'] = os.path.join(date_folder, name)
         return files_img
 
-    def get_sequence_range(self, date_here,config_file_summary,absolute):
+    def get_sequence_range(self, date_here, config_file_summary, absolute):
         import configparser
         import pytz
-        #from datetime import datetime as dt
+        # from datetime import datetime as dt
         options = configparser.ConfigParser()
         options.read(config_file_summary)
 
-        if options.has_option('sequence_info','start_time') and options.has_option('sequence_info','end_time'):
+        if options.has_option('sequence_info', 'start_time') and options.has_option('sequence_info', 'end_time'):
             start_time_str = options['sequence_info']['start_time']
             end_time_str = options['sequence_info']['end_time']
             frequency = 30
-            if options.has_option('sequence_info','frequency'):
+            if options.has_option('sequence_info', 'frequency'):
                 try:
                     frequency = int(options['sequence_info']['frequency'])
                 except:
                     pass
 
             try:
-                start_time = dt.strptime(f'{date_here.strftime("%Y-%m-%d")}T{start_time_str}','%Y-%m-%dT%H:%M')
+                start_time = dt.strptime(f'{date_here.strftime("%Y-%m-%d")}T{start_time_str}', '%Y-%m-%dT%H:%M')
                 end_time = dt.strptime(f'{date_here.strftime("%Y-%m-%d")}T{end_time_str}', '%Y-%m-%dT%H:%M')
-                frequency_seconds = frequency*60
-                nsequences = ((end_time.timestamp()-start_time.timestamp())/frequency_seconds)+1
+                frequency_seconds = frequency * 60
+                nsequences = ((end_time.timestamp() - start_time.timestamp()) / frequency_seconds) + 1
                 if absolute:
                     end_time = end_time + timedelta(minutes=frequency)
-                range = [start_time.replace(tzinfo=pytz.UTC).timestamp(),end_time.replace(tzinfo=pytz.UTC).timestamp(),int(nsequences)]
+                range = [start_time.replace(tzinfo=pytz.UTC).timestamp(), end_time.replace(tzinfo=pytz.UTC).timestamp(),
+                         int(nsequences)]
                 return range
             except:
                 return None
 
         return None
 
-
-
     def get_hypernets_day_file(self, site, date_here):
         import __init__
         from hypernets_day_file import HYPERNETS_DAY_FILE
         from hypernets_day_file_land import HYPERNETS_DAY_FILE_LAND
-        if site=='JSIT':
-            file_date = self.get_file_date_land_complete(site,date_here)
+        if site == 'JSIT':
+            file_date = self.get_file_date_land_complete(site, date_here)
         else:
             file_date = self.get_file_date_complete(site, date_here)
         if file_date is None:
             return None
         if os.path.exists(file_date):
-            if site=='JSIT':
-                return HYPERNETS_DAY_FILE_LAND(file_date,self.path_data)
+            if site == 'JSIT':
+                return HYPERNETS_DAY_FILE_LAND(file_date, self.path_data)
             else:
                 return HYPERNETS_DAY_FILE(file_date, self.path_data)
         else:
@@ -453,10 +451,13 @@ class HYPERNETS_DAY():
         nseq_valid = 0
         for iseq in range(len(seq_list)):
             seq = seq_list[iseq]
-
             dims_here = self.check_dimensions_land(seq)
             if dims_here is not None:
-                dims = dims_here
+                if dims is None:
+                    dims = dims_here
+                else:
+                    if dims_here['series'] > dims['series']:
+                        dims = dims_here
                 index_seq_ref = iseq
                 nseq_valid = nseq_valid + 1
             else:
@@ -465,6 +466,24 @@ class HYPERNETS_DAY():
         if dims is None:
             print(f'[WARNING] L1 files are not available for this date')
             return -2
+
+        ##re-check the number of series
+        nseq_valid = 0
+        for iseq in range(len(seq_list)):
+            seq = seq_list[iseq]
+            dims_here = self.check_dimensions_land(seq)
+            if dims_here is not None:
+                if dims_here['series'] ==dims['series']:
+                    nseq_valid = nseq_valid + 1
+                    self.files_dates[seq]['valid'] = True
+                else:
+                    self.files_dates[seq]['valid'] = False
+            else:
+                self.files_dates[seq]['valid'] = False
+
+        print(f'[INFO] Dimensions are set to: ')
+        print(f'[INFO]  Series: {dims["series"]}')
+        print(f'[INFO]  Wavelength: {dims["wavelength"]}')
 
         try:
             self.dataset_w = Dataset(file_date, 'w')
@@ -501,6 +520,10 @@ class HYPERNETS_DAY():
         self.dataset_w.createVariable('sequence_ref', 'f8', ('sequence',), zlib=True, complevel=6)
 
         return nseq_valid
+
+    def check_sequences_with_valid_number_of_series(self,nseries):
+        file_dates_check = {}
+
 
     def start_file_date_complete(self, site, date_here, overwrite):
 
@@ -667,12 +690,12 @@ class HYPERNETS_DAY():
             if level == 2:
                 file = self.files_dates[seq]['file_l2']
                 prename = 'l2'
-            # if file is None: ##this situation is impossible, checked before usin [seq]['valid']
-            #     continue
 
-            index_add = index_add + 1
-            print(f'[INFO] Set level{level} data for sequence {seq} [{index_add}]')
             dataset = Dataset(file)
+            index_add = index_add + 1
+
+            print(f'[INFO] Set level{level} data for sequence {seq} [{index_add}]')
+
             for var_name in dataset.variables:
                 if var_name.startswith('u_rel') or var_name.startswith('err'):
                     continue
@@ -685,7 +708,6 @@ class HYPERNETS_DAY():
                 if ndim == 2:
                     self.dataset_w.variables[var_name_new][index_add, :] = dataset.variables[var_name][:]
                 elif ndim == 3:
-                    print('es aqui donde esta el fallo...')
                     self.dataset_w.variables[var_name_new][index_add, :, :] = dataset.variables[var_name][:].transpose()
 
             dataset.close()
