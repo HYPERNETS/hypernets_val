@@ -219,6 +219,68 @@ def test():
     # f1.close()
     return True
 
+def test_aug_m():
+    type = 'complete'
+    if type == 'trim':
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim_v2.sh'
+    if type == 'polymer':
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer_v2.sh'
+    if type == 'processing':
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_processing_v2.sh'
+    if type == 'complete':
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_complete_v2.sh'
+
+    ##GETTING DATES
+    list_dates = ['2020-01-12','2020-05-06','2020-05-24']
+    work_date = dt(2023,1,1)
+    end_date = dt(2023,2,9)
+    while work_date<=end_date:
+        list_dates.append(work_date.strftime('%Y-%m-%d'))
+        work_date = work_date + timedelta(hours=24)
+    ##GETTING DATES
+
+    ##PREPARING FILE
+    fw = open(fout,'w')
+    index = 0
+    for str_date in list_dates:
+        index = index + 1
+
+        if index <= 8:
+            if type=='trim':
+                line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {str_date})'
+            if type=='polymer':
+                line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_polymer.slurm NT {str_date})'
+            if type=='processing':
+                line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            if type=='complete':
+                line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
+            fw.write('\n')
+            fw.write(line)
+            line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
+            fw.write('\n')
+            fw.write(line)
+            fw.write('\n')
+        else:
+            index_prev = index - 8
+            if type=='trim':
+                line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {str_date})'
+            if type=='polymer':
+                line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_polymer.slurm NT {str_date})'
+            if type=='processing':
+                line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            if type=='complete':
+                line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
+            fw.write('\n')
+            fw.write(line)
+            line = f'job{index}id=$(echo "$job{index}" | awk \'''{print $NF}''\')'
+            fw.write('\n')
+            fw.write(line)
+            fw.write('\n')
+
+
+    fw.close()
+
+    return True
 def test_aug():
     #type = 'processing'
     type = 'complete'
@@ -487,6 +549,9 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             # session.login('Luis.Gonzalezvilas@artov.ismar.cnr.it', 'BigRoma_21')
             session.login(owncloud_info['owncloud_user'], owncloud_info['owncloud_password'])
             session.put_file(f'/ESA-HYP-POP/LastQC_Reports/{site}_LastQC.pdf', file_pdf)
+            ##temporal, for JSIT
+            if site=='JSIT':
+                session.put_file(f'/LUIS/JSIT_REPORTS/{name_pdf}',file_pdf)
 
 
 def create_daily_mail_file(file_qc_mail, site, start_date, daily_sequences_summary, extra_info):
@@ -1368,7 +1433,7 @@ def make_copy_reports(input_path,output_path,site,start_date,end_date):
 def main():
     if args.verbose:
         print('[INFO] STARTED')
-    # b = test_aug()
+    # b = test_aug_m()
     # if b:
     #     return
     start_date, end_date = get_start_and_end_dates()
