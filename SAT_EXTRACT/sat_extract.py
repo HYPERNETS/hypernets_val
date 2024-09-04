@@ -1,10 +1,12 @@
-import netCDF4
 import numpy as np
-import pytz
 from netCDF4 import Dataset
 from datetime import datetime
 import numpy.ma as ma
-
+import configparser,os,subprocess,pytz,__init__,sys
+code_home = os.path.dirname(os.path.dirname(__init__.__file__))
+sys.path.append(code_home)
+import COMMON.common_functions as cfs
+from datetime import timedelta
 
 class SatExtract:
     def __init__(self, ofname):
@@ -79,6 +81,7 @@ class SatExtract:
         self.EXTRACT.createDimension('columns', size_box)
         if n_bands > 0:
             self.EXTRACT.createDimension('satellite_bands', n_bands)
+
 
     def create_dimensions_incluidinginsitu(self, size_box, n_bands, n_insitubands, n_insituid):
         # dimensions
@@ -176,6 +179,16 @@ class SatExtract:
                                                     fill_value=-999, zlib=True, complevel=6)
         satellite_Rrs.short_name = 'Satellite Rrs'
         satellite_Rrs.long_name = f'Above water Remote Sensing Reflectance for {sensor} acquisition'
+        satellite_Rrs.units = "sr-1"
+        return satellite_Rrs
+
+    def create_rrs_unc_variable(self, sensor):
+        # Variable satellite_Rrs (NOT BRDF-corrected remote sensing reflectance uncertainty)
+        satellite_Rrs = self.EXTRACT.createVariable('satellite_Rrs_unc', 'f4',
+                                                    ('satellite_id', 'satellite_bands', 'rows', 'columns'),
+                                                    fill_value=-999, zlib=True, complevel=6)
+        satellite_Rrs.short_name = 'Satellite Rrs uncertainty'
+        satellite_Rrs.long_name = f'Uncertainty in above water remote sensing reflectance for {sensor} acquisition'
         satellite_Rrs.units = "sr-1"
         return satellite_Rrs
 
@@ -350,3 +363,303 @@ class SatExtract:
 
     def close_file(self):
         self.EXTRACT.close()
+
+
+def config_reader(FILEconfig):
+    options = configparser.ConfigParser()
+    options.read(FILEconfig)
+    return options
+
+def get_basic_options_from_file_config(args,options):
+    # size box
+    size_box = 25
+    if options.has_option('satellite_options', 'extract_size'):
+        size_box = int(options['satellite_options']['extract_size'])
+    # resolution
+    res = 'WFR'
+    if options.has_option('satellite_options', 'resolution'):
+        res = options['satellite_options']['resolution']
+    # path_out
+    path_out = None
+    if options.has_option('file_path', 'output_dir'):
+        path_out = options['file_path']['output_dir']
+    else:
+        if args.output:
+            path_out = args.output
+    if path_out is None:
+        print(f'[ERROR] compulsory option path_out was not defined in the config file or argument output')
+        return None
+    if not os.path.isdir(path_out):
+        path_out = create_dir(path_out)
+        if path_out is None:
+            print(f'[ERROR] path_out: {path_out} does not exist and could not be created')
+            return None
+    # makd_brdb
+    make_brdf = False
+    if options.has_option('satellite_options', 'brdf'):
+        if options['satellite_options']['brdf'].upper() == 'T' or options['satellite_options'][
+            'brdf'].upper() == 'TRUE':
+            make_brdf = True
+    # satellite_path_source
+    satellite_path_source = None
+    if options.has_option('file_path', 'sat_source_dir'):
+        satellite_path_source = options['file_path']['sat_source_dir']
+    else:
+        if args.path_to_sat:
+            satellite_path_source = args.path_to_sat
+    if satellite_path_source is None:
+        print(
+            '[ERROR] compulsory option satellite_path_source was not defined in the config file or argument path_to_sat')
+        return None
+    if not os.path.exists(satellite_path_source):
+        print(f'ERROR path: {satellite_path_source} does not exit')
+        return None
+    # tmp_path
+    tmp_path = None
+    if options.has_option('file_path', 'tmp_dir'):
+        tmp_path = options['file_path']['tmp_dir']
+        if os.path.exists(tmp_path) and os.path.isdir(tmp_path):
+            tmp_path_del = os.path.join(tmp_path, '*')
+            cmd = f'rm -r {tmp_path_del}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(err)
+        if not os.path.exists(tmp_path) or not os.path.isdir(tmp_path):
+            tmp_path = create_dir(tmp_path)
+
+    if tmp_path is None:
+        tmp_path = satellite_path_source
+        print(
+            f'[WARNING] tmp_path was not defined or does not exist. tmp path set to sat_path: {satellite_path_source}')
+    # org
+    org = None
+    if options.has_option('file_path', 'sat_source_dir_organization'):
+        org = options['file_path']['sat_source_dir_organization']
+
+    # Ohter bands
+    extra_bands = None
+    if options.has_option('satellite_options', 'extra_bands'):
+        str_val = options['satellite_options']['extra_bands']
+        extra_bands = [x.strip() for x in str_val.split(',')]
+
+    basic_options = {
+        'satellite_path_source': satellite_path_source,
+        'path_out': path_out,
+        'tmp_path': tmp_path,
+        'size_box': size_box,
+        'make_brdf': make_brdf,
+        'org': org,
+        'resolution': res,
+        'extra_bands': extra_bands
+    }
+    return basic_options
+
+def create_dir(path):
+    try:
+        os.mkdir(path)
+        return path
+    except:
+        return None
+
+def get_basic_options_from_arguments(args):
+    ##parameters with default values
+    size_box = 25
+    make_brdf = False
+    org = 'YYYY/jjj'
+
+    res = 'WFR'
+    if 'resolution' in args:
+        res='WRR' if args.resolution=='WRR' else 'WFR'
+
+    path_out = None
+    if args.output:
+        path_out = args.output
+    if path_out is None:
+        print(f'[ERROR] compulsory option path_out was not defined in the config file or argument output')
+        return None
+    if not os.path.isdir(path_out):
+        path_out = create_dir(path_out)
+        if path_out is None:
+            print(f'[ERROR] path_out: {path_out} does not exist and could not be created')
+            return None
+
+    satellite_path_source = None
+    if args.path_to_sat:
+        satellite_path_source = args.path_to_sat
+    if satellite_path_source is None:
+        print(
+            '[ERROR] compulsory option satellite_path_source was not defined in the config file or argument path_to_sat')
+        return None
+    if not os.path.exists(satellite_path_source):
+        print(f'ERROR path: {satellite_path_source} does not exit')
+        return None
+
+    tmp_path = satellite_path_source
+
+    basic_options = {
+        'satellite_path_source': satellite_path_source,
+        'path_out': path_out,
+        'tmp_path': tmp_path,
+        'size_box': size_box,
+        'make_brdf': make_brdf,
+        'org': org,
+        'resolution': res
+    }
+    return basic_options
+
+def get_insitu_site(args,options, path_out):
+    in_situ_lat = None
+    in_situ_lon = None
+    if args.sitename:
+        site_name = args.sitename
+        in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(site_name)  # in situ location based on the station name
+        if in_situ_lat is None or in_situ_lon is None:
+            print(f'[ERROR] {site_name} is not defined in the site list. Geographic coordinates are unknow')
+            return None
+
+    elif args.config_file:
+        if  options.has_option('Time_and_sites_selection', 'site'):
+            site_name = options['Time_and_sites_selection']['site'].strip()
+            in_situ_lat, in_situ_lon = cfs.get_lat_lon_ins(site_name)  # in situ location based on the station name
+            if in_situ_lat is None or in_situ_lon is None:
+                print(f'[ERROR] {site_name} is not defined in the site list. Geographic coordinates are unknow')
+                return None
+        else:
+            site_name = 'UNKNOWN'
+            if options.has_option('Time_and_sites_selection', 'in_situ_lat') and options.has_option('Time_and_sites_selection', 'in_situ_lon'):
+                try:
+                    in_situ_lat = float(options['Time_and_sites_selection']['in_situ_lat'].strip())
+                    in_situ_lon = float(options['Time_and_sites_selection']['in_situ_lon'].strip())
+                except:
+                    pass
+            if in_situ_lat is None or in_situ_lon is None:
+                print(f'[ERROR] In situ latitude/longitude or a valid site name must be defined in the configuration file')
+                return None
+
+    path_out_site = path_out
+    if os.path.basename(path_out_site) != site_name:
+        path_out_site = os.path.join(path_out, site_name)
+    if not os.path.isdir(path_out_site):
+        path_out_site = create_dir(path_out_site)
+        if path_out_site is None:
+            print(f'[ERROR] {path_out_site} does not exist and could not be created')
+            return None
+    in_situ_site = {
+        'site_name': site_name,
+        'latitude': in_situ_lat,
+        'longitude': in_situ_lon,
+        'path_out': path_out_site
+    }
+    return in_situ_site
+
+def get_params_time(args,options):
+    date_list = None
+    if args.config_file:
+        datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+        datetime_end = datetime.today()
+        if options.has_option('Time_and_sites_selection', 'time_start'):
+            try:
+                datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+            except:
+                print(f'WARNING: time_start format is not valid. Usind dafult value: 2000-01-01')
+
+        if options.has_option('Time_and_sites_selection', 'time_end'):
+            try:
+                datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'],
+                                                 '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
+            except:
+                print(f'WARNING: time_end format is not valid. Usind dafult value: today')
+
+        if options.has_option('Time_and_sites_selection', 'time_list_file'):
+            time_list_file = options['Time_and_sites_selection']['time_list_file']
+            if time_list_file:
+                date_list, datetime_start, datetime_end = get_date_list_from_file(time_list_file, datetime_start,
+                                                                                  datetime_end)
+
+    else:
+        if args.startdate:
+            datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
+        else:
+            datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+        if args.enddate:
+            datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
+        else:
+            datetime_end = datetime.today()
+
+    if date_list is None:
+        date_list = get_date_list_from_start_end_date(datetime_start, datetime_end)
+    ndates = len(date_list)
+    if args.verbose:
+        print(f'[INFO] Start date: {datetime_start}')
+        print(f'[INFO] End date: {datetime_end}')
+        print(f'[INFO] # of dates: {ndates}')
+
+    return datetime_start, datetime_end, date_list
+
+def get_date_list_from_file(file_list, dt_start, dt_end):
+    if not os.path.exists(file_list):
+        return None
+    date_list = []
+    f1 = open(file_list, 'r')
+    dt_start_real = None
+    dt_end_real = None
+    for line in f1:
+        dateherestr = line.strip()
+        try:
+            datehere = datetime.strptime(dateherestr, '%Y-%m-%d')
+            if dt_start <= datehere <= dt_end:
+                date_list.append(datehere)
+                if dt_start_real is None:
+                    dt_start_real = datehere
+                    dt_end_real = datehere
+                else:
+                    if datehere < dt_start_real:
+                        dt_start_real = datehere
+                    if datehere > dt_end_real:
+                        dt_end_real = datehere
+        except:
+            pass
+    f1.close()
+    if len(date_list) == 0:
+        return None
+    return date_list, dt_start_real, dt_end_real
+
+def get_date_list_from_start_end_date(dt_start, dt_end):
+    date_list = []
+    dt = dt_start
+    while dt <= dt_end:
+        date_list.append(dt)
+        dt = dt + timedelta(hours=24)
+    return date_list
+
+def get_list_products_day(path_source, date_here, wce , org):
+    path_source_date = path_source
+    orgs = {
+        'YYYY':'%Y',
+        'mm': '%m',
+        'dd': '%d',
+        'jjj': '%j'
+    }
+    if org is not None:
+        for o in org.split('/'):
+            o = o.strip()
+            if o in orgs.keys():
+                o=orgs[o]
+            path_source_date = os.path.join(path_source_date,date_here.strftime(o))
+
+    cmd = f'find {path_source_date} -name {wce}|sort|uniq'#>> {path_to_list}'
+    prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE,stdout = subprocess.PIPE)
+    out, err = prog.communicate()
+    product_list = []
+    for sout in out.decode().split('\n'):
+        if len(sout.strip())>0:
+            product_list.append(sout)
+
+    return product_list
+
+
+
+
+
+

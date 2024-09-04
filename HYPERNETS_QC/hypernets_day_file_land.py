@@ -1170,7 +1170,7 @@ class HYPERNETS_DAY_FILE_LAND():
         pmtop.plot_image(os.path.join(dir_img_summary, 'sequence_info.tif'), 0, 0)
         pmtop.plot_image(os.path.join(dir_img_summary, 'flag_plot.tif'), 0, 1)
         pmtop.plot_image(file_out_ts, 0, 2)
-        pmtop.set_text(-1250, 50, f'DAILY SUMMARY REPORT - {date_here.strftime("%Y-%m-%d")}')
+        pmtop.set_text(-1250, 50, f'DAILY SUMMARY REPORT - {site} - {date_here.strftime("%Y-%m-%d")}')
         # daily_sequences_summary = self.get_sequence_info()
         line = f'Total sequences: {daily_sequences_summary["NTotal"]}/{daily_sequences_summary["expected_sequences"]}. Processed to L2: {daily_sequences_summary["NAvailable"]}.'
         skip = ['NTotal','NAvailable','start_time','end_time','expected_sequences']

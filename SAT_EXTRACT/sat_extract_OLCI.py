@@ -55,7 +55,7 @@ path2ncrcat = '/opt/local/bin/ncrcat'
 
 import argparse
 
-parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MDB) files.")
+parser = argparse.ArgumentParser(description="Create sat extract from Sentinel-3 OLCI original files.")
 parser.add_argument("-d", "--debug", help="Debugging mode.", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
@@ -127,7 +127,6 @@ class SatExtractOLCI(SatExtract):
                 }
         extra_bands = other_bands
 
-
         for name in os.listdir(path_source):
             if not name.endswith('nc'):
                 continue
@@ -190,7 +189,7 @@ class SatExtractOLCI(SatExtract):
                 description = self.variable_list[name_var]['description']
                 dataset = Dataset(file_path, 'r')
                 var_atts = dataset.variables[name_var].ncattrs()
-                if len(description)==0 and 'long_name' in var_atts:
+                if len(description) == 0 and 'long_name' in var_atts:
                     description = dataset.variables[name_var].long_name
                 if 'flag_masks' in var_atts and 'flag_meanings' in var_atts:
                     if args.verbose:
@@ -207,9 +206,6 @@ class SatExtractOLCI(SatExtract):
                     # print(var_array.shape)
                     extract_var = self.create_2D_variable_general(extract_band, var_array, window)
                     extract_var.description = description
-
-
-
 
                 dataset.close()
 
@@ -228,18 +224,24 @@ class SatExtractOLCI(SatExtract):
         OAA = nc_sat.variables['OAA'][:]
         nc_sat.close()
 
-
-
         start_idx_y = window[0]
         start_idx_x = window[1]
         for yy in range(size_box):
             for xx in range(size_box):
                 yPos = start_idx_y + yy
                 xPos = start_idx_x + xx
-                self.EXTRACT.variables['satellite_SZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, SZA)
-                self.EXTRACT.variables['satellite_SAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, SAA)
-                self.EXTRACT.variables['satellite_OZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, OZA)
-                self.EXTRACT.variables['satellite_OAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos, ysubsampling, xsubsampling, OAA)
+                self.EXTRACT.variables['satellite_SZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
+                                                                                                 ysubsampling,
+                                                                                                 xsubsampling, SZA)
+                self.EXTRACT.variables['satellite_SAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
+                                                                                                 ysubsampling,
+                                                                                                 xsubsampling, SAA)
+                self.EXTRACT.variables['satellite_OZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
+                                                                                                 ysubsampling,
+                                                                                                 xsubsampling, OZA)
+                self.EXTRACT.variables['satellite_OAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
+                                                                                                 ysubsampling,
+                                                                                                 xsubsampling, OAA)
 
     def get_version(self, path_source):
         # extract IFP-OL-2 version
@@ -342,9 +344,56 @@ def check_products_to_download(info_edac, products, info_path):
     return products_to_download
 
 
+def create_extracts_day_by_day_v2(date_list, path_out, wce, basic_options):
+    ncreated = 0
+
+    extract_list = []
+
+    for idx in range(len(date_list)):
+        fproducts, iszipped = get_olci_products_day_download(date_list[idx], basic_options['satellite_path_source'],
+                                                             basic_options['in_situ_lat'], basic_options['in_situ_lon'],
+                                                             wce,
+                                                             basic_options['tmp_path'])
+        nproducts = len(fproducts)
+        if nproducts == 0:
+            if args.verbose:
+                print(f'[WARNING] No products found for {date_list[idx]}. Skipping day...')
+            continue
+        variable_list = None
+
+        for id in range(len(fproducts)):
+            path_product = fproducts[id]
+            if args.verbose:
+                print('---------------------------------------------------')
+                print(f'DATE: {date_list[idx]}')
+                print(f'GRANULE: {path_product}')
+            res_str = path_product.split('/')[-1].split('_')[3]
+            basic_options['resolution'] = res_str
+            extra_bands = basic_options['extra_bands']
+            if variable_list is None:
+                solci = SatExtractOLCI(None, None)
+                solci.set_variable_list(path_product, extra_bands)
+                variable_list = solci.variable_list
+            basic_options['variable_list'] = variable_list
+
+            ofname = create_extractv2(path_product, path_out, basic_options)
+
+            if ofname is not None:
+                if args.verbose:
+                    print(f'Sat extract {ofname} was created')
+                extract_list.append(ofname.split('/')[-1])
+                ncreated = ncreated + 1
+    print('------------------------------')
+    print(f'COMPLETED. {ncreated} sat extract files were created')
+
+    return extract_list
+
+
 def create_extracts_day_by_day(date_list, path_source, site_name, insitu_lat, insitu_lon, wce, unzip_path, path_out,
                                size_box, make_brdf):
     ncreated = 0
+
+    extract_list = []
 
     for idx in range(len(date_list)):
         fproducts, iszipped = get_olci_products_day_download(date_list[idx], path_source, insitu_lat, insitu_lon, wce,
@@ -363,16 +412,18 @@ def create_extracts_day_by_day(date_list, path_source, site_name, insitu_lat, in
                 print(f'GRANULE: {path_product}')
             res_str = path_product.split('/')[-1].split('_')[3]
 
-
             ofname = create_extract(size_box, site_name, path_product, path_out, insitu_lat, insitu_lon, res_str,
                                     make_brdf, None)
             if ofname is not None:
                 if args.verbose:
                     print(f'Sat extract {ofname} was created')
+                extract_list.append(ofname.split('/')[-1])
                 ncreated = ncreated + 1
 
     print('------------------------------')
     print(f'COMPLETED. {ncreated} sat extract files were created')
+
+    return extract_list
 
 
 def get_olci_products_day_download(date, path_source, insitu_lat, insitu_lon, wce, unzip_path):
@@ -1019,7 +1070,7 @@ def get_olci_products_day(path_source, unzip_path, org, wce, lathere, lonhere, d
     iszipped = []
 
     if not os.path.exists(path_search):
-        return fproducts,iszipped
+        return fproducts, iszipped
 
     cgeo = CHECK_GEO()
 
@@ -1042,7 +1093,7 @@ def get_olci_products_day(path_source, unzip_path, org, wce, lathere, lonhere, d
                 path_prod_u = prod_path.split('/')[-1][0:-4]
                 path_prod_u = os.path.join(unzip_path, path_prod_u)
                 if os.path.isdir(path_prod_u):
-                    if len(os.listdir(path_prod_u))==32:
+                    if len(os.listdir(path_prod_u)) == 32:
                         do_zip_here = False
                         if args.verbose:
                             print(f'[INFO] Unzipped path {path_prod_u} already exists')
@@ -1097,7 +1148,11 @@ def create_extractv2(path_product, path_output, options):
         print('f[WARNING] File does NOT contains the in situ location! Skipping...')
         return
 
-    filename = path_product.split('/')[-1].replace('.', '_') + '_extract_' + f'{r}_{c}' + '.nc'
+    if station_name == 'SHIPBORNE':
+        station_name = f'{r}_{c}'
+        options['station_name'] = station_name
+
+    filename = path_product.split('/')[-1].replace('.', '_') + '_extract_' + f'{station_name}' + '.nc'
     ofname = os.path.join(path_output, filename)
     if os.path.exists(ofname):
         print(f'[WARNING] Sat. extract file: {ofname} already exist. Skipping...')
@@ -1107,7 +1162,6 @@ def create_extractv2(path_product, path_output, options):
     window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
     if args.verbose:
         print(f'[INFO] Getting extraction window: {stop_idx_y}-{stop_idx_y}:{start_idx_x}-{stop_idx_x}')
-
 
     if args.verbose:
         print(f'[INFO] Starting extract file: {ofname}')
@@ -1121,7 +1175,7 @@ def create_extractv2(path_product, path_output, options):
     newExtract.create_rrs_variable(newExtract.sensor)
     newExtract.create_geometry_variables()
     b = newExtract.set_variable_data(path_product, window)
-    newExtract.set_geometry_data(path_product,size_box,window)
+    newExtract.set_geometry_data(path_product, size_box, window)
     newExtract.close_file()
 
     if not b:
@@ -1270,6 +1324,14 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
             print('-----------------')
         r, c = cfs.find_row_column_from_lat_lon(lat, lon, in_situ_lat, in_situ_lon)
         # coordenadas son y, x
+
+        if station_name == 'SHIPBORNE':
+            station_name = f'{r}_{c}'
+            filename = path_source.split('/')[-1].replace('.', '_') + '_extract_' + station_name + '.nc'
+            ofname = os.path.join(path_output, filename)
+            if os.path.exists(ofname):
+                print(f'[INFO] Extract {ofname} has already been created')
+                return ofname
 
         start_idx_x = (c - int(size_box / 2))
         stop_idx_x = (c + int(size_box / 2) + 1)
@@ -1424,6 +1486,8 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
                 CHL_OC4ME_extract[mask_chl] = -999  # fill value
 
             # %% Save extract as netCDF4 file
+            if station_name == 'SHIPBORNE':
+                station_name = f'{r}_{c}'
             filename = path_source.split('/')[-1].replace('.', '_') + '_extract_' + station_name + '.nc'
             ofname = os.path.join(path_output, filename)
 
@@ -1454,7 +1518,7 @@ def create_extract(size_box, station_name, path_source, path_output, in_situ_lat
 
             # new_EXTRACT.datapolicy = 'Notice to users: Add data policy'
             # new_EXTRACT.insitu_sensor_processor_version = '0.0'
-            #new_EXTRACT.insitu_site_name = station_name #deprecated changed by site
+            # new_EXTRACT.insitu_site_name = station_name #deprecated changed by site
             new_EXTRACT.site = station_name
 
             new_EXTRACT.in_situ_lat = in_situ_lat
@@ -1890,16 +1954,9 @@ def get_basic_options_from_file_config(options):
     if options.has_option('file_path', 'sat_source_dir_organization'):
         org = options['file_path']['sat_source_dir_organization']
 
-    # make_download
-    make_download = False
-    if options.has_option('satellite_options', 'download'):
-        if options['satellite_options']['download'].upper() == 'T' or options['satellite_options'][
-            'download'].upper() == 'TRUE':
-            make_download = True
-
-    #Ohter bands
+    # Ohter bands
     extra_bands = None
-    if options.has_option('satellite_options','extra_bands'):
+    if options.has_option('satellite_options', 'extra_bands'):
         str_val = options['satellite_options']['extra_bands']
         extra_bands = [x.strip() for x in str_val.split(',')]
 
@@ -1911,20 +1968,19 @@ def get_basic_options_from_file_config(options):
         'make_brdf': make_brdf,
         'org': org,
         'resolution': res,
-        'make_download': make_download,
         'extra_bands': extra_bands
     }
     return basic_options
 
-def get_csv_options_from_file_config(options,section):
 
-    if section=='CSV_SELECTION':
+def get_csv_options_from_file_config(options, section):
+    if section == 'CSV_SELECTION':
         col_date = 'date'
         col_lat = 'lat'
         col_lon = 'lon'
         col_sep = ';'
         format_date = '%Y-%m-%dT%H:%M'
-    if section=='MULTIPLE_CSV_SELECTION':
+    if section == 'MULTIPLE_CSV_SELECTION':
         col_date = 'timestamp'
         col_lat = 'lat'
         col_lon = 'lon'
@@ -1942,13 +1998,13 @@ def get_csv_options_from_file_config(options,section):
     if options.has_option(section, 'col_sep'):
         col_sep = options[section]['col_sep']
 
-    return col_date,col_lat,col_lon,format_date,col_sep
+    return col_date, col_lat, col_lon, format_date, col_sep
+
 
 def get_basic_options_from_arguments():
     ##parameters with default values
     size_box = 25
     make_brdf = False
-    make_download = False
     org = None
 
     res = 'WFR'
@@ -1987,8 +2043,7 @@ def get_basic_options_from_arguments():
         'size_box': size_box,
         'make_brdf': make_brdf,
         'org': org,
-        'resolution': res,
-        'make_download': make_download
+        'resolution': res
     }
     return basic_options
 
@@ -1999,6 +2054,17 @@ def create_dir(path):
         return path
     except:
         return None
+
+
+def remove_unzip_path(unzip_path):
+    for name in os.listdir(unzip_path):
+        f = os.path.join(unzip_path, name)
+        if os.path.isdir(f):
+            for name_f in os.listdir(f):
+                os.remove(os.path.join(f, name_f))
+            os.rmdir(f)
+        elif os.path.isfile(f):
+            os.remove(f)
 
 
 def get_insitu_sites(options, path_out):
@@ -2052,6 +2118,7 @@ def get_insitu_sites(options, path_out):
 #############################
 # %%
 def main():
+
     print('Creating satellite extracts.')
 
     if args.debug:
@@ -2127,13 +2194,14 @@ def main():
         return
 
     ##MULTIPLE CSV FILE SELECTION (FOR TARA METADATA FILES)
-    if options.has_section('MULTIPLE_CSV_SELECTION') and options.has_option('MULTIPLE_CSV_SELECTION','path_csv'):
+    if options.has_section('MULTIPLE_CSV_SELECTION') and options.has_option('MULTIPLE_CSV_SELECTION', 'path_csv'):
         path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
         if not os.path.isdir(path_csv):
             print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
             return
 
-        col_date, col_lat, col_lon, format_date, col_sep = get_csv_options_from_file_config(options,'MULTIPLE_CSV_SELECTION')
+        col_date, col_lat, col_lon, format_date, col_sep = get_csv_options_from_file_config(options,
+                                                                                            'MULTIPLE_CSV_SELECTION')
 
         path_source, org, wce, time_start, time_stop = get_find_product_info(options)
         tmp_path = path_source
@@ -2147,8 +2215,8 @@ def main():
                 continue
             namefile = name[:-4]
             try:
-                file_csv = os.path.join(path_csv,name)
-                df = pd.read_csv(file_csv, sep = col_sep)
+                file_csv = os.path.join(path_csv, name)
+                df = pd.read_csv(file_csv, sep=col_sep)
             except:
                 print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
                 return
@@ -2226,6 +2294,7 @@ def main():
         fcsv_out = open(path_csv_out, 'w')
         fcsv_out.write(f'{first_line};Extract;Index')
 
+        extract_list = {}
 
         path_source, org, wce, time_start, time_stop = get_find_product_info(options)
         tmp_path = path_source
@@ -2235,7 +2304,7 @@ def main():
         ncreated = 0
 
         try:
-            df = pd.read_csv(path_csv, col_sep)
+            df = pd.read_csv(path_csv, sep=col_sep)
         except:
             print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
             return
@@ -2244,7 +2313,7 @@ def main():
             list = [str(x).strip() for x in row.to_list()]
             line_orig = ";".join(list)
             try:
-                datestr = row[col_date].strip()
+                datestr = str(row[col_date]).strip()
                 datehere = datetime.strptime(datestr, format_date)
                 lathere = float(row[col_lat])
                 lonhere = float(row[col_lon])
@@ -2254,26 +2323,44 @@ def main():
                 print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
                 continue
 
-
             fproducts, iszipped = get_olci_products_day(path_source, tmp_path, org, wce, lathere, lonhere, datehere)
             nproducts = len(fproducts)
+
+            ##redefine basic options
+            basic_options['station_name'] = f'SHIPBORNE'  ##site is defined in a later step as row_col
+            basic_options['in_situ_lat'] = lathere
+            basic_options['in_situ_lon'] = lonhere
+            insitu_time = datehere.timestamp()
+            insitu_info = [lathere, lonhere, insitu_time]
+            basic_options['insitu_info'] = insitu_info
+
             if nproducts == 0:
                 if args.verbose:
                     print(f'[WARNING] No products found for {datehere}')
                 if args.allow_download:  ##make download in needed
                     date_list = [datehere]
-                    site = f'site_{idx}'
-                    create_extracts_day_by_day(date_list, satellite_path_source, site, lathere, lonhere, wce,
-                                               tmp_path,
-                                               path_out, size_box, make_brdf)
+                    site = f'SHIPBORNE'
+                    # extract_list_here = create_extracts_day_by_day(date_list, satellite_path_source, site, lathere,
+                    #                                                lonhere, wce,
+                    #                                                tmp_path, path_out, size_box, make_brdf)
+                    extract_list_here = create_extracts_day_by_day_v2(date_list, path_out, wce, basic_options)
+                    if len(extract_list_here) > 0:
+                        for extract_here in extract_list_here:
+                            if extract_here not in extract_list:
+                                extract_list[extract_here] = 1
+                                fcsv_out.write('\n')
+                                fcsv_out.write(f'{line_orig};{extract_here};0')
+                            else:
+                                idx = extract_list[extract_here] + 1
+                                fcsv_out.write('\n')
+                                fcsv_out.write(f'{line_orig};{extract_here};{idx - 1}')
+                                extract_list[extract_here] = idx
                     continue
                 fcsv_out.write('\n')
                 fcsv_out.write(f'{line_orig};NaN;-2')
                 continue
-            insitu_time = datehere.timestamp()
-            insitu_info = [lathere, lonhere, insitu_time]
-            variable_list = None
 
+            variable_list = None
             for id in range(len(fproducts)):
                 path_product = fproducts[id]
                 if args.verbose:
@@ -2282,11 +2369,6 @@ def main():
                     print(f'[INFO] GRANULE: {path_product}')
                 res_str = path_product.split('/')[-1].split('_')[3]
                 basic_options['resolution'] = res_str
-                ids = f'{idx}_{id}'
-                basic_options['station_name'] = ids
-                basic_options['in_situ_lat'] = lathere
-                basic_options['in_situ_lon'] = lonhere
-                basic_options['insitu_info'] = insitu_info
                 extra_bands = basic_options['extra_bands']
                 if variable_list is None:
                     solci = SatExtractOLCI(None, None)
@@ -2300,8 +2382,25 @@ def main():
                     if args.verbose:
                         print(f'Sat extract {ofname} was created')
                     ncreated = ncreated + 1
+                    extract_here = ofname.split('/')[-1]
+                    if extract_here not in extract_list:
+                        extract_list[extract_here] = 1
+                        fcsv_out.write('\n')
+                        fcsv_out.write(f'{line_orig};{extract_here};0')
+                    else:
+                        idx = extract_list[extract_here] + 1
+                        fcsv_out.write('\n')
+                        fcsv_out.write(f'{line_orig};{extract_here};{idx - 1}')
+                        extract_list[extract_here] = idx
+        fcsv_out.close()
         print('------------------------------')
-        print(f'COMPLETED. {ncreated} sat extract files were created')
+        if ncreated>0:
+            print(f'{ncreated} sat extract files were created')
+        if os.path.isdir(basic_options['tmp_path']):
+            remove_unzip_path(basic_options['tmp_path'])
+            print(f'Unzip path {basic_options["tmp_path"]} removed')
+        print(f'COMPLETED')
+
         return
 
     # in situ sites
