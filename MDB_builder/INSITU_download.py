@@ -12,6 +12,7 @@ parser.add_argument('-o', "--output", help="Output directory")
 parser.add_argument('-site', "--sitename", help="Site name. Only required with --listdates")
 parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
+parser.add_argument('-rbins_path', "--rbins_path_data",help="Data path in RBINS server")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-check', "--check_mode", help="Check mode.", action="store_true")
 parser.add_argument('-meta', "--download_metadata", help="Option do download metadata", action="store_true")
@@ -110,6 +111,9 @@ def make_download_metadata(start_date, end_date, site, output_folder):
 
 def make_download(start_date, end_date, site, output_folder):
     ih = INSITU_HYPERNETS_DAY(None, None, args.verbose)
+
+    if args.rbins_path_data:
+        ih.set_rbins_path_data(args.rbins_path_data)
 
     date_download = start_date
     while date_download <= end_date:

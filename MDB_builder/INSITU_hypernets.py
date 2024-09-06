@@ -126,6 +126,12 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
     # def add_insitu(self, extract_path, ofile):
     #     self.start_add_insitu(extract_path, ofile)
 
+    def set_rbins_path_data(self,path_data):
+        self.base_folder = path_data
+        self.ls_base = f'ls {path_data}/'
+        self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'
+
+
     def download_sequence_metadata(self,site,sequence_folder,output_folder):
         url_base_raw = f'hypstar@enhydra.naturalsciences.be'
         base_folder = '/home/hypstar/'
@@ -324,6 +330,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         month_str = date_here.strftime('%m')
         day_str = date_here.strftime('%d')
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
+        #print(cmd)
         sequence_list = self.get_list_sequence_folders(cmd)
         return sequence_list
 
