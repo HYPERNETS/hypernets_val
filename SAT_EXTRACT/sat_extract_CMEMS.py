@@ -1679,7 +1679,7 @@ def get_cmems_product_day_dataset(path_source, org, datehere, dataset):
 
 
 def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
-                          cmems_download_options):
+                          cmems_download_options,use_myint):
     path_day = path_source
     if org is not None:
         if org == 'YYYYjjj':
@@ -1689,6 +1689,9 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
             path_day = os.path.join(path_source, yearstr, jjjstr)
     datefile = datehere.strftime(dataset_name_format_date)
     namefile = dataset_name_file.replace('$DATE$', datefile)
+    if use_myint:
+        namefile = namefile.replace('my','myint')
+
     file = os.path.join(path_day, f'{namefile}')
 
     if not os.path.exists(file):
@@ -1823,7 +1826,7 @@ def download_doors_sources(options):
         datehere = dt.strptime(row['Date'], '%Y-%m-%d')
         print(f'[INFO] Date: {datehere}')
         sfile = get_cmems_product_day(options_dict['sat_source_dir'], 'YYYYjjj', datehere,
-                                      options_dict['dataset_name_file'], options_dict['dataset_name_format_date'], None)
+                                      options_dict['dataset_name_file'], options_dict['dataset_name_format_date'], None,False)
         if sfile is not None:
             df.loc[index, 'source'] = sfile
             satellite_time = get_satellite_time_from_global_attributes(sfile)
@@ -2066,7 +2069,13 @@ def main():
 
                     fproduct = get_cmems_product_day(path_source, org, datehere, extract_options['dataset_name_file'],
                                                      extract_options['dataset_name_format_date'],
-                                                     cmems_download_options)
+                                                     cmems_download_options,False)
+
+                    if fproduct is None:##check also myint
+                        fproduct = get_cmems_product_day(path_source, org, datehere, extract_options['dataset_name_file'],
+                                                     extract_options['dataset_name_format_date'],
+                                                     cmems_download_options,True)
+
                     if fproduct is not None:
 
                         limits, rc = get_geo_info(options, fproduct, lathere, lonhere)
@@ -2308,7 +2317,12 @@ def main():
             if use_single_file:
                 cmems_download_options = get_cmems_download_options(options)
                 fproduct = get_cmems_product_day(path_source, org, datehere, dataset_name_file,
-                                                 dataset_name_format_date, cmems_download_options)
+                                                 dataset_name_format_date, cmems_download_options,False)
+
+                if fproduct is None: ##check also using myint
+                    fproduct = get_cmems_product_day(path_source, org, datehere, dataset_name_file,
+                                                     dataset_name_format_date, cmems_download_options, True)
+
                 if fproduct is not None:
 
                     limits, rc = get_geo_info(options, fproduct, lathere, lonhere)
