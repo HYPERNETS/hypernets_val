@@ -2125,13 +2125,10 @@ def main():
                                     'global_at': global_at,
                                 }
                         else:
-                            print(f'[WARNING] In situ location out of the limites of the satellite product. Skipping...')
+                            print(
+                                f'[WARNING] In situ location out of the limites of the satellite product. Skipping...')
                     else:
                         print(f'[WARNING] Files not found for date: {datehere.strftime("%Y-%m-%d")}. Skipping...')
-
-
-
-
 
         if extract_options['use_single_file']:
             for site in extract_list:
@@ -2147,9 +2144,11 @@ def main():
                 print(f'[INFO] Site: {site} Number of spectra: {nhere}')
 
                 if extract_options['is_reflectance']:
-                    newExtract = add_reflectance_single(newExtract, extract, extract_options['rrs_list'], extract_options['rrs_var_list'])
+                    newExtract = add_reflectance_single(newExtract, extract, extract_options['rrs_list'],
+                                                        extract_options['rrs_var_list'])
 
-                newExtract = add_variable_single(newExtract, extract, extract_options['dataset_var_list'], extract_options['dataset_var_list_out'],
+                newExtract = add_variable_single(newExtract, extract, extract_options['dataset_var_list'],
+                                                 extract_options['dataset_var_list_out'],
                                                  extract_options['rrs_var_list'])
                 # nidx = 50
                 # newExtract = add_insitu_basic_info(newExtract, extract, 1, nidx, None)
@@ -2157,7 +2156,6 @@ def main():
                 #     for idx in range(2, nhere + 1):
                 #         newExtract = add_insitu_basic_info(newExtract, extract, idx, nidx, None)
                 newExtract.close_file()
-
 
         return
 
@@ -2170,9 +2168,8 @@ def main():
         with open(path_csv) as f:
             first_line = f.readline().strip()
 
-
         path_csv_out = f'{path_csv[:-4]}_out.csv'
-        if options.has_section('CSV_SELECTION','path_csv_out'):
+        if options.has_option('CSV_SELECTION', 'path_csv_out'):
             path_csv_out = options['CSV_SELECTION']['path_csv']
 
         fcsv_out = open(path_csv_out, 'w')
