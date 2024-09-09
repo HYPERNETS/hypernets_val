@@ -2169,7 +2169,12 @@ def main():
 
         with open(path_csv) as f:
             first_line = f.readline().strip()
+
+
         path_csv_out = f'{path_csv[:-4]}_out.csv'
+        if options.has_section('CSV_SELECTION','path_csv_out'):
+            path_csv_out = options['CSV_SELECTION']['path_csv']
+
         fcsv_out = open(path_csv_out, 'w')
         fcsv_out.write(f'{first_line};Extract;Index')
 

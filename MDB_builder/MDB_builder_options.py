@@ -191,11 +191,11 @@ class MDBBuilderOptions:
         return file_insitu
 
     def get_param_sat_extracts(self):
-        sat_sensor = 'SENSOR'
-        sat_satellite = 'SAT'
-        sat_platform = 'PLATFORM'
-        sat_res = 'RESOLUTION'
-        atm_corr = 'STANDARD'
+        sat_sensor = ''
+        sat_satellite = ''
+        sat_platform = ''
+        sat_res = ''
+        atm_corr = ''
         prefix = None
         path_org = None
         if self.options.has_option('satellite_options', 'sensor'):
@@ -291,16 +291,17 @@ class MDBBuilderOptions:
 
         ##col_vars attributes
         col_vars = self.insitu_options['col_vars']
-        section_keys = list(dict(self.options.items(section)).keys())
-        for col in col_vars:
-            col_dict = {}
-            for key in section_keys:
-                if key.startswith(f'{col.lower()}.'):
-                    value = self.get_value_param(section,key,None,'str')
-                    at = key.split('.')[1]
-                    col_dict[at] = value
-            if len(col_dict)>0:
-                self.insitu_options[col] = col_dict
+        if col_vars is not None:
+            section_keys = list(dict(self.options.items(section)).keys())
+            for col in col_vars:
+                col_dict = {}
+                for key in section_keys:
+                    if key.startswith(f'{col.lower()}.'):
+                        value = self.get_value_param(section,key,None,'str')
+                        at = key.split('.')[1]
+                        col_dict[at] = value
+                if len(col_dict)>0:
+                    self.insitu_options[col] = col_dict
 
         if self.verbose:
             print(

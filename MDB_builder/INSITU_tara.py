@@ -264,7 +264,7 @@ class INSITU_TARA(INSITUBASE):
         col_names = df.columns.tolist()
 
         for index, row in df.iterrows():
-            print(row)
+            #print(row)
             self.metadata[index] = {
                 'lat': row[self.metadata_options['col_lat']],
                 'lon': row[self.metadata_options['col_lon']],
