@@ -29,7 +29,7 @@ def main():
     if not os.path.isdir(os.path.dirname(output_file)):
         print(f'[ERROR] {output_file} could not be created as parent directory does not exist')
         return
-    if output_file.endswith('.csv'):
+    if not output_file.endswith('.csv'):
         print(f'[ERROR] {output_file} shoud be a CSV file')
         return
     df = None
@@ -39,6 +39,19 @@ def main():
         except:
             print(f'[ERROR] {csv_files[key]} is not a valid CSV file (separated by ;)')
             return
+        c_index = f'Index_{key}'
+        c_extract = f'Extract_{key}'
+        if df is None:
+            df = df_here.copy()
+            df.rename(columns={'Extract': c_extract,'Index':c_index},inplace=True)
+        else:
+            df[c_extract] = df_here['Extract']
+            df[c_index] = df_here['Index']
+    if df is not None:
+        df.to_csv(output_file,sep=';')
+        print(f'[INFO] Combination of csv data completed in file: {output_file}')
+    else:
+        print(f'[ERROR] New data frame could not be created')
 
 
 
