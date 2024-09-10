@@ -2255,7 +2255,7 @@ def main():
                         print(f'[INFO] GRANULE: {path_product}')
                     res_str = path_product.split('/')[-1].split('_')[3]
                     basic_options['resolution'] = res_str
-                    basic_options['station_name'] = f'{namefile}_{idx}'
+                    basic_options['station_name'] = f'SHIPBORNE'  ##site is defined in a later step as row_col
                     basic_options['in_situ_lat'] = lathere
                     basic_options['in_situ_lon'] = lonhere
                     basic_options['insitu_info'] = insitu_info

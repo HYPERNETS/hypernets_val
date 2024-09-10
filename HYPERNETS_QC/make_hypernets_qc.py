@@ -219,23 +219,23 @@ def test():
     # f1.close()
     return True
 
-def test_aug_m():
+def test_aug_m(type_int):
     types = ['trim','polymer','processing','complete']
-    type = types[3]
+    type = types[type_int]
 
     if type == 'trim':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim_v3.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim_v4.sh'
     if type == 'polymer':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer_v3.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer_v4.sh'
     if type == 'processing':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_processing_v3.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_processing_v4.sh'
     if type == 'complete':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_complete_v3.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_complete_v4.sh'
 
     ##GETTING DATES
     list_dates = []
-    work_date = dt(2023,2,10)
-    end_date = dt(2023,4,25)
+    work_date = dt(2024,5,1)
+    end_date = dt(2024,7,31)
     while work_date<=end_date:
         list_dates.append(work_date.strftime('%Y-%m-%d'))
         work_date = work_date + timedelta(hours=24)
@@ -1435,9 +1435,11 @@ def make_copy_reports(input_path,output_path,site,start_date,end_date):
 def main():
     if args.verbose:
         print('[INFO] STARTED')
-    # b = test_aug_m()
-    # if b:
-    #     return
+    #types = ['trim', 'polymer', 'processing', 'complete']
+    for itype in range(4):
+        b = test_aug_m(itype)
+    if b:
+        return
     start_date, end_date = get_start_and_end_dates()
     if start_date is None:
         return
