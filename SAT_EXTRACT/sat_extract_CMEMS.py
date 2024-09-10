@@ -447,6 +447,10 @@ def create_extract(ofname, pdu, options, nc_sat, global_at, lat, long, r, c, ski
 
 def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, rrs_var_list):
     file = extract['file']
+    size_gb = os.stat(file).st_size / (1024 * 1024 * 1024)
+    file_tmp = os.path.join(os.path.dirname(file), 'out.nc')
+    if os.path.exists(file_tmp):os.remove(file_tmp)
+
     limits = extract['limits']
     start_idx_y = limits[0]
     stop_idx_y = limits[1]
@@ -455,7 +459,19 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, r
     input_dataset = None
     if variable_list[0].strip() == '*':
         variable_list = []
-        input_dataset = Dataset(file, 'r')
+        if size_gb>1:
+            cmd = f'ncks -d time,0 -d lat,{start_idx_y},{stop_idx_y - 1} -d lon,{start_idx_x},{stop_idx_x - 1} {file} {file_tmp}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err: print(err)
+            start_idx_y = 0
+            stop_idx_y = 25
+            start_idx_x = 0
+            stop_idx_x = 25
+            limits = [0, 25, 0, 25]
+            input_dataset = Dataset(file_tmp)
+        else:
+            input_dataset = Dataset(file, 'r')
         for var in input_dataset.variables:
             if var in rrs_var_list:
                 continue
@@ -464,7 +480,19 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, r
         variable_list_out = variable_list
 
     if input_dataset is None:
-        input_dataset = Dataset(file, 'r')
+        if size_gb>1:
+            cmd = f'ncks -d time,0 -d lat,{start_idx_y},{stop_idx_y - 1} -d lon,{start_idx_x},{stop_idx_x - 1} {file} {file_tmp}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err: print(err)
+            start_idx_y = 0
+            stop_idx_y = 25
+            start_idx_x = 0
+            stop_idx_x = 25
+            limits = [0,25,0,25]
+            input_dataset = Dataset(file_tmp)
+        else:
+            input_dataset = Dataset(file, 'r')
 
     for idx in range(len(variable_list)):
         variable_in = variable_list[idx]
@@ -472,6 +500,7 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, r
         var_in = input_dataset.variables[variable_in]
         var_array = ma.array(var_in[:])
         var_array = np.array(var_array.filled(-999.0))
+
 
         if variable_out not in newEXTRACT.EXTRACT.variables:
             variable = newEXTRACT.create_2D_variable_general(variable_out, var_array, limits)
@@ -485,6 +514,8 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, r
             variable.setncattr(at, var_in.getncattr(at))
 
     input_dataset.close()
+
+    if os.path.exists(file_tmp): os.remove(file_tmp)
 
     return newEXTRACT
 
@@ -525,6 +556,7 @@ def add_reflectance_single(newEXTRACT, extract, wl_list, var_list):
     if not 'satellite_bands' in newEXTRACT.EXTRACT.dimensions:
         print(f'[ERROR] Dimension satellite bands is not defined')
         return
+
     global_at = extract['1']['global_at']
     file = extract['file']
     limits = extract['limits']
@@ -542,7 +574,24 @@ def add_reflectance_single(newEXTRACT, extract, wl_list, var_list):
         satellite_Rrs = newEXTRACT.EXTRACT.variables['satellite_Rrs']
     else:
         satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
-    input_dataset = Dataset(file)
+
+    size_gb = os.stat(file).st_size/(1024*1024*1024)
+    file_tmp = os.path.join(os.path.dirname(file), 'out.nc')
+    if os.path.exists(file_tmp): os.remove(file_tmp)
+    if size_gb>1:##we extract first the window
+        cmd = f'ncks -d time,0 -d lat,{start_idx_y},{stop_idx_y-1} -d lon,{start_idx_x},{stop_idx_x-1} {file} {file_tmp}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err: print(err)
+        start_idx_y = 0
+        stop_idx_y = 25
+        start_idx_x = 0
+        stop_idx_x = 25
+        input_dataset = Dataset(file_tmp)
+    else:
+        input_dataset = Dataset(file)
+
+
     for idx in range(nwl):
         var_name = var_list[idx]
         variable = input_dataset.variables[var_name]
@@ -560,6 +609,8 @@ def add_reflectance_single(newEXTRACT, extract, wl_list, var_list):
         satellite_bands[:] = wl_list
     else:
         newEXTRACT.create_satellite_bands_variable(wl_list)
+
+    if os.path.exists(file_tmp): os.remove(file_tmp)
 
     return newEXTRACT
 
@@ -683,6 +734,8 @@ def start_extract(extract, ofname):
     nc_sat.close()
     newEXTRACT.create_lat_long_variables(lat, long, window)
     newEXTRACT.create_satellite_time_variable(satellite_time)
+
+
 
     return newEXTRACT
 
