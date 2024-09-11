@@ -1,8 +1,9 @@
 import zipfile as zp
+import numpy as np
 import os
 from shapely.geometry import Point
 from shapely.geometry import Polygon
-import common_functions as cfs
+
 
 class CHECK_GEO():
     def __init__(self):
@@ -19,7 +20,8 @@ class CHECK_GEO():
         if self.lat_array is None or self.lon_array is None:
             return -1,-1
         else:
-            r, c = cfs.find_row_column_from_lat_lon(self.lat_array, self.lon_array, in_situ_lat, in_situ_lon)
+            dist_squared = (self.lat_array - in_situ_lat) ** 2 + (self.lon_array - in_situ_lon) ** 2
+            r, c = np.unravel_index(np.argmin(dist_squared),self.lon_array.shape)
             return r,c
 
     def check_zip_file(self,prod_path):
