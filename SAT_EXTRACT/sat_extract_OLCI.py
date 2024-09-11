@@ -1090,6 +1090,7 @@ def get_all_products_day(path_source, unzip_path, org, wce, datehere):
                     zprod.extractall(path=unzip_path)
             if os.path.isdir(path_prod_u) and len(os.listdir(path_prod_u)) == 32:
                 fproducts.append(path_prod_u)
+    return fproducts
 
 def get_olci_products_day(path_source, unzip_path, org, wce, lathere, lonhere, datehere):
     path_search = path_source
@@ -2272,7 +2273,11 @@ def main():
             only_date_array_unique = np.unique(only_date_array).tolist()
             product_list = {}
             for date_str in only_date_array_unique:
+                if args.verbose:
+                    print(f'[INFO] Checking available products for day: {date_str}')
                 fproducts = get_all_products_day(path_source,tmp_path,org,wce,datetime.strptime(date_str,'%Y-%m-%d'))
+                if args.verbose:
+                    print(f'[INFO] -->{len(fproducts)} found')
                 if len(fproducts)>0:
                     for product in fproducts:
                         if product not in product_list.keys():
@@ -2282,6 +2287,8 @@ def main():
 
             ##2: STEP 2: Go thgrouth the complete file for each product, creating extracts:
             for product in product_list:
+                if args.verbose:
+                    print(f'[INFO] Checking product {product} for {namefile}')
                 lat_array, lon_array = get_lat_long_arrays(path_source)
                 cgeo = CHECK_GEO()
                 cgeo.set_lat_lon_array(lat_array,lon_array)
