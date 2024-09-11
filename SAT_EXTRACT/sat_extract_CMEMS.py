@@ -556,8 +556,10 @@ def add_reflectance_single(newEXTRACT, extract, wl_list, var_list):
     if not 'satellite_bands' in newEXTRACT.EXTRACT.dimensions:
         print(f'[ERROR] Dimension satellite bands is not defined')
         return
-
-    global_at = extract['1']['global_at']
+    if '1' in extract:
+        global_at = extract['1']['global_at']
+    elif 'global_at' in extract:
+        global_at = extract['global_at']
     file = extract['file']
     limits = extract['limits']
     start_idx_y = limits[0]
@@ -701,6 +703,24 @@ def add_insitu_basic_info(newEXTRACT, extract, id, nid, csv_flag_menings):
 
     return newEXTRACT
 
+##start the extract without using original file
+def start_extract_2(ofname,extract_info):
+    newEXTRACT = SatExtract(ofname)
+    if not newEXTRACT.FILE_CREATED:
+        print(f'[ERROR] File {ofname} could not be created')
+        return False
+
+    if args.verbose:
+        print(f'[INFO] Starting file: {ofname}')
+
+    window = extract_info['limits']
+    newEXTRACT.set_global_attributes(extract_info['global_at'])
+
+    newEXTRACT.create_dimensions(extract_info['size_box'], extract_info['n_bands'])
+    newEXTRACT.create_lat_long_variables(extract_info['lat_array'], extract_info['lon_array'], window)
+    newEXTRACT.create_satellite_time_variable(extract_info['satellite_time'])
+
+    return newEXTRACT
 
 def start_extract(extract, ofname):
     global_at = extract['1']['global_at']
@@ -1591,11 +1611,20 @@ def create_extract_cmems(filepath, options, sites, path_output):
 
     return ncreated
 
-
-def get_geo_info(options, file_nc, insitu_lat, insitu_lon):
+def get_lat_lon_arrays(options, file_nc):
     nc_sat = Dataset(file_nc, 'r')
     var_lat, var_lon = get_lat_long_var_names(options)
     lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
+    nc_sat.close()
+    return lat,lon
+
+def get_geo_info(options, file_nc, insitu_lat, insitu_lon, lat, lon):
+
+    if lat is None or lon is None:
+        lat,lon = get_lat_lon_arrays(options,file_nc)
+
+
+
     contain_flag = 0
     limits = None
     rc = None
@@ -1623,7 +1652,7 @@ def get_geo_info(options, file_nc, insitu_lat, insitu_lon):
             limits = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
             rc = [r, c]
 
-    nc_sat.close()
+
     return limits, rc
 
 
@@ -1731,6 +1760,16 @@ def get_cmems_product_day_dataset(path_source, org, datehere, dataset):
     return file
 
 
+def get_cmems_product_day_strict(path_source, org, datehere, dataset_name_file, dataset_name_format_date,cmems_download_options):
+
+    product_day = get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
+                          cmems_download_options,False)
+
+    if product_day is None:
+        product_day = get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
+                                            cmems_download_options, True)
+
+    return product_day
 def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
                           cmems_download_options,use_myint):
     path_day = path_source
@@ -2095,10 +2134,13 @@ def main():
         extract_options = get_cmems_extract_options(options, 'MULTIPLE_CSV_SELECTION')
         path_source, org, wce, time_start, time_stop = get_find_product_info(options)
         size_box = get_box_size(options)
-        var_lat, var_lon = get_lat_long_var_names(options)
+        #var_lat, var_lon = get_lat_long_var_names(options)
         cmems_download_options = get_cmems_download_options(options)
 
-        extract_list = {}
+
+        lat_array = None ##CMEMS EXTRACTS WORKS ALWAYS WITH THE SAME LAT/LON ARRAYS FOR LOCATION
+        lon_array = None
+        ncreated = 0
 
         for name in os.listdir(path_csv):
             if not name.endswith('csv'):
@@ -2112,114 +2154,213 @@ def main():
                 print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
                 return
 
-            for idx, row in df.iterrows():
-                datehere, lathere, lonhere = get_info_from_row(row, col_date, col_time, format_date, format_time,
-                                                               col_lat, col_lon)
-                if datehere is None or lathere is None or lonhere is None:
-                    print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
+            if args.verbose:
+                print(f'[INFO] --------------------------------------------------------------------------------------')
+                print(f'[INFO] Working with csv {namefile}. Obtaining product(s)...')
+
+            ##1: STEP 1: Obtain the products for the date list
+            date_array_ts = df[col_date]
+            only_date_array = []
+            for x in date_array_ts:
+                try:
+                    only_date_array.append(dt.strptime(x, format_date).strftime('%Y-%m-%d'))
+                except:
                     continue
+            only_date_array_unique = np.unique(only_date_array).tolist()
+            product_list = {}
+            for date_str in only_date_array_unique:
+                if args.verbose:
+                    print(f'[INFO] Checking available products for day: {date_str}')
                 if extract_options['use_single_file']:
+                    fproduct = get_cmems_product_day_strict(path_source, org, dt.strptime(date_str,'%Y-%m-%d'),extract_options['dataset_name_file'],extract_options['dataset_name_format_date'],cmems_download_options)
+                    product_list[date_str]=fproduct
 
-                    fproduct = get_cmems_product_day(path_source, org, datehere, extract_options['dataset_name_file'],
-                                                     extract_options['dataset_name_format_date'],
-                                                     cmems_download_options,False)
+            ##2. STEP 2: Create extracts for each date
+            for date_str in product_list:
 
-                    if fproduct is None:##check also myint
-                        fproduct = get_cmems_product_day(path_source, org, datehere, extract_options['dataset_name_file'],
-                                                     extract_options['dataset_name_format_date'],
-                                                     cmems_download_options,True)
-
-                    if fproduct is not None:
-
-                        limits, rc = get_geo_info(options, fproduct, lathere, lonhere)
-
-                        if limits is not None:
-                            global_at = get_satellite_global_atrib_from_options(options)
-                            datehere_str = datehere.strftime('%Y%m%d')
-                            site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
-                            print(f'[INFO] Site: {site}')
-                            other = None
-                            #         if csv_flags is not None:
-                            #             other = {}
-                            #             for f in csv_flags:
-                            #                 val = row[f].strip()
-                            #                 val = val.replace(' ', '_')
-                            #                 other[f] = val
-                            #
-                            global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, other)
-
-                            ofname = os.path.join(path_output, f'extract_{site}.nc')
-                            cmems_time = '11:00'
-                            if options.has_option('satellite_options', 'satellite_time'):
-                                cmems_time = options['satellite_options']['satellite_time'].strip()
-
-                            satellite_time = get_satellite_time_from_global_attributes(fproduct)
-                            if satellite_time is None:
-                                try:
-                                    satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}',
-                                                                 '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
-                                except:
-                                    print(f'{cmems_time} is not a valid satellite time option. Skipping')
-                                    continue
-
-                            if site not in extract_list.keys():
-                                extract_list[site] = {
-                                    'ninsitu': 1,
-                                    'satellite_time': satellite_time,
-                                    'ofname': ofname,
-                                    'limits': limits,
-                                    'file': fproduct,
-                                    'size_box': size_box,
-                                    'n_bands': extract_options['n_bands'],
-                                    'var_lat': var_lat,
-                                    'var_lon': var_lon,
-                                    '1': {
-                                        'insitu_time': datehere,
-                                        'global_at': global_at,
-                                    }
-                                }
-                            else:
-                                idx = extract_list[site]['ninsitu'] + 1
-                                idxs = str(idx)
-                                extract_list[site]['ninsitu'] = idx
-                                extract_list[site][idxs] = {
-                                    'insitu_time': datehere,
-                                    'global_at': global_at,
-                                }
-                        else:
-                            print(
-                                f'[WARNING] In situ location out of the limites of the satellite product. Skipping...')
+                fproduct = None
+                if extract_options['use_single_file']:
+                    fproduct = product_list[date_str]
+                    if fproduct is None:
+                        print(f'[WARNING] No product is available for date: {date_str}')
+                        continue
                     else:
-                        print(f'[WARNING] Files not found for date: {datehere.strftime("%Y-%m-%d")}. Skipping...')
+                        if args.verbose: print(f'[INFO] Working with product {fproduct} for date {date_str}')
+                    if lat_array is None or lon_array is None:
+                        lat_array,lon_array = get_lat_lon_arrays(options,fproduct)
 
-        if extract_options['use_single_file']:
-            for site in extract_list:
-                extract = extract_list[site]
-                nhere = extract['ninsitu']
-                ofname = extract['ofname']
-                if os.path.exists(ofname):
-                    print(f'[WARNING] {ofname} already exist. Skipping...')
-                    continue
-                else:
-                    newExtract = start_extract(extract, ofname)
+                ##CHECKING EXTRACT INFO OPTION (INCLUDING SATELLITE TIME)
+                cmems_time = '11:00'
+                if options.has_option('satellite_options', 'satellite_time'):
+                    cmems_time = options['satellite_options']['satellite_time'].strip()
+                satellite_time = get_satellite_time_from_global_attributes(fproduct)
+                if satellite_time is None:
+                    try:
+                        satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}',
+                                                     '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
+                    except:
+                        print(f'{cmems_time} is not a valid satellite time option. Skipping')
+                        continue
+                extract_info = {
+                    'global_at': None,
+                    'satellite_time':satellite_time,
+                    'size_box': size_box,
+                    'n_bands': extract_options['n_bands'],
+                    'limits': None,
+                    'lat_array': lat_array,
+                    'lon_array': lon_array,
+                    'file': fproduct
+                }
 
-                print(f'[INFO] Site: {site} Number of spectra: {nhere}')
+                ##CHECKING EXTRACT FOR EACH ROW
+                for idx, row in df.iterrows():
+                    datehere, lathere, lonhere = get_info_from_row(row, col_date, col_time, format_date, format_time,col_lat, col_lon)
+                    if datehere is None or lathere is None or lonhere is None:
+                        print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
+                        continue
+                    if datehere.strftime('%Y-%m-%d')!=date_str:
+                        continue
+                    limits, rc = get_geo_info(options, fproduct, lathere, lonhere, lat_array, lon_array)
+                    if limits is None:
+                        print(
+                            f'[WARNING] In situ location out of the limits of the satellite product. Skipping...')
+                        continue
 
-                if extract_options['is_reflectance']:
-                    newExtract = add_reflectance_single(newExtract, extract, extract_options['rrs_list'],
-                                                        extract_options['rrs_var_list'])
+                    global_at = get_satellite_global_atrib_from_options(options)
+                    datehere_str = datehere.strftime('%Y%m%d')
+                    site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+                    ofname = os.path.join(path_output, f'extract_{site}.nc')
+                    if os.path.exists(ofname):
+                        print(f'[WARNING] Satellite extract extract_{site}.nc already exists. Skiping...')
+                    global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, None)
+                    extract_info['global_at'] = global_at
+                    extract_info['limits'] = limits
 
-                newExtract = add_variable_single(newExtract, extract, extract_options['dataset_var_list'],
-                                                 extract_options['dataset_var_list_out'],
-                                                 extract_options['rrs_var_list'])
-                # nidx = 50
-                # newExtract = add_insitu_basic_info(newExtract, extract, 1, nidx, None)
-                # if nhere > 1:
-                #     for idx in range(2, nhere + 1):
-                #         newExtract = add_insitu_basic_info(newExtract, extract, idx, nidx, None)
-                newExtract.close_file()
+                    newExtract = start_extract_2(ofname,extract_info)
 
+                    if extract_options['is_reflectance']:
+                        newExtract = add_reflectance_single(newExtract, extract_info, extract_options['rrs_list'],
+                                                            extract_options['rrs_var_list'])
+
+                    newExtract = add_variable_single(newExtract, extract_info, extract_options['dataset_var_list'],
+                                                     extract_options['dataset_var_list_out'],
+                                                     extract_options['rrs_var_list'])
+
+                    newExtract.close_file()
+                    ncreated = ncreated +1
+
+
+        print(f'[INFO] Extract generation for MULTIPLE_CSV_FILE was completed. ')
+        print(f'[INFO] {ncreated} extracts were created')
         return
+        #     for idx, row in df.iterrows():
+        #         datehere, lathere, lonhere = get_info_from_row(row, col_date, col_time, format_date, format_time,
+        #                                                        col_lat, col_lon)
+        #         if datehere is None or lathere is None or lonhere is None:
+        #             print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
+        #             continue
+        #         if extract_options['use_single_file']:
+        #
+        #             fproduct = get_cmems_product_day(path_source, org, datehere, extract_options['dataset_name_file'],
+        #                                              extract_options['dataset_name_format_date'],
+        #                                              cmems_download_options,False)
+        #
+        #             if fproduct is None:##check also myint
+        #                 fproduct = get_cmems_product_day(path_source, org, datehere, extract_options['dataset_name_file'],
+        #                                              extract_options['dataset_name_format_date'],
+        #                                              cmems_download_options,True)
+        #
+        #             if fproduct is not None:
+        #
+        #                 limits, rc = get_geo_info(options, fproduct, lathere, lonhere, None, None)
+        #
+        #                 if limits is not None:
+        #                     global_at = get_satellite_global_atrib_from_options(options)
+        #                     datehere_str = datehere.strftime('%Y%m%d')
+        #                     site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+        #                     print(f'[INFO] Site: {site}')
+        #                     other = None
+        #                     #         if csv_flags is not None:
+        #                     #             other = {}
+        #                     #             for f in csv_flags:
+        #                     #                 val = row[f].strip()
+        #                     #                 val = val.replace(' ', '_')
+        #                     #                 other[f] = val
+        #                     #
+        #                     global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, other)
+        #
+        #                     ofname = os.path.join(path_output, f'extract_{site}.nc')
+        #                     cmems_time = '11:00'
+        #                     if options.has_option('satellite_options', 'satellite_time'):
+        #                         cmems_time = options['satellite_options']['satellite_time'].strip()
+        #
+        #                     satellite_time = get_satellite_time_from_global_attributes(fproduct)
+        #                     if satellite_time is None:
+        #                         try:
+        #                             satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}',
+        #                                                          '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
+        #                         except:
+        #                             print(f'{cmems_time} is not a valid satellite time option. Skipping')
+        #                             continue
+        #
+        #                     if site not in extract_list.keys():
+        #                         extract_list[site] = {
+        #                             'ninsitu': 1,
+        #                             'satellite_time': satellite_time,
+        #                             'ofname': ofname,
+        #                             'limits': limits,
+        #                             'file': fproduct,
+        #                             'size_box': size_box,
+        #                             'n_bands': extract_options['n_bands'],
+        #                             'var_lat': var_lat,
+        #                             'var_lon': var_lon,
+        #                             '1': {
+        #                                 'insitu_time': datehere,
+        #                                 'global_at': global_at,
+        #                             }
+        #                         }
+        #                     else:
+        #                         idx = extract_list[site]['ninsitu'] + 1
+        #                         idxs = str(idx)
+        #                         extract_list[site]['ninsitu'] = idx
+        #                         extract_list[site][idxs] = {
+        #                             'insitu_time': datehere,
+        #                             'global_at': global_at,
+        #                         }
+        #                 else:
+        #                     print(
+        #                         f'[WARNING] In situ location out of the limites of the satellite product. Skipping...')
+        #             else:
+        #                 print(f'[WARNING] Files not found for date: {datehere.strftime("%Y-%m-%d")}. Skipping...')
+        #
+        # if extract_options['use_single_file']:
+        #     for site in extract_list:
+        #         extract = extract_list[site]
+        #         nhere = extract['ninsitu']
+        #         ofname = extract['ofname']
+        #         if os.path.exists(ofname):
+        #             print(f'[WARNING] {ofname} already exist. Skipping...')
+        #             continue
+        #         else:
+        #             newExtract = start_extract(extract, ofname)
+        #
+        #         print(f'[INFO] Site: {site} Number of spectra: {nhere}')
+        #
+        #         if extract_options['is_reflectance']:
+        #             newExtract = add_reflectance_single(newExtract, extract, extract_options['rrs_list'],
+        #                                                 extract_options['rrs_var_list'])
+        #
+        #         newExtract = add_variable_single(newExtract, extract, extract_options['dataset_var_list'],
+        #                                          extract_options['dataset_var_list_out'],
+        #                                          extract_options['rrs_var_list'])
+        #         # nidx = 50
+        #         # newExtract = add_insitu_basic_info(newExtract, extract, 1, nidx, None)
+        #         # if nhere > 1:
+        #         #     for idx in range(2, nhere + 1):
+        #         #         newExtract = add_insitu_basic_info(newExtract, extract, idx, nidx, None)
+        #         newExtract.close_file()
+
+
 
     if options.has_section('CSV_SELECTION') and options.has_option('CSV_SELECTION', 'path_csv'):
         path_csv = options['CSV_SELECTION']['path_csv']
@@ -2378,7 +2519,7 @@ def main():
 
                 if fproduct is not None:
 
-                    limits, rc = get_geo_info(options, fproduct, lathere, lonhere)
+                    limits, rc = get_geo_info(options, fproduct, lathere, lonhere, None, None)
 
                     if limits is not None:
                         global_at = get_satellite_global_atrib_from_options(options)
@@ -2454,7 +2595,7 @@ def main():
 
                 if list_files is not None:
 
-                    limits, rc = get_geo_info(options, list_files[0], lathere, lonhere)
+                    limits, rc = get_geo_info(options, list_files[0], lathere, lonhere, None, None)
                     if limits is not None:
                         global_at = get_satellite_global_atrib_from_options(options)
                         datehere_str = datehere.strftime('%Y%m%d')
