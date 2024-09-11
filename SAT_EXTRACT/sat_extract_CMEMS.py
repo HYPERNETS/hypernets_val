@@ -2233,6 +2233,7 @@ def main():
                     ofname = os.path.join(path_output, f'extract_{site}.nc')
                     if os.path.exists(ofname):
                         print(f'[WARNING] Satellite extract extract_{site}.nc already exists. Skiping...')
+                        continue
                     global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, None)
                     extract_info['global_at'] = global_at
                     extract_info['limits'] = limits
