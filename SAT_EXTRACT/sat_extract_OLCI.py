@@ -1056,6 +1056,41 @@ def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
     return contain_flag
 
 
+def get_all_products_day(path_source, unzip_path, org, wce, datehere):
+    path_search = path_source
+    if wce is not None:
+        wce = wce.replace('*', '')
+    if org is not None:
+        if org == 'YYYYmmdd':
+            path_search = os.path.join(path_source, datehere.strftime('%Y%m%d'))
+        if org == 'YYYYjjj':
+            path_search = os.path.join(path_source, datehere.strftime('%Y'), datehere.strftime('%j'))
+
+    fproducts = []
+    if not os.path.exists(path_search):
+        return fproducts
+
+    for name in os.listdir(path_search):
+        if wce is not None:
+            if name.find(wce) < 0:
+                continue
+        prod_path = os.path.join(path_search, name)
+        if name.endswith('.SEN3') and os.path.isdir(prod_path) and len(os.listdir(prod_path)) == 32:
+            fproducts.append(prod_path)
+        elif zipfile.is_zipfile(prod_path):
+            do_zip_here = True
+            path_prod_u = prod_path.split('/')[-1][0:-4]
+            path_prod_u = os.path.join(unzip_path, path_prod_u)
+            if os.path.isdir(path_prod_u) and len(os.listdir(path_prod_u)) == 32:
+                do_zip_here = False
+            if do_zip_here:
+                with zipfile.ZipFile(prod_path, 'r') as zprod:
+                    if args.verbose:
+                        print(f'[INFO] Unziping {name} to {unzip_path}')
+                    zprod.extractall(path=unzip_path)
+            if os.path.isdir(path_prod_u) and len(os.listdir(path_prod_u)) == 32:
+                fproducts.append(path_prod_u)
+
 def get_olci_products_day(path_source, unzip_path, org, wce, lathere, lonhere, datehere):
     path_search = path_source
     if wce is not None:
@@ -1134,16 +1169,21 @@ def create_extractv2(path_product, path_output, options):
     station_name = options['station_name']
     in_situ_lat = options['in_situ_lat']
     in_situ_lon = options['in_situ_lon']
-    res_str = options['resolution']
-    make_brdf = options['make_brdf']
-    insitu_info = options['insitu_info']
+    # res_str = options['resolution']
+    # make_brdf = options['make_brdf']
+    # insitu_info = options['insitu_info']
     variable_list = options['variable_list']
     if args.verbose:
         print(f'[INFO] Creating extract v.2 for {station_name} from {path_product}')
 
     if args.verbose:
         print(f'[INFO] Checking in situ  location -> lat: {in_situ_lat}; lon: {in_situ_lon}')
-    r, c = check_location_source(path_product, in_situ_lat, in_situ_lon, size_box)
+
+    if 'rc' in options:
+        r = options['rc'][0]
+        c = options['rc'][1]
+    else:
+        r, c = check_location_source(path_product, in_situ_lat, in_situ_lon, size_box)
     if r == -1 and c == -1:
         print('f[WARNING] File does NOT contains the in situ location! Skipping...')
         return
@@ -2221,57 +2261,119 @@ def main():
                 print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
                 return
 
-            for idx, row in df.iterrows():
+            ##1: STEP 1: Obtain the products for the date list
+            date_array_ts = df[col_date]
+            only_date_array = []
+            for x in date_array_ts:
                 try:
-                    datestr = row[col_date].strip()
-                    datehere = datetime.strptime(datestr, format_date)
-                    lathere = float(row[col_lat])
-                    lonhere = float(row[col_lon])
+                    only_date_array.append(datetime.strptime(x, format_date).strftime('%Y-%m-%d'))
                 except:
-                    print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
                     continue
-                fproducts, iszipped = get_olci_products_day(path_source, tmp_path, org, wce, lathere, lonhere, datehere)
-                nproducts = len(fproducts)
-                if nproducts == 0:
-                    if args.verbose:
-                        print(f'[WARNING] No products found for {datehere}')
-                    if args.allow_download:  ##make download in needed
-                        date_list = [datehere]
-                        site = f'site_{idx}'
-                        create_extracts_day_by_day(date_list, satellite_path_source, site, lathere, lonhere, wce,
-                                                   tmp_path,
-                                                   path_out, size_box, make_brdf)
-                        continue
-                    continue
-                insitu_time = datehere.timestamp()
-                insitu_info = [lathere, lonhere, insitu_time]
-                variable_list = None
+            only_date_array_unique = np.unique(only_date_array).tolist()
+            product_list = {}
+            for date_str in only_date_array_unique:
+                fproducts = get_all_products_day(path_source,tmp_path,org,wce,datetime.strptime(date_str,'%Y-%m-%d'))
+                if len(fproducts)>0:
+                    for product in fproducts:
+                        if product not in product_list.keys():
+                            product_list[product] = [date_str]
+                        else:
+                            product_list[product].append(date_str)
 
-                for id in range(len(fproducts)):
-                    path_product = fproducts[id]
-                    if args.verbose:
-                        print('---------------------------------------------------')
-                        print(f'[INFO] DATE: {datehere}')
-                        print(f'[INFO] GRANULE: {path_product}')
-                    res_str = path_product.split('/')[-1].split('_')[3]
-                    basic_options['resolution'] = res_str
-                    basic_options['station_name'] = f'SHIPBORNE'  ##site is defined in a later step as row_col
+            ##2: STEP 2: Go thgrouth the complete file for each product, creating extracts:
+            for product in product_list:
+                lat_array, lon_array = get_lat_long_arrays(path_source)
+                cgeo = CHECK_GEO()
+                cgeo.set_lat_lon_array(lat_array,lon_array)
+                cgeo.start_polygon_from_prod_manifest_file(product)
+                basic_options['station_name'] = f'SHIPBORNE'  ##site is defined in a later step as row_col
+                extra_bands = basic_options['extra_bands']
+                solci = SatExtractOLCI(None, None)
+                solci.set_variable_list(product, extra_bands)
+                variable_list = solci.variable_list
+                basic_options['variable_list'] = variable_list
+                res_str = product.split('/')[-1].split('_')[3]
+                basic_options['resolution'] = res_str
+
+                for idx, row in df.iterrows():
+                    try:
+                        datestr = row[col_date].strip()
+                        datehere = datetime.strptime(datestr, format_date)
+                        lathere = float(row[col_lat])
+                        lonhere = float(row[col_lon])
+                    except:
+                        print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
+                        continue
+                    if datehere.strftime('%Y-%m-%d') not in product_list[product]:
+                        continue
+                    contain_flag = cgeo.check_point_lat_lon(lathere, lonhere)
+                    if contain_flag!=1:
+                        continue
+                    insitu_time = datehere.timestamp()
+                    insitu_info = [lathere, lonhere, insitu_time]
                     basic_options['in_situ_lat'] = lathere
                     basic_options['in_situ_lon'] = lonhere
                     basic_options['insitu_info'] = insitu_info
-                    extra_bands = basic_options['extra_bands']
-                    if variable_list is None:
-                        solci = SatExtractOLCI(None, None)
-                        solci.set_variable_list(path_product, extra_bands)
-                        variable_list = solci.variable_list
-                    basic_options['variable_list'] = variable_list
-                    # variable_list = options['variable_list']
+                    r, c = cgeo.find_row_column_from_lat_lon(lathere, lonhere)
+                    basic_options['rc'] = [r,c]
 
-                    ofname = create_extractv2(path_product, path_out, basic_options)
+                    ofname = create_extractv2(product, path_out, basic_options)
                     if ofname is not None:
                         if args.verbose:
                             print(f'Sat extract {ofname} was created')
                         ncreated = ncreated + 1
+
+            # for idx, row in df.iterrows():
+            #     try:
+            #         datestr = row[col_date].strip()
+            #         datehere = datetime.strptime(datestr, format_date)
+            #         lathere = float(row[col_lat])
+            #         lonhere = float(row[col_lon])
+            #     except:
+            #         print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
+            #         continue
+            #     fproducts, iszipped = get_olci_products_day(path_source, tmp_path, org, wce, lathere, lonhere, datehere)
+            #     nproducts = len(fproducts)
+            #     if nproducts == 0:
+            #         if args.verbose:
+            #             print(f'[WARNING] No products found for {datehere}')
+            #         if args.allow_download:  ##make download in needed
+            #             date_list = [datehere]
+            #             site = f'site_{idx}'
+            #             create_extracts_day_by_day(date_list, satellite_path_source, site, lathere, lonhere, wce,
+            #                                        tmp_path,
+            #                                        path_out, size_box, make_brdf)
+            #             continue
+            #         continue
+            #     insitu_time = datehere.timestamp()
+            #     insitu_info = [lathere, lonhere, insitu_time]
+            #     variable_list = None
+            #
+            #     for id in range(len(fproducts)):
+            #         path_product = fproducts[id]
+            #         if args.verbose:
+            #             print('---------------------------------------------------')
+            #             print(f'[INFO] DATE: {datehere}')
+            #             print(f'[INFO] GRANULE: {path_product}')
+            #         res_str = path_product.split('/')[-1].split('_')[3]
+            #         basic_options['resolution'] = res_str
+            #         basic_options['station_name'] = f'SHIPBORNE'  ##site is defined in a later step as row_col
+            #         basic_options['in_situ_lat'] = lathere
+            #         basic_options['in_situ_lon'] = lonhere
+            #         basic_options['insitu_info'] = insitu_info
+            #         extra_bands = basic_options['extra_bands']
+            #         if variable_list is None:
+            #             solci = SatExtractOLCI(None, None)
+            #             solci.set_variable_list(path_product, extra_bands)
+            #             variable_list = solci.variable_list
+            #         basic_options['variable_list'] = variable_list
+            #         # variable_list = options['variable_list']
+            #
+            #         ofname = create_extractv2(path_product, path_out, basic_options)
+            #         if ofname is not None:
+            #             if args.verbose:
+            #                 print(f'Sat extract {ofname} was created')
+            #             ncreated = ncreated + 1
         print('------------------------------')
         print(f'COMPLETED. {ncreated} sat extract files were created')
         return

@@ -2,12 +2,25 @@ import zipfile as zp
 import os
 from shapely.geometry import Point
 from shapely.geometry import Polygon
-
+import common_functions as cfs
 
 class CHECK_GEO():
     def __init__(self):
         self.polygon_image = None
         self.coords_image = None
+        self.lat_array = None
+        self.lon_array = None
+
+    def set_lat_lon_array(self,lat_array,lon_array):
+        self.lat_array = lat_array
+        self.lon_array = lon_array
+
+    def find_row_column_from_lat_lon(self,in_situ_lat,in_situ_lon):
+        if self.lat_array is None or self.lon_array is None:
+            return -1,-1
+        else:
+            r, c = cfs.find_row_column_from_lat_lon(self.lat_array, self.lon_array, in_situ_lat, in_situ_lon)
+            return r,c
 
     def check_zip_file(self,prod_path):
         valid = True
@@ -54,8 +67,6 @@ class CHECK_GEO():
                         self.polygon_image = Polygon(coords)  # create polygon
                         self.coords_image = coords
                 gc.close()
-
-
 
 
     def get_geo_limits(self):
