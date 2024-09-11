@@ -2156,7 +2156,7 @@ def main():
 
             if args.verbose:
                 print(f'[INFO] --------------------------------------------------------------------------------------')
-                print(f'[INFO] Working with csv {namefile}. Obtaining product(s)...')
+                print(f'[INFO] Working with csv {namefile} Obtaining product(s)...')
 
             ##1: STEP 1: Obtain the products for the date list
             date_array_ts = df[col_date]
@@ -2196,6 +2196,7 @@ def main():
                 satellite_time = get_satellite_time_from_global_attributes(fproduct)
                 if satellite_time is None:
                     try:
+                        datehere_str = dt.strptime(date_str, '%Y-%m-%d').strftime('%Y%m%d')
                         satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}',
                                                      '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
                     except:
