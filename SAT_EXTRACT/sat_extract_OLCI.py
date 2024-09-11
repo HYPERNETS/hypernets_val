@@ -2289,7 +2289,7 @@ def main():
             for product in product_list:
                 if args.verbose:
                     print(f'[INFO] Checking product {product} for {namefile}')
-                lat_array, lon_array = get_lat_long_arrays(path_source)
+                lat_array, lon_array = get_lat_long_arrays(product)
                 cgeo = CHECK_GEO()
                 cgeo.set_lat_lon_array(lat_array,lon_array)
                 cgeo.start_polygon_from_prod_manifest_file(product)
