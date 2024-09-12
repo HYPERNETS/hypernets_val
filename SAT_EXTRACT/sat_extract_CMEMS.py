@@ -621,7 +621,10 @@ def add_reflectance_multiple(newEXTRACT, extract, wl_list):
     if not 'satellite_bands' in newEXTRACT.EXTRACT.dimensions:
         print(f'[ERROR] Dimension satellite bands is not defined')
         return
-    global_at = extract['1']['global_at']
+    if 'global_at' in extract:
+        global_at = extract['global_at']
+    if '1' in extract:
+        global_at = extract['1']['global_at']
     list_files = extract['list_files']
     limits = extract['limits']
     start_idx_y = limits[0]
@@ -630,6 +633,7 @@ def add_reflectance_multiple(newEXTRACT, extract, wl_list):
     stop_idx_x = limits[3]
 
     nwl = len(list_files)
+
     if 'satellite_Rrs' in newEXTRACT.EXTRACT.variables:
         satellite_Rrs = newEXTRACT.EXTRACT.variables['satellite_Rrs']
     else:
@@ -640,7 +644,14 @@ def add_reflectance_multiple(newEXTRACT, extract, wl_list):
         wavelengths.append(float(wl))
         input_dataset = Dataset(list_files[iwl])
         for name, variable in input_dataset.variables.items():
-            wls = str(wl).replace('.', '_')
+            #wls = str(wl).replace('.', '_')
+            wls = f'{wl:.2f}'
+            wls = wls.replace('.','_')
+            if wls.endswith('_00'):
+                wls = wls[:-3]
+            if wls.find('_')>0 and wls.endswith('0'):
+                wls = wls[:-1]
+            print(name,'-------------------------------------------------------------------------------------------------------------------------------->',wls)
             ifind = name.find(wls)
             if ifind >= 0:
                 if variable.ndim == 3:
@@ -1970,7 +1981,8 @@ def get_cmems_extract_options(options, section):
         is_reflectance = True
         for var in dataset_var_list:
             try:
-                float(var)
+                value = float(var)
+                rrs_list.append(value)
             except:
                 is_reflectance = False
         if is_reflectance:
@@ -2142,6 +2154,10 @@ def main():
         lon_array = None
         ncreated = 0
 
+
+
+
+
         for name in os.listdir(path_csv):
             if not name.endswith('csv'):
                 continue
@@ -2174,20 +2190,36 @@ def main():
                 if extract_options['use_single_file']:
                     fproduct = get_cmems_product_day_strict(path_source, org, dt.strptime(date_str,'%Y-%m-%d'),extract_options['dataset_name_file'],extract_options['dataset_name_format_date'],cmems_download_options)
                     product_list[date_str]=fproduct
+                else:
+                    list_files = get_cmems_multiple_product_day(path_source, org, dt.strptime(date_str,'%Y-%m-%d'), extract_options['dataset_name_file'],
+                                                                extract_options['dataset_name_format_date'], extract_options['dataset_var_list'])
+                    product_list[date_str]=list_files
+
 
             ##2. STEP 2: Create extracts for each date
             for date_str in product_list:
 
                 fproduct = None
+                list_files = None
                 if extract_options['use_single_file']:
                     fproduct = product_list[date_str]
-                    if fproduct is None:
-                        print(f'[WARNING] No product is available for date: {date_str}')
-                        continue
-                    else:
-                        if args.verbose: print(f'[INFO] Working with product {fproduct} for date {date_str}')
-                    if lat_array is None or lon_array is None:
-                        lat_array,lon_array = get_lat_lon_arrays(options,fproduct)
+                else:
+                    list_files = product_list[date_str]
+                    if list_files is not None:
+                        fproduct = list_files[0]
+                if fproduct is None:
+                    print(f'[WARNING] No product(s) is(are) available for date: {date_str}')
+                    continue
+                else:
+                    if args.verbose:
+                        if list_files is not None:
+                            print(f'[INFO] Working with {len(list_files)} files for date {date_str}')
+                        else:
+                            print(f'[INFO] Working with product {fproduct} for date {date_str}')
+                if lat_array is None or lon_array is None:
+                    lat_array, lon_array = get_lat_lon_arrays(options, fproduct)
+
+
 
                 ##CHECKING EXTRACT INFO OPTION (INCLUDING SATELLITE TIME)
                 cmems_time = '11:00'
@@ -2210,7 +2242,8 @@ def main():
                     'limits': None,
                     'lat_array': lat_array,
                     'lon_array': lon_array,
-                    'file': fproduct
+                    'file': fproduct,
+                    'list_files': list_files
                 }
 
                 ##CHECKING EXTRACT FOR EACH ROW
@@ -2240,13 +2273,19 @@ def main():
 
                     newExtract = start_extract_2(ofname,extract_info)
 
-                    if extract_options['is_reflectance']:
-                        newExtract = add_reflectance_single(newExtract, extract_info, extract_options['rrs_list'],
-                                                            extract_options['rrs_var_list'])
+                    if extract_options['use_single_file']:
+                        if extract_options['is_reflectance']:
+                            newExtract = add_reflectance_single(newExtract, extract_info, extract_options['rrs_list'],extract_options['rrs_var_list'])
+                        newExtract = add_variable_single(newExtract, extract_info, extract_options['dataset_var_list'],extract_options['dataset_var_list_out'],extract_options['rrs_var_list'])
+                    else:
+                        if extract_options['is_reflectance']:
+                            newExtract = add_reflectance_multiple(newExtract,extract_info,extract_options['rrs_list'])
+                        else:
+                            newExtract = add_variable_multiple(newExtract, extract_info, extract_options['dataset_var_list'],
+                                                               extract_options['dataset_var_list_out'])
 
-                    newExtract = add_variable_single(newExtract, extract_info, extract_options['dataset_var_list'],
-                                                     extract_options['dataset_var_list_out'],
-                                                     extract_options['rrs_var_list'])
+
+
 
                     newExtract.close_file()
                     ncreated = ncreated +1
