@@ -640,7 +640,7 @@ def add_reflectance_multiple(newEXTRACT, extract, wl_list):
         satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
     wavelengths = []
     for iwl in range(nwl):
-        wl = wl_list[iwl]
+        wl = float(wl_list[iwl])
         wavelengths.append(float(wl))
         input_dataset = Dataset(list_files[iwl])
         for name, variable in input_dataset.variables.items():
