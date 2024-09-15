@@ -2313,15 +2313,22 @@ def main():
                         continue
                     if datehere.strftime('%Y-%m-%d') not in product_list[product]:
                         continue
-                    contain_flag = cgeo.check_point_lat_lon(lathere, lonhere)
-                    if contain_flag!=1:
-                        continue
+
+                    ## we commnent this check because it's precise but slow
+                    # contain_flag = cgeo.check_point_lat_lon(lathere, lonhere)
+                    # if contain_flag!=1:
+                    #     continue
                     insitu_time = datehere.timestamp()
                     insitu_info = [lathere, lonhere, insitu_time]
                     basic_options['in_situ_lat'] = lathere
                     basic_options['in_situ_lon'] = lonhere
                     basic_options['insitu_info'] = insitu_info
                     r, c = cgeo.find_row_column_from_lat_lon(lathere, lonhere)
+                    contain_flag = cgeo.check_rc_window(r,c,basic_options['size_box'])
+                    if contain_flag<1:
+                        print(f'Row {idx} for {namefile} is out of the limits for product {product}. Skipping...')
+                        continue
+
                     basic_options['rc'] = [r,c]
 
                     ofname = create_extractv2(product, path_out, basic_options)

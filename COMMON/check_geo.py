@@ -24,6 +24,17 @@ class CHECK_GEO():
             r, c = np.unravel_index(np.argmin(dist_squared),self.lon_array.shape)
             return r,c
 
+    def check_rc_window(self,r,c,size_box):
+        if self.lat_array is None or self.lon_array is None:
+            return -1
+        start_idx_y = (r - int(size_box / 2))
+        stop_idx_y = (r + int(size_box / 2) + 1)
+        start_idx_x = (c - int(size_box / 2))
+        stop_idx_x = (c + int(size_box / 2) + 1)
+        if start_idx_y < 0 or start_idx_x < 0 or stop_idx_y >= self.lat_array.shape[0] or stop_idx_x >= self.lat_array.shape[1]:
+            return 0
+        return 1
+
     def check_zip_file(self,prod_path):
         valid = True
         try:
