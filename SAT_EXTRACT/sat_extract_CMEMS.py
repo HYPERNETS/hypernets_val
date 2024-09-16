@@ -1949,12 +1949,17 @@ def get_cmems_extract_options(options, section):
 
     dataset_name_file = options[section]['dataset_name_file']
     dataset_name_format_date = options[section]['dataset_name_format_date']
-    s = options[section]['dataset_var_list']
-    dataset_var_list = [x.strip() for x in s.split(',')]
-    dataset_var_list_out = dataset_var_list
-    if options.has_option(section, 'dataset_var_list_out'):
-        s = options[section]['dataset_var_list_out']
-        dataset_var_list_out = [x.strip() for x in s.split(',')]
+
+    dataset_var_list = None
+    dataset_var_list_out = None
+    if options.has_option(section,'dataset_var_list'):
+        s = options[section]['dataset_var_list']
+        if s.strip()!='':
+            dataset_var_list = [x.strip() for x in s.split(',')]
+            dataset_var_list_out = dataset_var_list
+            if options.has_option(section, 'dataset_var_list_out'):
+                s = options[section]['dataset_var_list_out']
+                dataset_var_list_out = [x.strip() for x in s.split(',')]
 
     rrs_list = []
     rrs_var_list = []
@@ -2276,7 +2281,8 @@ def main():
                     if extract_options['use_single_file']:
                         if extract_options['is_reflectance']:
                             newExtract = add_reflectance_single(newExtract, extract_info, extract_options['rrs_list'],extract_options['rrs_var_list'])
-                        newExtract = add_variable_single(newExtract, extract_info, extract_options['dataset_var_list'],extract_options['dataset_var_list_out'],extract_options['rrs_var_list'])
+                        if extract_options['dataset_var_list'] is not None:
+                            newExtract = add_variable_single(newExtract, extract_info, extract_options['dataset_var_list'],extract_options['dataset_var_list_out'],extract_options['rrs_var_list'])
                     else:
                         if extract_options['is_reflectance']:
                             newExtract = add_reflectance_multiple(newExtract,extract_info,extract_options['rrs_list'])
