@@ -533,7 +533,14 @@ def add_variable_multiple(newEXTRACT, extract, variable_list, variable_list_out)
         variable_in = variable_list[idx]
         variable_out = f'satellite_{variable_list_out[idx]}'
         nc_in = Dataset(file_in, 'r')
-        var_in = nc_in.variables[variable_in]
+        if variable_in in nc_in.variables:
+            var_in = nc_in.variables[variable_in]
+        elif variable_in.upper() in nc_in.variables:
+            var_in = nc_in.variables[variable_in.upper()]
+        else:
+            print(f'[ERROR] Variable {variable_in} is not available in the file. Extract not created')
+            newEXTRACT.close_file()
+            return None
         var_array = ma.array(var_in[:])
         var_array = np.array(var_array.filled(-999.0))
 
@@ -2289,6 +2296,11 @@ def main():
                         else:
                             newExtract = add_variable_multiple(newExtract, extract_info, extract_options['dataset_var_list'],
                                                                extract_options['dataset_var_list_out'])
+                            if newExtract is None:
+                                os.remove(ofname)
+                                continue
+
+
 
 
 
@@ -2755,6 +2767,9 @@ def main():
                     newExtract = add_reflectance_multiple(newExtract, extract, dataset_var_list)
                 else:
                     newExtract = add_variable_multiple(newExtract, extract, dataset_var_list, dataset_var_list_out)
+                    if newExtract is None:
+                        os.remove(ofname)
+                        continue
                 nidx = 50
 
                 newExtract = add_insitu_basic_info(newExtract, extract, 1, nidx, csv_flags_meanings)

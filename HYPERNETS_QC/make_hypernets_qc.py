@@ -224,18 +224,18 @@ def test_aug_m(type_int):
     type = types[type_int]
 
     if type == 'trim':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim_v4.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim_2023_rem.sh'
     if type == 'polymer':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer_v4.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer_2023_rem.sh'
     if type == 'processing':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_processing_v4.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_processing_2023_rem.sh'
     if type == 'complete':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_complete_v4.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_complete_2023_rem.sh'
 
     ##GETTING DATES
     list_dates = []
-    work_date = dt(2024,5,1)
-    end_date = dt(2024,7,31)
+    work_date = dt(2023,5,11)
+    end_date = dt(2023,5,15)
     while work_date<=end_date:
         list_dates.append(work_date.strftime('%Y-%m-%d'))
         work_date = work_date + timedelta(hours=24)
