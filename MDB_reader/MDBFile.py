@@ -654,6 +654,11 @@ class MDBFile:
             load_info['status'] = -2  # f'NO VALID MATCH-UP INDEX:{index_mu}'
             return is_mu_valid, load_info
 
+        if len(self.qc_sat.mu_invalid_list)>0:
+            if index_mu in self.qc_sat.mu_invalid_list:
+                load_info['status'] = -2
+                return is_mu_valid,load_info
+
         # Index match-up
         self.index_mu = index_mu
 
@@ -1042,6 +1047,8 @@ class MDBFile:
         for index_mu in range(self.n_mu_total):
             if index_mu % 100 == 0:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
+
+
 
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 

@@ -3769,22 +3769,22 @@ def main():
             print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
 
         ##WITH MDBPLOTV3
-        from MDBPlotV3 import MDBPlot
-        mplot = MDBPlot(input_path)
-        mplot.plot_from_options_file(config_file)
+        # from MDBPlotV3 import MDBPlot
+        # mplot = MDBPlot(input_path)
+        # mplot.plot_from_options_file(config_file)
 
         # mplot.output_path = output_path
         #
 
         ##WITH MDBPlotV2
-        # from MDBPlotV2 import MDBPlot
-        # import configparser
-        # mplot = MDBPlot(input_path)
-        # options = configparser.ConfigParser()
-        # options.read(config_file)
-        # # print(mplot.VALID)
-        # mplot.set_global_options(options)
-        # mplot.plot_from_options(options)
+        from MDBPlotV2 import MDBPlot
+        import configparser
+        mplot = MDBPlot(input_path)
+        options = configparser.ConfigParser()
+        options.read(config_file)
+        # print(mplot.VALID)
+        mplot.set_global_options(options)
+        mplot.plot_from_options(options)
 
         # path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS'
         # from PlotMultiple import PlotMultiple

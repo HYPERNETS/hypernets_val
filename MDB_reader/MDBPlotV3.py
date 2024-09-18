@@ -1077,6 +1077,7 @@ class MDBPlot:
         if options_figure['groupBy'] is not None:
             options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
 
+
         if options_figure is None:
             return None
         if options_figure['selectBy'] is not None:

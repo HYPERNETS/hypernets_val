@@ -1258,7 +1258,7 @@ class MDBPlot:
                             color = defaults.get_color_default(idx,0,ngroup-1)
                         # color = defaults.get_color_flag(g)
                     else:
-                        color = defaults.get_color_ref(g)
+                        color = defaults.get_color_wavelength(g)
                 xhere = self.xdata[self.groupdata == g]
                 yhere = self.ydata[self.groupdata == g]
 
@@ -3085,7 +3085,7 @@ class MDBPlot:
             unitsdefault = r'm$^-$$^1$'
             sfdefault = 1
             options_out['log_scale'] = True
-        xlabeldefault = defaults.xlabel_wl_default
+        xlabeldefault = defaults.ylabel_rrs_scaled
         ylabeldefault = defaults.ylabel_rrs_scaled
         options_out['scale_factor'] = self.get_value_param(options, section, 'scale_factor', sfdefault, 'float')
         options_out['xlabel'] = self.get_value_param(options, section, 'xlabel', xlabeldefault, 'str')

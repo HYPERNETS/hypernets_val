@@ -202,6 +202,7 @@ class QC_OPTIONS:
             'use_Bailey_Werdell': {'valid': 0, 'value': None, 'type': 'boolean'},
             'stat_value': {'valid': 0, 'value': None, 'type': 'str'},
             'apply_outliers': {'valid': 0, 'value': None, 'type': 'boolean'},
+            'mu_invalid_list': {'valid':0, 'value': None, 'type':'intlist'},
             'outliers_info': {'valid': 0, 'value': None, 'type': 'dict',
                               'keys': {'central_stat': 'str', 'dispersion_stat': 'str', 'factor': 'float'}
                               },
@@ -243,7 +244,6 @@ class QC_OPTIONS:
                 if options_qcsat[option]['type'] == 'dict':
                     val = self.get_value_param_dict(section, option, 'N/A', options_qcsat[option]['keys'])
                 else:
-
                     val = self.get_value_param(section, option, 'N/A', options_qcsat[option]['type'])
             if val is None:
                 options_qcsat[option]['valid'] = -1  # invalid
@@ -349,6 +349,8 @@ class QC_OPTIONS:
                 list_vals = options_qcsat[option]['value']
                 for val in list_vals:
                     qc_sat.add_bands_norrs_statistics(val['band'],val['stat'],val['th_value'],val['th_type'])
+            elif option == 'mu_invalid_list':
+                qc_sat.mu_invalid_list = options_qcsat[option]['value']
 
         return qc_sat
 
@@ -558,6 +560,18 @@ class QC_OPTIONS:
                 vals = vals.strip()
                 try:
                     list.append(float(vals))
+                except:
+                    return None
+            return list
+        if type == 'intlist':
+            list_str = value.split(',')
+            if len(list_str) == 0:
+                return None
+            list = []
+            for vals in list_str:
+                vals = vals.strip()
+                try:
+                    list.append(int(vals))
                 except:
                     return None
             return list

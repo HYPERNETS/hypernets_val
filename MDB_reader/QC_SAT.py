@@ -92,6 +92,7 @@ class QC_SAT:
 
         self.apply_band_shifting = False
         self.wl_ref = None
+        self.mu_invalid_list = []
 
         self.apply_olci_gains = False
         self.olci_gains_s3a = {
