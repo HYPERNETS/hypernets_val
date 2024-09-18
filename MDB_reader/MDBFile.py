@@ -122,7 +122,11 @@ class MDBFile:
             self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands, None,
                                  'Climate Change Initiative - European Space Agency')
         else:
-            self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
+            if self.flag_band_name is None:
+                self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
+                                 None, self.info['satellite_aco_processor'])
+            else:
+                self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
                                  self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
 
         self.window_size = self.qc_sat.window_size
@@ -465,6 +469,8 @@ class MDBFile:
                 check_atrib = False
 
         if not self.flag_band_name in self.variables:
+            self.flag_band_name = None
+
             if self.nc.satellite_aco_processor.upper() == 'POLYMER' and 'satellite_bitmask' in self.variables:
                 self.flag_band_name = 'satellite_bitmask'
 
