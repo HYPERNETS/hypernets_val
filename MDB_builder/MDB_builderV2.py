@@ -25,7 +25,7 @@ parser.add_argument('-ld', "--listdates",
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
-parser.add_argument('-chvar',"--check_variables_extract", help="Check variables of extracts in single CSV files")
+parser.add_argument('-chvar',"--check_variables_extract", help="Check variables of extracts in single CSV files", action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
 args = parser.parse_args()
