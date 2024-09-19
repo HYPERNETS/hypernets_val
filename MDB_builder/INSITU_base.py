@@ -136,7 +136,9 @@ class INSITUBASE:
             fill_value = -1
         variable = self.new_MDB.createVariable(name_var ,data_type ,('satellite_id', 'insitu_id',) ,zlib=True
                                                ,complevel=6 ,fill_value=fill_value)
-        if len(ats ) >0:
+        if ats is None:
+            return
+        if len(ats )>0:
             for at in ats:
                 variable.setncattr(at ,ats[at])
 

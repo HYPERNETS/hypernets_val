@@ -278,7 +278,7 @@ class MDBBuilderOptions:
             'last_rrs': self.get_value_param(section,'last_rrs',None,'str'),
             'fill_value': self.get_value_param(section,'fill_value',None,'float'),
             'col_extract': self.get_value_param(section,'col_extract','Extract','str'),
-            'col_extract_extra': self.get_value_param(section,'col_extract_extra',None,'dictlist'),
+            'col_extract_extra': self.get_value_param(section, 'col_extract_extra', None, 'dictlist'),
             'col_lat': self.get_value_param(section,'col_lat','lat','str'),
             'col_lon': self.get_value_param(section, 'col_lon','lon','str'),
             'col_date': self.get_value_param(section,'col_date','date','str'),
@@ -286,8 +286,11 @@ class MDBBuilderOptions:
             'col_time': self.get_value_param(section,'col_time',None,'str'),
             'format_time': self.get_value_param(section, 'format_time', '%H:%M:%S', 'str'),
             'col_vars': self.get_value_param(section,'col_vars',None,'strlist'),
+            'col_flags': self.get_value_param(section,'col_flags',None,'strlist'),
             'insitu_time': self.get_value_param(section,'insitu_time',None,'str')
         }
+
+
 
         ##col_vars attributes
         col_vars = self.insitu_options['col_vars']
@@ -316,6 +319,9 @@ class MDBBuilderOptions:
         if self.options.has_option(section, key):
             value = self.options[section][key]
         return value
+
+    def get_keys_section(self,section):
+        return list(self.options.options(section))
 
     def get_value_param(self, section, key, default, type):
         value = self.get_value(section, key)

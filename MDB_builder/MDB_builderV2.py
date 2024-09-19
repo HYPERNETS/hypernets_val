@@ -196,7 +196,7 @@ def main():
     if mo.insitu_type == 'SINGLE_CSV_VAR':
         insitu_file = mo.get_single_insitu_file()
         mo.get_dates_from_insitu_file()
-        print(mo.get_mdb_path())
+        #print(mo.get_mdb_path())
         create_mdb_single_csv_var(mo, insitu_file)
         return
 
@@ -589,6 +589,27 @@ def create_mdb_single_csv_var(mo, insitu_file):
             print(
                 f'[ERROR] Variable {var} is not a valid variable in the csv file {insitu_file}. Please review col_vars key in the [insitu_options] of the configuration file ')
             return
+
+    col_flags = mo.insitu_options['col_flags']
+    flags_info = {}
+    if col_flags is not None:
+        for var in col_flags:
+            if var not in df.columns.tolist():
+                print(f'[ERROR] Variable {var} is not a valid variable in the csv file {insitu_file}. Please review col_flags key in the [insitu_options] of the configuration file ')
+                return
+            flag_meanings_list = np.unique(df[var]).tolist()
+            flag_values = [pow(2,x) for x in range(len(flag_meanings_list))]
+            flag_meanings = " ".join(flag_meanings_list)
+            flags_info[var]={
+                'flag_meanings_list': flag_meanings_list,
+                'flag_values': flag_values,
+                'attrs': {
+                    'flag_values': flag_values,
+                    'flag_meanings': flag_meanings
+                }
+            }
+
+
     # print(mo.insitu_options)
     col_extract = mo.insitu_options['col_extract']
 
@@ -645,8 +666,13 @@ def create_mdb_single_csv_var(mo, insitu_file):
     from INSITU_base import INSITUBASE
     ibase = INSITUBASE(mo)
     for index, row in df.iterrows():
-        name_extract = f'extract_{row[col_extract]}'
-        file_extract = os.path.join(mo.satellite_path_source, name_extract)
+        name_extract = f'{row[col_extract]}'
+        file_extract = name_extract
+        if not os.path.exists(file_extract):
+            file_extract = os.path.join(mo.satellite_path_source,name_extract)
+        if not os.path.exists(file_extract):
+            name_extract = f'extract_{row[col_extract]}'
+            file_extract = os.path.join(mo.satellite_path_source, name_extract)
         if not os.path.exists(file_extract):
             print(f'[WARNING] Extract file {row[col_extract]} is not available. Skipping row {index}')
             continue
@@ -672,6 +698,11 @@ def create_mdb_single_csv_var(mo, insitu_file):
                 }
                 for col in col_vars:
                     extract_list[name_extract][col] = [float(row[col])]
+                if col_flags is not None:
+                    for col in col_flags:
+                        val = str(row[col])
+                        index_val = flags_info[col]['flag_meanings_list'].index(val)
+                        extract_list[name_extract][col] = int(flags_info[col]['flag_values'][index_val])
                 if (index % 100) == 0: print(f'[INFO] MDB extract file already exists. Skipping...')
                 continue
                 #os.remove(mdb_extract)
@@ -694,6 +725,16 @@ def create_mdb_single_csv_var(mo, insitu_file):
                 name_var = f'insitu_{col}' if not col.startswith('insitu_') else col
                 ats = mo.insitu_options[col] if col in mo.insitu_options else None
                 ibase.add_insitu_variable(name_var, 'f4', ats)
+            if col_flags is not None:
+                for col in col_flags:
+                    name_var = col
+                    if not col.startswith('insitu_flag_'):
+                        if col.startswith('insitu_'):
+                            name_var = f'insitu_flag_{col.split("_")[1]}'
+                        else:
+                            name_var = f'insitu_flag_{col}'
+                    ibase.add_insitu_variable(name_var, 'i4', flags_info[col]['attrs'])
+
             ibase.close()
             extract_list[name_extract] = {
                 'path': mdb_extract,
@@ -703,12 +744,27 @@ def create_mdb_single_csv_var(mo, insitu_file):
             }
             for col in col_vars:
                 extract_list[name_extract][col] = [float(row[col])]
+            if col_flags is not None:
+                for col in col_flags:
+                    val = str(row[col])
+                    index_val = flags_info[col]['flag_meanings_list'].index(val)
+
+                    extract_list[name_extract][col] = [int(flags_info[col]['flag_values'][index_val])]
+
         else:
             extract_list[name_extract]['lat'].append(insitu_lat)
             extract_list[name_extract]['lon'].append(insitu_lon)
             extract_list[name_extract]['time'].append(insitu_time.timestamp())
             for col in col_vars:
                 extract_list[name_extract][col].append(float(row[col]))
+            if col_flags is not None:
+                for col in col_flags:
+                    val = str(row[col])
+                    index_val = flags_info[col]['flag_meanings_list'].index(val)
+                    print('AQUI DEBERIAMOS ESTAR O QUE NARICES, APPENDING...')
+                    extract_list[name_extract][col].append(int(flags_info[col]['flag_values'][index_val]))
+
+
 
     mdb_paths_to_concatenate = []
     for extract in extract_list:
@@ -752,12 +808,29 @@ def create_mdb_single_csv_var(mo, insitu_file):
         dataset_w.variables['insitu_time'][0, 0:n_valid] = time_array[:]
 
         dataset_w.variables['time_difference'][0, 0:n_valid] = time_diff[:]
+
+
         for col in col_vars:
             name_var = f'insitu_{col}' if not col.startswith('insitu_') else col
             array = np.array(extract_list[extract][col])[indices_sort]
             if max_time_diff > (-1):
                 array = array[time_diff <= max_time_diff]
             dataset_w.variables[name_var][0, 0:n_valid] = array[:]
+
+        if col_flags is not None:
+            for col in col_flags:
+                name_var = col
+                if not col.startswith('insitu_flag_'):
+                    if col.startswith('insitu_'):
+                        name_var = f'insitu_flag_{col.split("_")[1]}'
+                    else:
+                        name_var = f'insitu_flag_{col}'
+
+
+                array = np.array(extract_list[extract][col])[indices_sort]
+                if max_time_diff > (-1):
+                    array = array[time_diff <= max_time_diff]
+                dataset_w.variables[name_var][0, 0:n_valid] = array[:]
 
         dataset_w.close()
         if os.path.exists(mdb_path):
