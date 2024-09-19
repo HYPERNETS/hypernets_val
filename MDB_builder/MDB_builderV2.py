@@ -25,6 +25,7 @@ parser.add_argument('-ld', "--listdates",
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
+parser.add_argument('-chvar',"--check_variables_extract", help="Check variables of extracts in single CSV files")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
 args = parser.parse_args()
@@ -613,6 +614,41 @@ def create_mdb_single_csv_var(mo, insitu_file):
     # print(mo.insitu_options)
     col_extract = mo.insitu_options['col_extract']
 
+    ###CHECKIN VARIABLES IN EXTRACTS
+    variables_to_exclude = []
+    if args.check_variables_extract:
+        if args.verbose:
+            print(f'[INFO] Checking extract variables...')
+        all_variables = {}
+        nfiles = 0
+        for index, row in df.iterrows():
+            name_extract = f'{row[col_extract]}'
+            file_extract = name_extract
+            if not os.path.exists(file_extract):
+                file_extract = os.path.join(mo.satellite_path_source, name_extract)
+            if not os.path.exists(file_extract):
+                name_extract = f'extract_{row[col_extract]}'
+                file_extract = os.path.join(mo.satellite_path_source, name_extract)
+            if not os.path.exists(file_extract):
+                continue
+            dataset = Dataset(file_extract,'r')
+            for var_name in dataset.variables:
+                if var_name not in all_variables.keys():
+                    all_variables[var_name]=1
+                else:
+                    all_variables[var_name] = all_variables[var_name] + 1
+            dataset.close()
+            nfiles = nfiles + 1
+        for var_name in all_variables:
+            if all_variables[var_name]<nfiles:
+                variables_to_exclude.append(var_name)
+        if len(variables_to_exclude)>0:
+            print(f'[WARNING] The following {len(variables_to_exclude)} satellite variables will be excluded from the MDB:')
+            for var_name in variables_to_exclude:
+                print(f'-->{var_name}')
+    ##END CHECKING VARIABLES
+
+
     extra_extracts = mo.insitu_options['col_extract_extra']
     if extra_extracts is None:
         extra_extracts = {}
@@ -706,7 +742,7 @@ def create_mdb_single_csv_var(mo, insitu_file):
                 if (index % 100) == 0: print(f'[INFO] MDB extract file already exists. Skipping...')
                 continue
                 #os.remove(mdb_extract)
-            ibase.start_add_insitu_no_rrs(file_extract, mdb_extract)
+            ibase.start_add_insitu_no_rrs(file_extract, mdb_extract,variables_to_exclude)
             ibase.add_shipborne_variables()
             ##adding variables and data for extra_extrats
             if len(extra_extracts_info) > 0:

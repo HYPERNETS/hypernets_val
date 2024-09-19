@@ -6,8 +6,11 @@ class INSITUBASE:
         self.new_MDB = None
 
 
-    def start_add_insitu_no_rrs(self ,extract_path ,ofile):
-        self.new_MDB = self.copy_nc(extract_path, ofile)
+    def start_add_insitu_no_rrs(self ,extract_path ,ofile, variables_to_exclude):
+        if variables_to_exclude is not None and len(variables_to_exclude)>0:
+            self.new_MDB = self.copy_nc_excluding_variables(extract_path,ofile,variables_to_exclude)
+        else:
+            self.new_MDB = self.copy_nc(extract_path, ofile)
         self.new_MDB.time_diff = self.mdb_options.insitu_options['time_window']
 
         if 'insitu_id' not in self.new_MDB.dimensions:
@@ -178,6 +181,27 @@ class INSITUBASE:
                     name, (len(dimension) if not dimension.isunlimited() else None))
             # copy all file data except for the excluded
             for name, variable in src.variables.items():
+                dst.createVariable(name, variable.datatype, variable.dimensions)
+                # copy variable attributes all at once via dictionary
+                dst[name].setncatts(src[name].__dict__)
+
+                dst[name][:] = src[name][:]
+        return dst
+
+    def copy_nc_excluding_variables(self, ifile, ofile,variablesToExclude):
+        from netCDF4 import Dataset
+        with Dataset(ifile) as src:
+            dst = Dataset(ofile, 'w', format='NETCDF4')
+            # copy global attributes all at once via dictionary
+            dst.setncatts(src.__dict__)
+            # copy dimensions
+            for name, dimension in src.dimensions.items():
+                dst.createDimension(
+                    name, (len(dimension) if not dimension.isunlimited() else None))
+            # copy all file data except for the excluded
+            for name, variable in src.variables.items():
+                if name in variablesToExclude:
+                    continue
                 dst.createVariable(name, variable.datatype, variable.dimensions)
                 # copy variable attributes all at once via dictionary
                 dst[name].setncatts(src[name].__dict__)
