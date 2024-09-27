@@ -85,6 +85,7 @@ class MDBPlot:
     def plot_from_options_impl(self, options_out):
 
         if options_out['type'] == 'scatterplot':
+            #print(options_out)
             file_out_base = options_out['file_out']
             title_base = options_out['title']
             if options_out['selectByWavelength']:  # one scatterplot for wavelenght
@@ -669,7 +670,7 @@ class MDBPlot:
         plot.close_plot()
         plot.start_plot()
         idx = 0
-        print(options_out['line_color'])
+        #print(options_out['line_color'])
         handles = []
         str_legend = []
         for index, row in dfall_month_withnan.iterrows():
@@ -724,7 +725,7 @@ class MDBPlot:
         plot.close_plot()
         plot.start_plot()
         idx = 0
-        print(options_out['line_color'])
+        #print(options_out['line_color'])
         handles = []
         str_legend = []
         width = 1 / 6
@@ -815,7 +816,8 @@ class MDBPlot:
         ntot = nrow * ncol
 
         print(ntot, len(files_multiple), file_out)
-        print(files_multiple)
+        for idx,file in enumerate(files_multiple):
+            print(idx,file)
 
         if ntot == len(files_multiple):
             pm = PlotMultiple()
@@ -833,7 +835,8 @@ class MDBPlot:
             anot = options_out['anot']
             if len(anot) > 0:
                 for an in anot:
-                    pm.set_text(anot[an]['x'], anot[an]['y'], anot[an]['sval'])
+                    print(anot[an])
+                    pm.set_text_size(anot[an]['x'], anot[an]['y'], anot[an]['sval'],anot[an]['fontsize'])
 
             # pm.set_text(-1710, 1400, '(a)')
             # pm.set_text(-210,1400,'(b)')
@@ -1092,10 +1095,12 @@ class MDBPlot:
 
         mu_valid = np.array(self.mrfile.nc.variables[self.mu_valid_variable])
         # mu_valid = np.array(self.mrfile.nc.variables['mu_valid'])
-        # print('MVALID: ',np.sum(mu_valid))
+        print( f'[INFO] Number of valid match-ups: {np.sum(mu_valid)}')
 
         valid_all = self.get_array_all_from_arraymu(id_all, mu_valid)
+        print(np.sum(valid_all))
         valid_all = self.check_rrs_valid(valid_all, rrs_ins, rrs_sat)
+        print(np.sum(valid_all))
 
         if wl_value is not None:
             wl_array = np.array(self.mrfile.nc.variables['mu_wavelength'])
@@ -1379,6 +1384,7 @@ class MDBPlot:
             plot.set_ticks(ticks, options['fontsizeaxis'])
 
         if options['individual_axis'] or index == -1:
+            print('me  deberia llega aqui',options['xlabel'],options['ylabel'])
             plot.set_xaxis_title(options['xlabel'])
             plot.set_yaxis_title(options['ylabel'])
         else:
@@ -1395,6 +1401,14 @@ class MDBPlot:
             else:
                 if plot.index_row < (plot.nrow - 1):
                     plot.set_xticks_labels_off(ticks)
+
+            # if plot.index_row== 0 and plot.index_col == 2:
+            #     plot.set_xaxis_title(options['xlabel'])
+            #     plot.set_xticks_labels_off(ticks)
+            # if plot.index_row== 2 and plot.index_col == 2:
+            #     plot.set_xaxis_title(options['xlabel'])
+            #     plot.set_xticks_labels_off(ticks)
+
 
         plot.set_equal_apect()
 
@@ -1456,7 +1470,8 @@ class MDBPlot:
                             val = self.valid_stats[stat]
                             if stat == 'BIAS':
                                 stat = stat.lower()
-                            str0 = f'{str0}{stat}={val:.1e}'
+                            units_rrs = f'sr$^-$$^1$'
+                            str0 = f'{str0}{stat}={val:.1e} {units_rrs}'
                         if stat == 'RPD' or stat == 'APD':
                             val = self.valid_stats[stat]
                             str0 = f'{str0}{stat}={val:.0f}%'
@@ -1470,13 +1485,23 @@ class MDBPlot:
                     plot.plot_text(xpos, ypos, str0)
                 else:
                     if index == -1:
-                        str0 = 'N={:d}\nRMSD={:,.1e} UNITS\nRPD={:,.0f}%\nAPD={:,.0f}%\n$r^2$={:,.2f}\nbias={:,.1e} UNITS' \
+                        # str0 = 'N={:d}\nRMSD={:,.1e} UNITS\nRPD={:,.0f}%\nAPD={:,.0f}%\n$R^2$={:,.2f}\nbias={:,.1e} UNITS' \
+                        #     .format(self.valid_stats['N'],
+                        #             self.valid_stats['RMSD'],
+                        #             self.valid_stats['RPD'],
+                        #             self.valid_stats['APD'],
+                        #             self.valid_stats['DETER(r2)'],
+                        #             self.valid_stats['BIAS'])
+
+                        str0 = 'N={:d}\n$R^2$={:,.2f}\nbias={:,.1e} UNITS\nRMSD={:,.1e} UNITS\nRPD={:,.0f}%\nAPD={:,.0f}%' \
                             .format(self.valid_stats['N'],
+                                    self.valid_stats['DETER(r2)'],
+                                    self.valid_stats['BIAS'],
                                     self.valid_stats['RMSD'],
                                     self.valid_stats['RPD'],
-                                    self.valid_stats['APD'],
-                                    self.valid_stats['DETER(r2)'],
-                                    self.valid_stats['BIAS'])
+                                    self.valid_stats['APD'])
+
+
                         str0 = str0.replace('UNITS', options['units'])
                         # print(str0)
                         plot.plot_text(0.05, 0.70, str0)
@@ -2857,7 +2882,9 @@ class MDBPlot:
         if options_out['type'] == 'scatterplot':
             options_out = self.get_group_options(options, section, options_out)
             options_out = self.get_select_options(options, section, options_out)
+
             options_out = self.get_options_scatterplot(options, section, options_out)
+
         if options_out['type'].startswith('statstable'):
             options_out = self.get_select_options(options, section, options_out)
             options_out = self.get_options_statstable(options, section, options_out)
@@ -3013,10 +3040,16 @@ class MDBPlot:
             try:
                 xval = int(olist[0].strip())
                 yval = int(olist[1].strip())
-                sval = ','.join(olist[2:])
+                fontsize = 12
+                if len(olist)==4:
+                    fontsize = int(olist[2])
+                    sval = ','.join(olist[3:])
+                elif len(olist)==3:
+                    sval = ','.join(olist[2:])
                 anot[str(idx)] = {
                     'x': xval,
                     'y': yval,
+                    'fontsize': fontsize,
                     'sval': sval
                 }
                 idx = idx + 1
@@ -3085,8 +3118,8 @@ class MDBPlot:
             unitsdefault = r'm$^-$$^1$'
             sfdefault = 1
             options_out['log_scale'] = True
-        xlabeldefault = defaults.ylabel_rrs_scaled
-        ylabeldefault = defaults.ylabel_rrs_scaled
+        xlabeldefault = f'in situ {defaults.ylabel_rrs_scaled}'
+        ylabeldefault = f'satellite {defaults.ylabel_rrs_scaled}'
         options_out['scale_factor'] = self.get_value_param(options, section, 'scale_factor', sfdefault, 'float')
         options_out['xlabel'] = self.get_value_param(options, section, 'xlabel', xlabeldefault, 'str')
         options_out['ylabel'] = self.get_value_param(options, section, 'ylabel', ylabeldefault, 'str')

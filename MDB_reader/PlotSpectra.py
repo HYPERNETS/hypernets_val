@@ -184,6 +184,7 @@ class PlotSpectra():
         if fontsize is None:
             fontsize = 9
         plt.xticks(xticks, xtickvalues, minor=True, rotation=rotation, fontsize=fontsize)
+        plt.tick_params(axis='x',which='minor',length=0)
         # plt.xticks([],minor = True)
 
     def set_yticks(self, yticks, ytickvalues, rotation, fontsize):
@@ -233,6 +234,10 @@ class PlotSpectra():
     def set_grid(self):
         # plt.grid(b=True, which='major', color='gray', linestyle='--')
         plt.grid(which='major', color='gray', linestyle='--', axis='both')
+
+    def set_grid_bars(self,width):
+        # plt.grid(b=True, which='major', color='gray', linestyle='--')
+        plt.grid(which='major', color='black', linestyle='-', linewidth = width, axis='x')
 
     def set_grid_horizontal(self):
         plt.grid(which='major',color='lightgray',linestyle='--',axis='y')

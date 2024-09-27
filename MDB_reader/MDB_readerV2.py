@@ -1,7 +1,9 @@
 import datetime
+import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pylab as pl
 import pytz
 import os.path
 import sys
@@ -15,6 +17,8 @@ warnings.simplefilter('ignore', RuntimeWarning)
 
 from MDBFile import MDBFile
 from MDB_builder.INSITU_base import INSITUBASE
+
+
 
 parser = argparse.ArgumentParser(
     description="Match-ups extraction from MDB files.")
@@ -257,16 +261,15 @@ class MDB_READER():
             from netCDF4 import Dataset
             new_MDB = Dataset(fout, 'a')
 
-        create = self.mfile.create_mu_single_variables(new_MDB,False,False,None)
+        create = self.mfile.create_mu_single_variables(new_MDB, False, False, None)
 
         new_MDB.close()
 
         if not create:
             print(f'[ERROR] Error creating file: {fout}')
-            #os.remove(fout)
+            # os.remove(fout)
         else:
             print(f'[INFO] File created: {fout}')
-
 
         # if self.mfile.df_validation is None:
         #     nmu_valid, df_valid = self.mfile.prepare_df_validation_single()
@@ -324,6 +327,8 @@ def get_flag_lists(input_path, ats_in, flag_bands):
             continue
         file_in = os.path.join(input_path, name)
         reader = MDB_READER(file_in, True)
+        if not reader.mfile.VALID:
+            continue
         for idx in range(len(ats_in)):
             name_band = flag_bands[idx]
             at_names = ats_in[idx]
@@ -469,6 +474,39 @@ def update_mdb_file_version(input_file):
 
     os.rename(output_file, input_file)
 
+def creating_copy_limiting_variables(input_file,output_file,variables_keep,variables_remove):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(input_dataset.__dict__)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+        if len(variables_keep)>0:
+            if not name in variables_keep:
+                continue
+        if len(variables_remove)>0:
+            if  name in variables_remove:
+                continue
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        ncout[name][:] = input_dataset[name][:]
+
+    ncout.close()
+    input_dataset.close()
 
 def creating_copy_with_flag_band(input_file, name_var, flag_values, flag_meanings, value_array):
     from netCDF4 import Dataset
@@ -1350,6 +1388,164 @@ def creating_copy_with_convolution(file_in, file_out, array_new):
     ncout.close()
 
 
+def creating_copy_region(input_file, region):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    output_file = os.path.join(os.path.dirname(input_file), os.path.basename(input_file)[:-3] + '_' + region + '.nc')
+    print(output_file)
+    from datetime import datetime as dt
+    satellite_time = input_dataset.variables['satellite_time'][:]
+    nsat = satellite_time.shape[0]
+    indices_region_tf = np.zeros((nsat,))
+    ini_bal = dt(2023, 5, 17)
+    end_bal = dt(2023, 7, 25)
+    nsat_new = 0
+    for idx in range(nsat):
+        time_here = dt.utcfromtimestamp(satellite_time[idx])
+        valid = 0
+        if region == 'ATL':
+            if time_here < ini_bal or time_here > end_bal:
+                valid = 1
+        if region == 'BAL':
+            if ini_bal <= time_here <= end_bal:
+                valid = 1
+        if valid:
+            indices_region_tf[idx] = 1
+            nsat_new = nsat_new + 1
+
+    print('NSAT NEW', nsat_new)
+
+    mu_array = input_dataset.variables['mu_satellite_id'][:]
+
+    nmu = mu_array.shape[0]
+    nmu_new = 0
+    mu_satellite_id_new = []
+    sat_idx_new = 0
+    sat_idx_prev = 0
+    indices_mu_region_tf = np.zeros((nmu,))
+    for idx in range(nmu):
+        sat_idx = mu_array[idx]
+
+        if indices_region_tf[sat_idx] == 1:
+            if sat_idx != sat_idx_prev:
+                sat_idx_new = sat_idx_new + 1
+            indices_mu_region_tf[idx] = 1
+            mu_satellite_id_new.append(sat_idx_new)
+            nmu_new = nmu_new + 1
+            sat_idx_prev = sat_idx
+    print('NEW MU', nmu_new, np.sum(indices_mu_region_tf), len(mu_satellite_id_new))
+
+
+
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+    ncout.setncatts(input_dataset.__dict__)
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+    var_flag = ncout.createVariable('flag_region', 'i4', ('satellite_id',), zlib=True, shuffle=True, complevel=6)
+    var_flag.flag_meanings = ' '.join(['ATL', 'BAL'])
+    var_flag.flag_values = [1, 2]
+    if region == 'ATL':
+        var_flag[:] = np.array([1]*nsat_new).astype(dtype=np.int32)
+    if region == 'BAL':
+        var_flag[:] = np.array([2]*nsat_new).astype(dtype=np.int32)
+
+    # copy variables
+    for name, variable in input_dataset.variables.items():
+        if name.endswith('uncertainty'):
+            continue
+        if name=='satellite_flags':
+            continue
+        fill_value = None
+        if '_FillValue' in list(input_dataset.ncattrs()):
+            fill_value = variable._FillValue
+
+        # print(name)
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             complevel=6)
+
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        dims = variable.dimensions
+        if dims[0] == 'satellite_id':
+            array = input_dataset[name][indices_region_tf==1]
+            print('->', name, array.shape)
+            if len(dims) == 4:
+                ncout[name][:, :, :, :] = input_dataset[name][indices_region_tf == 1, :, :, :]
+            elif len(dims) == 3:
+                ncout[name][:, :, :] = input_dataset[name][indices_region_tf == 1, :, :]
+            elif len(dims) == 2:
+                ncout[name][:, :] = input_dataset[name][indices_region_tf == 1, :]
+            elif len(dims) == 1:
+                ncout[name][:] = input_dataset[name][indices_region_tf == 1]
+        elif dims[0] == 'mu_id':
+            if name=='mu_satellite_id':
+                array = np.array(mu_satellite_id_new)
+            else:
+                array = input_dataset[name][indices_mu_region_tf == 1]
+            print('=>', name,array.shape)
+            ncout[name][:] = array[:]
+        else:
+            print(':>', name)
+            ncout[name][:] = input_dataset[name][:]
+
+
+
+    input_dataset.close()
+    ncout.close()
+
+def creating_copy_correcting_changing_wl(input_file,output_file,wl_list,wl_in,wl_out):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    mu_wavelength = input_dataset.variables['mu_wavelength'][:]
+    for idx in range(len(wl_in)):
+        mu_wavelength[mu_wavelength==wl_in[idx]] = wl_out[idx]
+    mu_satellite_id = input_dataset.variables['mu_satellite_id'][:]
+    nmu = mu_satellite_id.shape[0]
+    mu_satellite_id_new = np.zeros((nmu,))
+    sat_idx_new = 0
+    for idx in range(nmu):
+        if idx>=1 and mu_wavelength[idx]==wl_list[0]:
+            sat_idx_new = sat_idx_new + 1
+        mu_satellite_id_new[idx]=sat_idx_new
+
+    print('Final mu satellite id new: ',sat_idx_new)
+
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+    ncout.setncatts(input_dataset.__dict__)
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        if name=='satellite_bands':
+            ncout.createDimension(name,len(wl_list))
+        else:
+            ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+    # copy variables
+    for name, variable in input_dataset.variables.items():
+        fill_value = None
+        if '_FillValue' in list(input_dataset.ncattrs()):
+            fill_value = variable._FillValue
+
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,complevel=6)
+
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        if name=='mu_wavelength':
+            ncout[name][:] = mu_wavelength[:]
+        elif name=='mu_satellite_id':
+            ncout[name][:] = mu_satellite_id_new[:]
+        elif name=='satellite_bands':
+            ncout[name][:] = np.array(wl_list).astype(np.float32)[:]
+        elif name=='satellite_Rrs':
+            continue
+        else:
+            ncout[name][:] = input_dataset[name][:]
+
+    input_dataset.close()
+    ncout.close()
 def getting_common_matchups():
     # getting common match-ups
     dir_base = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/CONTATENATED_WITHOUT_COMMON_MATCHUPS'
@@ -3065,14 +3261,17 @@ def do_temporal_all_owt_stats_impl(input_path, type, stat, ytitle):
 
     print(df)
 
+
 def check_n_values_cmems_certo():
     file_nc = '/mnt/c/DATA_LUIS/DOORS_WORK/COMPARISON_CMEMS_CERTO/Coverage_CMEMS_CERTO.nc'
     file_out = '/mnt/c/DATA_LUIS/DOORS_WORK/SummaryCoverage.csv'
-    certo_bands = ['400','412','443','490','510','560','620','665','674','681','709','754','779','865','885','1020','blended_chla_from_predominant_owt','blended_chla','blended_chla_top_2_weighted','blended_chla_top_3_weighted']
-    cmems_bands = ['400','412_5','442_5','490','510','560','620','665','673_75','681_25','708_75','753_75','778_75','865','885','1020','chl','chl','chl','chl']
-    fout = open(file_out,'w')
+    certo_bands = ['400', '412', '443', '490', '510', '560', '620', '665', '674', '681', '709', '754', '779', '865',
+                   '885', '1020', 'blended_chla_from_predominant_owt', 'blended_chla', 'blended_chla_top_2_weighted',
+                   'blended_chla_top_3_weighted']
+    cmems_bands = ['400', '412_5', '442_5', '490', '510', '560', '620', '665', '673_75', '681_25', '708_75', '753_75',
+                   '778_75', '865', '885', '1020', 'chl', 'chl', 'chl', 'chl']
+    fout = open(file_out, 'w')
     fout.write('CERTO_Ref;CMEMS_Ref;N_CERTO;N_CMEMS')
-
 
     from netCDF4 import Dataset
     dataset = Dataset(file_nc)
@@ -3087,13 +3286,437 @@ def check_n_values_cmems_certo():
     dataset.close()
     fout.close()
 
+def make_map_rrs_match_ups():
+    import cartopy
+    import cartopy.crs as ccrs
+    import matplotlib.pyplot as plt
+    file_csv = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/Match-up-Locations.csv'
+    file_out = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/Match-up-Locations_RRS.tif'
+    df = pd.read_csv(file_csv,sep=';')
+    lat_points = df['mu_insitu_latitude'][:]
+    lon_points = df['mu_insitu_longitude'][:]
+    res_array = df['res'][:]
+    geo_limits = [35,65,-15,30]
+    extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+
+    print(
+        f'[INFO] [mapplot PLOT] Maps limits: Latitude-> {geo_limits[0]} to {geo_limits[1]}; Longitude: {geo_limits[2]} to {geo_limits[3]}')
+
+    print(f'[INFO] [mapplot PLOT] Plotting...')
+    ax = plt.axes(projection=ccrs.PlateCarree(), extent=extent)
+
+    # # ax.coastlines(linewidth=0.5)
+    ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+
+    gl = ax.gridlines(linewidth=0.5, linestyle='dotted', draw_labels=True)
+    gl.xlabels_top = False
+    gl.ylabels_right = False
+
+    resolutions = ['4km','1km','300m']
+    colors = ['red','blue','green']
+    markers = ['s','^','o']
+    markersizes = [3,3,3]
+    handles  = []
+    for idx,res in enumerate(resolutions):
+        lat_points_here = lat_points[res_array==res]
+        lon_points_here = lon_points[res_array==res]
+        h = plt.plot(lon_points_here.tolist(), lat_points_here.tolist(),
+                 color=colors[idx],
+                 marker=markers[idx],
+                 markersize=markersizes[idx],
+                 linestyle='-',
+                 linewidth=0)
+        handles.append(h[0])
+    str_legend = ['4km','1km','300m']
+
+    plt.legend(handles, str_legend,framealpha=1)
+    #, loc=self.legend_options['loc'],
+    #            bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'],
+    #            ncol=self.legend_options['ncols'], markerscale=self.legend_options['markerscale'])
+
+    plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+
+
+def make_map_stations():
+    import cartopy
+    import cartopy.crs as ccrs
+    import matplotlib.pyplot as plt
+    file_csv = '/mnt/c/DATA_LUIS/TARA_TEST/station_match-ups/MDBs/Match-ups-locations.csv'
+    file_out = '/mnt/c/DATA_LUIS/TARA_TEST/station_match-ups/MDBs/Match-ups-locations.tif'
+    df = pd.read_csv(file_csv,sep=';')
+    lat_points = df['Lat'][:]
+    lon_points = df['Lon'][:]
+    sensor_array = df['all'][:]
+    geo_limits = [35, 65, -15, 30]
+    extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+
+    print(
+        f'[INFO] [mapplot PLOT] Maps limits: Latitude-> {geo_limits[0]} to {geo_limits[1]}; Longitude: {geo_limits[2]} to {geo_limits[3]}')
+
+    print(f'[INFO] [mapplot PLOT] Plotting...')
+    ax = plt.axes(projection=ccrs.PlateCarree(), extent=extent)
+
+    # # ax.coastlines(linewidth=0.5)
+    ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+
+    gl = ax.gridlines(linewidth=0.5, linestyle='dotted', draw_labels=True)
+    gl.xlabels_top = False
+    gl.ylabels_right = False
+
+    sensors = [0,1,3,4,5,7]
+    colors = ['gray','cyan', 'blue', 'green','magenta','red']
+    # markers = ['o']
+    # markersizes = [3, 3, 3]
+    handles = []
+    for idx, res in enumerate(sensors):
+        lat_points_here = lat_points[sensor_array == res]
+        lon_points_here = lon_points[sensor_array == res]
+        h = plt.plot(lon_points_here.tolist(), lat_points_here.tolist(),
+                     color=colors[idx],
+                     marker='o',
+                     markersize=3,
+                     linestyle='-',
+                     linewidth=0)
+        handles.append(h[0])
+    str_legend = ['No match-up', 'GLOBAL', 'GLOBAL+REGIONAL', 'OLCI', 'GLOBAL+OLCI','GLOBAL+REGIONAL+OLCI']
+
+    plt.legend(handles, str_legend, framealpha=1,markerscale=2)
+    # , loc=self.legend_options['loc'],
+    #            bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'],
+    #            ncol=self.legend_options['ncols'], markerscale=self.legend_options['markerscale'])
+
+    plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+
+
+def prepare_map_cci_poster(window_size):
+    from datetime import datetime as dt
+    from netCDF4 import Dataset
+    window_size = int(window_size)
+    dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS'
+    file_csv = os.path.join(dir_base,'Match-ups-locations.csv')
+    file_grid = os.path.join(dir_base,'CCI_Grid.nc')
+    file_out = os.path.join(dir_base,f'CCI_output_{window_size}.nc')
+    dir_sources = '/store/TARA_VALIDATION/sources_cci'
+    dataset = Dataset(file_grid)
+    lat_array = dataset.variables['lat'][:]
+    lon_array = dataset.variables['lon'][:]
+    dataset.close()
+    ny = len(lat_array)
+    nx = len(lon_array)
+    chl_array = np.zeros((ny,nx))
+    chl_array[:] = -999.0
+    dist_array = np.zeros((ny,nx))
+    dist_array[:] = window_size*window_size
+    date_array  =np.zeros((ny,nx))
+    date_array[:] = -999.0
+
+    df = pd.read_csv(file_csv, sep=';')
+    lat_points = df['Lat'][:]
+    lon_points = df['Lon'][:]
+    dates = df['Date']
+    date_list = [dt.strptime(str(x),'%Y%m%d') for x in dates]
+    date_ref = dt(2023,1,1)
+    npoints = len(lat_points)
+
+
+
+
+    center = int(np.floor(window_size/2))
+    row_dist = np.zeros((window_size,window_size))
+    for r in range(window_size):
+        row_dist[r,:] = abs(r-center)
+    col_dist = np.zeros((window_size,window_size))
+    for c in range(window_size):
+        col_dist[:,c] = abs(c-center)
+    dist_window = np.sqrt((row_dist*row_dist)+(col_dist*col_dist))
+
+    for ipoint in range(npoints):
+        lat_p = lat_points[ipoint]
+        lon_p = lon_points[ipoint]
+        date_p = date_list[ipoint]
+        ndays = (date_p - date_ref).days+1
+
+        r = np.argmin(np.abs(lat_p-lat_array))
+        c = np.argmin(np.abs(lon_p-lon_array))
+
+        r_min = r-center; r_max = r+center+1; c_min = c-center; c_max = c+center+1
+
+        ##distance
+        dist_prev = dist_array[r_min:r_max,c_min:c_max]
+        valid_dist = (dist_window-dist_prev)<0
+        dist_prev[valid_dist] = dist_window[valid_dist]
+        dist_array[r_min:r_max, c_min:c_max] = dist_prev[:,:]
+        ##days:
+        days_now = date_array[r_min:r_max,c_min:c_max]
+        days_now[valid_dist] = ndays
+        date_array[r_min:r_max, c_min:c_max] = days_now[:,:]
+
+        ##chl-a
+        name_file = f'ESACCI-OC-L3S-OC_PRODUCTS-MERGED-1D_DAILY_4km_GEO_PML_OCx_QAA-{date_p.strftime("%Y%m%d")}-fv6.0.nc'
+        file_data = os.path.join(dir_sources,name_file)
+        if os.path.exists(file_data):
+            ddata = Dataset(file_data)
+            chl_array_date = ddata.variables['chlor_a'][:]
+            chl_array_date_now = chl_array_date[r_min:r_max,c_min:c_max]
+            chl_array_now =  chl_array[r_min:r_max,c_min:c_max]
+            chl_array_now[valid_dist] = chl_array_date_now[valid_dist]
+            chl_array[r_min:r_max, c_min:c_max] = chl_array_now
+            ddata.close()
+
+    dist_array[date_array==-999]=-999.0
+
+    ncout = Dataset(file_out, 'w', format='NETCDF4')
+    ncout.createDimension('lat',ny)
+    ncout.createDimension('lon',nx)
+
+    var = ncout.createVariable('lat', 'f4', ('lat',), fill_value=-999.0, zlib=True, complevel=6)
+    var[:] = lat_array
+    var = ncout.createVariable('lon', 'f4', ('lon',), fill_value=-999.0, zlib=True, complevel=6)
+    var[:] = lon_array
+    var = ncout.createVariable('chlor_a','f4',('lat','lon'), fill_value=-999.0, zlib=True,complevel=6)
+    var[:] = chl_array[:]
+    var = ncout.createVariable('jday', 'i4', ('lat', 'lon'), fill_value=-999, zlib=True, complevel=6)
+    var[:] = date_array[:]
+    var = ncout.createVariable('dist', 'f4', ('lat', 'lon'), fill_value=-999.0, zlib=True, complevel=6)
+    var[:] = dist_array
+
+    ncout.close()
+
+
+
+
+    # print(center)
+
+def make_map_cci_poster():
+    print('POSTER MAP')
+    import cartopy
+    import cartopy.crs as ccrs
+    import matplotlib.pyplot as plt
+
+    ##CREATING GRID
+    # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/ESACCI-OC-L3S-OC_PRODUCTS-MERGED-1D_DAILY_4km_GEO_PML_OCx_QAA-20231009-fv6.0.nc'
+    # file_out = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/CCI_Grid.nc'
+    # creating_copy_limiting_variables(file_in,file_out,['lat','lon','chlor_a'],[])
+    from netCDF4 import Dataset
+    file_grid = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/CCI_Grid.nc'
+    dataset = Dataset(file_grid)
+    lat_array = dataset.variables['lat'][:]
+    lon_array = dataset.variables['lon'][:]
+    var_array = dataset.variables['chlor_a'][:]
+    dataset.close()
+
+    ##geo limits
+    geo_limits = [35, 65, -15, 30]
+    extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+    lat_array = lat_array[601:1320]
+    lon_array = lon_array[3961:5040]
+    var_array = np.squeeze(var_array[0,601:1320,3961:5040])
+    ny = len(lat_array)
+    nx = len(lon_array)
+    print(ny,nx,var_array.shape)
+
+    #ax = plt.axes(projection=ccrs.PlateCarree(), extent=extent)
+    plt.figure(figsize=(40,28.6))
+    ax = plt.axes(projection=ccrs.PlateCarree(), extent=extent)
+    from matplotlib.colors import LogNorm
+    plt.pcolormesh(lon_array, lat_array, var_array,transform=ccrs.PlateCarree(),norm=LogNorm(vmin=0.01, vmax=10))
+
+    # import cartopy.feature as cfeature
+    # land_10m = cfeature.NaturalEarthFeature('physical', 'land', '10m',
+    #                                         edgecolor='face',
+    #                                         facecolor=cfeature.COLORS['land'])
+    # ax.add_feature(land_10m, zorder=0, edgecolor='black', linewidth=0.5)
+
+    ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+
+    file_out = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/poster_map.tif'
+    plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+
+
+
+def getting_valid_stations():
+    from netCDF4 import Dataset
+    file_mdb = '/mnt/c/DATA_LUIS/TARA_TEST/station_match-ups/MDBs/MDBr_chla/MDBr__CCI_MULTI_4KM_ESACCI-OC_20240101T000000_20240919T235959.nc'
+    dataset = Dataset(file_mdb)
+    insitu_lat = dataset.variables['insitu_latitude'][:,0]
+    insitu_lon = dataset.variables['insitu_longitude'][:, 0]
+    flag_region = dataset.variables['insitu_flag_REGION'][:,0]
+    valid_cci = np.zeros((98,))
+    sat_data = dataset.variables['mu_satellite_chlor_a'][:]
+    valid_cci[~sat_data.mask]=1
+    valid_cci[np.logical_and(valid_cci==1,flag_region==2)]=2
+    nvalid_cci = np.count_nonzero(valid_cci>=1)
+    nvalid_cci_atl = np.count_nonzero(valid_cci==1)
+    nvalid_cci_bal = np.count_nonzero(valid_cci==2)
+    print('CCI',nvalid_cci,nvalid_cci_bal,nvalid_cci_atl)
+    dataset.close()
+
+    file_multi_global = os.path.join(os.path.dirname(file_mdb),'MDBr__CMEMS_MULTI_4KM_CMEMS-MULTI_20240101T000000_20240919T235959.nc')
+    dataset = Dataset(file_multi_global)
+    valid_multi_global = np.zeros((98,))
+    sat_data = dataset.variables['mu_satellite_CHL'][:]
+    valid_multi_global[~sat_data.mask] = 1
+    valid_multi_global[np.logical_and(valid_multi_global == 1, flag_region == 2)] = 2
+    nvalid_multi_global = np.count_nonzero(valid_multi_global >= 1)
+    nvalid_multi_global_atl = np.count_nonzero(valid_multi_global == 1)
+    nvalid_multi_global_bal = np.count_nonzero(valid_multi_global == 2)
+    print('MULTI GLOBAL', nvalid_multi_global, nvalid_multi_global_bal, nvalid_multi_global_atl)
+    dataset.close()
+
+    file_olci_global = os.path.join(os.path.dirname(file_mdb),'MDBr__CMEMS_OLCI_300M_CMEMS-OLCI_20240101T000000_20240919T235959.nc')
+    dataset = Dataset(file_olci_global)
+    valid_olci_global = np.zeros((98,))
+    sat_data = dataset.variables['mu_satellite_CHL'][:]
+    valid_olci_global[~sat_data.mask] = 1
+    valid_olci_global[np.logical_and(valid_olci_global == 1, flag_region == 2)] = 2
+    nvalid_olci_global = np.count_nonzero(valid_olci_global >= 1)
+    nvalid_olci_global_atl = np.count_nonzero(valid_olci_global == 1)
+    nvalid_olci_global_bal = np.count_nonzero(valid_olci_global == 2)
+    print('OLCI GLOBAL', nvalid_olci_global, nvalid_olci_global_bal, nvalid_olci_global_atl)
+    dataset.close()
+
+
+
+    file_multi_regional = os.path.join(os.path.dirname(file_mdb),
+                                     'MDBr__CMEMS_MULTI_1KM_CMEMS-MULTI-REGIONAL_20240101T000000_20240919T235959.nc')
+
+    dataset = Dataset(file_multi_regional)
+    valid_multi_regional = np.zeros((98,))
+    sat_data = dataset.variables['mu_satellite_CHL'][:]
+    valid_multi_regional[~sat_data.mask] = 1
+    valid_multi_regional[np.logical_and(valid_multi_regional == 1, flag_region == 2)] = 2
+    nvalid_multi_regional = np.count_nonzero(valid_multi_regional >= 1)
+    nvalid_multi_regional_atl = np.count_nonzero(valid_multi_regional == 1)
+    nvalid_multi_regional_bal = np.count_nonzero(valid_multi_regional == 2)
+    print('MULTI regional', nvalid_multi_regional, nvalid_multi_regional_bal, nvalid_multi_regional_atl)
+    dataset.close()
+
+    file_olci_regional = os.path.join(os.path.dirname(file_mdb),
+                                    'MDBr__CMEMS_OLCI_300M_CMEMS-OLCI-REGIONAL_20240101T000000_20240919T235959.nc')
+    dataset = Dataset(file_olci_regional)
+    valid_olci_regional = np.zeros((98,))
+    sat_data = dataset.variables['mu_satellite_CHL'][:]
+    valid_olci_regional[~sat_data.mask] = 1
+    valid_olci_regional[np.logical_and(valid_olci_regional == 1, flag_region == 2)] = 2
+    nvalid_olci_regional = np.count_nonzero(valid_olci_regional >= 1)
+    nvalid_olci_regional_atl = np.count_nonzero(valid_olci_regional == 1)
+    nvalid_olci_regional_bal = np.count_nonzero(valid_olci_regional == 2)
+    print('OLCI regional', nvalid_olci_regional, nvalid_olci_regional_bal, nvalid_olci_regional_atl)
+    dataset.close()
+
+    file_csv_out = '/mnt/c/DATA_LUIS/TARA_TEST/station_match-ups/MDBs/Match-ups-locations.csv'
+    fw  = open(file_csv_out,'w')
+    fw.write('Lat;Lon;CCI;MultiGlobal;OlciGlobal;MultiRegional;OlciRegional')
+    for idx in range(98):
+        line = f'{insitu_lat[idx]};{insitu_lon[idx]};{valid_cci[idx]};{valid_multi_global[idx]};{valid_olci_global[idx]};{valid_multi_regional[idx]};{valid_olci_regional[idx]}'
+        fw.write('\n')
+        fw.write(line)
+    fw.close()
+
+def print_stats():
+    dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_OLCI_REGIONAL/PLOTS'
+    wl_list = [412,443,490,510, 560,665]
+    #wl_list = []
+    param_list = [11,7,10,9,8]
+    param_name_list = ['R2','RMSD','BIAS','APD','RPD']
+    region_list = ['BAL','ATL']
+    for idx,param in enumerate(param_list):
+        for region in region_list:
+            param_name = param_name_list[idx]
+            line = f'{param_name};{region}'
+            for wl in wl_list:
+                file = os.path.join(dir_base,f'Stats_{wl}.csv')
+                df = pd.read_csv(file,sep=';')
+                value = df.loc[param,region]
+                if param_name=='R2':
+                    value_s = f'{value:.2f}'
+                elif param_name=='APD' or param_name=='RPD':
+                    value_s = f'{value:.0f}'
+                else:
+                    value_temp = f'{value:.5f}'
+                    value_s = f'{value_temp[-3]}.{value_temp[-2:]}'
+                    if value_temp.startswith('-'):
+                        value_s = f'-{value_s}'
+                line = f'{line};{value_s}'
+            print(line)
+
+
 
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
-        check_n_values_cmems_certo()
+        from netCDF4 import Dataset
+        from datetime import datetime as dt
+        # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/EUMETSAT_L2/wide/MDBrc_S3AB_OLCI_WFR_STANDARD_20230101T000000_20231231T235959_HYPERBOOST_wide.nc'
+        # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CCI_GLOBAL/1/MDBr__CCI_MULTI_4KM_ESACCI-OC_20230101T000000_20231231T235959_HYPERBOOST.nc'
+        # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_MULTI_GLOBAL/1/MDBr__CMEMS_MULTI_4KM_CMEMS-MULTI_20230101T000000_20231231T235959_HYPERBOOST.nc'
+        # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_OLCI_GLOBAL/2/MDBr__CMEMS_OLCI_300M_CMEMS-OLCI_20230101T000000_20231231T235959_HYPERBOOST.nc'
+
+        # dataset = Dataset(file_in)
+        # stime = dataset.variables['satellite_time'][:]
+        # nvalues = len(stime)
+        # array = np.ones((nvalues,))
+        # ini_bal = dt(2023,5,17)
+        # end_bal = dt(2023,7,25)
+        # n_bal = 0
+        # for idx in range(nvalues):
+        #     time_here = stime[idx]
+        #     time_h = dt.utcfromtimestamp(time_here)
+        #     if ini_bal <= time_h <= end_bal:
+        #         array[idx]=2
+        #         n_bal = n_bal + 1
+        # dataset.close()
+        # print(n_bal)
+        # creating_copy_with_flag_band(file_in,'flag_region',[1,2],['ATL','BAL'],array)
+
+        ##OLCI REGIONAL
+        # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_OLCI_ATL/2/MDBr__CMEMS_OLCI_300M_CMEMS-OLCI-ATL_20230101T000000_20231231T235959_HYPERBOOST.nc'
+        # creating_copy_region(file_in, 'ATL')
+        # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_OLCI_BAL/2/MDBr__CMEMS_OLCI_300M_POLYMER_20230101T000000_20231231T235959_HYPERBOOST.nc'
+        # creating_copy_region(file_in, 'BAL')
+        #
+        # file_in_atl = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_OLCI_ATL/2/MDBr__CMEMS_OLCI_300M_CMEMS-OLCI-ATL_20230101T000000_20231231T235959_HYPERBOOST_ATL.nc'
+        # file_in_bal = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_OLCI_BAL/2/MDBr__CMEMS_OLCI_300M_POLYMER_20230101T000000_20231231T235959_HYPERBOOST_BAL.nc'
+        # dir_concatenate = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CONCATENATE'
+        # file_out_atl = os.path.join(dir_concatenate, os.path.basename(file_in_atl))
+        # file_out_bal = os.path.join(dir_concatenate, os.path.basename(file_in_bal))
+        # shutil.copy(file_in_atl,file_out_atl)
+        # shutil.copy(file_in_bal,file_out_bal)
+
+        ##MULTI REGIONAL
+        # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_MULTI_ATL/1/MDBr__CMEMS_MULTI_1KM_CMEMS-MULTI-ATL_20230101T000000_20231231T235959_HYPERBOOST.nc'
+        # creating_copy_region(file_in, 'ATL')
+        # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_MULTI_BAL/2/MDBr__CMEMS_MULTI_1KM_OC-CCI_20230101T000000_20231231T235959_HYPERBOOST.nc'
+        # creating_copy_region(file_in, 'BAL')
+        #
+        # file_in_atl = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_MULTI_ATL/1/MDBr__CMEMS_MULTI_1KM_CMEMS-MULTI-ATL_20230101T000000_20231231T235959_HYPERBOOST_ATL.nc'
+        # file_in_bal = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_MULTI_BAL/2/MDBr__CMEMS_MULTI_1KM_OC-CCI_20230101T000000_20231231T235959_HYPERBOOST_BAL.nc'
+        # dir_concatenate = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CONCATENATE'
+        # file_out_atl = os.path.join(dir_concatenate, os.path.basename(file_in_atl))
+        # file_out_bal = os.path.join(dir_concatenate, os.path.basename(file_in_bal))
+        # shutil.copy(file_in_atl,file_out_atl)
+        # shutil.copy(file_in_bal,file_out_bal)
+
+        # file_multi_regional = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_MULTI_REGIONAL/MDBr__CMEMS_MULTI_1KM_REGIONAL_20230101T000000_20231231T235959_HYPERBOOST.nc'
+        # file_out = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_MULTI_REGIONAL/MDBr__CMEMS_MULTI_1KM_REGIONAL_20230101T000000_20231231T235959_HYPERBOOST_multibands.nc'
+        # creating_copy_correcting_changing_wl(file_multi_regional,file_out,[412, 443, 490, 510, 560, 665],[555,670],[560,665])
+
+        # file_olci_regional = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_OLCI_REGIONAL/MDBr__CMEMS_MULTI_1KM_REGIONAL_20230101T000000_20231231T235959_HYPERBOOST.nc'
+        # file_out = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_OLCI_REGIONAL/MDBr__CMEMS_MULTI_1KM_REGIONAL_20230101T000000_20231231T235959_HYPERBOOST_olcibands.nc'
+        # wl_list = [400, 412, 443, 490, 510, 560, 620, 665, 674, 681, 709]
+        # wl_in = [412.5, 442.5, 673.8, 681.3, 708.8]
+        # wl_out =   [412, 443, 674, 681, 709]
+        # creating_copy_correcting_changing_wl(file_olci_regional, file_out, wl_list, wl_in,wl_out)
+
+        #make_map_rrs_match_ups()
+        #getting_valid_stations()
+        #make_map_stations()
+        #print_stats()
+        prepare_map_cci_poster(args.input_path)
+        #make_map_cci_poster()
+        # check_n_values_cmems_certo()
         # do_image_with_centro()
 
         # get_certo_dates_olci_step1()
@@ -3532,7 +4155,7 @@ def main():
         if not fbuilder.VALID:
             return
         for flag_here in fbuilder.flag_list:
-            b = fbuilder.omanager.get_value_param(flag_here,'apply',True,'boolean')
+            b = fbuilder.omanager.get_value_param(flag_here, 'apply', True, 'boolean')
             if b is not None and not b:
                 continue
             print(f'[INFO] Working with flag: {flag_here}')
@@ -3674,6 +4297,7 @@ def main():
         # ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
         ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'site']
         flag_bands = ['flag_satellite', 'flag_sensor', 'flag_ac', 'flag_site']
+
         flag_lists = get_flag_lists(input_path, ats_in, flag_bands)
         all_bands = get_band_list(input_path)
 
@@ -3769,22 +4393,24 @@ def main():
             print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
 
         ##WITH MDBPLOTV3
-        # from MDBPlotV3 import MDBPlot
-        # mplot = MDBPlot(input_path)
-        # mplot.plot_from_options_file(config_file)
+        if args.config_file.endswith('plot.ini'):
+            from MDBPlotV3 import MDBPlot
+            mplot = MDBPlot(input_path)
+            mplot.plot_from_options_file(config_file)
 
-        # mplot.output_path = output_path
-        #
+            mplot.output_path = output_path
 
         ##WITH MDBPlotV2
-        from MDBPlotV2 import MDBPlot
-        import configparser
-        mplot = MDBPlot(input_path)
-        options = configparser.ConfigParser()
-        options.read(config_file)
-        # print(mplot.VALID)
-        mplot.set_global_options(options)
-        mplot.plot_from_options(options)
+        if not args.config_file.endswith('plot.ini'):
+        #if args.config_file.endswith('combine.ini') or args.config_file.endswith('l2.ini'):
+            from MDBPlotV2 import MDBPlot
+            import configparser
+            mplot = MDBPlot(input_path)
+            options = configparser.ConfigParser()
+            options.read(config_file)
+            # print(mplot.VALID)
+            mplot.set_global_options(options)
+            mplot.plot_from_options(options)
 
         # path_img = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/PLOTS'
         # from PlotMultiple import PlotMultiple

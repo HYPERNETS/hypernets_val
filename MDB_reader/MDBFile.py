@@ -411,6 +411,11 @@ class MDBFile:
             if (index_mu % 100) == 0: print(f'[INFO] Getting match-ups values {index_mu}/{nmu}')
             if not skip_sat:
                 cond_min_pixels, cond_stats, valid_mu, value = self.qc_single.get_match_up_value(index_mu)
+                if variable_sat=='satellite_TSM_NN':
+                    value_prev = value
+                    if value_prev!=-999.0:
+                        value = np.power(10,value_prev)
+                    print(value_prev,'----->',value)
                 new_var_sat[index_mu] = value
             if not skip_ins or not skip_ins_id:
                 time_diff_array, insitu_id, time_diff, value = self.qc_single.get_ins_value(index_mu)
