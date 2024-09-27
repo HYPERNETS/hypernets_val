@@ -3392,7 +3392,8 @@ def prepare_map_cci_poster(window_size):
     from datetime import datetime as dt
     from netCDF4 import Dataset
     window_size = int(window_size)
-    dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS'
+    #dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS'
+    dir_base = '/store/TARA_VALIDATION/OCEAN_OPTICS'
     file_csv = os.path.join(dir_base,'Match-ups-locations.csv')
     file_grid = os.path.join(dir_base,'CCI_Grid.nc')
     file_out = os.path.join(dir_base,f'CCI_output_{window_size}.nc')
