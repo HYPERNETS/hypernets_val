@@ -3458,7 +3458,8 @@ def prepare_map_cci_poster(window_size):
         if os.path.exists(file_data):
             ddata = Dataset(file_data)
             chl_array_date = ddata.variables['chlor_a'][:]
-            chl_array_date_now = chl_array_date[r_min:r_max,c_min:c_max]
+            chl_array_date_now = chl_array_date[0,r_min:r_max,c_min:c_max]
+            chl_array_date_now = np.squeeze(chl_array_date_now.filled(fill_value=-999.0))
             chl_array_now =  chl_array[r_min:r_max,c_min:c_max]
             chl_array_now[valid_dist] = chl_array_date_now[valid_dist]
             chl_array[r_min:r_max, c_min:c_max] = chl_array_now
