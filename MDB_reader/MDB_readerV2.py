@@ -3406,6 +3406,9 @@ def prepare_map_cci_poster(window_size):
     nx = len(lon_array)
     chl_array = np.zeros((ny,nx))
     chl_array[:] = -999.0
+    chl_array_avg = np.zeros((ny, nx))
+    chl_array_num = np.zeros((ny, nx))
+
     dist_array = np.zeros((ny,nx))
     dist_array[:] = window_size*window_size
     date_array  =np.zeros((ny,nx))
@@ -3460,12 +3463,29 @@ def prepare_map_cci_poster(window_size):
             chl_array_date = ddata.variables['chlor_a'][:]
             chl_array_date_now = chl_array_date[0,r_min:r_max,c_min:c_max]
             chl_array_date_now = np.squeeze(chl_array_date_now.filled(fill_value=-999.0))
+
+            ##chl-array
             chl_array_now =  chl_array[r_min:r_max,c_min:c_max]
             chl_array_now[valid_dist] = chl_array_date_now[valid_dist]
             chl_array[r_min:r_max, c_min:c_max] = chl_array_now
+
+            ##chl-array - avg
+            chl_array_avg_now = chl_array_avg[r_min:r_max, c_min:c_max]
+            chl_array_avg_now[valid_dist] = chl_array_avg_now[valid_dist] + chl_array_date_now[valid_dist]
+            chl_array_avg[r_min:r_max, c_min:c_max] = chl_array_avg_now
+
+            ##chl-array - num
+            chl_array_num_now = chl_array_num[r_min:r_max, c_min:c_max]
+            chl_array_num_now[valid_dist] = chl_array_num_now[valid_dist] + 1.0
+            chl_array_num[r_min:r_max, c_min:c_max] = chl_array_num_now
+
+
             ddata.close()
 
     dist_array[date_array==-999]=-999.0
+    chl_array_avg [chl_array_num>0] = chl_array_avg[chl_array_num>0]/chl_array_num[chl_array_num>0]
+    chl_array_avg[chl_array_num==0] = -999.0
+    chl_array_num[chl_array_num == 0] = -999.0
 
     ncout = Dataset(file_out, 'w', format='NETCDF4')
     ncout.createDimension('lat',ny)
@@ -3477,6 +3497,10 @@ def prepare_map_cci_poster(window_size):
     var[:] = lon_array
     var = ncout.createVariable('chlor_a','f4',('lat','lon'), fill_value=-999.0, zlib=True,complevel=6)
     var[:] = chl_array[:]
+    var = ncout.createVariable('chlor_a_avg', 'f4', ('lat', 'lon'), fill_value=-999.0, zlib=True, complevel=6)
+    var[:] = chl_array_avg[:]
+    var = ncout.createVariable('chlor_a_num', 'f4', ('lat', 'lon'), fill_value=-999.0, zlib=True, complevel=6)
+    var[:] = chl_array_num[:]
     var = ncout.createVariable('jday', 'i4', ('lat', 'lon'), fill_value=-999, zlib=True, complevel=6)
     var[:] = date_array[:]
     var = ncout.createVariable('dist', 'f4', ('lat', 'lon'), fill_value=-999.0, zlib=True, complevel=6)
@@ -3489,30 +3513,56 @@ def prepare_map_cci_poster(window_size):
 
     # print(center)
 
-def make_map_cci_poster():
+def make_map_cci_poster(res):
     print('POSTER MAP')
     import cartopy
     import cartopy.crs as ccrs
     import matplotlib.pyplot as plt
+    from netCDF4 import Dataset
+    from datetime import datetime as dt
+
+    dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS'
+    res = int(res)
+    name_grid = f'CCI_output_{res}.nc'
+    file_csv = os.path.join(dir_base, 'Match-ups-locations.csv')
+    file_out = os.path.join(dir_base,f'poster_map_{res}.tif')
+    #file_out = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/poster_map.tif'
 
     ##CREATING GRID
     # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/ESACCI-OC-L3S-OC_PRODUCTS-MERGED-1D_DAILY_4km_GEO_PML_OCx_QAA-20231009-fv6.0.nc'
     # file_out = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/CCI_Grid.nc'
     # creating_copy_limiting_variables(file_in,file_out,['lat','lon','chlor_a'],[])
-    from netCDF4 import Dataset
-    file_grid = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/CCI_Grid.nc'
+
+
+
+    ##FILE GRID
+    file_grid = os.path.join(dir_base,name_grid)
     dataset = Dataset(file_grid)
     lat_array = dataset.variables['lat'][:]
     lon_array = dataset.variables['lon'][:]
     var_array = dataset.variables['chlor_a'][:]
     dataset.close()
 
+    ##FILE POINTS
+    df = pd.read_csv(file_csv, sep=';')
+    lat_points = df['Lat'][:]
+    lon_points = df['Lon'][:]
+    sensor_points = df['all'][:]
+    dates = df['Date']
+    date_list = [dt.strptime(str(x), '%Y%m%d') for x in dates]
+    date_ref = dt(2023, 1, 1)
+    npoints = len(lat_points)
+
+
+
+
     ##geo limits
     geo_limits = [35, 65, -15, 30]
     extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
     lat_array = lat_array[601:1320]
     lon_array = lon_array[3961:5040]
-    var_array = np.squeeze(var_array[0,601:1320,3961:5040])
+    #var_array = np.squeeze(var_array[0,601:1320,3961:5040])
+    var_array = var_array[601:1320, 3961:5040]
     ny = len(lat_array)
     nx = len(lon_array)
     print(ny,nx,var_array.shape)
@@ -3531,7 +3581,22 @@ def make_map_cci_poster():
 
     ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
 
-    file_out = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS/poster_map.tif'
+    sensors = [0, 1, 3, 4, 5, 7]
+    colors = ['gray', 'cyan', 'blue', 'green', 'magenta', 'red']
+    handles = []
+    for idx, res in enumerate(sensors):
+        lat_points_here = lat_points[sensor_points == res]
+        lon_points_here = lon_points[sensor_points == res]
+        h = plt.plot(lon_points_here.tolist(), lat_points_here.tolist(),
+                     color=colors[idx],
+                     marker='o',
+                     markersize=15,
+                     linestyle='-',
+                     linewidth=0)
+        handles.append(h[0])
+
+
+
     plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
 
 
@@ -3717,7 +3782,7 @@ def main():
         #make_map_stations()
         #print_stats()
         prepare_map_cci_poster(args.input_path)
-        #make_map_cci_poster()
+        #make_map_cci_poster(args.input_path)
         # check_n_values_cmems_certo()
         # do_image_with_centro()
 
