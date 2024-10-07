@@ -3771,7 +3771,7 @@ def remove_duplicated_insitu_hypstar(remove):
     date_end = dt(2024,7,31)
     while date_here<=date_end:
         mm = date_here.strftime('%m')
-        dd = date_end.strftime('%d')
+        dd = date_here.strftime('%d')
         dir_date = os.path.join(dir_orig,mm,dd)
         print(f'Date: {date_here.strftime("%Y-%m-%d")}')
         print('Getting sequences to be remove')
@@ -3800,7 +3800,7 @@ def remove_duplicated_insitu_hypstar(remove):
                     print(':',file_in,'->',file_out)
                     if remove==1:
                         os.rename(file_in,file_out)
-        date_here = date_end + timedelta(hours=24)
+        date_here = date_here + timedelta(hours=24)
 
 
 
