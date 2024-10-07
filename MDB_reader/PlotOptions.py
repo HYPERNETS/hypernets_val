@@ -158,6 +158,9 @@ class PlotOptions:
             doptions = defaults.get_options_angleplot()
         if type == 'mapplot':
             doptions = defaults.get_options_mapplot()
+        if type == 'imageplot':
+            doptions = defaults.get_options_image_plot()
+
 
         if doptions is None:
             print(f'[ERROR] Options for plot {type} are not implemented yet')

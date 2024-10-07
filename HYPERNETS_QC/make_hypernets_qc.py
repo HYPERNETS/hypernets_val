@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
                              'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG',
-                             'LOGDOWNLOAD','COPYREPORTS'],
+                             'LOGDOWNLOAD', 'COPYREPORTS'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -36,6 +36,7 @@ parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true"
 
 args = parser.parse_args()
 
+
 def test_bis():
     from datetime import datetime as dt
     from datetime import timedelta
@@ -54,7 +55,7 @@ def test_bis():
         if row['NFilesMissing'] > 0:
             date_here = row['Date']
             if date_here in list_dates_done:
-                year = dt.strptime(date_here,'%Y-%m-%d').strftime('%Y')
+                year = dt.strptime(date_here, '%Y-%m-%d').strftime('%Y')
                 jday = dt.strptime(date_here, '%Y-%m-%d').strftime('%j')
                 line = f'rm /store3/OC/OLCI_BAL/POLYMER_BAL202411/{year}/{jday}/*'
                 print(line)
@@ -62,10 +63,11 @@ def test_bis():
                 print(line)
     return True
 
+
 def test_trim_polymer():
     file_list = '/mnt/c/DATA_LUIS/OCTACWORK/GranulesToDownload_UPDATED.txt'
     list_dates_to_do = []
-    fr = open(file_list,'r')
+    fr = open(file_list, 'r')
 
     for line in fr:
 
@@ -75,10 +77,10 @@ def test_trim_polymer():
             list_dates_to_do.append(date_here)
 
     fr.close()
-    print('NDATES: ',len(list_dates_to_do))
+    print('NDATES: ', len(list_dates_to_do))
 
     fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer.sh'
-    fw = open(fout,'w')
+    fw = open(fout, 'w')
     fw.write('#!/bin/bash')
     fw.write('\n')
     index = 0
@@ -88,7 +90,7 @@ def test_trim_polymer():
         index = index + 1
 
         if index <= 8:
-            #line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {date})'
+            # line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {date})'
             line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_polymer.slurm NT {date})'
             fw.write('\n')
             fw.write(line)
@@ -98,7 +100,7 @@ def test_trim_polymer():
             fw.write('\n')
         else:
             index_prev = index - 8
-            #line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {date})'
+            # line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {date})'
             line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_polymer.slurm NT {date})'
             fw.write('\n')
             fw.write(line)
@@ -107,14 +109,13 @@ def test_trim_polymer():
             fw.write(line)
             fw.write('\n')
 
-
-
     return True
+
 
 def test():
     # fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_nr.sh'
-    #fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_processing_pending.sh'
-    #fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_pending.sh'
+    # fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_processing_pending.sh'
+    # fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_pending.sh'
 
     fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim.sh'
 
@@ -159,7 +160,7 @@ def test():
 
         if index <= 8:
 
-            #line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            # line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
             line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
             fw.write('\n')
             fw.write(line)
@@ -169,7 +170,7 @@ def test():
             fw.write('\n')
         else:
             index_prev = index - 8
-            #line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
+            # line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
             line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
             fw.write('\n')
             fw.write(line)
@@ -219,8 +220,9 @@ def test():
     # f1.close()
     return True
 
+
 def test_aug_m(type_int):
-    types = ['trim','polymer','processing','complete']
+    types = ['trim', 'polymer', 'processing', 'complete']
     type = types[type_int]
 
     if type == 'trim':
@@ -234,27 +236,27 @@ def test_aug_m(type_int):
 
     ##GETTING DATES
     list_dates = []
-    work_date = dt(2023,5,11)
-    end_date = dt(2023,5,15)
-    while work_date<=end_date:
+    work_date = dt(2023, 5, 11)
+    end_date = dt(2023, 5, 15)
+    while work_date <= end_date:
         list_dates.append(work_date.strftime('%Y-%m-%d'))
         work_date = work_date + timedelta(hours=24)
     ##GETTING DATES
 
     ##PREPARING FILE
-    fw = open(fout,'w')
+    fw = open(fout, 'w')
     index = 0
     for str_date in list_dates:
         index = index + 1
 
         if index <= 8:
-            if type=='trim':
+            if type == 'trim':
                 line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {str_date})'
-            if type=='polymer':
+            if type == 'polymer':
                 line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_polymer.slurm NT {str_date})'
-            if type=='processing':
+            if type == 'processing':
                 line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            if type=='complete':
+            if type == 'complete':
                 line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
             fw.write('\n')
             fw.write(line)
@@ -264,13 +266,13 @@ def test_aug_m(type_int):
             fw.write('\n')
         else:
             index_prev = index - 8
-            if type=='trim':
+            if type == 'trim':
                 line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_trim_bal.slurm NT {str_date})'
-            if type=='polymer':
+            if type == 'polymer':
                 line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_polymer.slurm NT {str_date})'
-            if type=='processing':
+            if type == 'processing':
                 line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            if type=='complete':
+            if type == 'complete':
                 line = f'job{index}=$(sbatch --dependency=afterany:$job{index_prev}id /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
             fw.write('\n')
             fw.write(line)
@@ -279,28 +281,28 @@ def test_aug_m(type_int):
             fw.write(line)
             fw.write('\n')
 
-
     fw.close()
 
     return True
+
+
 def test_aug():
-    #type = 'processing'
+    # type = 'processing'
     type = 'complete'
-    if type=='processing':
+    if type == 'processing':
         fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_processing_2016.sh'
-    if type=='complete':
+    if type == 'complete':
         fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_olci_complete_remaining.sh'
 
     file_dates = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/dates_to_complete.txt'
     list_dates_to_do = []
     if os.path.exists(file_dates):
-        fr = open(file_dates,'r')
+        fr = open(file_dates, 'r')
         for line in fr:
             date_here = line.strip()
-            if len(date_here)>0:
+            if len(date_here) > 0:
                 list_dates_to_do.append(date_here)
         fr.close()
-
 
     fw = open(fout, 'w')
     fw.write('#!/bin/bash')
@@ -311,16 +313,16 @@ def test_aug():
     index = 0
     while work_date <= end_date:
         str_date = work_date.strftime('%Y-%m-%d')
-        if len(list_dates_to_do)>0:
+        if len(list_dates_to_do) > 0:
             if str_date not in list_dates_to_do:
                 work_date = work_date + timedelta(hours=24)
                 continue
         index = index + 1
 
         if index <= 8:
-            if type=='processing':
+            if type == 'processing':
                 line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_processing_olci_polymer.slurm {str_date})'
-            if type=='complete':
+            if type == 'complete':
                 line = f'job{index}=$(sbatch /store/COP2-OC-TAC/BAL_Evolutions/slurmscripts_202411/make_complete_bal_202411.slurm NT {str_date})'
             fw.write('\n')
             fw.write(line)
@@ -484,7 +486,7 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
                     # os.remove(file_info)
                     if os.path.isdir(dir_img_summary):
                         for name in os.listdir(dir_img_summary):
-                            os.remove(os.path.join(dir_img_summary,name))
+                            os.remove(os.path.join(dir_img_summary, name))
                         os.rmdir(dir_img_summary)
             else:
                 daily_sequences_summary = plot_from_options(hdayfile, config_file_summary, dir_img_summary,
@@ -552,8 +554,8 @@ def make_report_files(input_path, output_path, site, start_date, end_date):
             session.login(owncloud_info['owncloud_user'], owncloud_info['owncloud_password'])
             session.put_file(f'/ESA-HYP-POP/LastQC_Reports/{site}_LastQC.pdf', file_pdf)
             ##temporal, for JSIT
-            if site=='JSIT':
-                session.put_file(f'/LUIS/JSIT_REPORTS/{name_pdf}',file_pdf)
+            if site == 'JSIT':
+                session.put_file(f'/LUIS/JSIT_REPORTS/{name_pdf}', file_pdf)
 
 
 def create_daily_mail_file(file_qc_mail, site, start_date, daily_sequences_summary, extra_info):
@@ -1418,28 +1420,31 @@ def make_single_image_impl(site, sequence, key, output_path):
     print(f'[INFO]Completed. File saved: {file_out}')
     return file_out
 
-def make_copy_reports(input_path,output_path,site,start_date,end_date):
-    if input_path.split('/')[-1]!=site:
-        input_path = os.path.join(input_path,site)
+
+def make_copy_reports(input_path, output_path, site, start_date, end_date):
+    if input_path.split('/')[-1] != site:
+        input_path = os.path.join(input_path, site)
     work_date = start_date
-    while work_date<=end_date:
-        input_path_date = os.path.join(input_path,work_date.strftime('%Y'),work_date.strftime('%m'),work_date.strftime('%d'))
+    while work_date <= end_date:
+        input_path_date = os.path.join(input_path, work_date.strftime('%Y'), work_date.strftime('%m'),
+                                       work_date.strftime('%d'))
         name_report = f'Report_{site}_{work_date.strftime("%Y%m%d")}.pdf'
-        report_file = os.path.join(input_path_date,name_report)
+        report_file = os.path.join(input_path_date, name_report)
         print(f'[INFO] {work_date} --> {report_file} : {os.path.exists(report_file)}')
         if os.path.exists(report_file):
-            file_out = os.path.join(output_path,name_report)
-            shutil.copy(report_file,file_out)
+            file_out = os.path.join(output_path, name_report)
+            shutil.copy(report_file, file_out)
         work_date = work_date + timedelta(hours=24)
+
 
 def main():
     if args.verbose:
         print('[INFO] STARTED')
-    #types = ['trim', 'polymer', 'processing', 'complete']
-    for itype in range(4):
-        b = test_aug_m(itype)
-    if b:
-        return
+    # #types = ['trim', 'polymer', 'processing', 'complete']
+    # for itype in range(4):
+    #     b = test_aug_m(itype)
+    # if b:
+    #     return
     start_date, end_date = get_start_and_end_dates()
     if start_date is None:
         return
@@ -1513,7 +1518,8 @@ def main():
         make_single_image(site, sequence, key, output_path)
 
     if args.mode == 'COPYREPORTS':
-        make_copy_reports(input_path,output_path,site,start_date,end_date)
+        make_copy_reports(input_path, output_path, site, start_date, end_date)
+
 
 # %%
 if __name__ == '__main__':

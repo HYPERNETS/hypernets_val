@@ -234,6 +234,8 @@ class MDBPlot:
             self.plot_time_series(options_figure)
         if options_figure['type'] == 'mapplot':
             self.plot_map_plot(options_figure)
+        if options_figure['type'] == 'imageplot':
+            self.plot_image(options_figure)
 
     def plot_map_plot(self, options_figure):
         import cartopy
@@ -363,8 +365,61 @@ class MDBPlot:
         plt.close()
         print(f'[INFO] [mapplot PLOT] Completed')
 
+    def get_box(self,array_lat,array_lon,n):
+        size = array_lat.shape[0]
+        center = int(np.floor(size / 2))
+        if n==-1:#external box:
+             increm = center
+        elif n==0:#central pixel
+            increm = 0
+        else:##n shoud be even number
+            increm  = int(np.floor(n/2))
+        ini = center - increm
+        end = center + increm
+        if ini<0: ini=0
+        if end>=size:end = size -1
+
+        lat_0_0 = array_lat[ini,ini]
+        increm_lat_0_0 = abs((array_lat[ini+1,ini+1]-array_lat[ini,ini])/2)
+        lat_0_n = array_lat[ini,end]
+        increm_lat_0_n = abs((array_lat[ini+1, end-1] - array_lat[ini, end]) / 2)
+        lat_n_0 = array_lat[end,ini]
+        increm_lat_n_0 = abs((array_lat[end - 1, ini + 1] - array_lat[end, ini]) / 2)
+        lat_n_n = array_lat[end,end]
+        increm_lat_n_n = abs((array_lat[end - 1, end - 1] - array_lat[end, end]) / 2)
+
+        lon_0_0 = array_lon[ini, ini]
+        increm_lon_0_0 = abs((array_lon[ini + 1, ini + 1] - array_lon[ini, ini]) / 2)
+        lon_0_n = array_lon[ini, end]
+        increm_lon_0_n = abs((array_lon[ini + 1, end - 1] - array_lon[ini, end]) / 2)
+        lon_n_0 = array_lon[end, ini]
+        increm_lon_n_0 = abs((array_lon[end - 1, ini + 1] - array_lon[end, ini]) / 2)
+        lon_n_n = array_lon[end, end]
+        increm_lon_n_n = abs((array_lon[end - 1, end - 1] - array_lon[end, end]) / 2)
+
+        ##from south to north
+        if array_lat[0,center]<array_lat[size-1,center]:
+            lat_points = [lat_0_0 - increm_lat_0_0, lat_0_n - increm_lat_0_n, lat_n_n + increm_lat_n_n,
+                          lat_n_0 + increm_lat_n_0, lat_0_0 - increm_lat_0_0]
+        else:#from north to south
+            lat_points = [lat_0_0 + increm_lat_0_0, lat_0_n + increm_lat_0_n, lat_n_n - increm_lat_n_n,
+                          lat_n_0 - increm_lat_n_0, lat_0_0 + increm_lat_0_0]
+
+        ##from west to east
+        if array_lon[center,0]<array_lon[center,size-1]:
+
+            lon_points = [lon_0_0 - increm_lon_0_0, lon_0_n + increm_lon_0_n, lon_n_n + increm_lon_n_n,
+                          lon_n_0 - increm_lon_n_0, lon_0_0 - increm_lon_0_0]
+        else:#from east to west
+
+            lon_points = [lon_0_0 + increm_lon_0_0, lon_0_n - increm_lon_0_n, lon_n_n - increm_lon_n_n,
+                          lon_n_0 + increm_lon_n_0, lon_0_0 + increm_lon_0_0]
+
+
+        return lat_points,lon_points
+
     def get_geo_limits(self, options_figure, array_lat, array_lon):
-        geo_limits = options_figure['geo_limits']
+        geo_limits = options_figure['geo_limits'] if 'geo_limits' in options_figure else None
         if geo_limits is None:
             min_lat = np.min(array_lat)
             max_lat = np.max(array_lat)
@@ -391,22 +446,107 @@ class MDBPlot:
             #         if max_lon_extract > max_lon:
             #             max_lon = max_lon_extract
 
-            if abs(max_lat - min_lat) > 1:
-                min_lat = np.floor(min_lat)
-                max_lat = np.ceil(max_lat)
-            else:
-                min_lat = min_lat - 0.01
-                max_lat = max_lat + 0.01
-            if abs(max_lon - min_lon) > 1:
-                min_lon = np.floor(min_lon)
-                max_lon = np.ceil(max_lon)
-            else:
-                min_lon = min_lon - 0.01
-                max_lon = max_lon + 0.01
-
+            # if abs(max_lat - min_lat) > 1:
+            #     min_lat = np.floor(min_lat)
+            #     max_lat = np.ceil(max_lat)
+            # else:
+            #     min_lat = min_lat - 0.01
+            #     max_lat = max_lat + 0.01
+            # if abs(max_lon - min_lon) > 1:
+            #     min_lon = np.floor(min_lon)
+            #     max_lon = np.ceil(max_lon)
+            # else:
+            #     min_lon = min_lon - 0.01
+            #     max_lon = max_lon + 0.01
+            # geo_limits = [float(min_lat), float(max_lat), float(min_lon), float(max_lon)]
+            lat_box, lon_box = self.get_box(array_lat,array_lon,-1)
+            min_lat = np.min(lat_box)
+            max_lat = np.max(lat_box)
+            min_lon = np.min(lon_box)
+            max_lon = np.max(lon_box)
             geo_limits = [float(min_lat), float(max_lat), float(min_lon), float(max_lon)]
 
         return geo_limits
+
+
+    def check_variable(self,config_ref_variable, name_variable):
+        if name_variable is None:
+            if config_ref_variable is not None:
+                print(f'[ERROR] {config_ref_variable} should be defined in the configuration file')
+            return False
+        if name_variable not in self.mrfile.nc.variables:
+            print(f'[ERROR] {name_variable} is not defined in {self.mrfile.file_path}')
+            return False
+
+
+    def plot_image(self,options_figure):
+        if not self.VALID and not os.path.isfile(self.mrfile.file_path):
+            print(f'[ERROR] {self.mrfile.file_path} shoud be a valid NetCDF file')
+            return
+        variables_to_check = ['latitude_variable','longitude_variable','plot_variable']
+        for variable_to_check in variables_to_check:
+            if self.check_variable(variables_to_check,options_figure[variable_to_check]):
+                return
+        index_mu = options_figure['index_mu']
+        if index_mu==-1:
+            for imu in range(self.mrfile.n_mu_total):
+                self.plot_geo_image_impl(options_figure,imu)
+        else:
+            self.plot_geo_image_impl(options_figure,index_mu)
+
+    def plot_geo_image_impl(self,options_figure,index_mu):
+        import cartopy
+        import cartopy.crs as ccrs
+        import matplotlib.pyplot as plt
+
+        lat_array = self.mrfile.nc.variables[options_figure['latitude_variable']][index_mu]
+        lon_array = self.mrfile.nc.variables[options_figure['longitude_variable']][index_mu]
+        if self.mrfile.nc.variables[options_figure['plot_variable']].ndim==4:
+            index_band = options_figure['index_band']
+            data_array = self.mrfile.nc.variables[options_figure['plot_variable']][index_mu,index_band,:,:]
+        elif self.mrfile.nc.variables[options_figure['plot_variable']].ndim==3:
+            data_array = self.mrfile.nc.variables[options_figure['plot_variable']][index_mu, :, :]
+
+        geo_limits = self.get_geo_limits(options_figure,lat_array,lon_array)
+        extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+        projection = ccrs.Mercator()
+        ax = plt.axes(projection=projection, extent=extent)
+
+        ##grid lines
+        gl = ax.gridlines(linewidth=0.5, linestyle='dotted', draw_labels=True)
+        gl.xlabels_top = False
+        gl.ylabels_right = False
+
+        ##external box
+        lat_box, lon_box = self.get_box(lat_array,lon_array,-1)
+        plt.plot(lon_box, lat_box,color='k',marker='o',markersize=0,linestyle='-',linewidth=0.5,transform=ccrs.PlateCarree())
+
+        ##5x5 box
+        lat_box, lon_box = self.get_box(lat_array, lon_array, 5)
+        plt.plot(lon_box, lat_box, color='k', marker='o', markersize=0, linestyle='--', linewidth=0.5,transform=ccrs.PlateCarree())
+
+        #in situ site location
+        lat_point = 45.313900
+        lon_point = 12.508300
+        plt.plot(lon_point,lat_point,color='black',marker='.',markersize=1,transform=ccrs.PlateCarree())
+
+        from matplotlib.colors import LogNorm
+        from matplotlib.colors import Normalize
+        plt.pcolormesh(lon_array, lat_array, data_array, transform=ccrs.PlateCarree(),cmap='jet',norm=Normalize(vmin=400, vmax=700))
+
+
+        import cartopy.feature as cfeature
+        land_10m = cfeature.NaturalEarthFeature('physical', 'land', '10m',edgecolor='face',facecolor=cfeature.COLORS['land'])
+        ax.add_feature(land_10m, zorder=0, edgecolor='black', linewidth=0.5)
+
+
+        file_out = options_figure['file_out']
+
+        if file_out is not None:
+            if file_out.endswith('.tif'):
+                plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+            else:
+                plt.savefig(file_out, dpi=300, bbox_inches='tight')
 
     def plot_time_series(self, options_figure):
         if not self.VALID and not os.path.isfile(self.mrfile.file_path):
@@ -446,7 +586,7 @@ class MDBPlot:
             ##gettting stations
             ###bar plot
             ##types: WFR-chl,'WFR-spm', 'MSI-chl', 'MSI-spm' ,'GLOBAL', 'REGIONAL'
-            type = 'MSI-spm'
+            type = 'WFR-spm'
             min_value = 0
             max_value = 25
             from PlotSpectra import PlotSpectra
@@ -514,7 +654,7 @@ class MDBPlot:
             pspectra.set_grid_horizontal()
             pspectra.set_xaxis_title('Date')
             if type.endswith('spm'):
-                pspectra.set_yaxis_title(r'SMP (g m$^-$$^3$)')
+                pspectra.set_yaxis_title(r'SPM (g m$^-$$^3$)')
             else:
                 pspectra.set_yaxis_title(r'chl (mg m$^-$$^3$)')
 

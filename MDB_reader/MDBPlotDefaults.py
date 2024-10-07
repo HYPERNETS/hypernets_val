@@ -119,7 +119,7 @@ dispersion_line_style_default = {
     'linestyle': 'dashed',
     'linewidth': 0
 }
-fill_style_default ={
+fill_style_default = {
     'color': 'gray',
     'alpha': 0.5
 }
@@ -165,11 +165,11 @@ sat_dispersion_style_default = {
     'linestyle': 'dashed',
     'linewidth': 0
 }
-insitu_fill_style_default ={
+insitu_fill_style_default = {
     'color': 'red',
     'alpha': 0.5
 }
-sat_fill_style_default ={
+sat_fill_style_default = {
     'color': 'blue',
     'alpha': 0.5
 }
@@ -188,7 +188,7 @@ map_points_valid_style = {
     'linewidth': 0
 }
 default_fix_axis_options = {
-    'format_abs':'%Y',
+    'format_abs': '%Y',
     'min_abs': None,
     'max_abs': None,
     'format_rel': None,
@@ -201,7 +201,6 @@ default_fix_axis_options = {
     'plot_minmax': False,
     'fill_minmax': False
 }
-
 
 global_options = {
     'output_path': {
@@ -224,10 +223,11 @@ global_options = {
     }
 }
 
-type_list = ['scatterplot','statswlplot','spectraplot','multipleplot','flagplot','histogram','timeseries','sequence','angleplot','mapplot']
+type_list = ['scatterplot', 'statswlplot', 'spectraplot', 'multipleplot', 'flagplot', 'histogram', 'timeseries',
+             'sequence', 'angleplot', 'mapplot', 'imageplot']
 
 valid_stats = {
-    'N':{
+    'N': {
         'name': 'N',
         'desc': 'Number of data points',
         'format': 'i'
@@ -238,102 +238,102 @@ valid_stats = {
         'desc': 'Number of match-ups',
         'format': 'i'
     },
-    'NGROUP':{
+    'NGROUP': {
         'name': 'NGROUP',
         'name_plot': 'NGroup',
         'desc': 'Number of data points by group',
         'format': 'i'
     },
-    'SLOPE_I':{
+    'SLOPE_I': {
         'name': 'slope_I',
         'desc': 'Slope Regression Type I',
         'format': 'f2'
     },
-    'SLOPE_II':{
+    'SLOPE_II': {
         'name': 'slope_II',
         'desc': 'Slope Regression Type II',
         'format': 'f2'
     },
-    'OFFSET_I':{
+    'OFFSET_I': {
         'name': 'intercept_I',
         'desc': 'Intercept Regression Type I',
         'format': 'f2'
     },
-    'OFFSET_II':{
+    'OFFSET_II': {
         'name': 'intercept_II',
         'desc': 'Intercept Regression Type II',
         'format': 'f2'
     },
-    'STD_ERR_I':{
+    'STD_ERR_I': {
         'name': 'std_err_I',
         'desc': 'Standard Error Regression Type I',
         'format': 'f2'
     },
-    'STD_SLOPE_II':{
+    'STD_SLOPE_II': {
         'name': 'std_slope_II',
         'desc': 'Standard Error Slope Regression Type II',
         'format': 'f2'
     },
-    'STD_OFFSET_II':{
+    'STD_OFFSET_II': {
         'name': 'std_intercept_II',
         'desc': 'Standard Error Intercept Regression Type II',
         'format': 'f2'
     },
-    'R':{
+    'R': {
         'name': 'PCC(r)',
         'name_plot': 'r',
         'desc': 'Pearson coefficient',
-        'format' : 'f2'
+        'format': 'f2'
     },
-    'P_VALUE':{
+    'P_VALUE': {
         'name': 'p_value',
         'name_plot': 'p-value',
         'desc': 'Correlaton p-value',
         'format': 'f2'
     },
-    'R2':{
+    'R2': {
         'name': 'DETER(r2)',
         'name_plot': f'R$^2$',
         'desc': 'Determination coefficient',
         'format': 'f2'
     },
-    'RMSD':{
+    'RMSD': {
         'name': 'RMSD',
         'desc': 'Root Mean Square Deviation',
         'format': 'f3+units'
     },
-    'BIAS':{
+    'BIAS': {
         'name': 'BIAS',
         'name_plot': 'bias',
         'desc': 'Bias value',
         'format': 'f3+units'
     },
-    'APD':{
+    'APD': {
         'name': 'APD',
         'desc': 'Absolute percent difference',
         'format': 'i'
     },
-    'RPD':{
+    'RPD': {
         'name': 'RPD',
         'desc': 'Relative percent difference',
         'format': 'i'
     },
-    'XAVG':{
+    'XAVG': {
         'name': 'XAVG',
         'desc': 'X average value',
         'format': 'f3+units'
     },
-    'YAVG':{
+    'YAVG': {
         'name': 'YAVG',
         'desc': 'Y average value',
         'format': 'f3+units'
     },
-    'CRMSE':{
+    'CRMSE': {
         'name': 'CRMSE',
         'desc': 'Centered Root Mean Square Deviation',
         'format': 'f3+units'
     },
-    'MAE':{
+    'MAE': {
         'name': 'MAE',
         'desc': 'Mean absolute error',
         'format': 'f3+units'
@@ -341,35 +341,35 @@ valid_stats = {
 }
 
 options_legend = {
-    'legend':{
+    'legend': {
         'default': True,
         'type': 'boolean'
     },
-    'legend_values':{
+    'legend_values': {
         'default': None,
         'type': 'strlist'
     }
 }
 
 options_stats = {
-    'include_stats':{
+    'include_stats': {
         'default': False,
-        'type':'boolean'
+        'type': 'boolean'
     },
-    'stat_list':{
+    'stat_list': {
         'default': ['N'],
         'type': 'strlist',
         'values': [x.lower() for x in valid_stats.keys()]
     },
-    'stats_xpos':{
+    'stats_xpos': {
         'default': 0.05,
         'type': 'float'
     },
-    'stats_ypos':{
+    'stats_ypos': {
         'default': 0.70,
         'type': 'float'
     },
-    'fontsizestats':{
+    'fontsizestats': {
         'default': fontsizestats_default,
         'type': 'float'
     }
@@ -377,45 +377,45 @@ options_stats = {
 }
 
 options_title = {
-    'title':{
+    'title': {
         'default': None,
         'type': 'str'
     },
-    'fontsizetitle':{
+    'fontsizetitle': {
         'default': fontsizetitle_default,
         'type': 'float'
     }
 }
 
 options_size = {
-    'fontsizeaxis':{
+    'fontsizeaxis': {
         'default': fontsizeaxis_default,
         'type': 'float'
     },
-    'fontsizelabels':{
+    'fontsizelabels': {
         'default': fontsizelabels_default,
         'type': 'float'
     }
 }
 
 options_multiple_plot = {
-    'multiple_plot':{
+    'multiple_plot': {
         'default': None,
         'type': 'str'
     },
-    'xfigsize':{
+    'xfigsize': {
         'default': 7,
         'type': 'float'
     },
-    'yfigsize':{
+    'yfigsize': {
         'default': 7,
         'type': 'float'
     },
-    'widthspace':{
+    'widthspace': {
         'default': 0.1,
         'type': 'float'
     },
-    'heightspace':{
+    'heightspace': {
         'default': 0.1,
         'type': 'float'
     }
@@ -423,36 +423,36 @@ options_multiple_plot = {
 }
 
 options_group = {
-    'groupBy':{
-        'default':None,
+    'groupBy': {
+        'default': None,
         'type': 'str'
     },
-    'groupValues':{
-        'default':None,
+    'groupValues': {
+        'default': None,
         'type': 'strlist'
     },
-    'groupType':{
-        'default':'flag',
+    'groupType': {
+        'default': 'flag',
         'type': 'str',
-        'values': ['flag','float']
+        'values': ['flag', 'float']
     }
 }
 
 options_select = {
-    'selectBy':{
-        'default':None,
+    'selectBy': {
+        'default': None,
         'type': 'str'
     },
-    'selectValues':{
-        'default':None,
+    'selectValues': {
+        'default': None,
         'type': 'strlist'
     },
-    'selectType':{
-        'default':'flag',
+    'selectType': {
+        'default': 'flag',
         'type': 'str',
-        'values': ['flag','float']
+        'values': ['flag', 'float']
     },
-    'selectByWavelength':{
+    'selectByWavelength': {
         'default': False,
         'type': 'boolean'
     },
@@ -471,217 +471,216 @@ options_time = {
         'default': None,
         'type': 'date'
     },
-    'start_time':{
+    'start_time': {
         'default': None,
         'type': 'time'
     },
-    'end_time':{
+    'end_time': {
         'default': None,
         'type': 'time'
     }
 }
 
 options_scatterplots = {
-    'type_scatterplot':{
-        'default':'rrs',
-        'type':'str',
-        'values': ['rrs','chla','kd','general']
+    'type_scatterplot': {
+        'default': 'rrs',
+        'type': 'str',
+        'values': ['rrs', 'chla', 'kd', 'general']
     },
-    'xvar':{
+    'xvar': {
         'default': 'mu_ins_rrs',
         'type': 'str'
     },
-    'yvar':{
+    'yvar': {
         'default': 'mu_sat_rrs',
         'type': 'str'
     },
-    'scale_factor':{
+    'scale_factor': {
         'default': 1000,
         'type': 'float'
     },
-    'units':{
+    'units': {
         'default': units_default['rrs'],
         'type': 'str'
     },
-    'xlabel':{
+    'xlabel': {
         'default': None,
         'type': 'str'
     },
-    'ylabel':{
+    'ylabel': {
         'default': None,
         'type': 'str'
     },
-    'log_scale':{
+    'log_scale': {
         'default': False,
         'type': 'boolean'
     },
-    'use_rhow':{
+    'use_rhow': {
         'default': False,
         'type': 'boolean'
     },
-    'min_xy':{
+    'min_xy': {
         'default': None,
         'type': 'float'
     },
-    'max_xy':{
+    'max_xy': {
         'default': None,
         'type': 'float'
     },
-    'ticks':{
-        'default':None,
+    'ticks': {
+        'default': None,
         'type': 'floatlist'
     },
-    'regression_line':{
+    'regression_line': {
         'default': True,
         'type': 'boolean'
     },
-    'regression_line_style':{
+    'regression_line_style': {
         'default': regression_line_style_default,
         'type': 'linestyle'
     },
-    'identity_line':{
+    'identity_line': {
         'default': True,
         'type': 'boolean'
     },
-    'identity_line_style':{
+    'identity_line_style': {
         'default': identity_line_style_default,
         'type': 'linestyle'
     },
-    'apply_wavelength_color':{
+    'apply_wavelength_color': {
         'default': True,
         'type': 'boolean'
     },
-    'apply_density':{
+    'apply_density': {
         'default': True,
         'type': 'boolean'
     },
-    'regression_line_groups':{
+    'regression_line_groups': {
         'default': False,
         'type': 'boolean'
     },
-    'type_regression':{
+    'type_regression': {
         'default': 'II',
         'type': 'str',
-        'values': ['i','ii']
+        'values': ['i', 'ii']
     },
-    'individual_axis':{
+    'individual_axis': {
         'default': False,
         'type': 'boolean'
     },
-    'marker':{
+    'marker': {
         'default': [marker_default],
         'type': 'strlist'
     },
-    'markersize':{
+    'markersize': {
         'default': [marker_size_default],
         'type': 'intlist'
     },
-    'color':{
+    'color': {
         'default': [marker_color_default],
         'type': 'strlist'
     },
-    'edgecolor':{
+    'edgecolor': {
         'default': [edge_color_default],
         'type': 'strlist'
     },
-    'linewidth':{
+    'linewidth': {
         'default': [line_width_default],
         'type': 'floatlist'
     },
-    'apply_wavelength_color ':{
+    'apply_wavelength_color ': {
         'default': True,
         'type': 'boolean'
     },
-    'individual_plots':{
+    'individual_plots': {
         'default': False,
         'type': 'boolean'
     }
 
 }
 
-
 options_spectraplots = {
-    'type_rrs':{
-        'default':'comparison_sat_insitu',
-        'type':'str',
-        'values': ['ins','sat','mu_ins','mu_comparison','comparison_sat_insitu','comparison_sat','user_defined']
+    'type_rrs': {
+        'default': 'comparison_sat_insitu',
+        'type': 'str',
+        'values': ['ins', 'sat', 'mu_ins', 'mu_comparison', 'comparison_sat_insitu', 'comparison_sat', 'user_defined']
     },
-    'wl_variable':{
+    'wl_variable': {
         'default': None,
         'type': 'str'
     },
-    'y_variable':{
+    'y_variable': {
         'default': None,
         'type': 'str'
     },
-    'wl_min':{
+    'wl_min': {
         'default': None,
         'type': 'float'
     },
-    'wl_max':{
+    'wl_max': {
         'default': None,
         'type': 'float'
     },
-    'y_min':{
+    'y_min': {
         'default': None,
         'type': 'float'
     },
-    'y_max':{
+    'y_max': {
         'default': None,
         'type': 'float'
-    },'scale_factor':{
+    }, 'scale_factor': {
         'default': 1000,
         'type': 'float'
-    },'use_rhow':{
+    }, 'use_rhow': {
         'default': False,
         'type': 'boolean'
     },
-    'xlabel':{
+    'xlabel': {
         'default': xlabel_wl_default,
         'type': 'str'
     },
-    'ylabel':{
+    'ylabel': {
         'default': None,
         'type': 'str'
     },
-    'title':{
+    'title': {
         'default': None,
         'type': 'str'
     },
-    'plot_spectra':{
+    'plot_spectra': {
         'default': ['valid'],
         'type': 'strlist',
-        'values': ['none','all','valid','invalid','selected']
+        'values': ['none', 'all', 'valid', 'invalid', 'selected']
     },
-    'plot_stats':{
+    'plot_stats': {
         'default': True,
         'type': 'boolean'
     },
-    'stat_plot_method':{
+    'stat_plot_method': {
         'default': 'iqr',
         'type': 'str'
     },
-    'all_line_style':{
+    'all_line_style': {
         'default': all_line_style_default,
         'type': 'linestyle'
     },
-    'linestyle':{
+    'linestyle': {
         'default': line_style_default,
         'type': 'linestyle'
     },
-    'color':{
+    'color': {
         'default': [line_style_default['color']],
         'type': 'strlist'
     },
-    'marker':{
+    'marker': {
         'default': [line_style_default['marker']],
         'type': 'strlist'
     },
-    'markersize':{
+    'markersize': {
         'default': [line_style_default['markersize']],
         'type': 'floatlist'
     },
-    'linestyle':{
+    'linestyle': {
         'default': [line_style_default['linestyle']],
         'type': 'strlist'
     },
@@ -689,27 +688,27 @@ options_spectraplots = {
         'default': [line_style_default['linewidth']],
         'type': 'strlist'
     },
-    'valid_line_style':{
+    'valid_line_style': {
         'default': valid_line_style_default,
         'type': 'linestyle'
     },
-    'invalid_line_style':{
+    'invalid_line_style': {
         'default': invalid_line_style_default,
         'type': 'linestyle'
     },
-    'selected_line_style':{
+    'selected_line_style': {
         'default': selected_line_style_default,
         'type': 'linestyle'
     },
-    'central_line_style':{
+    'central_line_style': {
         'default': central_line_style_default,
         'type': 'linestyle'
     },
-    'dispersion_line_style':{
+    'dispersion_line_style': {
         'default': dispersion_line_style_default,
         'type': 'linestyle'
     },
-    'fill_style':{
+    'fill_style': {
         'default': fill_style_default,
         'type': 'fillstyle'
     },
@@ -721,39 +720,39 @@ options_spectraplots = {
         'default': None,
         'type': 'intlist'
     },
-    'insitu_line_style':{
+    'insitu_line_style': {
         'default': insitu_line_style_default,
         'type': 'linestyle'
     },
-    'sat_line_style':{
+    'sat_line_style': {
         'default': sat_line_style_default,
         'type': 'linestyle'
     },
-    'insitu_central_style':{
+    'insitu_central_style': {
         'default': insitu_central_style_default,
         'type': 'linestyle'
     },
-    'sat_central_style':{
+    'sat_central_style': {
         'default': sat_central_style_default,
         'type': 'linestyle'
     },
-    'insitu_dispersion_style':{
+    'insitu_dispersion_style': {
         'default': insitu_dispersion_style_default,
         'type': 'linestyle'
     },
-    'sat_dispersion_style':{
+    'sat_dispersion_style': {
         'default': sat_dispersion_style_default,
         'type': 'linestyle'
     },
-    'insitu_fill_style':{
+    'insitu_fill_style': {
         'default': insitu_fill_style_default,
         'type': 'fillstyle'
     },
-    'sat_fill_style':{
+    'sat_fill_style': {
         'default': sat_fill_style_default,
         'type': 'fillstyle'
     },
-    'iseriesref':{
+    'iseriesref': {
         'default': 0,
         'type': 'int'
     }
@@ -767,156 +766,156 @@ options_histogram = {
     'type_histo': {
         'default': 'int',
         'type': 'str',
-        'values': ['int','float']
+        'values': ['int', 'float']
     },
     'int_values': {
         'default': None,
         'type': 'intlist'
     },
-    'hticks':{
+    'hticks': {
         'default': None,
         'type': 'strlist'
     },
-    'xlabel':{
+    'xlabel': {
         'default': None,
         'type': 'str'
     },
-    'ylabel':{
+    'ylabel': {
         'default': 'NValues',
         'type': 'str'
     }
 }
 
 options_timeseries = {
-    'time_var':{
+    'time_var': {
         'default': None,
         'type': 'str'
     },
-    'avg_var':{
+    'avg_var': {
         'default': None,
         'type': 'strlist'
     },
-    'insitu_id_variable':{
+    'insitu_id_variable': {
         'default': None,
         'type': 'str'
     },
-    'dispersion_min_var':{
+    'dispersion_min_var': {
         'default': None,
         'type': 'strlist'
     },
-    'dispersion_max_var':{
+    'dispersion_max_var': {
         'default': None,
         'type': 'strlist'
-    },'xlabel':{
+    }, 'xlabel': {
         'default': None,
         'type': 'str'
     },
-    'ylabel':{
+    'ylabel': {
         'default': None,
         'type': 'str'
     },
-    'y_min':{
+    'y_min': {
         'default': None,
         'type': 'float'
     },
-    'y_max':{
+    'y_max': {
         'default': None,
         'type': 'float'
     },
-    'log_scale':{
+    'log_scale': {
         'default': False,
         'type': 'boolean'
     },
-    'type_time_axis':{
+    'type_time_axis': {
         'default': 'variable',
         'type': 'str',
-        'values': ['variable','fix']
+        'values': ['variable', 'fix']
     },
-    'method_fix_axis':{
+    'method_fix_axis': {
         'default': 'all',
         'type': 'str',
-        'values': ['all','nearest','stat']
+        'values': ['all', 'nearest', 'stat']
     },
-    'fix_axis_options':{
+    'fix_axis_options': {
         'default': default_fix_axis_options,
         'type': 'fix_axis_options',
     },
-    'xticks_range':{
+    'xticks_range': {
         'default': 1,
         'type': 'int'
     },
-    'xticks_labels_range':{
+    'xticks_labels_range': {
         'default': 1,
         'type': 'int'
     },
-    'color':{
+    'color': {
         'default': [marker_color_default],
         'type': 'strlist'
     },
-    'wlref':{
+    'wlref': {
         'default': -999.0,
         'type': 'float'
     },
-    'iseriesref':{
+    'iseriesref': {
         'default': [0],
         'type': 'intlist'
     },
-    'marker':{
+    'marker': {
         'default': ['o'],
         'type': 'strlist'
     }
 }
 
 options_sequences = {
-    'start_time':{
+    'start_time': {
         'default': None,
         'type': 'str'
     },
-    'end_time':{
+    'end_time': {
         'default': None,
         'type': 'str'
     },
-    'start_date':{
+    'start_date': {
         'default': None,
         'type': 'str'
     },
-    'end_date':{
+    'end_date': {
         'default': None,
         'type': 'str'
     },
-    'frequency_units':{
+    'frequency_units': {
         'default': 'minutes',
         'type': 'str',
-        'values': ['minutes','hours','days','months','years']
+        'values': ['minutes', 'hours', 'days', 'months', 'years']
     },
-    'frequency':{
+    'frequency': {
         'default': -999.0,
         'type': 'float',
     },
-    'flagBy':{
+    'flagBy': {
         'default': None,
         'type': 'str'
     },
-    'flagValues':{
+    'flagValues': {
         'default': None,
         'type': 'strlist'
     },
-    'legendValues':{
+    'legendValues': {
         'default': None,
         'type': 'strlist'
     },
-    'legendTicks':{
+    'legendTicks': {
         'default': None,
         'type': 'floatlist'
     },
-    'color':{
+    'color': {
         'default': None,
         'type': 'strlist'
     }
 }
 
 options_flagplot = {
-    'type_flagplot':{
+    'type_flagplot': {
         'default': 'comparison',
         'type': 'str',
         'values': ['comparison']
@@ -924,116 +923,114 @@ options_flagplot = {
 }
 
 options_angleplot = {
-    'angle_var':{
+    'angle_var': {
         'default': None,
         'type': 'str'
     },
-    'avg_var':{
+    'avg_var': {
         'default': None,
         'type': 'str'
     },
-    'color':{
+    'color': {
         'default': [marker_color_default],
         'type': 'strlist'
     },
-    'wlref':{
+    'wlref': {
         'default': -999.0,
         'type': 'float'
     },
-    'scale':{
+    'scale': {
         'default': 'log',
         'type': 'str',
-        'values': ['log','linear','symlog','logit']
+        'values': ['log', 'linear', 'symlog', 'logit']
     },
-    'rlim':{
-        'default': (1e-5,1),
+    'rlim': {
+        'default': (1e-5, 1),
         'type': 'floattuple'
     },
-    'theta_zero_location':{
+    'theta_zero_location': {
         'default': 'N',
         'type': 'str',
         'values': ['N', 'NW', 'W', 'SW', 'S', 'SE', 'E', 'NE']
     },
-    'theta_direction':{
+    'theta_direction': {
         'default': -1,
         'type': 'int',
-        'values': [-1,1]
+        'values': [-1, 1]
     },
-    'theta_min':{
+    'theta_min': {
         'default': 0,
         'type': 'float'
     },
-    'theta_max':{
+    'theta_max': {
         'default': 360,
         'type': 'float'
     },
-    'xticks':{
-        'default': [0,45,90,135,180,225,270,315],
+    'xticks': {
+        'default': [0, 45, 90, 135, 180, 225, 270, 315],
         'type': 'floatlist'
     },
-    'rticks':{
+    'rticks': {
         'default': [1e-4, 1e-3, 1e-2, 1e-1, 1],
         'type': 'floatlist'
     },
-    'rlabel_position':{
+    'rlabel_position': {
         'default': None,
         'type': 'str'
     },
-    'label_size':{
+    'label_size': {
         'default': 10,
         'type': 'float'
     },
-    'point_size':{
+    'point_size': {
         'default': [15],
         'type': 'floatlist'
     },
-    'point_marker':{
+    'point_marker': {
         'default': ['o'],
         'type': 'strlist'
     },
-    'min_data':{
+    'min_data': {
         'default': 1.0e-5,
         'type': 'float'
     },
-    'iseriesref':{
+    'iseriesref': {
         'default': [0],
         'type': 'intlist'
     },
-    'marker_series':{
+    'marker_series': {
         'default': ['o'],
         'type': 'strlist'
     }
 
-
 }
-
 
 options_maplot = {
     'latitude_variable': {
         'default': 'insitu_latitude',
         'type': 'str',
     },
-    'longitude_variable':{
+    'longitude_variable': {
         'default': 'insitu_longitude',
         'type': 'str'
     },
-    'insitu_id_variable':{
+    'insitu_id_variable': {
         'default': None,
         'type': 'str'
     },
-    'valid_variable_binary':{
+    'valid_variable_binary': {
         'default': None,
         'type': 'str'
     },
-    'valid_variable_masked':{
+    'valid_variable_masked': {
         'default': None,
         'type': 'strlist'
     },
-    'limit_to_valid':{
+    'limit_to_valid': {
         'default': False,
         'type': 'boolean'
     },
-    'default_style':{
+    'default_style': {
         'default': map_points_default_style,
         'type': 'linestyle'
     },
@@ -1045,13 +1042,40 @@ options_maplot = {
         'default': False,
         'type': 'boolean'
     },
-    'geo_limits':{
+    'geo_limits': {
         'default': None,
         'type': 'floatlist'
     }
 
-
 }
+
+options_image  = {
+    'latitude_variable': {
+        'default': 'satellite_latitude',
+        'type': 'str',
+    },
+    'longitude_variable': {
+        'default': 'satellite_longitude',
+        'type': 'str'
+    },
+    'plot_variable':{
+        'default': None,
+        'type': 'str'
+    },
+    'index_mu':{
+        'default': -1,
+        'type': 'int'
+    },
+    'index_band':{
+        'default':0,
+        'type': 'int'
+    },
+    'apply_geo':{
+        'default': True,
+        'type': 'boolean'
+    }
+}
+
 
 def get_options_spectraplots():
     options = options_spectraplots
@@ -1066,6 +1090,7 @@ def get_options_spectraplots():
     for op in options_time:
         options[op] = options_time[op]
     return options
+
 
 def get_options_scatterplots():
     options = options_scatterplots
@@ -1085,8 +1110,10 @@ def get_options_scatterplots():
         options[op] = options_select[op]
     return options
 
+
 def get_options_histogram():
     return options_histogram
+
 
 def get_options_timeseries():
     options = options_timeseries
@@ -1101,6 +1128,7 @@ def get_options_timeseries():
         options[op] = options_group[op]
 
     return options
+
 
 def get_options_angleplot():
     options = options_angleplot
@@ -1128,17 +1156,26 @@ def get_options_mapplot():
 
     return options
 
+
 def get_options_sequence():
-    options =  options_sequences
+    options = options_sequences
     for op in options_title:
         options[op] = options_title[op]
     return options
 
+
 def get_options_flag_plot():
-    options =  options_flagplot
+    options = options_flagplot
     for op in options_title:
         options[op] = options_title[op]
     return options
+
+def get_options_image_plot():
+    options = options_image
+    for op in options_title:
+        options[op] = options_title[op]
+    return options
+
 def get_scale_factor_str(scale_factor):
     import numpy as np
     scale_factor_str = ''
@@ -1147,30 +1184,31 @@ def get_scale_factor_str(scale_factor):
         scale_factor_str = f'10$^-$$^{n}$'
     return scale_factor_str
 
-#type_label: 'x' or 'y'
-def get_label_scatterplot(type_label,type_rrs,use_rhow,scale_factor):
-    if type_label=='x':
+
+# type_label: 'x' or 'y'
+def get_label_scatterplot(type_label, type_rrs, use_rhow, scale_factor):
+    if type_label == 'x':
         ini = 'In situ'
-    elif type_label=='y':
+    elif type_label == 'y':
         ini = 'Satellite'
-    if type_rrs=='rrs':
+    if type_rrs == 'rrs':
         if use_rhow:
             quantity = r'ρ$_w$'
             units = units_default['rhow']
         else:
             quantity = r'R$_r$$_s$'
             units = units_default['rrs']
-    elif type_rrs=='chla':
+    elif type_rrs == 'chla':
         quantity = 'chl-a'
         units = units_default['chla']
-    elif type_rrs=='kd':
+    elif type_rrs == 'kd':
         quantity = 'Kd'
         units = units_default['kd']
 
     scale_factor_str = get_scale_factor_str(scale_factor)
 
-    if len(units)>0:
-        if len(scale_factor_str)>0:
+    if len(units) > 0:
+        if len(scale_factor_str) > 0:
             label = f'{ini} {quantity} ({scale_factor_str} {units})'
         else:
             label = f'{ini} {quantity} ({units})'
@@ -1183,12 +1221,10 @@ def get_label_scatterplot(type_label,type_rrs,use_rhow,scale_factor):
     return label
 
 
-
-
-
 def get_color_default(value, min, max):
     cm = mpl.colormaps['jet']
     return cm((value - min) / (max - min))
+
 
 def get_color_wavelength(wlvalue):
     dif_ref = 10000
@@ -1199,12 +1235,14 @@ def get_color_wavelength(wlvalue):
         if dif < dif_ref:
             dif_ref = dif
             color_out = color_dict[wlp]
-    print(wlvalue,'->',color_out)
+    print(wlvalue, '->', color_out)
     return color_out
+
 
 def get_color_flag(flagvalue):
     index = int(math.log2(flagvalue))
     return colors_default[index]
+
 
 def get_color_list(n):
     if n <= len(colors_default):

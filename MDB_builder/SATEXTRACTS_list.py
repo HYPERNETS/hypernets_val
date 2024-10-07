@@ -6,6 +6,7 @@ import pytz
 
 class SAT_EXTRACTS_LIST:
     def __init__(self, boptions, verbose):
+
         self.boptions = boptions
         self.verbose = verbose
 
@@ -79,6 +80,7 @@ class SAT_EXTRACTS_LIST:
 
         # print(self.boptions.param_sat)
         nadded = 0
+
         for name in os.listdir(sat_extract_dir):
             if not name.endswith('.nc'):
                 continue

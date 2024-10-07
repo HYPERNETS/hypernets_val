@@ -1827,22 +1827,22 @@ def do_test():
     # dataset.close()
 
     ##CHECKING OLD AND NEW FLAGS
-    from netCDF4 import Dataset
-    import numpy as np
-    dirbase = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/MAFR/ACOLITEv1'
-    dirc = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/MAFR/ACOLITE'
-    for name in os.listdir(dirbase):
-        file_ardl = os.path.join(dirbase, name)
-        file_orig = os.path.join(dirc, name)
-        if os.path.exists(file_ardl) and os.path.exists(file_orig):
-            dataset_ardl = Dataset(file_ardl)
-            dataset_orig = Dataset(file_orig)
-            flag_ardl = np.array(dataset_ardl.variables['satellite_WQSF'])
-            flag_orig = np.array(dataset_orig.variables['satellite_WQSF'])
-            ratio = flag_orig / flag_ardl
-            print(np.min(ratio[:]), np.max(ratio[:]), np.average(ratio[:]))
-            dataset_ardl.close()
-            dataset_orig.close()
+    # from netCDF4 import Dataset
+    # import numpy as np
+    # dirbase = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/MAFR/ACOLITEv1'
+    # dirc = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/MAFR/ACOLITE'
+    # for name in os.listdir(dirbase):
+    #     file_ardl = os.path.join(dirbase, name)
+    #     file_orig = os.path.join(dirc, name)
+    #     if os.path.exists(file_ardl) and os.path.exists(file_orig):
+    #         dataset_ardl = Dataset(file_ardl)
+    #         dataset_orig = Dataset(file_orig)
+    #         flag_ardl = np.array(dataset_ardl.variables['satellite_WQSF'])
+    #         flag_orig = np.array(dataset_orig.variables['satellite_WQSF'])
+    #         ratio = flag_orig / flag_ardl
+    #         print(np.min(ratio[:]), np.max(ratio[:]), np.average(ratio[:]))
+    #         dataset_ardl.close()
+    #         dataset_orig.close()
 
     ##CHECKING IF ARDL and IDEPIX are the same
     # if name.endswith('ARDL.nc'):
@@ -1889,71 +1889,71 @@ def do_test():
     #
     #     dataset.close()
 
-    dirbase = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/extract_MAFR_Rrs_ARDL'
-    from netCDF4 import Dataset
-    import numpy as np
-    values_end = None
-    nfiles = 0
-    flag_meanings = None
-    flag_masks = None
-    for name in os.listdir(dirbase):
-        if name.endswith('_acolite_ARDL.nc'):
-            nfiles = nfiles + 1
-            file_acolite = os.path.join(dirbase, name)
-            dataset = Dataset(file_acolite)
-            flag = np.array(dataset.variables['satellite_WQSF'])
-            values = flag.flatten()
-            if values_end is None:
-                values_end = values
-            else:
-                values_end = np.concatenate((values_end, values))
-            if nfiles == 1:
-                satellite_flag = dataset.variables['satellite_WQSF']
-                flag_meanings = satellite_flag.flag_meanings
-                if isinstance(flag_meanings, list):
-                    flag_meanings = ' '.join(flag_meanings)
-                flag_masks = satellite_flag.flag_masks.astype('uint64')
-            dataset.close()
-
-    import COMMON.Class_Flags_OLCI as flag
-    print(flag_masks, flag_meanings)
-    flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
-
-    print(values_end.shape, nfiles)
-    values_u = np.unique(values_end)
-    print(values_u.shape)
-    file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/flags_ardl.csv'
-    f1 = open(file_out, 'w')
-
-    meanings = flag_meanings.replace(' ', ';')
-    first_line = f'Value;N;{meanings}'
-    f1.write(first_line)
-    second_line = ';'
-    for x in flag_masks:
-        print(x)
-        second_line = f'{second_line};{x}'
-    f1.write('\n')
-    f1.write(second_line)
-
-    meanings_list = flag_meanings.split(' ')
-    for v in values_u:
-        nv = np.where(values_end == v)
-        nvalues = len(nv[0])
-        fvalue = np.array(v).astype(np.uint64)
-        print(v, nvalues, fvalue)
-        line = f'{fvalue};{nvalues}'
-        for idx in range(len(meanings_list)):
-            here = [meanings_list[idx]]
-            # herev = flag_masks[idx]
-            res = flagging.Mask(fvalue, here)
-            if res == 0:
-                line = f'{line};0'
-            else:
-                line = f'{line};{nvalues}'
-        f1.write('\n')
-        f1.write(line)
-
-    f1.close()
+    # dirbase = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/extract_MAFR_Rrs_ARDL'
+    # from netCDF4 import Dataset
+    # import numpy as np
+    # values_end = None
+    # nfiles = 0
+    # flag_meanings = None
+    # flag_masks = None
+    # for name in os.listdir(dirbase):
+    #     if name.endswith('_acolite_ARDL.nc'):
+    #         nfiles = nfiles + 1
+    #         file_acolite = os.path.join(dirbase, name)
+    #         dataset = Dataset(file_acolite)
+    #         flag = np.array(dataset.variables['satellite_WQSF'])
+    #         values = flag.flatten()
+    #         if values_end is None:
+    #             values_end = values
+    #         else:
+    #             values_end = np.concatenate((values_end, values))
+    #         if nfiles == 1:
+    #             satellite_flag = dataset.variables['satellite_WQSF']
+    #             flag_meanings = satellite_flag.flag_meanings
+    #             if isinstance(flag_meanings, list):
+    #                 flag_meanings = ' '.join(flag_meanings)
+    #             flag_masks = satellite_flag.flag_masks.astype('uint64')
+    #         dataset.close()
+    #
+    # import COMMON.Class_Flags_OLCI as flag
+    # print(flag_masks, flag_meanings)
+    # flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
+    #
+    # print(values_end.shape, nfiles)
+    # values_u = np.unique(values_end)
+    # print(values_u.shape)
+    # file_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/SAT_EXTRACTS/flags_ardl.csv'
+    # f1 = open(file_out, 'w')
+    #
+    # meanings = flag_meanings.replace(' ', ';')
+    # first_line = f'Value;N;{meanings}'
+    # f1.write(first_line)
+    # second_line = ';'
+    # for x in flag_masks:
+    #     print(x)
+    #     second_line = f'{second_line};{x}'
+    # f1.write('\n')
+    # f1.write(second_line)
+    #
+    # meanings_list = flag_meanings.split(' ')
+    # for v in values_u:
+    #     nv = np.where(values_end == v)
+    #     nvalues = len(nv[0])
+    #     fvalue = np.array(v).astype(np.uint64)
+    #     print(v, nvalues, fvalue)
+    #     line = f'{fvalue};{nvalues}'
+    #     for idx in range(len(meanings_list)):
+    #         here = [meanings_list[idx]]
+    #         # herev = flag_masks[idx]
+    #         res = flagging.Mask(fvalue, here)
+    #         if res == 0:
+    #             line = f'{line};0'
+    #         else:
+    #             line = f'{line};{nvalues}'
+    #     f1.write('\n')
+    #     f1.write(line)
+    #
+    # f1.close()
 
     # print(flag_masks,flag_meanings)
 
@@ -3286,6 +3286,58 @@ def check_n_values_cmems_certo():
     dataset.close()
     fout.close()
 
+
+
+def make_map_rrs_hyper_pro():
+    import cartopy
+    import cartopy.crs as ccrs
+    import matplotlib.pyplot as plt
+    from netCDF4 import Dataset
+    file_mdb = '/mnt/c/DATA_LUIS/TARA_TEST/MDB_HyperPro/MDBrc_S3AB_OLCI_WFR_STANDARD_20230101T000000_20231231T235959_HYPERPRO.nc'
+    file_out = '/mnt/c/DATA_LUIS/TARA_TEST/MDB_HyperPro/Map_HyperPro.tif'
+    dataset = Dataset(file_mdb)
+    valid_points = dataset.variables['mu_valid_complete'][:]
+    lat_points = dataset.variables['mu_insitu_latitude'][:]
+    lon_points = dataset.variables['mu_insitu_longitude'][:]
+    dataset.close()
+
+    geo_limits = [35, 65, -15, 20]
+    extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+    ax = plt.axes(projection=ccrs.PlateCarree(), extent=extent)
+
+    # # ax.coastlines(linewidth=0.5)
+    ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+
+    gl = ax.gridlines(linewidth=0.5, linestyle='dotted', draw_labels=True)
+    gl.xlabels_top = False
+    gl.ylabels_right = False
+
+    valid = [0,1]
+    colors = ['gray','blue']
+    # markers = ['o']
+    # markersizes = [3, 3, 3]
+    handles = []
+    for idx, res in enumerate(valid):
+        lat_points_here = lat_points[valid_points == res]
+        lon_points_here = lon_points[valid_points == res]
+        h = plt.plot(lon_points_here.tolist(), lat_points_here.tolist(),
+                     color=colors[idx],
+                     marker='o',
+                     markersize=4,
+                     linestyle='-',
+                     linewidth=0)
+        handles.append(h[0])
+    str_legend = ['Invalid match-up', 'Valid match-up']
+
+    plt.legend(handles, str_legend, framealpha=1, markerscale=2)
+    # , loc=self.legend_options['loc'],
+    #            bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'],
+    #            ncol=self.legend_options['ncols'], markerscale=self.legend_options['markerscale'])
+
+    plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+
+
+
 def make_map_rrs_match_ups():
     import cartopy
     import cartopy.crs as ccrs
@@ -3707,6 +3759,49 @@ def print_stats():
                 line = f'{line};{value_s}'
             print(line)
 
+def remove_duplicated_insitu_hypstar(remove):
+    remove = int(remove)
+    if remove==1:
+        print('REMOVED ACTIVATED')
+    from datetime import datetime as dt
+    from datetime import timedelta
+    dir_orig = '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV/VEIT/2024'
+    dir_out = '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV_TEMP'
+    date_here = dt(2024,1,1)
+    date_end = dt(2024,7,31)
+    while date_here<=date_end:
+        mm = date_here.strftime('%m')
+        dd = date_end.strftime('%d')
+        dir_date = os.path.join(dir_orig,mm,dd)
+        print(f'Date: {date_here.strftime("%Y-%m-%d")}')
+        print('Getting sequences to be remove')
+        to_remove = {}
+        for name in os.listdir(dir_date):
+            if name.find('L2A_REF')>0:
+                name_s = name.split('_')
+                seq_ref = name_s[5]
+                op_ref = name_s[6]
+                date_here = dt.strptime(op_ref,'%Y%m%dT%H%M')
+                if seq_ref not in to_remove.keys():
+                    to_remove[seq_ref] = op_ref
+                else:
+                    date_prev = dt.strptime(to_remove[seq_ref],'%Y%m%dT%H%M')
+                    if date_here<date_prev:
+                        to_remove[seq_ref] = op_ref
+        print('Removing')
+        for name in os.listdir(dir_date):
+            if name.find('L2A_REF')>0 or name.find('L1C_ALL')>0:
+                name_s = name.split('_')
+                seq_ref = name_s[5]
+                op_ref = name_s[6]
+                if to_remove[seq_ref]==op_ref:
+                    file_in = os.path.join(dir_date,name)
+                    file_out = os.path.join(dir_out,name)
+                    print(':',file_in,'->',file_out)
+                    if remove==1:
+                        os.rename(file_in,file_out)
+        date_here = date_end + timedelta(hours=24)
+
 
 
 def main():
@@ -3780,11 +3875,16 @@ def main():
         #make_map_rrs_match_ups()
         #getting_valid_stations()
         #make_map_stations()
+        #make_map_rrs_hyper_pro()
         #print_stats()
-        prepare_map_cci_poster(args.input_path)
+        #prepare_map_cci_poster(args.input_path)
         #make_map_cci_poster(args.input_path)
         # check_n_values_cmems_certo()
         # do_image_with_centro()
+
+        remove_duplicated_insitu_hypstar(args.input_path)
+
+
 
         # get_certo_dates_olci_step1()
         # get_certo_dates_olci_step2()
@@ -4461,6 +4561,7 @@ def main():
 
         ##WITH MDBPLOTV3
         if args.config_file.endswith('plot.ini'):
+            print(f'[USING] Using plotting version 3')
             from MDBPlotV3 import MDBPlot
             mplot = MDBPlot(input_path)
             mplot.plot_from_options_file(config_file)
