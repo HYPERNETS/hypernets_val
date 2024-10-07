@@ -3781,12 +3781,12 @@ def remove_duplicated_insitu_hypstar(remove):
                 name_s = name.split('_')
                 seq_ref = name_s[5]
                 op_ref = name_s[6]
-                date_here = dt.strptime(op_ref,'%Y%m%dT%H%M')
+                op_date_here = dt.strptime(op_ref,'%Y%m%dT%H%M')
                 if seq_ref not in to_remove.keys():
                     to_remove[seq_ref] = op_ref
                 else:
-                    date_prev = dt.strptime(to_remove[seq_ref],'%Y%m%dT%H%M')
-                    if date_here<date_prev:
+                    op_date_prev = dt.strptime(to_remove[seq_ref],'%Y%m%dT%H%M')
+                    if op_date_here<op_date_prev:
                         to_remove[seq_ref] = op_ref
         print('Removing')
         for name in os.listdir(dir_date):
