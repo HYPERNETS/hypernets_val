@@ -3802,7 +3802,32 @@ def remove_duplicated_insitu_hypstar(remove):
                         os.rename(file_in,file_out)
         date_here = date_here + timedelta(hours=24)
 
+def check_geo_limits_extracts(input_path):
+    from netCDF4 import Dataset
+    if not os.path.isdir(input_path):
+        print('NO VALID PATH')
+        return
+    lat_min = 90
+    lat_max = -90
+    lon_min = 180
+    lon_max = -180
+    for name in os.listdir(input_path):
+        if not name.endswith('.nc'):continue
+        input_file = os.path.join(input_path,name)
+        dataset  = Dataset(input_file)
+        lat_array = dataset.variables['satellite_latitude'][:]
+        lon_array = dataset.variables['satellite_longitude'][:]
+        lat_min_here = np.min(lat_array)
+        lat_max_here = np.max(lat_array)
+        lon_min_here = np.min(lon_array)
+        lon_max_here = np.max(lon_array)
+        if lat_min_here<lat_min: lat_min=lat_min_here
+        if lat_max_here>lat_max: lat_max=lat_max_here
+        if lon_min_here<lon_min: lon_min=lon_min_here
+        if lon_max_here>lon_max: lon_max=lon_max_here
 
+        dataset.close()
+    print(lat_min,lat_max,lon_min,lon_max)
 
 def main():
     mode = args.mode
@@ -3882,8 +3907,8 @@ def main():
         # check_n_values_cmems_certo()
         # do_image_with_centro()
 
-        remove_duplicated_insitu_hypstar(args.input_path)
-
+        #remove_duplicated_insitu_hypstar(args.input_path)
+        check_geo_limits_extracts(args.input_path)
 
 
         # get_certo_dates_olci_step1()
