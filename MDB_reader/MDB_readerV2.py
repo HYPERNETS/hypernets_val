@@ -103,6 +103,16 @@ class MDB_READER():
                 'namedf': 'Sat_Rrs',
                 'fillvalue': -999,
                 'type': 'f4'
+            },
+            'mu_ins_rrs_unc': {
+                'namedf': 'Ins_Rrs_unc',
+                'fillvalue': -999,
+                'type': 'f4'
+            },
+            'mu_sat_rrs_unc': {
+                'namedf': 'Sat_Rrs_unc',
+                'fillvalue': -999,
+                'type': 'f4'
             }
         }
 
@@ -4401,30 +4411,44 @@ def main():
             options.read(args.config_file)
             qco = QC_OPTIONS(options)
             wllist = qco.get_wllist()
-            check_sat_bands = reader.mfile.check_bands(wllist, 5)
-            if check_sat_bands == -1:
-                return
+            check_sat_bands = 1
+            if wllist is None: ##taking all the satellite bands
+                wllist = reader.mfile.satellite_bands
+            else:
+                check_sat_bands = reader.mfile.check_bands(wllist, 5)
+                if check_sat_bands == -1:
+                    return
             copy_with_wllist = False
             if check_sat_bands == 0:
                 copy_with_wllist = qco.get_create_copy_with_band_list()
 
+
             reader.mfile.set_wl_ref(wllist)
             reader.mfile.qc_sat.ncdataset = reader.mfile.nc
             reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat, reader.mfile.nc)
+            reader.mfile.qc_sat.wl_ref = wllist
+            reader.mfile.qc_sat.satellite_rrs_unc = reader.mfile.variables['satellite_Rrs_unc']
+
             reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
-            reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu)
+            reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu,wllist)
+            reader.mfile.qc_insitu.insitu_rrs_unc = reader.mfile.variables['insitu_Rrs_unc']
             if reader.mfile.qc_insitu is None:
                 return
             reader.mfile.PI_DIVIDED = reader.mfile.qc_insitu.pi_divided
             if not reader.mfile.qc_insitu.apply_nir_correction:
                 reader.mfile.qc_insitu.insitu_rrs = reader.mfile.variables['insitu_Rrs_nosc']
+                reader.mfile.qc_insitu.insitu_rrs_unc = reader.mfile.variables['insitu_Rrs_nosc_unc']
                 if args.verbose:
                     print('[INFO] NIR Correction is not applied. Using insitu_Rrs_nosc as input variable')
         else:
             reader.set_defaults_olci_wfr_hypstar()
 
         reader.mfile.allow_repeated = allow_repeated
+
+
+        ##calling main function to create MDBr file
         reader.create_mdb_results_file(output_path, reduce_mdbr)
+
         if copy_with_wllist and wllist is not None:
             if args.verbose:
                 print('[INFO] Creating copy with limited number of bands....')

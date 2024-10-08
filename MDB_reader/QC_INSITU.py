@@ -15,6 +15,7 @@ class QC_INSITU:
     def __init__(self, insitu_rrs, insitu_bands):
         self.name = ''
         self.insitu_rrs = insitu_rrs
+        self.insitu_rrs_unc = None
         self.insitu_bands = insitu_bands
 
         self.nmu = self.insitu_rrs.shape[0]
@@ -55,10 +56,9 @@ class QC_INSITU:
         self.msibands = self.get_msi_bands_dict()
         self.olcibands = self.get_olci_bands_dict()
 
-
     def get_olci_bands_dict(self):
         olcibands = {
-            'Oa01': {'wl':400,'apply':False},
+            'Oa01': {'wl': 400, 'apply': False},
             'Oa02': {'wl': 412.5, 'apply': False},
             'Oa03': {'wl': 442.5, 'apply': False},
             'Oa04': {'wl': 490, 'apply': False},
@@ -81,6 +81,7 @@ class QC_INSITU:
             'Oa21': {'wl': 1020, 'apply': False},
         }
         return olcibands
+
     def get_msi_bands_dict(self):
         msibands = {
             'B1': {'wl': 443, 'apply': False},
@@ -129,6 +130,7 @@ class QC_INSITU:
         self.olcibands = self.get_olci_bands_dict()
         for wl in self.wl_list:
             index, wl_index = self.get_insitu_index(wl)
+
             if index >= 0:
                 self.wl_indices.append(index)
                 for b in self.msibands:
@@ -206,7 +208,7 @@ class QC_INSITU:
 
         band_variable = self.ncdataset.variables[band_name]
 
-        self.check_th_other_bands[band_variable] = {
+        self.check_th_other_bands[band_name] = {
             'variable': band_variable,
             'th_type': type_th,
             'value_min': value_min,
@@ -215,8 +217,6 @@ class QC_INSITU:
         }
 
         # print('---->',self.check_th_other_bands)
-
-
 
     def check_validity_spectrum(self, rrs_values, index_mu, insitu_id):
 
@@ -244,9 +244,14 @@ class QC_INSITU:
                     if not self.check_flags[flag_name]['remove_spectra'] and m == 0:
                         check = False
 
+        if not check:
+            return False
+
         # checking threshold other bands
         if len(self.check_th_other_bands) > 0:
+
             for band_name in self.check_th_other_bands:
+
                 var_here = self.check_th_other_bands[band_name]['variable']
                 val_here = np.array(var_here[index_mu, insitu_id])
 
@@ -261,16 +266,14 @@ class QC_INSITU:
                 elif val_max < val_min and is_angle:
                     check_condition = val_here >= val_min or val_here <= val_max
 
-
-
                 if th_type == 'keep' and not check_condition:
                     check = False
-                    # print('value bad: ', val_here)
-                # if th_type == 'keep' and check_condition:
-                #     check = True
-                # print('value good: ', val_here)
+
                 if th_type == 'remove' and check_condition:
                     check = False
+
+        if not check:
+            return False
 
         # checking thresholds
         if self.thersholds is not None:
@@ -285,6 +288,7 @@ class QC_INSITU:
                 if self.thersholds[wls]['max_th']['apply'] and val > self.thersholds[wls]['max_th']['value']:
                     check = False
                     break
+
         return check
 
     def check_validity_spectra_mu(self, index_mu):
@@ -422,18 +426,23 @@ class QC_INSITU:
             dif_time_good = dif_time_array.flatten()
 
         indices_good = np.argsort(dif_time_good)
+        # print('number of spectra with time', ngood, dif_time_good.shape)
+        # print(indices_good)
 
         for idx in indices_good:
             id_min_time = idx
             time_dif = dif_time_array[idx]
             time_condition = time_dif < self.time_max
+            # print(idx,'-->',time_dif,self.time_max,time_condition)
 
             if time_condition:
                 spectra_with_time_condition = True
                 rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
+
                 valid_bands_array = np.array(valid_bands, dtype=bool)
                 rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
                 valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
+
                 spectrum_complete = np.sum(valid_bands_array) == len(self.wl_list)
                 if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
                     if len(exact_wl_array.shape) == 1:
@@ -483,12 +492,22 @@ class QC_INSITU:
         self.band_stats = band_stats
         return self.band_stats
 
+    def get_spectrum_for_mu_and_index_insitu_unc(self, index_mu, index_insitu):
+        if self.insitu_rrs_unc is None:
+            return None, None, None
+
+        if index_mu < 0 or index_mu >= self.nmu:
+            return None, None, None
+        spectra_unc = ma.array(self.insitu_rrs_unc[index_mu, :, index_insitu])
+        return self.get_spectrum_for_mu_and_index_insitu_impl(spectra_unc, index_mu)
+
     def get_spectrum_for_mu_and_index_insitu(self, index_mu, index_insitu):
         if index_mu < 0 or index_mu >= self.nmu:
             return None, None, None
-
         spectra = ma.array(self.insitu_rrs[index_mu, :, index_insitu])
+        return self.get_spectrum_for_mu_and_index_insitu_impl(spectra, index_mu)
 
+    def get_spectrum_for_mu_and_index_insitu_impl(self, spectra, index_mu):
         if self.check_indices_by_mu:
             indices, valid_bands = self.get_insitu_indices_mu(index_mu)
             rrs_values = spectra[indices]
@@ -535,11 +554,9 @@ class QC_INSITU:
             for iwl in range(nwl):
                 band = olci_bands[iwl]
                 if self.olcibands[band]['apply']:
-                    nnT = self.reindex_and_interpolate(df,wl_values[iwl,:])
-                    nnT_new = nnT.mul(np.array(msrf[iwl,:]),axis=0).sum(axis=0)/np.sum(np.array(msrf[iwl,:]))
+                    nnT = self.reindex_and_interpolate(df, wl_values[iwl, :])
+                    nnT_new = nnT.mul(np.array(msrf[iwl, :]), axis=0).sum(axis=0) / np.sum(np.array(msrf[iwl, :]))
                     rrs_values.append(nnT_new.loc[0])
-
-
 
             dataset.close()
 

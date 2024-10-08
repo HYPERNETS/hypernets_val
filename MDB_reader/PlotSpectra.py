@@ -322,6 +322,7 @@ class PlotSpectra():
         return h
 
     def plot_iqr_basic(self, y1, y2, color):
+
         plt.fill_between(self.xdata, y1, y2, facecolor=color, alpha=0.5)
 
     def get_ymin_ymax_from_stats(self, stats, imin, imax):

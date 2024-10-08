@@ -720,6 +720,10 @@ options_spectraplots = {
         'default': None,
         'type': 'intlist'
     },
+    'index_mu':{
+        'default': -1,
+        'type': 'int'
+    },
     'insitu_line_style': {
         'default': insitu_line_style_default,
         'type': 'linestyle'
@@ -755,6 +759,14 @@ options_spectraplots = {
     'iseriesref': {
         'default': 0,
         'type': 'int'
+    },
+    'wlticks': {
+        'default': None,
+        'type': 'floatlist'
+    },
+    'rrsticks': {
+        'default': None,
+        'type': 'floatlist'
     }
 }
 
@@ -1073,6 +1085,18 @@ options_image  = {
     'apply_geo':{
         'default': True,
         'type': 'boolean'
+    },
+    'geo_limits': {
+        'default': None,
+        'type': 'floatlist'
+    },
+    'create_flag_mask':{
+        'default': False,
+        'type': 'boolean'
+    },
+    'flag_':{
+        'default': None,
+        'type': 'flag_info'
     }
 }
 

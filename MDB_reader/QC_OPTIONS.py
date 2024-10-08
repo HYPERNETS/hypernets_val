@@ -181,7 +181,8 @@ class QC_OPTIONS:
         if wllist != 'N/A':
             return wllist
         default = self.get_value_param(section, 'default', 'N/A', 'str')
-        wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8]
+        #wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8]
+        wllist = None
         if default == 'EUMETSAT':
             wllist = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.8, 681.3, 708.8, 753.8]
 
@@ -354,10 +355,11 @@ class QC_OPTIONS:
 
         return qc_sat
 
-    def get_qc_insitu(self, qc_insitu):
+    def get_qc_insitu(self, qc_insitu,wllist):
         section = 'QC_INS'
         ##wl list
-        wllist = self.get_wllist()
+        if wllist is None:
+            wllist = self.get_wllist()
         qc_insitu.set_wllist_using_wlref(wllist)
         # other options
         options_qc_insitu = {

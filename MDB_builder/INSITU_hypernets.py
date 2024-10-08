@@ -109,6 +109,15 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 'standard_name': 'insitu_site_flag',
                 'flag_meanings': 'INVALID',
                 'flag_values': '1'
+            },
+            'insitu_epsilon':{
+                'name_orig': 'epsilon',
+                'type': 'f4',
+                'standard_name':'insitu_epsilon',
+                'long_name':'Similarity spectrum ratio at two wavelengths see Ruddick et al. (2016)',
+                'reference':'',
+                'units':'-',
+                'unc_comps':''
             }
         }
         self.insitu_spectral_variables = {
@@ -119,8 +128,22 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 'standard_name': 'water_leaving_reflectance_nosc',
                 'long_name': 'Reflectance of the water column at the surface without correction for the NIR similarity spectrum (see Ruddick et al., 2006)',
                 'units': '-'
-
+            },
+            'insitu_Rrs_unc':{
+                'name_orig': 'std_reflectance',
+                'type':'f4',
+                'standard_name':'standard_deviation_reflectance',
+                'long_name': 'standard deviation on reflectance that is due to the variability in radiance (i.e. not accounting for variability in darks or in irradiance)',
+                'units': '-'
+            },
+            'insitu_Rrs_nosc_unc': {
+                'name_orig': 'std_reflectance_nosc',
+                'type': 'f4',
+                'standard_name': 'standard_deviation_reflectance_nosc',
+                'long_name': 'standard deviation on Reflectance of the water column at the surface without correction for the NIR that is due to the variability in radiance (i.e. not accounting for variability in darks or in irradiance)',
+                'units': '-'
             }
+
         }
 
     # def add_insitu(self, extract_path, ofile):
@@ -165,7 +188,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         for var_name in self.insitu_spectral_variables:
             type = self.insitu_spectral_variables[var_name]['type']
             var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_original_bands', 'insitu_id'),
-                                              zlib=True, complevel=6)
+                                              zlib=True, complevel=6,fill_value=-999.0)
             for at in self.insitu_spectral_variables[var_name]:
                 if at == 'type' or at == 'name_orig':
                     continue

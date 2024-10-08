@@ -9,6 +9,7 @@ import netCDF4
 import math
 from scipy import stats
 import COMMON.common_functions as cfs
+import COMMON.Class_Flags_OLCI as flag_class
 
 
 class MDBPlot:
@@ -365,27 +366,27 @@ class MDBPlot:
         plt.close()
         print(f'[INFO] [mapplot PLOT] Completed')
 
-    def get_box(self,array_lat,array_lon,n):
+    def get_box(self, array_lat, array_lon, n):
         size = array_lat.shape[0]
         center = int(np.floor(size / 2))
-        if n==-1:#external box:
-             increm = center
-        elif n==0:#central pixel
+        if n == -1:  # external box:
+            increm = center
+        elif n == 0:  # central pixel
             increm = 0
-        else:##n shoud be even number
-            increm  = int(np.floor(n/2))
+        else:  ##n shoud be even number
+            increm = int(np.floor(n / 2))
         ini = center - increm
         end = center + increm
-        if ini<0: ini=0
-        if end>=size:end = size -1
+        if ini < 0: ini = 0
+        if end >= size: end = size - 1
 
-        lat_0_0 = array_lat[ini,ini]
-        increm_lat_0_0 = abs((array_lat[ini+1,ini+1]-array_lat[ini,ini])/2)
-        lat_0_n = array_lat[ini,end]
-        increm_lat_0_n = abs((array_lat[ini+1, end-1] - array_lat[ini, end]) / 2)
-        lat_n_0 = array_lat[end,ini]
+        lat_0_0 = array_lat[ini, ini]
+        increm_lat_0_0 = abs((array_lat[ini + 1, ini + 1] - array_lat[ini, ini]) / 2)
+        lat_0_n = array_lat[ini, end]
+        increm_lat_0_n = abs((array_lat[ini + 1, end - 1] - array_lat[ini, end]) / 2)
+        lat_n_0 = array_lat[end, ini]
         increm_lat_n_0 = abs((array_lat[end - 1, ini + 1] - array_lat[end, ini]) / 2)
-        lat_n_n = array_lat[end,end]
+        lat_n_n = array_lat[end, end]
         increm_lat_n_n = abs((array_lat[end - 1, end - 1] - array_lat[end, end]) / 2)
 
         lon_0_0 = array_lon[ini, ini]
@@ -398,25 +399,24 @@ class MDBPlot:
         increm_lon_n_n = abs((array_lon[end - 1, end - 1] - array_lon[end, end]) / 2)
 
         ##from south to north
-        if array_lat[0,center]<array_lat[size-1,center]:
+        if array_lat[0, center] < array_lat[size - 1, center]:
             lat_points = [lat_0_0 - increm_lat_0_0, lat_0_n - increm_lat_0_n, lat_n_n + increm_lat_n_n,
                           lat_n_0 + increm_lat_n_0, lat_0_0 - increm_lat_0_0]
-        else:#from north to south
+        else:  # from north to south
             lat_points = [lat_0_0 + increm_lat_0_0, lat_0_n + increm_lat_0_n, lat_n_n - increm_lat_n_n,
                           lat_n_0 - increm_lat_n_0, lat_0_0 + increm_lat_0_0]
 
         ##from west to east
-        if array_lon[center,0]<array_lon[center,size-1]:
+        if array_lon[center, 0] < array_lon[center, size - 1]:
 
             lon_points = [lon_0_0 - increm_lon_0_0, lon_0_n + increm_lon_0_n, lon_n_n + increm_lon_n_n,
                           lon_n_0 - increm_lon_n_0, lon_0_0 - increm_lon_0_0]
-        else:#from east to west
+        else:  # from east to west
 
             lon_points = [lon_0_0 + increm_lon_0_0, lon_0_n - increm_lon_0_n, lon_n_n - increm_lon_n_n,
                           lon_n_0 + increm_lon_n_0, lon_0_0 + increm_lon_0_0]
 
-
-        return lat_points,lon_points
+        return lat_points, lon_points
 
     def get_geo_limits(self, options_figure, array_lat, array_lon):
         geo_limits = options_figure['geo_limits'] if 'geo_limits' in options_figure else None
@@ -459,7 +459,7 @@ class MDBPlot:
             #     min_lon = min_lon - 0.01
             #     max_lon = max_lon + 0.01
             # geo_limits = [float(min_lat), float(max_lat), float(min_lon), float(max_lon)]
-            lat_box, lon_box = self.get_box(array_lat,array_lon,-1)
+            lat_box, lon_box = self.get_box(array_lat, array_lon, -1)
             min_lat = np.min(lat_box)
             max_lat = np.max(lat_box)
             min_lon = np.min(lon_box)
@@ -468,8 +468,7 @@ class MDBPlot:
 
         return geo_limits
 
-
-    def check_variable(self,config_ref_variable, name_variable):
+    def check_variable(self, config_ref_variable, name_variable):
         if name_variable is None:
             if config_ref_variable is not None:
                 print(f'[ERROR] {config_ref_variable} should be defined in the configuration file')
@@ -478,36 +477,104 @@ class MDBPlot:
             print(f'[ERROR] {name_variable} is not defined in {self.mrfile.file_path}')
             return False
 
-
-    def plot_image(self,options_figure):
+    def plot_image(self, options_figure):
         if not self.VALID and not os.path.isfile(self.mrfile.file_path):
             print(f'[ERROR] {self.mrfile.file_path} shoud be a valid NetCDF file')
             return
-        variables_to_check = ['latitude_variable','longitude_variable','plot_variable']
+        variables_to_check = ['latitude_variable', 'longitude_variable', 'plot_variable']
         for variable_to_check in variables_to_check:
-            if self.check_variable(variables_to_check,options_figure[variable_to_check]):
+            if self.check_variable(variables_to_check, options_figure[variable_to_check]):
                 return
         index_mu = options_figure['index_mu']
-        if index_mu==-1:
-            for imu in range(self.mrfile.n_mu_total):
-                self.plot_geo_image_impl(options_figure,imu)
-        else:
-            self.plot_geo_image_impl(options_figure,index_mu)
 
-    def plot_geo_image_impl(self,options_figure,index_mu):
+        if index_mu == -1:
+            for imu in range(self.mrfile.n_mu_total):
+                if options_figure['apply_geo']:
+                    self.plot_geo_image_impl(options_figure, imu)
+                else:
+                    self.plot_image_impl(options_figure, imu)
+        else:
+            if options_figure['apply_geo']:
+                self.plot_geo_image_impl(options_figure, index_mu)
+            else:
+                self.plot_image_impl(options_figure, index_mu)
+
+    def plot_image_impl(self, options_figure, index_mu):
+        lat_array = self.mrfile.nc.variables[options_figure['latitude_variable']][index_mu]
+        lon_array = self.mrfile.nc.variables[options_figure['longitude_variable']][index_mu]
+        if self.mrfile.nc.variables[options_figure['plot_variable']].ndim == 4:
+            index_band = options_figure['index_band']
+            data_array = self.mrfile.nc.variables[options_figure['plot_variable']][index_mu, index_band, :, :]
+        elif self.mrfile.nc.variables[options_figure['plot_variable']].ndim == 3:
+            data_array = self.mrfile.nc.variables[options_figure['plot_variable']][index_mu, :, :]
+
+        flag_info = None
+        if options_figure['create_flag_mask']:
+            data_array, flag_info = self.create_flag_mask(data_array, options_figure['plot_variable'],
+                                                          options_figure['flag_'])
+
+        if flag_info is not None:
+            values_flag_info = list(flag_info.values())
+            legend = list(flag_info.keys())
+            values_flag_info.append(values_flag_info[-1] + 1)
+            from matplotlib.colors import BoundaryNorm
+            from matplotlib.colors import ListedColormap
+            bnorm = BoundaryNorm(values_flag_info, ncolors=3)
+            cmap = ListedColormap(['blue', 'beige', 'red'])
+
+        import matplotlib.pyplot as plt
+        plt.pcolormesh(data_array, norm=bnorm, cmap=cmap, edgecolors='dimgray', linewidths=0.01)
+
+        ##box
+        center = int(np.floor(data_array.shape[0] / 2))
+        ybox = [center - 2, center - 2, center + 3, center + 3, center - 2]
+        xbox = [center - 2, center + 3, center + 3, center - 2, center - 2]
+        plt.plot(xbox, ybox, color='white', marker='o', markersize=0, linestyle='--', linewidth=1)
+        # point
+        plt.plot(center + 0.5, center + 0.5, color='white', marker='o', markersize=1)
+
+        cbar = plt.colorbar()
+        cbar.ax.get_yaxis().set_ticks([])
+
+        cbar.ax.text(1.6, 1.5, legend[0], ha='center', va='center', rotation=90)
+        cbar.ax.text(1.6, 3.0, legend[1], ha='center', va='center', rotation=90)
+        cbar.ax.text(1.6, 4.5, legend[2], ha='center', va='center', rotation=90)
+
+        if options_figure['title'] is not None:
+            title = options_figure['title']
+            title = title.replace('$INDEX_MU$', f'{index_mu}')
+            if '$DATE$' in title:
+                satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y-%m-%d')
+                title = title.replace('$DATE$', satellite_time)
+
+            plt.title(title)
+
+        file_out = options_figure['file_out']
+
+        if file_out is not None:
+            file_out = f'{file_out[:-4]}_{index_mu}{file_out[-4:]}'
+            if file_out.endswith('.tif'):
+                plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+            else:
+                plt.savefig(file_out, dpi=300, bbox_inches='tight')
+
+        plt.close()
+
+    def plot_geo_image_impl(self, options_figure, index_mu):
         import cartopy
         import cartopy.crs as ccrs
         import matplotlib.pyplot as plt
+        import matplotlib.ticker as mticker
 
         lat_array = self.mrfile.nc.variables[options_figure['latitude_variable']][index_mu]
         lon_array = self.mrfile.nc.variables[options_figure['longitude_variable']][index_mu]
-        if self.mrfile.nc.variables[options_figure['plot_variable']].ndim==4:
+        if self.mrfile.nc.variables[options_figure['plot_variable']].ndim == 4:
             index_band = options_figure['index_band']
-            data_array = self.mrfile.nc.variables[options_figure['plot_variable']][index_mu,index_band,:,:]
-        elif self.mrfile.nc.variables[options_figure['plot_variable']].ndim==3:
+            data_array = self.mrfile.nc.variables[options_figure['plot_variable']][index_mu, index_band, :, :]
+        elif self.mrfile.nc.variables[options_figure['plot_variable']].ndim == 3:
             data_array = self.mrfile.nc.variables[options_figure['plot_variable']][index_mu, :, :]
 
-        geo_limits = self.get_geo_limits(options_figure,lat_array,lon_array)
+        geo_limits = self.get_geo_limits(options_figure, lat_array, lon_array)
         extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
         projection = ccrs.Mercator()
         ax = plt.axes(projection=projection, extent=extent)
@@ -516,37 +583,88 @@ class MDBPlot:
         gl = ax.gridlines(linewidth=0.5, linestyle='dotted', draw_labels=True)
         gl.xlabels_top = False
         gl.ylabels_right = False
+        # lon_ticks = [11.5,11.75,12,12.25,12.5,12.75,13,13.25]
+        # gl.xlocator = mticker.FixedLocator(lon_ticks)
 
         ##external box
-        lat_box, lon_box = self.get_box(lat_array,lon_array,-1)
-        plt.plot(lon_box, lat_box,color='k',marker='o',markersize=0,linestyle='-',linewidth=0.5,transform=ccrs.PlateCarree())
+        lat_box, lon_box = self.get_box(lat_array, lon_array, -1)
+        plt.plot(lon_box, lat_box, color='k', marker='o', markersize=0, linestyle='-', linewidth=0.5,
+                 transform=ccrs.PlateCarree())
 
         ##5x5 box
         lat_box, lon_box = self.get_box(lat_array, lon_array, 5)
-        plt.plot(lon_box, lat_box, color='k', marker='o', markersize=0, linestyle='--', linewidth=0.5,transform=ccrs.PlateCarree())
+        plt.plot(lon_box, lat_box, color='k', marker='o', markersize=0, linestyle='--', linewidth=0.5,
+                 transform=ccrs.PlateCarree())
 
-        #in situ site location
+        # in situ site location
         lat_point = 45.313900
         lon_point = 12.508300
-        plt.plot(lon_point,lat_point,color='black',marker='.',markersize=1,transform=ccrs.PlateCarree())
+        plt.plot(lon_point, lat_point, color='black', marker='.', markersize=1, transform=ccrs.PlateCarree())
 
         from matplotlib.colors import LogNorm
         from matplotlib.colors import Normalize
-        plt.pcolormesh(lon_array, lat_array, data_array, transform=ccrs.PlateCarree(),cmap='jet',norm=Normalize(vmin=400, vmax=700))
-
+        plt.pcolormesh(lon_array, lat_array, data_array, transform=ccrs.PlateCarree(), cmap='jet',
+                       norm=Normalize(vmin=400, vmax=700))
+        plt.colorbar(shrink=0.6)
 
         import cartopy.feature as cfeature
-        land_10m = cfeature.NaturalEarthFeature('physical', 'land', '10m',edgecolor='face',facecolor=cfeature.COLORS['land'])
+        land_10m = cfeature.NaturalEarthFeature('physical', 'land', '10m', edgecolor='face',
+                                                facecolor=cfeature.COLORS['land'])
         ax.add_feature(land_10m, zorder=0, edgecolor='black', linewidth=0.5)
 
+        if options_figure['title'] is not None:
+            title = options_figure['title']
+            title = title.replace('$INDEX_MU$', f'{index_mu}')
+            if '$DATE$' in title:
+                satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y-%m-%d')
+                title = title.replace('$DATE$', satellite_time)
+
+            plt.title(title)
+
+        plt.tight_layout()
 
         file_out = options_figure['file_out']
 
         if file_out is not None:
+            file_out = f'{file_out[:-4]}_{index_mu}{file_out[-4:]}'
             if file_out.endswith('.tif'):
                 plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
             else:
                 plt.savefig(file_out, dpi=300, bbox_inches='tight')
+
+        plt.close()
+
+    def create_flag_mask(self, array, name_variable, flags):
+        variable = self.mrfile.nc.variables[name_variable]
+        array_mask = array
+        flag_info = None
+
+        if 'flag_masks' in variable.ncattrs() and 'flag_meanings' in variable.ncattrs():
+
+            all_flag_values = variable.flag_masks
+            all_flag_meanings = variable.flag_meanings
+            flag_obj = flag_class.Class_Flags_Polymer(all_flag_values, all_flag_meanings)
+            array_mask = np.zeros(array.shape)
+
+            flag_info = {}
+            if flags is not None:
+                default_value = 0
+                for iflag in flags:
+                    if flags[iflag]['is_default']:
+                        default_value = flags[iflag]['flag_value']
+                        meaning = flags[iflag]['flag_meaning']
+                        flag_info[meaning] = default_value
+                        array_mask[:] = default_value
+                for iflag in flags:
+                    if not flags[iflag]['is_default']:
+                        flag_list = flags[iflag]['flag_list']
+                        value = flags[iflag]['flag_value']
+                        meaning = flags[iflag]['flag_meaning']
+                        mask = flag_obj.Mask(array, flag_list)
+                        array_mask[np.logical_and(mask > 0, array_mask == default_value)] = value
+                        flag_info[meaning] = value
+
+        return array_mask, flag_info
 
     def plot_time_series(self, options_figure):
         if not self.VALID and not os.path.isfile(self.mrfile.file_path):
@@ -582,7 +700,6 @@ class MDBPlot:
             # stations[49:99] = stations[49:99]+1
             # stations = stations[valid_array==1]
 
-
             ##gettting stations
             ###bar plot
             ##types: WFR-chl,'WFR-spm', 'MSI-chl', 'MSI-spm' ,'GLOBAL', 'REGIONAL'
@@ -592,7 +709,7 @@ class MDBPlot:
             from PlotSpectra import PlotSpectra
             pspectra = PlotSpectra()
             valid_var = None
-            refs = ['CMEMS_MULTI_GLOBAL','CMEMS_OLCI_GLOBAL','CMEMS_OLCI_REGIONAL']
+            refs = ['CMEMS_MULTI_GLOBAL', 'CMEMS_OLCI_GLOBAL', 'CMEMS_OLCI_REGIONAL']
             for avg_var in avg_vars:
                 if avg_var.find('insitu') > 0:
                     continue
@@ -604,21 +721,21 @@ class MDBPlot:
                     valid_var = np.zeros(var_array.shape)
                 valid_var[~var_array.mask] = 1
 
-            if type=='WFR-spm':
-                valid_var[30]=0
-                valid_var[54]=0
-                valid_var[12]=0
+            if type == 'WFR-spm':
+                valid_var[30] = 0
+                valid_var[54] = 0
+                valid_var[12] = 0
 
-            n_valid  =np.sum(valid_var)
+            n_valid = np.sum(valid_var)
             instant_values = np.arange(0, n_valid, 1).astype(np.int32)
             pspectra.xdata = instant_values
             colors = ['green', 'blue', 'red', 'magenta']
             offset = 0.1
-            if type=='WFR-chl' or type=='WFR-spm' or type=='REGIONAL':
-                nbars_total = 3 ##3: WFR, REGIONAL; 2: MSI; 4: GLOBAL
-            elif type=='MSI-chl' or type=='MSI-spm':
+            if type == 'WFR-chl' or type == 'WFR-spm' or type == 'REGIONAL':
+                nbars_total = 3  ##3: WFR, REGIONAL; 2: MSI; 4: GLOBAL
+            elif type == 'MSI-chl' or type == 'MSI-spm':
                 nbars_total = 2
-            elif type=='GLOBAL':
+            elif type == 'GLOBAL':
                 nbars_total = 4
             for idx, avg_var in enumerate(avg_vars):
                 if avg_var in refs:
@@ -631,24 +748,23 @@ class MDBPlot:
             if options_figure['title'] is not None:
                 pspectra.set_title(options_figure['title'])
 
-            valid_time_array = time_array[valid_var==1]
-            #valid_stations = stations[valid_var==1]
+            valid_time_array = time_array[valid_var == 1]
+            # valid_stations = stations[valid_var==1]
             from datetime import datetime as dt
-            xticks_values  = [dt.utcfromtimestamp(x).strftime('%d-%b') for x in valid_time_array]
-            if type=='GLOBAL' or type=='REGIONAL':
-                for i in range(0,len(xticks_values),2):
-                    xticks_values[i]=''
+            xticks_values = [dt.utcfromtimestamp(x).strftime('%d-%b') for x in valid_time_array]
+            if type == 'GLOBAL' or type == 'REGIONAL':
+                for i in range(0, len(xticks_values), 2):
+                    xticks_values[i] = ''
 
-            xticks_minor = instant_values+0.35
+            xticks_minor = instant_values + 0.35
             pspectra.set_xticks_minor(xticks_minor, xticks_values, 90, 10)
 
-
-            xticks_major = np.arange(0, n_valid+1, 1).astype(np.int32)
-            if type=='WFR-chl' or type=='REGIONAL':
-                xticks_major = xticks_major-0.1  ##WFR chl-a,REGIONAL
+            xticks_major = np.arange(0, n_valid + 1, 1).astype(np.int32)
+            if type == 'WFR-chl' or type == 'REGIONAL':
+                xticks_major = xticks_major - 0.1  ##WFR chl-a,REGIONAL
             else:
-                xticks_major = xticks_major - 0.2 ##MSI,GLOBAL,WFR smp
-            pspectra.set_xticks(xticks_major,[],0,0)
+                xticks_major = xticks_major - 0.2  ##MSI,GLOBAL,WFR smp
+            pspectra.set_xticks(xticks_major, [], 0, 0)
 
             pspectra.set_grid_bars(0.1)
             pspectra.set_grid_horizontal()
@@ -659,30 +775,30 @@ class MDBPlot:
                 pspectra.set_yaxis_title(r'chl (mg m$^-$$^3$)')
 
             if min_value is not None and max_value is not None:
-                pspectra.set_y_range(min_value,max_value)
+                pspectra.set_y_range(min_value, max_value)
 
             ##WFR
-            if type=='WFR-chl':
-                legend_str = ['in situ chl (HPLC)','satellite chl (NN)','satellite chl (OC4ME)']
+            if type == 'WFR-chl':
+                legend_str = ['in situ chl (HPLC)', 'satellite chl (NN)', 'satellite chl (OC4ME)']
                 pspectra.legend_options['loc'] = 'lower center'
-                pspectra.legend_options['bbox_to_anchor'] = (0.5,-0.35)
+                pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.35)
                 pspectra.legend_options['ncols'] = 3
 
             ##WFR-SPM
-            if type=='WFR-spm':
-                legend_str = ['in situ SPM','satellite SPM (NN)']
+            if type == 'WFR-spm':
+                legend_str = ['in situ SPM', 'satellite SPM (NN)']
                 pspectra.legend_options['loc'] = 'lower center'
-                pspectra.legend_options['bbox_to_anchor'] = (0.5,-0.35)
+                pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.35)
                 pspectra.legend_options['ncols'] = 2
                 pspectra.set_yticks([0, 2, 5, 6, 8, 12], None, 0, None)
 
             ##MSI-chla
-            if type=='MSI-chl':
+            if type == 'MSI-chl':
                 legend_str = ['in situ chl (HPLC)', 'satellite chl']
                 pspectra.legend_options['loc'] = 'lower center'
                 pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.35)
                 pspectra.legend_options['ncols'] = 2
-                pspectra.set_yticks([0,5,10,15,20],None,0,None)
+                pspectra.set_yticks([0, 5, 10, 15, 20], None, 0, None)
 
             ##MSI-spm
             if type == 'MSI-spm':
@@ -694,14 +810,14 @@ class MDBPlot:
 
             ##GLOBAL
             if type == 'GLOBAL':
-                legend_str = ['in situ chl (HPLC)', 'OC-CCI chl','CMEMS-MULTI chl', 'CMEMS-OLCI chl']
+                legend_str = ['in situ chl (HPLC)', 'OC-CCI chl', 'CMEMS-MULTI chl', 'CMEMS-OLCI chl']
                 pspectra.legend_options['loc'] = 'lower center'
                 pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.49)
                 pspectra.legend_options['ncols'] = 2
                 pspectra.set_yticks([0, 5, 10, 15, 20], None, 0, None)
 
             ##REGIONAL
-            if type== 'REGIONAL':
+            if type == 'REGIONAL':
                 legend_str = ['in situ chl (HPLC)', 'CMEMS-MULTI chl', 'CMEMS-OLCI chl']
                 pspectra.legend_options['loc'] = 'lower center'
                 pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.46)
@@ -883,28 +999,28 @@ class MDBPlot:
         if file_out is not None:
             pspectra.save_plot(file_out)
 
-    def get_avg_var_ref(self,ref):
+    def get_avg_var_ref(self, ref):
         dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/station_match-ups/MDBs/MDBr_chla'
         from netCDF4 import Dataset
-        if ref=='CMEMS_MULTI_GLOBAL':
-            file = os.path.join(dir_base,'MDBr__CMEMS_MULTI_4KM_CMEMS-MULTI_20240101T000000_20240919T235959.nc')
+        if ref == 'CMEMS_MULTI_GLOBAL':
+            file = os.path.join(dir_base, 'MDBr__CMEMS_MULTI_4KM_CMEMS-MULTI_20240101T000000_20240919T235959.nc')
             dataset = Dataset(file)
             var_array = dataset.variables['mu_satellite_CHL'][:]
             dataset.close()
             return var_array
-        if ref=='CMEMS_OLCI_GLOBAL':
-            file = os.path.join(dir_base,'MDBr__CMEMS_OLCI_300M_CMEMS-OLCI_20240101T000000_20240919T235959.nc')
+        if ref == 'CMEMS_OLCI_GLOBAL':
+            file = os.path.join(dir_base, 'MDBr__CMEMS_OLCI_300M_CMEMS-OLCI_20240101T000000_20240919T235959.nc')
             dataset = Dataset(file)
             var_array = dataset.variables['mu_satellite_CHL'][:]
             dataset.close()
             return var_array
-        if ref=='CMEMS_OLCI_REGIONAL':
-            file = os.path.join(dir_base,'MDBr__CMEMS_OLCI_300M_CMEMS-OLCI-REGIONAL_20240101T000000_20240919T235959.nc')
+        if ref == 'CMEMS_OLCI_REGIONAL':
+            file = os.path.join(dir_base,
+                                'MDBr__CMEMS_OLCI_300M_CMEMS-OLCI-REGIONAL_20240101T000000_20240919T235959.nc')
             dataset = Dataset(file)
             var_array = dataset.variables['mu_satellite_CHL'][:]
             dataset.close()
             return var_array
-
 
     def get_fix_time_axis(self, time_array, options):
         print('aqui')
@@ -1326,8 +1442,83 @@ class MDBPlot:
         return plot
 
     def plot_spectraplot_from_options(self, options_figure):
+
         if options_figure['type_rrs'] == 'ins':
             self.plot_insitu_spectraplots(options_figure)
+
+        if options_figure['type_rrs'] == 'mu_comparison':
+            index_mu = options_figure['index_mu']
+            if index_mu == -1:
+                for imu in range(self.mrfile.n_mu_total):
+                    self.plot_mu_spectraplot(options_figure, imu)
+            elif index_mu >= 0 and index_mu < self.mrfile.n_mu_total:
+                self.plot_mu_spectraplot(options_figure, index_mu)
+
+    def plot_mu_spectraplot(self, options_figure, index_mu):
+        wl, insitu_spectra, sat_spectra, insitu_spectra_unc, sat_spectra_unc = self.mrfile.get_mu_spectra_insitu_and_sat(
+            index_mu,options_figure['scale_factor'])
+
+
+
+        if wl is None:
+            return
+        from PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = wl
+        if options_figure['wlticks'] is not None:
+            wlt = options_figure['wlticks']
+            wls = [f'{x}' for x in wlt]
+        else:
+            wlt = wl
+            wls = self.mrfile.get_sat_wl_as_strlist(wl)
+
+        pspectra.set_xticks(wlt, wls, 0, 12)
+        if options_figure['type_rrs'] == 'mu_comparison':
+            hline1 = pspectra.plot_single_line(insitu_spectra, 'red', 'solid', 1, '.', 0)
+            hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 1, '.', 0)
+            if insitu_spectra_unc is not None:
+                insitu_min =  insitu_spectra.copy()
+                insitu_max  = insitu_spectra.copy()
+                insitu_min[~insitu_spectra_unc.mask] = insitu_spectra[~insitu_spectra_unc.mask] - insitu_spectra_unc[
+                    ~insitu_spectra_unc.mask]
+                insitu_max[~insitu_spectra_unc.mask] = insitu_spectra[~insitu_spectra_unc.mask] + insitu_spectra_unc[
+                    ~insitu_spectra_unc.mask]
+                pspectra.plot_iqr_basic(insitu_min,insitu_max,'red')
+
+            if sat_spectra_unc is not None:
+                sat_min = sat_spectra.copy()
+                sat_max = sat_spectra.copy()
+                sat_min[~sat_spectra_unc.mask] = sat_spectra[~sat_spectra_unc.mask] - sat_spectra_unc[
+                    ~sat_spectra_unc.mask]
+                sat_max[~sat_spectra_unc.mask] = sat_spectra[~sat_spectra_unc.mask] + sat_spectra_unc[
+                    ~sat_spectra_unc.mask]
+                pspectra.plot_iqr_basic(sat_min, sat_max, 'blue')
+        if options_figure['type_rrs'] == 'mu_sat':
+            hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 1, '.', 10)
+        if options_figure['type_rrs'] == 'mu_ins':
+            hline1 = pspectra.plot_single_line(insitu_spectra, 'red', 'solid', 1, '.', 10)
+
+        pspectra.set_xaxis_title(options_figure['xlabel'])
+        pspectra.set_yaxis_title(options_figure['ylabel'])
+        if options_figure['title'] is not None:
+            title_here = options_figure['title'] + f' MU: {index_mu}'
+            pspectra.set_title(title_here)
+        if options_figure['type_rrs'] == 'mu_comparison':
+            pspectra.legend_options['loc'] = 'lower center'
+            pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.25)
+            pspectra.legend_options['ncols'] = 2
+            pspectra.set_legend_h([hline1[0], hline2[0]], ['In situ Rrs', 'Satellite Rrs'])
+
+        if options_figure['y_min'] is not None and options_figure['y_max'] is not None:
+            pspectra.set_y_range(options_figure['y_min'],options_figure['y_max'])
+        pspectra.set_grid()
+        pspectra.set_tigth_layout()
+        if not options_figure['file_out'] is None:
+            file_out = options_figure['file_out'][:-4]
+            file_out = f'{file_out}_{index_mu}.tif'
+            # print(file_out)
+            pspectra.save_fig(file_out)
+        pspectra.close_plot()
 
     def plot_insitu_spectraplots(self, options_figure):
         ##GETTING DATA
@@ -1469,12 +1660,12 @@ class MDBPlot:
         valid_all[np.isnan(yarray)] = 0
 
         for idx in range(len(xarray)):
-            if valid_all[idx]==1:
-                perc =  100 * ((yarray[idx] - xarray[idx]) / xarray[idx])
+            if valid_all[idx] == 1:
+                perc = 100 * ((yarray[idx] - xarray[idx]) / xarray[idx])
                 perc = abs(perc)
-                if perc>1000:
-                    valid_all[idx]=0
-                print(idx,';',xarray[idx],';',yarray[idx],';',perc)
+                if perc > 1000:
+                    valid_all[idx] = 0
+                print(idx, ';', xarray[idx], ';', yarray[idx], ';', perc)
 
         # #smp wfr
         ##valid_all[27]=0
@@ -1553,9 +1744,6 @@ class MDBPlot:
             if len(select_array) == len(mu_valid_satelliteid):
                 select_array = self.get_array_muid_from_array_satelliteid(id_mu, select_array)
             valid_all[select_array != valSelect] = 0
-
-
-
 
         self.xdata = rrs_ins[valid_all == 1]
         self.ydata = rrs_sat[valid_all == 1]

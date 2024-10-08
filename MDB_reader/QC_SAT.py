@@ -10,6 +10,7 @@ class QC_SAT:
     def __init__(self, satellite_rrs, sat_bands, satellite_flag, ac_processor):
         self.name = ''
         self.satellite_rrs = satellite_rrs
+        self.satellite_rrs_unc  = None
         self.sat_bands = sat_bands
 
         self.pi_multiplied = [False] * len(self.sat_bands)
@@ -70,6 +71,7 @@ class QC_SAT:
             }
 
         self.statistics = {}
+        self.statistics_unc = {}
         for sat_index in range(self.nbands):
             sat_index_str = str(sat_index)
             stat_list = {
@@ -82,6 +84,11 @@ class QC_SAT:
                 'CV': 0
             }
             self.statistics[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'without_outliers': stat_list,
+                'with_outliers': stat_list
+            }
+            self.statistics_unc[sat_index_str] = {
                 'wavelength': self.sat_bands[sat_index],
                 'without_outliers': stat_list,
                 'with_outliers': stat_list
@@ -209,7 +216,6 @@ class QC_SAT:
             rrs_valid = rrs_here[self.flag_mask == 0]
             stats = self.compute_statistics_impl(self.statistics[sat_index_str]['without_outliers'], rrs_valid)
             self.statistics[sat_index_str]['without_outliers'] = stats
-
             if self.apply_outliers:
                 cvalue = self.statistics[sat_index_str]['without_outliers'][self.outliers_info['central_stat']]
                 dvalue = self.statistics[sat_index_str]['without_outliers'][self.outliers_info['dispersion_stat']]
@@ -219,11 +225,30 @@ class QC_SAT:
                 mask_outliers[rrs_valid > max_th] = 1
                 mask_outliers[rrs_valid < min_th] = 1
                 n_outliers = np.sum(mask_outliers)
-                # self.statistics[sat_index_str]['n_good'] = self.NVP - n_outliers
                 if n_outliers > 0:
                     rrs_valid = rrs_valid[mask_outliers == 0]
                 stats = self.compute_statistics_impl(self.statistics[sat_index_str]['with_outliers'], rrs_valid)
-                self.statistics[sat_index_str]['with_outliers'] = stats
+            self.statistics[sat_index_str]['with_outliers'] = stats
+
+            ##uncertainties
+            if self.satellite_rrs_unc is not None:
+                rrs_here_unc = self.satellite_rrs_unc[index_mu, sat_index, r_s:r_e, c_s:c_e]
+                rrs_valid_unc = rrs_here_unc[self.flag_mask == 0]
+                stats_unc = self.compute_statistics_impl(self.statistics_unc[sat_index_str]['without_outliers'],rrs_valid_unc)
+                self.statistics_unc[sat_index_str]['without_outliers'] = stats_unc
+                if self.apply_outliers:
+                    cvalue = self.statistics_unc[sat_index_str]['without_outliers'][self.outliers_info['central_stat']]
+                    dvalue = self.statistics_unc[sat_index_str]['without_outliers'][self.outliers_info['dispersion_stat']]
+                    min_th = cvalue - (dvalue * self.outliers_info['factor'])
+                    max_th = cvalue + (dvalue * self.outliers_info['factor'])
+                    mask_outliers_unc = np.zeros(rrs_valid_unc.shape)
+                    mask_outliers_unc[rrs_valid_unc > max_th] = 1
+                    mask_outliers_unc[rrs_valid_unc < min_th] = 1
+                    n_outliers_unc = np.sum(mask_outliers_unc)
+                    if n_outliers_unc > 0:
+                        rrs_valid_unc = rrs_valid_unc[mask_outliers_unc == 0]
+                    stats_unc = self.compute_statistics_impl(self.statistics_unc[sat_index_str]['with_outliers'], rrs_valid_unc)
+                self.statistics_unc[sat_index_str]['with_outliers'] = stats_unc
 
         for check_stat_here in self.check_statistics_norrs:
             name_band = check_stat_here['name_band']
@@ -316,6 +341,7 @@ class QC_SAT:
                 indexes_bands.append(index)
 
         values = [0] * len(indexes_bands)
+        values_unc = [0] * len(indexes_bands)
 
         if cond_min_pixels:
 
@@ -331,14 +357,15 @@ class QC_SAT:
             for idx in range(len(indexes_bands)):
                 sat_index = indexes_bands[idx]
                 sat_index_str = str(sat_index)
-                # print(sat_index_str)
-                # print(self.statistics[sat_index_str])
-                # print('*****************************************************************************')
                 values[idx] = self.statistics[sat_index_str][outliers_str][self.stat_value]
+                if self.satellite_rrs_unc is not None:
+                    values_unc[idx] = self.statistics_unc[sat_index_str][outliers_str][self.stat_value]
+                else:
+                    values_unc[idx] = -999
             if self.apply_band_shifting:
                 values = bsc_qaa.bsc_qaa(values, wl_orig, self.wl_ref)
 
-        return cond_min_pixels, cond_stats, valid_mu, values
+        return cond_min_pixels, cond_stats, valid_mu, values, values_unc
 
     def compute_masks_and_check_roi(self, index_mu):
 

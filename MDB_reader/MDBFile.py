@@ -107,7 +107,9 @@ class MDBFile:
         self.satellite_rrs = []
         self.insitu_rrs = []
         self.mu_curr_sat_rrs_mean = []
+        self.mu_curr_sat_rrs_unc = []
         self.mu_curr_ins_rrs = []
+        self.mu_curr_ins_rrs_unc = []
 
         # QUALITY CONTROL
         self.only_complete_spectra_valid = False
@@ -124,17 +126,18 @@ class MDBFile:
         else:
             if self.flag_band_name is None:
                 self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
-                                 None, self.info['satellite_aco_processor'])
+                                     None, self.info['satellite_aco_processor'])
+
+
             else:
                 self.qc_sat = QC_SAT(self.variables['satellite_Rrs'], self.satellite_bands,
-                                 self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
+                                     self.variables[self.flag_band_name], self.info['satellite_aco_processor'])
 
         self.window_size = self.qc_sat.window_size
 
         # Variables to make validation...
         self.col_names = ['Index', 'Index_MU', 'Index_Band', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Wavelenght',
-                          'Ins_Rrs',
-                          'Sat_Rrs', 'Valid', 'status']
+                          'Ins_Rrs','Sat_Rrs', 'Ins_Rrs_unc','Sat_Rrs_unc','Valid', 'status']
         self.df_validation = None
         self.df_validation_valid = None
         self.mu_dates = {}
@@ -411,11 +414,11 @@ class MDBFile:
             if (index_mu % 100) == 0: print(f'[INFO] Getting match-ups values {index_mu}/{nmu}')
             if not skip_sat:
                 cond_min_pixels, cond_stats, valid_mu, value = self.qc_single.get_match_up_value(index_mu)
-                if variable_sat=='satellite_TSM_NN':
+                if variable_sat == 'satellite_TSM_NN':
                     value_prev = value
-                    if value_prev!=-999.0:
-                        value = np.power(10,value_prev)
-                    print(value_prev,'----->',value)
+                    if value_prev != -999.0:
+                        value = np.power(10, value_prev)
+                    print(value_prev, '----->', value)
                 new_var_sat[index_mu] = value
             if not skip_ins or not skip_ins_id:
                 time_diff_array, insitu_id, time_diff, value = self.qc_single.get_ins_value(index_mu)
@@ -621,11 +624,12 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
             self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
 
-        # print(ins_time_index, time_condition,valid_insitu)
+        #print('gettting in situ spectra',ins_time_index, time_condition,valid_insitu)
 
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
+
         else:  ##aunque los datos sean invalidos (time dif>max time dif), obtenemos el mu_insitu_time como referencia
 
             ins_time_index = np.argmin(np.abs(time_difference))
@@ -659,10 +663,10 @@ class MDBFile:
             load_info['status'] = -2  # f'NO VALID MATCH-UP INDEX:{index_mu}'
             return is_mu_valid, load_info
 
-        if len(self.qc_sat.mu_invalid_list)>0:
+        if len(self.qc_sat.mu_invalid_list) > 0:
             if index_mu in self.qc_sat.mu_invalid_list:
                 load_info['status'] = -2
-                return is_mu_valid,load_info
+                return is_mu_valid, load_info
 
         # Index match-up
         self.index_mu = index_mu
@@ -692,6 +696,12 @@ class MDBFile:
 
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
+
+        if valid_insitu and self.ins_time_index>=0 and self.qc_insitu.insitu_rrs_unc is not None:
+            rrs_ins_values_unc, indices_unc, valid_bands_unc = self.qc_insitu.get_spectrum_for_mu_and_index_insitu_unc(index_mu,self.ins_time_index)
+        else:
+            rrs_ins_values_unc = rrs_ins_values.copy()
+            rrs_ins_values_unc[:] = -999.0
 
         # print(self.valid_insitu)
 
@@ -726,7 +736,7 @@ class MDBFile:
             load_info['status'] = -5  # f'INCOMPLETE IN SITU SPECTRUM'
             return is_mu_valid, load_info
 
-        cond_min_pixels, cond_stats, valid_mu, sat_values = self.qc_sat.get_match_up_values(index_mu)
+        cond_min_pixels, cond_stats, valid_mu, sat_values, sat_values_unc = self.qc_sat.get_match_up_values(index_mu)
 
         if not valid_mu:
             self.mu_curr_ins_rrs = []
@@ -737,7 +747,11 @@ class MDBFile:
         # Getting spectra for comparison
         mu_valid_bands = [False] * len(self.wlref_sat_indices)
         self.mu_curr_ins_rrs = []
+        self.mu_curr_ins_rrs_unc = []
         self.mu_curr_sat_rrs_mean = []
+        self.mu_curr_sat_rrs_unc = []
+
+
         for iref in range(len(self.wlref_sat_indices)):
             if not np.ma.is_masked(rrs_ins_values[iref]):
                 iband = self.wlref_sat_indices[iref]
@@ -747,8 +761,12 @@ class MDBFile:
                 if self.qc_sat.pi_divided[iband]:
                     sat_value_here = sat_value_here / np.pi
 
+                sat_value_unc_here = sat_values_unc[iref]
+
                 self.mu_curr_sat_rrs_mean.append(sat_value_here)
+                self.mu_curr_sat_rrs_unc.append(sat_value_unc_here)
                 self.mu_curr_ins_rrs.append(rrs_ins_values[iref])
+                self.mu_curr_ins_rrs_unc.append(rrs_ins_values_unc[iref])
                 mu_valid_bands[iref] = True
 
         if sum(mu_valid_bands) == 0:
@@ -1053,17 +1071,15 @@ class MDBFile:
             if index_mu % 100 == 0:
                 print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
 
-
-
             mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
             if info_mu['status'] < 0:
                 spos = info_mu['status'] * (-1)
                 status_error[spos] = status_error[spos] + 1
 
-            # print(index_mu)
+            print(index_mu)
             # print(info_mu)
-            # print('------------')
+            print('------------')
 
             if mu_valid:
                 nmu_valid = nmu_valid + 1
@@ -1147,6 +1163,8 @@ class MDBFile:
                     'Wavelenght': [self.wlref[iref]],
                     'Ins_Rrs': [-999],
                     'Sat_Rrs': [-999],
+                    'Ins_Rrs_Unc': [-999],
+                    'Sat_Rrs_Unc': [-999],
                     'Valid': [valid_here],
                     'status': [info_mu['status']]
                 }
@@ -1154,6 +1172,8 @@ class MDBFile:
                     n_good_bands = n_good_bands + 1
                     row['Ins_Rrs'] = [self.mu_curr_ins_rrs[index_valid]]
                     row['Sat_Rrs'] = [self.mu_curr_sat_rrs_mean[index_valid]]
+                    row['Sat_Rrs_Unc'] = [self.mu_curr_sat_rrs_unc[index_valid]]
+                    row['Ins_Rrs_Unc'] = [self.mu_curr_ins_rrs_unc[index_valid]]
                     index_valid = index_valid + 1
 
                 # print('Llega aqui-> ',index_tot,pd.__version__)
@@ -1174,6 +1194,8 @@ class MDBFile:
                 nmu_valid_complete = nmu_valid_complete + 1
 
         self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
+
+        print(self.df_validation.loc[0:50,:])
 
         self.prepare_df_mu()
         print(
@@ -1663,13 +1685,13 @@ class MDBFile:
         return None, None
 
     def get_mu_spectra_insitu_and_sat(self, index_mu, scale_factor):
-
+        insitu_spectra_unc = None
+        sat_spectra_unc = None
         if self.nc.variables[self.var_mu_valid][index_mu] == 1:
             var_insitu = np.array(self.nc.variables['mu_ins_rrs'])
             var_satrrs = np.array(self.nc.variables['mu_sat_rrs'])
             var_wl = np.array(self.nc.variables['mu_wavelength'])
             var_satid = np.array(self.nc.variables['mu_satellite_id'])
-
             insitu_spectra = var_insitu[var_satid == index_mu]
             sat_spectra = var_satrrs[var_satid == index_mu]
             if scale_factor is not None:
@@ -1680,9 +1702,23 @@ class MDBFile:
             wl = wl[valid]
             insitu_spectra = insitu_spectra[valid]
             sat_spectra = sat_spectra[valid]
-            return wl, insitu_spectra, sat_spectra
+
+            if 'mu_sat_rrs_unc' in self.nc.variables:
+                var_satrrs_unc = self.nc.variables['mu_sat_rrs_unc']
+                sat_spectra_unc = var_satrrs_unc[var_satid == index_mu]
+                if scale_factor is not None:
+                    sat_spectra_unc = sat_spectra_unc * scale_factor
+                sat_spectra_unc = sat_spectra_unc[valid]
+            if 'mu_ins_rrs_unc' in self.nc.variables:
+                var_insitu_unc = self.nc.variables['mu_ins_rrs_unc']
+                insitu_spectra_unc = var_insitu_unc[var_satid == index_mu]
+                if scale_factor is not None:
+                    insitu_spectra_unc = insitu_spectra_unc * scale_factor
+                insitu_spectra_unc = insitu_spectra_unc[valid]
+
+            return wl, insitu_spectra, sat_spectra, insitu_spectra_unc, sat_spectra_unc
         else:
-            return None, None, None
+            return [None]*5
 
     def get_all_spectra_insitu_sat_with_wlvalues_group(self, scale_factor, wlvalues, flag_name, flag_value, flag_array,
                                                        group_value, group_array):

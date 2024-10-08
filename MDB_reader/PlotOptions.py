@@ -166,12 +166,25 @@ class PlotOptions:
             print(f'[ERROR] Options for plot {type} are not implemented yet')
             return None
         for option in doptions:
+
             pvalues = None
             if 'values' in doptions[option]:
                 pvalues = doptions[option]['values']
 
+            if option.endswith('_'):##multiple options, consecutive numbers starting for zero
+                index_option = 0
+                option_here = f'{option}{index_option}'
+                vals = {}
+                while self.options.has_option(section, option_here):
+                    vals[index_option] = self.get_value_param(section,option_here,doptions[option]['default'],
+                                                       doptions[option]['type'], pvalues)
+                    index_option = index_option+1
+                    option_here = f'{option}{index_option}'
 
-            options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
+                options_out[option] = vals
+
+            else:
+                options_out[option] = self.get_value_param(section, option, doptions[option]['default'],
                                                        doptions[option]['type'], pvalues)
 
         options_out = self.update_dicts(section,options_out)
@@ -500,6 +513,7 @@ class PlotOptions:
                 vals = vals.strip()
                 list.append(float(vals))
             return tuple(list)
+
         if type == 'intlist':
             list_str = value.split(',')
             list = []
@@ -573,3 +587,24 @@ class PlotOptions:
                 return val
             except:
                 return default
+
+        if type=='flag_info':
+            val = None
+            value_s = value.split(';')
+            flag_index = int(key.split('_')[1])
+            flag_value = pow(2,flag_index)
+            if len(value_s)==1:
+                val = {
+                    'flag_meaning':value_s[0].strip(),
+                    'is_default': True,
+                    'flag_list': None,
+                    'flag_value': flag_value
+                }
+            if len(value_s)==2:
+                val = {
+                    'flag_meaning':value_s[0].strip(),
+                    'is_default': False,
+                    'flag_list': [x.strip() for x in value_s[1].split(',')],
+                    'flag_value': flag_value
+                }
+            return val
