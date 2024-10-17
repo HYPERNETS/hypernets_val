@@ -2262,6 +2262,8 @@ class MDBPlot:
         pspectra.stats_style['central']['color'] = color
         pspectra.stats_style['central']['marker'] = 'o'
         pspectra.stats_style['central']['markersize'] = 5
+        if len(wl_col) > 100:
+            pspectra.stats_style['central']['markersize'] = 0.5
         pspectra.stats_style['fill']['color'] = color
         pspectra.stats_style['fill']['framealpha'] = 0.5
         hlineinsitu = pspectra.plot_stats(insitu_stats, imin, imax)
@@ -2271,6 +2273,8 @@ class MDBPlot:
         pspectra.stats_style['central']['color'] = color
         pspectra.stats_style['central']['marker'] = 'o'
         pspectra.stats_style['central']['markersize'] = 5
+        if len(wl_col) > 100:
+            pspectra.stats_style['central']['markersize'] = 0.5
         pspectra.stats_style['fill']['color'] = color
         pspectra.stats_style['fill']['framealpha'] = 0.5
         hlinesat = pspectra.plot_stats(sat_stats, imin, imax)
@@ -2281,7 +2285,16 @@ class MDBPlot:
 
         if len(xdata_plot) == 16 or len(xdata_plot) == 15:
             xticks_size = 10
-        pspectra.set_xticks(xdata_plot, wl_col, 90, xticks_size)
+
+        if len(wl_col)>100:
+            xdata_plot = np.array([350, 400, 450, 500, 550, 600, 650, 700])
+            wl_col = [f'{x}' for x in xdata_plot]
+            pspectra.set_xticks(xdata_plot, wl_col, 0, xticks_size)
+        else:
+            pspectra.set_xticks(xdata_plot, wl_col, 90, xticks_size)
+
+
+
         if len(xdata_plot) == 16 or len(xdata_plot) == 15:
             xticks, xlabels = pspectra.get_xticks()
             xlabels[8].set_visible(False)

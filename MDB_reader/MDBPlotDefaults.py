@@ -595,6 +595,14 @@ options_scatterplots = {
     'individual_plots': {
         'default': False,
         'type': 'boolean'
+    },
+    'wlranges_min':{
+        'default': None,
+        'type': 'floatlist'
+    },
+    'wlranges_max':{
+        'default': None,
+        'type': 'floatlist'
     }
 
 }

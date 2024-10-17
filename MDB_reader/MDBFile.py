@@ -700,8 +700,9 @@ class MDBFile:
         if valid_insitu and self.ins_time_index>=0 and self.qc_insitu.insitu_rrs_unc is not None:
             rrs_ins_values_unc, indices_unc, valid_bands_unc = self.qc_insitu.get_spectrum_for_mu_and_index_insitu_unc(index_mu,self.ins_time_index)
         else:
-            rrs_ins_values_unc = rrs_ins_values.copy()
-            rrs_ins_values_unc[:] = -999.0
+            if rrs_ins_values is not None:
+                rrs_ins_values_unc = rrs_ins_values.copy()
+                rrs_ins_values_unc[:] = -999.0
 
         # print(self.valid_insitu)
 

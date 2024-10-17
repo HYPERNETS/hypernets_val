@@ -51,6 +51,8 @@ class HYPERNETS_DAY():
         if date_folder is None:
             return
 
+        print(f'[INFO] Date folder: {date_folder}')
+
         list_sequences = self.get_sequences_date_from_file_list(site, date_here)
         if len(list_sequences) == 0:
             print(f'[WARNING] No sequences found for date: {date_here}')
@@ -991,6 +993,8 @@ class HYPERNETS_DAY():
                     list_sequences.append(line.strip())
             f1.close()
             list_sequences.sort()
+        else:
+            print(f'[WARNING] File list: {file_list} does not exist...')
         return list_sequences
 
     def get_images_sequence(self, site, date_here, sequence_folder):

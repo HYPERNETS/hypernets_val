@@ -3839,6 +3839,62 @@ def check_geo_limits_extracts(input_path):
         dataset.close()
     print(lat_min,lat_max,lon_min,lon_max)
 
+def make_plots_match_ups():
+    print('Make plot match-ups')
+    dir_avw = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/avw_maps'
+    dir_flags = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/flag_maps'
+    dir_comparison = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/comparsion_spectra_by_match-up'
+    dir_out = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/match_up_plots'
+    file_pdf = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/match_up_plots.pdf'
+    files_out = {}
+    for name in os.listdir(dir_avw):
+
+        file_avw = os.path.join(dir_avw,name)
+        name_flag = name.replace('avw_map_','flag_map_')
+        name_comparison = name.replace('avw_map_', 'comparison_spectra_mu_')
+        file_flag = os.path.join(dir_flags,name_flag)
+        file_comparison = os.path.join(dir_comparison,name_comparison)
+
+        name_out = name.replace('avw_map_', 'match_up_')
+        file_out = os.path.join(dir_out,name_out)
+
+        date_ref = name_out.split('_')[2]
+        files_out[date_ref] = file_out
+
+
+        # from PlotMultiple import PlotMultiple
+        # pm = PlotMultiple()
+        # if os.path.exists(file_comparison):
+        #     pm.start_multiple_plot_advanced(3, 1, 10, 12, 0, 0, True)
+        #     pm.plot_image(file_avw, 0, 0)
+        #     pm.plot_image(file_flag, 1, 0)
+        #     pm.plot_image(file_comparison, 2, 0)
+        #     pm.save_fig(file_out)
+        # else:
+        #     pm.start_multiple_plot_advanced(2, 1, 10, 8, 0, 0, True)
+        #     pm.plot_image(file_avw, 0, 0)
+        #     pm.plot_image(file_flag, 1, 0)
+        #     pm.save_fig(file_out)
+
+    from datetime import datetime as dt
+    from datetime import timedelta
+    from matplotlib.backends.backend_pdf import PdfPages
+    pdf = PdfPages(file_pdf)
+    date_here = dt(2024,3,5)
+    date_end = dt(2024,8,31)
+    while date_here<=date_end:
+        date_str = date_here.strftime('%Y%m%d')
+        if date_str in files_out:
+            file_out_here = files_out[date_str]
+            plt.close()
+            fig = plt.figure(figsize=(10, 12))
+            plt.imshow(plt.imread(file_out_here))
+            plt.axis('off')
+            fig.tight_layout()
+            pdf.savefig(dpi=300, bbox_inches='tight')
+        date_here = date_here + timedelta(hours=24)
+    pdf.close()
+
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
@@ -3918,7 +3974,23 @@ def main():
         # do_image_with_centro()
 
         #remove_duplicated_insitu_hypstar(args.input_path)
-        check_geo_limits_extracts(args.input_path)
+        #check_geo_limits_extracts(args.input_path)
+
+        make_plots_match_ups()
+
+
+        #band_list = [413, 442, 490, 510, 560, 665]
+        # band_list = [400, 620, 673, 681,709]
+        # file_mdb = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/MDBr__PACE_OCI_1KM_L2GEN_20240305T000000_20240831T235959_HYPSTAR_VEIT.nc'
+        # dataset = Dataset(file_mdb)
+        # insitu_bands = dataset.variables['insitu_original_bands'][:]
+        # for band in band_list:
+        #     index = np.argmin(np.abs(band-insitu_bands))
+        #     insitu_band = insitu_bands[index]
+        #     dif = abs(band-insitu_band)
+        #     print(f'{insitu_band:.2f} {dif:.2f}')
+        # dataset.close()
+
 
 
         # get_certo_dates_olci_step1()

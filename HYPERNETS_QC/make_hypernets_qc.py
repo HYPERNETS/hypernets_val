@@ -226,20 +226,27 @@ def test_aug_m(type_int):
     type = types[type_int]
 
     if type == 'trim':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim_2023_rem.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_trim_2024_may_jul.sh'
     if type == 'polymer':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer_2023_rem.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_polymer_2024_may_jul.sh'
     if type == 'processing':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_processing_2023_rem.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_processing_2024_may_jul.sh'
     if type == 'complete':
-        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_complete_2023_rem.sh'
+        fout = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/launch_multiple_complete_2024_may_jul.sh'
 
     ##GETTING DATES
     list_dates = []
-    work_date = dt(2023, 5, 11)
-    end_date = dt(2023, 5, 15)
+    work_date = dt(2024, 5, 1)
+    end_date = dt(2024, 7, 31)
     while work_date <= end_date:
-        list_dates.append(work_date.strftime('%Y-%m-%d'))
+        str_date = work_date.strftime('%Y-%m-%d')
+        append = True
+        if str_date=='2024-03-14':append=False
+        if str_date == '2024-03-30': append = False
+        if str_date == '2024-04-19': append = False
+        if str_date == '2024-04-20': append = False
+        if append:
+            list_dates.append(work_date.strftime('%Y-%m-%d'))
         work_date = work_date + timedelta(hours=24)
     ##GETTING DATES
 
@@ -1440,9 +1447,10 @@ def make_copy_reports(input_path, output_path, site, start_date, end_date):
 def main():
     if args.verbose:
         print('[INFO] STARTED')
-    # #types = ['trim', 'polymer', 'processing', 'complete']
+    ##types = ['trim', 'polymer', 'processing', 'complete']
     # for itype in range(4):
     #     b = test_aug_m(itype)
+    #
     # if b:
     #     return
     start_date, end_date = get_start_and_end_dates()

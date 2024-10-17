@@ -552,7 +552,8 @@ class MDBPlot:
         file_out = options_figure['file_out']
 
         if file_out is not None:
-            file_out = f'{file_out[:-4]}_{index_mu}{file_out[-4:]}'
+            satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y%m%d')
+            file_out = f'{file_out[:-4]}_{satellite_time}_{index_mu}{file_out[-4:]}'
             if file_out.endswith('.tif'):
                 plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
             else:
@@ -626,7 +627,8 @@ class MDBPlot:
         file_out = options_figure['file_out']
 
         if file_out is not None:
-            file_out = f'{file_out[:-4]}_{index_mu}{file_out[-4:]}'
+            satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y%m%d')
+            file_out = f'{file_out[:-4]}_{satellite_time}_{index_mu}{file_out[-4:]}'
             if file_out.endswith('.tif'):
                 plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
             else:
@@ -1096,9 +1098,15 @@ class MDBPlot:
 
     def plot_global_scatterplot(self, options_figure):
         if options_figure['apply_wavelength_color'] and options_figure['groupBy'] is None:
-            options_figure['groupBy'] = 'mu_wavelength'
-            options_figure['groupValues'] = options_figure['wlvalues']
-            options_figure['groupType'] = 'wavelength'
+            if options_figure['wlranges_min'] is not None and options_figure['wlranges_max'] is not None:
+                options_figure = self.create_flag_array_wl_ranges(options_figure,'wl_groups')
+                options_figure['groupBy'] = 'wl_groups'
+                options_figure['groupValues'] = self.virtual_flags['wl_groups']['flag_values']
+                options_figure['groupType'] = 'flag'
+            else:
+                options_figure['groupBy'] = 'mu_wavelength'
+                options_figure['groupValues'] = options_figure['wlvalues']
+                options_figure['groupType'] = 'wavelength'
         self.set_data_scatterplot(options_figure['groupBy'], options_figure['selectBy'], options_figure['selectValues'],
                                   None, options_figure)
         self.plot_scatter_plot(options_figure, None, -1, -1, -1)
@@ -1447,18 +1455,20 @@ class MDBPlot:
             self.plot_insitu_spectraplots(options_figure)
 
         if options_figure['type_rrs'] == 'mu_comparison':
+            mu_valid= np.ones((self.mrfile.n_mu_total,))
+            if 'mu_valid' in self.mrfile.variables:
+                mu_valid = self.mrfile.variables['mu_valid'][:]
             index_mu = options_figure['index_mu']
             if index_mu == -1:
                 for imu in range(self.mrfile.n_mu_total):
-                    self.plot_mu_spectraplot(options_figure, imu)
-            elif index_mu >= 0 and index_mu < self.mrfile.n_mu_total:
+                    if mu_valid[imu]==1:
+                        self.plot_mu_spectraplot(options_figure, imu)
+            elif 0 <= index_mu < self.mrfile.n_mu_total and mu_valid[index_mu]==1:
                 self.plot_mu_spectraplot(options_figure, index_mu)
 
     def plot_mu_spectraplot(self, options_figure, index_mu):
         wl, insitu_spectra, sat_spectra, insitu_spectra_unc, sat_spectra_unc = self.mrfile.get_mu_spectra_insitu_and_sat(
             index_mu,options_figure['scale_factor'])
-
-
 
         if wl is None:
             return
@@ -1514,9 +1524,9 @@ class MDBPlot:
         pspectra.set_grid()
         pspectra.set_tigth_layout()
         if not options_figure['file_out'] is None:
-            file_out = options_figure['file_out'][:-4]
-            file_out = f'{file_out}_{index_mu}.tif'
-            # print(file_out)
+            file_out = options_figure['file_out']
+            satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y%m%d')
+            file_out = f'{file_out[:-4]}_{satellite_time}_{index_mu}{file_out[-4:]}'
             pspectra.save_fig(file_out)
         pspectra.close_plot()
 
@@ -1733,6 +1743,7 @@ class MDBPlot:
         valid_all = self.check_rrs_valid(valid_mu, rrs_ins, rrs_sat)
 
         if wl_value is not None:
+            print(f'[INFO] Wavelength value: {wl_value}')
             wl_array = np.array(self.mrfile.nc.variables['mu_wavelength'])
             valid_all[wl_array != wl_value] = 0
 
@@ -1756,6 +1767,51 @@ class MDBPlot:
             if len(group_array) == len(mu_valid_satelliteid):
                 group_array = self.get_array_muid_from_array_satelliteid(id_mu, group_array)
             self.groupdata = group_array[valid_all == 1]
+
+
+    def create_flag_array_wl_ranges(self,options_figure,name_fv):
+
+        wlmin_values = options_figure['wlranges_min']
+        wlmax_values = options_figure['wlranges_max']
+
+
+
+        nranges = len(wlmin_values)
+        mu_wavelength = self.mrfile.variables['mu_wavelength'][:]
+        nmu = mu_wavelength.shape[0]
+        array = np.zeros((nmu,))
+        flag_values = []
+        flag_meanings = []
+        colors_wl = []
+        for idx in range(nranges):
+            min_wl = wlmin_values[idx]
+            max_wl = wlmax_values[idx]
+            center_wl = min_wl+((max_wl-min_wl)/2)
+            color_wl =  defaults.get_color_wavelength(center_wl)
+            colors_wl.append(color_wl)
+            flag_value = 2**idx
+            flag_meaning = f'{min_wl}-{max_wl}'
+            array[np.logical_and(mu_wavelength>=min_wl,mu_wavelength<max_wl)]=flag_value
+            flag_values.append(flag_value)
+            flag_meanings.append(flag_meaning)
+
+        # options_figure[name_fv] = {
+        #
+        #     'flag_values':flag_values,
+        #     'flag_meanings':flag_meanings
+        # }
+        self.virtual_flags[name_fv] = {
+            'flag_array': array,
+            'flag_values': flag_values,
+            'flag_meanings': flag_meanings
+        }
+        options_figure['legend_values'] = flag_meanings
+        color_prev = options_figure['color']
+        if len(color_prev)!=len(wlmin_values):
+            options_figure['color'] = colors_wl
+
+        return options_figure
+
 
     # options_var: selectBy or groupBy
     def get_flag_array(self, options_out, option_var):
