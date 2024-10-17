@@ -543,6 +543,8 @@ class HYPERNETS_DAY():
         seq_list = list(self.files_dates.keys())
         seq_list.sort()
 
+
+
         index_seq_ref = -1
         dims = None
         nseq_valid = 0
@@ -555,6 +557,8 @@ class HYPERNETS_DAY():
                 nseq_valid = nseq_valid + 1
             else:
                 self.files_dates[seq]['valid'] = False
+
+
 
         if dims is None:
             print(f'[WARNING] L1 files are not available for this date')
@@ -642,6 +646,7 @@ class HYPERNETS_DAY():
         from netCDF4 import Dataset
         seq_list = list(self.files_dates.keys())
         seq_list.sort()
+        index_add = -1
         for idx in range(len(seq_list)):
             seq = seq_list[idx]
             if not self.files_dates[seq]['valid']:
@@ -654,8 +659,9 @@ class HYPERNETS_DAY():
                 prename = 'l2'
             if file is None:
                 continue
-            print(f'[INFO] Set level{level} data for sequence {seq}')
+            print(f'[INFO] Set level{level} data for sequence {seq} for index {idx}')
             dataset = Dataset(file)
+            index_add = index_add + 1
             for var_name in dataset.variables:
                 if var_name.startswith('u_rel') or var_name.startswith('err'):
                     continue
@@ -666,16 +672,17 @@ class HYPERNETS_DAY():
                 ndim = len(dimensions)
                 if level == 1:
                     if ndim == 2:
-                        self.dataset_w.variables[var_name_new][idx, :] = dataset.variables[var_name][:]
+                        self.dataset_w.variables[var_name_new][index_add, :] = dataset.variables[var_name][:]
                     elif ndim == 3:
-                        self.dataset_w.variables[var_name_new][idx, :, :] = dataset.variables[var_name][:, :]
+                        self.dataset_w.variables[var_name_new][index_add, :, :] = dataset.variables[var_name][:, :]
                 if level == 2:
                     if ndim == 1 and dimensions[0] == 'series':
-                        self.dataset_w.variables[var_name_new][idx] = dataset.variables[var_name][0]
+                        self.dataset_w.variables[var_name_new][index_add] = dataset.variables[var_name][0]
                     if ndim == 2 and dimensions[0] == 'series':
-                        self.dataset_w.variables[var_name_new][idx, :] = dataset.variables[var_name][:, 0]
+                        self.dataset_w.variables[var_name_new][index_add, :] = dataset.variables[var_name][:, 0]
 
             dataset.close()
+
 
     def set_netcdf_data_land(self, level):
         from netCDF4 import Dataset
