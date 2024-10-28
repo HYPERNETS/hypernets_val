@@ -506,7 +506,11 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, r
             variable = newEXTRACT.create_2D_variable_general(variable_out, var_array, limits)
         else:
             variable = newEXTRACT.EXTRACT.variables[variable_out]
-            variable[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+            if len(var_array.shape) == 2:
+                variable[0, :, :] = var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+            elif len(var_array.shape) == 3:
+                variable[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+           
 
         for at in var_in.ncattrs():
             if at == '_FillValue' or at == 'add_offset' or at == 'scale_factor':
@@ -1800,13 +1804,14 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
             path_day = os.path.join(path_source, yearstr, jjjstr)
 
     formats_date = dataset_name_format_date.split(',')
+
     if len(formats_date)==1:
         datefile = datehere.strftime(dataset_name_format_date)
         namefile = dataset_name_file.replace('$DATE$', datefile)
     elif len(formats_date)==2:
-        datefile = datehere.strftime(formats_date[0])
+        datefile = datehere.strftime(formats_date[0].strip())
         namefile = dataset_name_file.replace('$DATE1$', datefile)
-        datefile2 = datehere.strftime(formats_date[1])
+        datefile2 = datehere.strftime(formats_date[1].strip())
         namefile = namefile.replace('$DATE2$', datefile2)
     if use_myint:
         namefile = namefile.replace('my','myint')
