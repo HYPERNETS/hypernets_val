@@ -3,6 +3,9 @@ import warnings
 import os
 import numpy as np
 from datetime import datetime as dt
+
+import pandas as pd
+import pytz
 from netCDF4 import Dataset
 
 from MDBFile import MDBFile
@@ -22,7 +25,7 @@ args = parser.parse_args()
 
 def do_test():
     ####TEMPORAL
-    #file_nc = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/MDBs/MDBr__MULTI_CCI_1KM_OC-CCI-BALCHL2021_19970316T000000_20240415T000000.nc'
+    # file_nc = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/MDBs/MDBr__MULTI_CCI_1KM_OC-CCI-BALCHL2021_19970316T000000_20240415T000000.nc'
     file_nc = '/mnt/c/DATA_LUIS/OCTAC_WORK/MATCH-UPS_ANALYSIS_2024/BAL/MDBs/MDBr__S3_OLCI_300M_CMEMS-OLCI_20160404T000000_20240415T000000.nc'
     dataset = Dataset(file_nc)
     insitu_id = dataset.variables['mu_insitu_CHLA_id'][:]
@@ -32,7 +35,7 @@ def do_test():
     fout = open(file_out, 'w')
     fout.write('DATE;HOUR;FLAG_CYANO;N_VALID;N_CYANO')
     for idx in range(flag_cyano_array.shape[0]):
-        if idx%100==0: print(idx)
+        if idx % 100 == 0: print(idx)
         insitu_id_here = insitu_id[idx]
         if np.ma.is_masked(insitu_id_here):
             continue
@@ -43,13 +46,13 @@ def do_test():
         time = insitu_time_here_dt.strftime('%H:%M:%S')
         # rrs_555 = satellite_Rrs_555[idx, 12, 12]
         # rrs_670 = satellite_Rrs_670[idx, 12, 12]
-        flag_cyano_here = flag_cyano_array[idx,12,12]
-        flag_cyano_values = flag_cyano_array[idx,11:14,11:14]
+        flag_cyano_here = flag_cyano_array[idx, 12, 12]
+        flag_cyano_values = flag_cyano_array[idx, 11:14, 11:14]
         flag_cyano_values_good = flag_cyano_values[~flag_cyano_values.mask]
         n_all = len(flag_cyano_values_good)
-        flag_cyano_centre = flag_cyano_values_good[flag_cyano_values_good==flag_cyano_here]
+        flag_cyano_centre = flag_cyano_values_good[flag_cyano_values_good == flag_cyano_here]
         n_cyano = len(flag_cyano_centre)
-        #line = f'{date};{time};{rrs_555};{rrs_670};{flag_cyano_here}'
+        # line = f'{date};{time};{rrs_555};{rrs_670};{flag_cyano_here}'
         line = f'{date};{time};{flag_cyano_here};{n_all};{n_cyano}'
         fout.write('\n')
         fout.write(line)
@@ -60,7 +63,95 @@ def do_test():
 
     return True
 
+
+def create_mdb_from_csv():
+    file_csv = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/CSV_MATCH-UPS/MULTI/Baltic_CHLA_Valid_AllSources_1997-2023_FINAL_extracts_rrs_chl_3x3_filtered_match-ups_BAL202411.csv'
+    file_out = os.path.join(os.path.dirname(file_csv), 'MDBr__MULTI_CCI_CHL.nc')
+    nc_out = Dataset(file_out, 'w')
+    nc_out.createDimension('mu_id', size=None)
+    nc_out.createDimension('satellite_id', size=None)
+    df = pd.read_csv(file_csv, sep=';')
+    col_names =df.columns.tolist()
+
+    mu_variables = ['LATITUDE', 'LONGITUDE', 'INSITU_CHLA','satellite_CHL_202211', 'satellite_CHL_202411']
+
+    flag_variables_num = ['FLAG_CYANO','FLAG_CDF','BLOOM','SUB_SURFACE','SURFACE']
+    flag_variables_str = ['SOURCE_ORIG','SOURCE','FlagPrec','FlagBrando','FlagOldNew']
+
+    for col in col_names:
+        if col.startswith('RRS') and not col.endswith('_NVALID'):
+            mu_variables.append(col)
+        if col.startswith('chl_') or col.startswith('cdf_'):
+            mu_variables.append(col)
+        if col.endswith('_cdf') or col.startswith('use_cdf'):
+            flag_variables_num.append(col)
+        if col.endswith('_NVALID'):
+            flag_variables_num.append(col)
+
+
+
+
+    datetime_array = np.array([dt.strptime(x,'%Y-%m-%dT%H:%M:%S').replace(tzinfo=pytz.UTC).timestamp() for x in df['DATETIME']])
+    var = nc_out.createVariable('time','f4',('satellite_id',),zlib=True,complevel=6,fill_value=-999.0)
+    var[:] = datetime_array
+
+    for var_name in mu_variables:
+        var = nc_out.createVariable(var_name.upper(),'f4',('mu_id',),zlib=True,complevel=6,fill_value=-999.0)
+        var[:] = df[var_name]
+
+    for var_name in flag_variables_num:
+        print('Flag num',var_name)
+        var_array = np.array(df[var_name])
+        if var_name=='FLAG_CYANO':
+            flag_values = [0,1,2,3]
+            flag_meanings = 'NO_BLOOM SUB_SURFACE_BLOOM SURFACE_BLOOM BOTH_BLOOMS'
+        elif var_name == 'FLAG_CDF':
+            flag_values = [1,2,4,8,6,10,12,14]
+            flag_meanings = 'NO_CDF CDF_MLP_3B CDF_MLP_4B CDF_MLP_5B CDF_MLP_3B+4B CDF_MLP_3B+5B CDF_MLP_4B+5B CDF_MLP_3B+4B+5B'
+        elif var_name == 'BLOOM' or var_name == 'SUB_SURFACE' or var_name == 'SURFACE':
+            flag_values = [1,2]
+            flag_meanings = 'NO_BLOOM BLOOM'
+        else:
+            values_unique = np.unique(var_array).tolist()
+            flag_values = values_unique
+            flag_meanings = ' '.join([str(x) for x in flag_values])
+        var = nc_out.createVariable(var_name.upper(), 'i4', ('satellite_id',), zlib=True, complevel=6, fill_value=-999)
+        var[:] = var_array[:]
+        var.flag_meanings = flag_meanings
+        var.flag_values = flag_values
+
+
+
+
+    for var_name in flag_variables_str:
+        print('Flag str:', var_name)
+        var_array_obj = np.array(df[var_name])
+        obj_list = np.unique(var_array_obj).tolist()
+
+        var_array = np.zeros((var_array_obj.shape))
+        var_array[:] = -999
+        flag_values = []
+        for idx,obj in enumerate(obj_list):
+            flag_value = 2**idx
+            flag_values.append(flag_value)
+            var_array[var_array_obj==obj] = flag_value
+        flag_meanings = ' '.join(obj_list)
+        var = nc_out.createVariable(var_name.upper(), 'i4', ('satellite_id',), zlib=True, complevel=6, fill_value=-999)
+        var[:] = var_array[:]
+        var.flag_meanings = flag_meanings
+        var.flag_values = flag_values
+
+
+
+    nc_out.close()
+
+
+    return True
+
+
 def main():
+    if create_mdb_from_csv():
+        return
     if do_test():
         return
     print('Started MDBAlgorithm')
@@ -125,12 +216,12 @@ def create_cyano_flag(input_path, output_path):
         print(f'[ERROR] Band at 670 nm is not avaialable (nearest band is {wl_670})')
         return
     else:
-        if wl_670>670: ##665 better than 673.75
-            satellite_bands_l = satellite_bands[satellite_bands<670]
+        if wl_670 > 670:  ##665 better than 673.75
+            satellite_bands_l = satellite_bands[satellite_bands < 670]
             index_670_l = np.argmin(np.abs(satellite_bands_l - 670.0))
             wl_670_l = satellite_bands[index_670_l]
             diff_670_l = abs(wl_670_l - 670.0)
-            if diff_670_l<=5:
+            if diff_670_l <= 5:
                 index_670 = index_670_l
                 wl_670 = wl_670_l
                 diff_670 = diff_670_l
@@ -138,23 +229,22 @@ def create_cyano_flag(input_path, output_path):
 
     satellite_Rrs = dataset_w.variables['satellite_Rrs']
 
-    if diff_555==0.0:
+    if diff_555 == 0.0:
         satellite_Rrs_555 = np.ma.squeeze(satellite_Rrs[:, index_555, :, :])
     else:
         ##apply band shifting
         print(f'[INFO] Applying band shifting from {wl_555} nm to 555.0 nm')
         from BSC_QAA import bsc_qaa_EUMETSAT as bsc
-        satellite_Rrs_555 = np.ma.zeros((satellite_Rrs.shape[0],satellite_Rrs.shape[2],satellite_Rrs.shape[3]))
+        satellite_Rrs_555 = np.ma.zeros((satellite_Rrs.shape[0], satellite_Rrs.shape[2], satellite_Rrs.shape[3]))
         for index_mu in range(satellite_Rrs.shape[0]):
-            rrs_in = np.ma.squeeze(satellite_Rrs[index_mu,:,:,:])
+            rrs_in = np.ma.squeeze(satellite_Rrs[index_mu, :, :, :])
             ndata_valid = np.ma.count(rrs_in)
-            if ndata_valid==0:
-                satellite_Rrs_555[index_mu,:,:] = np.ma.masked
+            if ndata_valid == 0:
+                satellite_Rrs_555[index_mu, :, :] = np.ma.masked
             else:
-                satellite_Rrs_555[index_mu,:,:]  = bsc.bsc_qaa(rrs_in, satellite_bands,np.ma.array([555.0]))
+                satellite_Rrs_555[index_mu, :, :] = bsc.bsc_qaa(rrs_in, satellite_bands, np.ma.array([555.0]))
 
-
-    if diff_670==0.0:
+    if diff_670 == 0.0:
         satellite_Rrs_670 = np.ma.squeeze(satellite_Rrs[:, index_670, :, :])
     else:
         ##apply band shifting
@@ -169,16 +259,16 @@ def create_cyano_flag(input_path, output_path):
             else:
                 satellite_Rrs_670[index_mu, :, :] = bsc.bsc_qaa(rrs_in, satellite_bands, np.ma.array([670.0]))
 
-
     if 'satellite_flag_cyano' not in dataset_w.variables:
         print(f'[INFO] Creating variable satellite_flag_cyano')
         satellite_cyano_array = np.zeros(satellite_Rrs_555.shape)
         satellite_cyano_array[np.logical_and(satellite_Rrs_555 >= th_555_sub, satellite_Rrs_670 >= th_670_sur)] = 3
         satellite_cyano_array[np.logical_and(satellite_Rrs_555 >= th_555_sub, satellite_Rrs_670 < th_670_sur)] = 1
         satellite_cyano_array[np.logical_and(satellite_Rrs_555 < th_555_sub, satellite_Rrs_670 >= th_670_sur)] = 2
-        satellite_cyano_array[np.logical_and(satellite_Rrs_555.mask,satellite_Rrs_670.mask)] = -999
-        satellite_cyano_var = dataset_w.createVariable('satellite_flag_cyano', 'i2', ('satellite_id', 'rows', 'columns'),
-                                                   zlib=True, complevel=6, fill_value=-999.0)
+        satellite_cyano_array[np.logical_and(satellite_Rrs_555.mask, satellite_Rrs_670.mask)] = -999
+        satellite_cyano_var = dataset_w.createVariable('satellite_flag_cyano', 'i2',
+                                                       ('satellite_id', 'rows', 'columns'),
+                                                       zlib=True, complevel=6, fill_value=-999.0)
         satellite_cyano_var.descripton = 'Satellite Cyano Flag'
         satellite_cyano_var.flag_masks = [0, 1, 2, 3]
         satellite_cyano_var.flag_meanings = "NO_BLOOM SUB-SURFACE_BLOOM SURFACE_BLOOM BOTH_BLOOMS"
@@ -197,33 +287,29 @@ def create_cyano_flag(input_path, output_path):
 
     if 'flag_cyano' not in dataset_w.variables:
         print(f'[INFO] Creating variable flag_cyano')
-        flag_cyano_array = np.ma.squeeze(satellite_cyano_array[:,12,12])
-        flag_cyano_var = dataset_w.createVariable('flag_cyano','i2',('satellite_id',),zlib=True,complevel=6,fill_value=-999)
+        flag_cyano_array = np.ma.squeeze(satellite_cyano_array[:, 12, 12])
+        flag_cyano_var = dataset_w.createVariable('flag_cyano', 'i2', ('satellite_id',), zlib=True, complevel=6,
+                                                  fill_value=-999)
         flag_cyano_var.flag_values = [0, 1, 2, 3]
         flag_cyano_var.flag_meanings = "NO_BLOOM SUB-SURFACE_BLOOM SURFACE_BLOOM BOTH_BLOOMS"
         flag_cyano_var[:] = flag_cyano_array
     else:
         print(f'[WARNING] Variable flag_cyano already exits. Skipping...')
-        #flag_cyano_array = np.ma.squeeze(satellite_cyano_array[:, 12, 12])
+        # flag_cyano_array = np.ma.squeeze(satellite_cyano_array[:, 12, 12])
 
         # flag_cyano_var = dataset_w.variables['flag_cyano']
         # flag_cyano_var.flag_values = [0, 1, 2, 3]
         # flag_cyano_var.flag_meanings = "NO_BLOOM SUB-SURFACE_BLOOM SURFACE_BLOOM BOTH_BLOOMS"
         # flag_cyano_var[:] = flag_cyano_array
 
-
     # insitu_time = dataset_w.variables['insitu_time'][:]
     # insitu_id = dataset_w.variables['mu_insitu_CHLA_id'][:]
 
     dataset_w.close()
 
-
-
-
     if output_path is None:
         output_path = input_path
     print(f'[INFO] Completed. Output file {output_path}')
-
 
 
 if __name__ == '__main__':

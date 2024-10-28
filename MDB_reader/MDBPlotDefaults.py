@@ -481,6 +481,56 @@ options_time = {
     }
 }
 
+
+options_axis = {
+    'xlabel': {
+        'default': None,
+        'type': 'str'
+    },
+    'ylabel': {
+        'default': None,
+        'type': 'str'
+    },
+    'min_xy': {
+        'default': None,
+        'type': 'float'
+    },
+    'max_xy': {
+        'default': None,
+        'type': 'float'
+    },
+    'ticks': {
+        'default': None,
+        'type': 'floatlist'
+    },
+    'x_ticks': {
+        'default': None,
+        'type': 'floatlist'
+    },
+    'y_ticks':{
+        'default': None,
+        'type': 'floatlist'
+    },
+    'y_min': {
+        'default': None,
+        'type': 'float'
+    },
+    'y_max': {
+        'default': None,
+        'type': 'float'
+    },
+    'x_min': {
+        'default': None,
+        'type': 'float'
+    },
+    'x_max': {
+        'default': None,
+        'type': 'float'
+    }
+
+}
+
+
 options_scatterplots = {
     'type_scatterplot': {
         'default': 'rrs',
@@ -503,14 +553,6 @@ options_scatterplots = {
         'default': units_default['rrs'],
         'type': 'str'
     },
-    'xlabel': {
-        'default': None,
-        'type': 'str'
-    },
-    'ylabel': {
-        'default': None,
-        'type': 'str'
-    },
     'log_scale': {
         'default': False,
         'type': 'boolean'
@@ -518,18 +560,6 @@ options_scatterplots = {
     'use_rhow': {
         'default': False,
         'type': 'boolean'
-    },
-    'min_xy': {
-        'default': None,
-        'type': 'float'
-    },
-    'max_xy': {
-        'default': None,
-        'type': 'float'
-    },
-    'ticks': {
-        'default': None,
-        'type': 'floatlist'
     },
     'regression_line': {
         'default': True,
@@ -629,27 +659,12 @@ options_spectraplots = {
         'default': None,
         'type': 'float'
     },
-    'y_min': {
-        'default': None,
-        'type': 'float'
-    },
-    'y_max': {
-        'default': None,
-        'type': 'float'
-    }, 'scale_factor': {
+    'scale_factor': {
         'default': 1000,
         'type': 'float'
-    }, 'use_rhow': {
+    },'use_rhow': {
         'default': False,
         'type': 'boolean'
-    },
-    'xlabel': {
-        'default': xlabel_wl_default,
-        'type': 'str'
-    },
-    'ylabel': {
-        'default': None,
-        'type': 'str'
     },
     'title': {
         'default': None,
@@ -826,7 +841,7 @@ options_timeseries = {
     'dispersion_max_var': {
         'default': None,
         'type': 'strlist'
-    }, 'xlabel': {
+    },'xlabel': {
         'default': None,
         'type': 'str'
     },
@@ -1121,6 +1136,8 @@ def get_options_spectraplots():
         options[op] = options_group[op]
     for op in options_time:
         options[op] = options_time[op]
+    for op in options_axis:
+        options[op] = options_axis[op]
     return options
 
 
@@ -1140,6 +1157,8 @@ def get_options_scatterplots():
         options[op] = options_group[op]
     for op in options_select:
         options[op] = options_select[op]
+    for op in options_axis:
+        options[op] = options_axis[op]
     return options
 
 

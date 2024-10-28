@@ -156,6 +156,16 @@ class PlotScatter():
         self.axhere.set_xlim([minV, maxV])
         self.axhere.set_ylim([minV, maxV])
 
+    def set_limits_X(self,minV,maxV):
+        if self.axhere is None:
+            self.set_axhere()
+        self.axhere.set_xlim([minV, maxV])
+
+    def set_limits_Y(self,minV,maxV):
+        if self.axhere is None:
+            self.set_axhere()
+        self.axhere.set_ylim([minV, maxV])
+
     def set_legend(self, str_legend):
         if self.axhere is None:
             self.set_axhere()
@@ -209,6 +219,20 @@ class PlotScatter():
         if fontsize>0:
             self.axhere.tick_params(axis='both',labelsize=fontsize)
 
+    def set_ticks_x(self, ticks, fontsize):
+        if self.axhere is None:
+            self.set_axhere()
+        self.axhere.set_xticks(ticks)
+        if fontsize > 0:
+            self.axhere.tick_params(axis='x', labelsize=fontsize)
+
+    def set_ticks_y(self, ticks, fontsize):
+        if self.axhere is None:
+            self.set_axhere()
+        self.axhere.set_yticks(ticks)
+        if fontsize > 0:
+            self.axhere.tick_params(axis='y', labelsize=fontsize)
+
     def set_ticks_and_labels(self,ticks,labels,fontsize):
         if self.axhere is None:
             self.set_axhere()
@@ -216,6 +240,20 @@ class PlotScatter():
         self.axhere.set_yticks(ticks,labels=labels)
         if fontsize>0:
             self.axhere.tick_params(axis='both',labelsize=fontsize)
+
+    def set_ticks_and_labels_x(self,ticks,labels,fontsize):
+        if self.axhere is None:
+            self.set_axhere()
+        self.axhere.set_xticks(ticks,labels=labels)
+        if fontsize>0:
+            self.axhere.tick_params(axis='x',labelsize=fontsize)
+
+    def set_ticks_and_labels_y(self,ticks,labels,fontsize):
+        if self.axhere is None:
+            self.set_axhere()
+        self.axhere.set_yticks(ticks,labels=labels)
+        if fontsize>0:
+            self.axhere.tick_params(axis='y',labelsize=fontsize)
 
     def set_xticks_labels_off(self,ticks):
         if self.axhere is None:

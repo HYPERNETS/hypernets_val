@@ -1788,6 +1788,7 @@ def get_cmems_product_day_strict(path_source, org, datehere, dataset_name_file, 
                                             cmems_download_options, True)
 
     return product_day
+
 def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
                           cmems_download_options,use_myint):
     path_day = path_source
@@ -1797,8 +1798,16 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
             jjjstr = datehere.strftime('%j')
             path_year = os.path.join(path_source, yearstr)
             path_day = os.path.join(path_source, yearstr, jjjstr)
-    datefile = datehere.strftime(dataset_name_format_date)
-    namefile = dataset_name_file.replace('$DATE$', datefile)
+
+    formats_date = dataset_name_format_date.split(',')
+    if len(formats_date)==1:
+        datefile = datehere.strftime(dataset_name_format_date)
+        namefile = dataset_name_file.replace('$DATE$', datefile)
+    elif len(formats_date)==2:
+        datefile = datehere.strftime(formats_date[0])
+        namefile = dataset_name_file.replace('$DATE1$', datefile)
+        datefile2 = datehere.strftime(formats_date[1])
+        namefile = namefile.replace('$DATE2$', datefile2)
     if use_myint:
         namefile = namefile.replace('my','myint')
 

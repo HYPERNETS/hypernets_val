@@ -1071,6 +1071,7 @@ class MDBPlot:
                 self.plot_general_scatterplot(options_figure)
 
         ##WORKING WITH SELECTED OPTIONS
+
         if options_figure['selectBy'] is not None and options_figure['individual_plots']:
             selectValues = options_figure['selectValues']
             file_out_base = options_figure['file_out']
@@ -1350,25 +1351,56 @@ class MDBPlot:
             min_xy = options['min_xy']
         if options['max_xy'] is not None:
             max_xy = options['max_xy']
-        plot.set_limits(min_xy, max_xy)
+
+        min_x = min_xy
+        max_x = max_xy
+        min_y = min_xy
+        max_y = max_xy
+        ##differente limits for y and x
+        if options['x_min'] is not None:
+            min_x = options['x_min']
+        if options['x_max'] is not None:
+            max_x = options['x_max']
+        if options['y_min'] is not None:
+            min_y= options['y_min']
+        if options['y_max'] is not None:
+            max_y = options['y_max']
+
+
+        plot.set_limits_X(min_x,max_x)
+        plot.set_limits_Y(min_y,max_y)
+        #plot.set_limits(min_xy, max_xy)
 
         # ticks
-        if options['ticks'] is None:
+        if options['ticks'] is None and (options['x_ticks'] is None or options['y_ticks'] is None):
             if not options['log_scale']:
-                ticks = self.get_ticks_from_min_max_xy(min_xy, max_xy)
+                #ticks = self.get_ticks_from_min_max_xy(min_xy, max_xy)
+                x_ticks = self.get_ticks_from_min_max_xy(min_x,max_x)
+                y_ticks = self.get_ticks_from_min_max_xy(min_y,max_y)
             else:
-                min_t = int(np.log10(min_xy))
-                max_t = int(np.log10(max_xy))
-                ticks = [10 ** x for x in range(min_t, max_t + 1)]
+                min_tx = int(np.log10(min_x))
+                max_tx = int(np.log10(max_x))
+                x_ticks = [10 ** x for x in range(min_tx, max_tx + 1)]
+                min_ty = int(np.log10(min_y))
+                max_ty = int(np.log10(max_y))
+                y_ticks = [10 ** x for x in range(min_ty, max_ty + 1)]
         else:
-            ticks = options['ticks']
+            if options['ticks'] is not None:
+                x_ticks = options['ticks']
+                y_ticks = options['ticks']
+            elif options['x_ticks'] is not None and options['y_ticks'] is not None:
+                x_ticks = options['x_ticks']
+                y_ticks = options['y_ticks']
 
-        if ticks is not None:
+        if x_ticks is not None and y_ticks is not None:
             if options['log_scale']:
-                tlabels = self.get_labels_for_log_ticks(ticks)
-                plot.set_ticks_and_labels(ticks, tlabels, options['fontsizeaxis'])
+                txlabels = self.get_labels_for_log_ticks(x_ticks)
+                tylabels = self.get_labels_for_log_ticks(y_ticks)
+                plot.set_ticks_and_labels_x(x_ticks, txlabels, options['fontsizeaxis'])
+                plot.set_ticks_and_labels_y(y_ticks, tylabels, options['fontsizeaxis'])
             else:
-                plot.set_ticks(ticks, options['fontsizeaxis'])
+                plot.set_ticks_x(x_ticks, options['fontsizeaxis'])
+                plot.set_ticks_y(y_ticks, options['fontsizeaxis'])
 
         ##x-y labels
         if options['individual_axis'] or index == -1:
@@ -1663,19 +1695,20 @@ class MDBPlot:
         ndata = xarray.shape[0]
         if ndata != yarray.shape[0]:
             return
+
         valid_all = np.ones(xarray.shape)
         valid_all[xarray.mask] = 0
         valid_all[yarray.mask] = 0
         valid_all[np.isnan(xarray)] = 0
         valid_all[np.isnan(yarray)] = 0
 
-        for idx in range(len(xarray)):
-            if valid_all[idx] == 1:
-                perc = 100 * ((yarray[idx] - xarray[idx]) / xarray[idx])
-                perc = abs(perc)
-                if perc > 1000:
-                    valid_all[idx] = 0
-                print(idx, ';', xarray[idx], ';', yarray[idx], ';', perc)
+        # for idx in range(len(xarray)):
+        #     if valid_all[idx] == 1:
+        #         perc = 100 * ((yarray[idx] - xarray[idx]) / xarray[idx])
+        #         perc = abs(perc)
+        #         if perc > 1000:
+        #             valid_all[idx] = 0
+        #         print(idx, ';', xarray[idx], ';', yarray[idx], ';', perc)
 
         # #smp wfr
         ##valid_all[27]=0

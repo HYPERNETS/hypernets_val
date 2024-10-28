@@ -36,6 +36,7 @@ parser.add_argument('-arep', "--allow_repeated", help="Set to allow match-ups on
                     action="store_true")
 parser.add_argument('-rmdb', "--reduce_mdbr", help="MDBr should be reduced to only one insitu_id",
                     action="store_true")
+parser.add_argument('-version',"--version_plot", help="Plot version", default='V3', choices=['V2','V3'])
 
 # parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 # parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
@@ -4681,7 +4682,7 @@ def main():
             print(f'[ERROR] Ouput path: {output_path} does not exist or is not a directory')
 
         ##WITH MDBPLOTV3
-        if args.config_file.endswith('plot.ini'):
+        if args.version_plot=='V3':
             print(f'[USING] Using plotting version 3')
             from MDBPlotV3 import MDBPlot
             mplot = MDBPlot(input_path)
@@ -4690,7 +4691,7 @@ def main():
             mplot.output_path = output_path
 
         ##WITH MDBPlotV2
-        if not args.config_file.endswith('plot.ini'):
+        if args.version_plot=='V2':
         #if args.config_file.endswith('combine.ini') or args.config_file.endswith('l2.ini'):
             from MDBPlotV2 import MDBPlot
             import configparser
