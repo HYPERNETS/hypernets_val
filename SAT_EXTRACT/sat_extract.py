@@ -586,6 +586,9 @@ def get_params_time(args,options):
             datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
         else:
             datetime_end = datetime.today()
+        if args.date_list_file and os.path.isfile(args.date_list_file):
+            date_list, datetime_start, datetime_end = get_date_list_from_file(args.date_list_file, datetime_start,
+                                                                              datetime_end)
 
     if date_list is None:
         date_list = get_date_list_from_start_end_date(datetime_start, datetime_end)
