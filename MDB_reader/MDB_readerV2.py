@@ -297,6 +297,36 @@ class MDB_READER():
         self.mfile.qc_insitu.set_wllist_using_wlref(wllist)
         self.mfile.qc_insitu.set_thershold(0, None, 100, 1000)
 
+    def create_csv_time_difference(self):
+        if not self.mfile.VALID:
+            return
+        from datetime import datetime as dt
+        print(f'[INFO] Creating time csv...')
+        satellite_time = self.mfile.variables['satellite_time'][:]
+        insitu_time = self.mfile.variables['insitu_time'][:]
+
+        fout = self.path_mdb.replace('.nc', '.csv')
+        fw = open(fout,'w')
+        first_line = 'SatelliteId;InsituId;SatelliteTimeStamp;InsituTimeStamp;SatelliteTime;InsituTime;TimeDifference'
+        fw.write(first_line)
+        for satellite_id in range(satellite_time.shape[0]):
+            satellite_timestamp = np.float64(satellite_time[satellite_id])
+            for insitu_id in range(insitu_time.shape[1]):
+                insitu_timestamp = insitu_time[satellite_id, insitu_id]
+                if np.ma.is_masked(insitu_timestamp):
+                    continue
+                sat_time_here = dt.utcfromtimestamp(satellite_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                ins_time_here = dt.utcfromtimestamp(insitu_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                time_diff_here = np.abs(insitu_timestamp - satellite_timestamp)
+                line = f'{satellite_id};{insitu_id};{satellite_timestamp};{insitu_timestamp};{sat_time_here};{ins_time_here};{time_diff_here}'
+                fw.write('\n')
+                fw.write(line)
+
+
+
+        fw.close()
+        print(f'[INFO] Complete')
+
 
 def get_mdb_output_path(input_path, output_folder):
     input_name = os.path.basename(input_path)
@@ -3977,7 +4007,7 @@ def main():
         #remove_duplicated_insitu_hypstar(args.input_path)
         #check_geo_limits_extracts(args.input_path)
 
-        make_plots_match_ups()
+        #make_plots_match_ups()
 
 
         #band_list = [413, 442, 490, 510, 560, 665]
@@ -4003,6 +4033,12 @@ def main():
         # get_certo_dates_olci()
         # check_dates()
         # set_certo_dates_extracts()
+        dir_mdb = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs_updated20241114'
+        for name in os.listdir(dir_mdb):
+            if name.endswith('.nc') and name.startswith('MDB'):
+                file_mdb = os.path.join(dir_mdb,name)
+                mdb_r = MDB_READER(file_mdb,True)
+                mdb_r.create_csv_time_difference()
 
         # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import MDBFile
@@ -4500,11 +4536,14 @@ def main():
             reader.mfile.qc_sat.ncdataset = reader.mfile.nc
             reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat, reader.mfile.nc)
             reader.mfile.qc_sat.wl_ref = wllist
-            reader.mfile.qc_sat.satellite_rrs_unc = reader.mfile.variables['satellite_Rrs_unc']
+            if 'satellite_Rrs_unc' in reader.mfile.variables:
+                reader.mfile.qc_sat.satellite_rrs_unc = reader.mfile.variables['satellite_Rrs_unc']
 
             reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
             reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu,wllist)
-            reader.mfile.qc_insitu.insitu_rrs_unc = reader.mfile.variables['insitu_Rrs_unc']
+
+            if 'insitu_Rrs_unc' in reader.mfile.variables:
+                reader.mfile.qc_insitu.insitu_rrs_unc = reader.mfile.variables['insitu_Rrs_unc']
             if reader.mfile.qc_insitu is None:
                 return
             reader.mfile.PI_DIVIDED = reader.mfile.qc_insitu.pi_divided

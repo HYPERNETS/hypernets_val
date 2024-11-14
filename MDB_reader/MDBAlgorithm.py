@@ -65,28 +65,45 @@ def do_test():
 
 
 def create_mdb_from_csv():
-    file_csv = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/CSV_MATCH-UPS/MULTI/Baltic_CHLA_Valid_AllSources_1997-2023_FINAL_extracts_rrs_chl_3x3_filtered_match-ups_BAL202411.csv'
-    file_out = os.path.join(os.path.dirname(file_csv), 'MDBr__MULTI_CCI_CHL.nc')
+    file_csv = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/CSV_MATCH-UPS/MULTI/Baltic_CHLA_Valid_AllSources_1997-2023_FINAL_TIMEFILTERED_complete.csv'
+    dir_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/MDBs'
+    file_out = os.path.join(dir_out, 'MDBr__MULTI_CCI_1KM_OC-CCI-BALCHL202411_19970909T000000_20231219T000000.nc')
     nc_out = Dataset(file_out, 'w')
     nc_out.createDimension('mu_id', size=None)
     nc_out.createDimension('satellite_id', size=None)
     df = pd.read_csv(file_csv, sep=';')
     col_names =df.columns.tolist()
 
-    mu_variables = ['LATITUDE', 'LONGITUDE', 'INSITU_CHLA','satellite_CHL_202211', 'satellite_CHL_202411']
+    mu_variables = ['LATITUDE', 'LONGITUDE', 'INSITU_CHL','FLAG_CYANO_PORC_MODE']
 
-    flag_variables_num = ['FLAG_CYANO','FLAG_CDF','BLOOM','SUB_SURFACE','SURFACE']
+    flag_variables_num = ['satellite_CHL_NVALID','FLAG_CDF','BLOOM','SUB_SURFACE','SURFACE']
     flag_variables_str = ['SOURCE_ORIG','SOURCE','FlagPrec','FlagBrando','FlagOldNew']
 
     for col in col_names:
-        if col.startswith('RRS') and not col.endswith('_NVALID'):
+        if col.startswith('satellite_RRS'):
             mu_variables.append(col)
-        if col.startswith('chl_') or col.startswith('cdf_'):
+        if col.startswith('satellite_CHL') and not col.endswith('NVALID'):
             mu_variables.append(col)
-        if col.endswith('_cdf') or col.startswith('use_cdf'):
+        if col.startswith('satellite_CDF'):
+            mu_variables.append(col)
+        if col.startswith('satellite_WEIGHT'):
+            mu_variables.append(col)
+        if col.startswith('FLAG_CYANO') and col!='FLAG_CYANO_PORC_MODE':
             flag_variables_num.append(col)
-        if col.endswith('_NVALID'):
+        if col.startswith('use'):
             flag_variables_num.append(col)
+        if col.startswith('FLAG_ERROR'):
+            flag_variables_num.append(col)
+        if col.startswith('FLAG_NOERROR'):
+            flag_variables_num.append(col)
+
+
+        # if col.startswith('chl_') or col.startswith('cdf_'):
+        #     mu_variables.append(col)
+        # if col.endswith('_cdf') or col.startswith('use_cdf'):
+        #     flag_variables_num.append(col)
+        # if col.endswith('_NVALID'):
+        #     flag_variables_num.append(col)
 
 
 
@@ -96,13 +113,14 @@ def create_mdb_from_csv():
     var[:] = datetime_array
 
     for var_name in mu_variables:
+        print('Creating mu variable:',var_name)
         var = nc_out.createVariable(var_name.upper(),'f4',('mu_id',),zlib=True,complevel=6,fill_value=-999.0)
         var[:] = df[var_name]
 
     for var_name in flag_variables_num:
-        print('Flag num',var_name)
+        print('Creating flag num',var_name)
         var_array = np.array(df[var_name])
-        if var_name=='FLAG_CYANO':
+        if var_name=='FLAG_CYANO' or var_name=='FLAG_CYANO_CENTRAL' or var_name=='FLAG_CYANO_MODE':
             flag_values = [0,1,2,3]
             flag_meanings = 'NO_BLOOM SUB_SURFACE_BLOOM SURFACE_BLOOM BOTH_BLOOMS'
         elif var_name == 'FLAG_CDF':
@@ -111,6 +129,9 @@ def create_mdb_from_csv():
         elif var_name == 'BLOOM' or var_name == 'SUB_SURFACE' or var_name == 'SURFACE':
             flag_values = [1,2]
             flag_meanings = 'NO_BLOOM BLOOM'
+        elif var_name == 'FLAG_CYANO_HOMOGENEITY':
+            flag_values = [0,1]
+            flag_meanings = ['CYANO_MIX','CYANO_HOMEGENEOUS']
         else:
             values_unique = np.unique(var_array).tolist()
             flag_values = values_unique

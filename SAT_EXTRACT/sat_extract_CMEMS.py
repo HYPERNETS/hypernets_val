@@ -510,7 +510,7 @@ def add_variable_single(newEXTRACT, extract, variable_list, variable_list_out, r
                 variable[0, :, :] = var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
             elif len(var_array.shape) == 3:
                 variable[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
-           
+
 
         for at in var_in.ncattrs():
             if at == '_FillValue' or at == 'add_offset' or at == 'scale_factor':

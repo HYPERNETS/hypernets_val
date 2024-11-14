@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser(description="Create sat extract from PACE-OCI A
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
-parser.add_argument('-site', "--sitename", help="Site name.", choices=['VEIT', 'BEFR', 'BSBE'])
+parser.add_argument('-site', "--sitename", help="Site name.", choices=['VEIT', 'BEFR', 'BSBE','GAIT','LAIT','TRIT'])
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
 parser.add_argument('-o', "--output", help="Path to output")
