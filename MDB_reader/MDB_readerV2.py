@@ -27,11 +27,12 @@ parser.add_argument("-m", "--mode", help="Mode",
                     choices=["GENERATEMU", "GENERATEMU_S", "CONCATENATE", "REMOVEREP", "PLOT", "PLOT_CSV", "COMMONMU",
                              "COMMONMU_NOSAT",
                              "COMMONMU_INS", "CHECK_WL", "UPDATE_SAT_WL", "UPDATE_INSITU_WL", "CHECK_SAT_TIME",
-                             "CHECK_PROTOCOLS", "TEST", "ADDFLAGBAND"],
+                             "CHECK_PROTOCOLS", "TEST", "ADDFLAGBAND","COMBINE_MATCH_UPS_PLOT","BASIC_METADATA"],
                     required=True)
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path")
-parser.add_argument('-o', "--output", help="Path to output")
+parser.add_argument('-o', "--output", help="Path to output. For COMBINE_MATCH_UPS_PLOT, path to reference/output folder")
+parser.add_argument('-site',"--site_name",help="Site name for COMBINE_MATCH_UPS_PLOT")
 parser.add_argument('-arep', "--allow_repeated", help="Set to allow match-ups on the same date. Only for transects.",
                     action="store_true")
 parser.add_argument('-rmdb', "--reduce_mdbr", help="MDBr should be reduced to only one insitu_id",
@@ -68,6 +69,8 @@ class MDB_READER():
 
         if self.mfile.df_validation is None:
             nmu_valid, df_valid = self.mfile.prepare_df_validation()
+
+
 
         foutcsv = fout.replace('.nc', '_summary.csv')
         foutcsv = foutcsv.replace('MDBr', 'CSVr')
@@ -177,7 +180,9 @@ class MDB_READER():
 
         foutcsv = fout.replace('.nc', '.csv')
         foutcsv = foutcsv.replace('MDBr', 'CSVr')
-        status = self.mfile.df_validation[self.mfile.df_validation['Index_Band'] == 0]['status']
+        index_band_array = np.array(self.mfile.df_validation['Index_Band'][:])
+        index_band_min = np.min(index_band_array)
+        status = self.mfile.df_validation[self.mfile.df_validation['Index_Band'] == index_band_min]['status']
         status_array = np.array(status)
         self.mfile.df_mu['status'][:] = status_array
 
@@ -3870,69 +3875,169 @@ def check_geo_limits_extracts(input_path):
         dataset.close()
     print(lat_min,lat_max,lon_min,lon_max)
 
-def make_plots_match_ups():
-    print('Make plot match-ups')
-    dir_avw = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/avw_maps'
-    dir_flags = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/flag_maps'
-    dir_comparison = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/comparsion_spectra_by_match-up'
-    dir_out = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/match_up_plots'
-    file_pdf = '/mnt/c/DATA_LUIS/OCTACWORK/MDBs/PLOTS/match_up_plots.pdf'
-    files_out = {}
-    for name in os.listdir(dir_avw):
-
-        file_avw = os.path.join(dir_avw,name)
-        name_flag = name.replace('avw_map_','flag_map_')
-        name_comparison = name.replace('avw_map_', 'comparison_spectra_mu_')
-        file_flag = os.path.join(dir_flags,name_flag)
-        file_comparison = os.path.join(dir_comparison,name_comparison)
-
-        name_out = name.replace('avw_map_', 'match_up_')
-        file_out = os.path.join(dir_out,name_out)
-
-        date_ref = name_out.split('_')[2]
-        files_out[date_ref] = file_out
+def make_plots_match_ups(site,dir_base,file_mdbr):
+    print('[INFO] Started make plot match-ups')
+    #dir_base = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/LAIT/PLOTS'
+    #file_mdbr = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/LAIT/MDBr__PACE_OCI_1KM_L2GEN_20220701T000000_20240831T235959_MEDA_LAIT.nc'
+    #site = 'LAIT'
+    mdbR = MDB_READER(file_mdbr,True)
+    info_match_ups = {}
+    n_match_ups = 0
+    for name in os.listdir(dir_base):
+        if name.startswith('flag_map_'):
+            date_str = name[:-4].split('_')[2]
+            index_str = name[:-4].split('_')[3]
+            index = int(index_str)
+            if index>=n_match_ups:
+                n_match_ups = index+1
+            info_match_ups[index_str]=date_str
 
 
-        # from PlotMultiple import PlotMultiple
-        # pm = PlotMultiple()
-        # if os.path.exists(file_comparison):
-        #     pm.start_multiple_plot_advanced(3, 1, 10, 12, 0, 0, True)
-        #     pm.plot_image(file_avw, 0, 0)
-        #     pm.plot_image(file_flag, 1, 0)
-        #     pm.plot_image(file_comparison, 2, 0)
-        #     pm.save_fig(file_out)
-        # else:
-        #     pm.start_multiple_plot_advanced(2, 1, 10, 8, 0, 0, True)
-        #     pm.plot_image(file_avw, 0, 0)
-        #     pm.plot_image(file_flag, 1, 0)
-        #     pm.save_fig(file_out)
+    for index in range(n_match_ups):
+        print(f'[INFO] Plotting match-up: {index}')
+        info,line = mdbR.mfile.get_metadata_mu(index)
+        str_time = info["sat_time"].strftime("%Y-%m-%d")
+        line = line.replace(str_time,'')
+        title = f'Match-up {index} - {site} - {str_time}'
+        index_str = str(index)
+        date_str = info_match_ups[index_str]
+        file_avw = os.path.join(dir_base,f'avw_map_{date_str}_{index_str}.tif')
+        file_flag_map = os.path.join(dir_base,f'flag_map_{date_str}_{index_str}.tif')
+        file_flag_plot = os.path.join(dir_base,f'flag_plot_mu_{date_str}_{index_str}.tif')
+        file_ins = os.path.join(dir_base,f'ins_spectra_mu_{date_str}_{index_str}.tif')
+        file_comp = os.path.join(dir_base,f'comparison_spectra_mu_{date_str}_{index_str}.tif')
+        file_scatter = os.path.join(dir_base,f'scatter_mu_{date_str}_{index_str}.tif')
+        #print(index,os.path.isfile(file_avw),os.path.isfile(file_flag_map),os.path.isfile(file_flag_plot),os.path.isfile(file_ins),os.path.isfile(file_comp),os.path.isfile(file_scatter))
+        name_out = f'match_up_summary_{site}_{date_str}_{index_str}.tif'
+        file_out = os.path.join(dir_base,name_out)
+        from PlotMultiple import PlotMultiple
+        pm = PlotMultiple()
+        pm.start_multiple_plot_advanced(2, 3, 12, 6, 0, 0.1, True)
+        pm.plot_image(file_avw, 0, 0)
+        pm.plot_image(file_flag_map, 0, 1)
+        pm.plot_image(file_flag_plot, 0, 2)
+        if os.path.isfile(file_comp):
+            pm.plot_image(file_ins, 1, 0)
+            pm.plot_image(file_comp, 1, 1)
+            pm.plot_image(file_scatter, 1, 2)
+            pm.set_text_size(-3400,-1525,line,10)
+        else:
+            pm.plot_blank(1,0)
+            if os.path.exists(file_ins):
+                pm.plot_image(file_ins, 1, 1)
+            else:
+                pm.plot_blank(1,1)
+            pm.plot_blank(1, 2)
+            pm.set_text_size(-1.85,2.15, line, 10)
+        pm.set_title(title,16)
 
+        pm.save_fig(file_out)
+
+    print(f'[INFO] Completed')
+
+
+    # from datetime import datetime as dt
+    # from datetime import timedelta
+    # from matplotlib.backends.backend_pdf import PdfPages
+    # pdf = PdfPages(file_pdf)
+    # date_here = dt(2024,3,5)
+    # date_end = dt(2024,8,31)
+    # while date_here<=date_end:
+    #     date_str = date_here.strftime('%Y%m%d')
+    #     if date_str in files_out:
+    #         file_out_here = files_out[date_str]
+    #         plt.close()
+    #         fig = plt.figure(figsize=(10, 12))
+    #         plt.imshow(plt.imread(file_out_here))
+    #         plt.axis('off')
+    #         fig.tight_layout()
+    #         pdf.savefig(dpi=300, bbox_inches='tight')
+    #     date_here = date_here + timedelta(hours=24)
+    # pdf.close()
+
+def get_basic_metadata(input_path):
+    from netCDF4 import Dataset
     from datetime import datetime as dt
-    from datetime import timedelta
-    from matplotlib.backends.backend_pdf import PdfPages
-    pdf = PdfPages(file_pdf)
-    date_here = dt(2024,3,5)
-    date_end = dt(2024,8,31)
-    while date_here<=date_end:
-        date_str = date_here.strftime('%Y%m%d')
-        if date_str in files_out:
-            file_out_here = files_out[date_str]
-            plt.close()
-            fig = plt.figure(figsize=(10, 12))
-            plt.imshow(plt.imread(file_out_here))
-            plt.axis('off')
-            fig.tight_layout()
-            pdf.savefig(dpi=300, bbox_inches='tight')
-        date_here = date_here + timedelta(hours=24)
-    pdf.close()
+    dataset = Dataset(input_path)
+    lat_array = dataset.variables['satellite_latitude'][:]
+    lon_array = dataset.variables['satellite_longitude'][:]
+    min_lat = np.min(lat_array[:])
+    max_lat = np.max(lat_array[:])
+    min_lon = np.min(lon_array[:])
+    max_lon = np.max(lon_array[:])
+    print(min_lat,max_lat,min_lon,max_lon)
+    dataset.close()
+
+def plot_test_time_series():
+    file_mdb = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/VEIT/MDBr__PACE_OCI_1KM_L2GEN_20240305T000000_20240831T235959_HYPSTAR_VEIT.nc'
+    file_out = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/VEIT/TimeSeriesAVW.tif'
+    from netCDF4 import Dataset
+    dataset = Dataset(file_mdb)
+    satellite_avw = dataset.variables['satellite_avw'][:]
+    mu_insitu_id = dataset.variables['mu_insitu_id'][:]
+    insitu_Rrs = dataset.variables['insitu_Rrs'][:]
+    wavelenght = dataset.variables['insitu_original_bands'][:]
+    time = dataset.variables['satellite_time'][:]
+    dataset.close()
+    ini_wl = 171 #400 nm
+    end_wl = 788 #700 nm
+    print(wavelenght[ini_wl],wavelenght[end_wl])
+    nmu = satellite_avw.shape[0]
+    sat_avw = np.zeros((nmu,))
+    ins_avw = np.zeros((nmu,))
+    for imu in range(nmu):
+        sat_avw[imu] = np.mean(satellite_avw[imu,11:14,11:14])
+        insitu_id = mu_insitu_id[imu]
+        ins_rrs = insitu_Rrs[imu,:,insitu_id]
+        ##aws formula
+
+        sum_rrs = np.sum(ins_rrs[ini_wl:end_wl])
+        div = ins_rrs[ini_wl:end_wl]/wavelenght[ini_wl:end_wl]
+
+        ins_avw[imu] = sum_rrs/np.sum(div)
+
+    ins_avw = ins_avw[np.isnan(sat_avw)==False]
+    time = time[np.isnan(sat_avw)==False]
+    sat_avw = sat_avw[np.isnan(sat_avw)==False]
+    from datetime import datetime as dt
+    time_obj = [dt.utcfromtimestamp(x) for x in time]
+    dd_mm = [f'{t.strftime("%m%d")}' for t  in time_obj]
+
+    from PlotSpectra import  PlotSpectra
+    ps = PlotSpectra()
+    ps.close_plot()
+    ps.start_plot()
+    ps.xdata = np.arange(0,len(dd_mm))
+    ps.plot_single_line(ins_avw, 'red','-',1,'o',4)
+    ps.plot_single_line(sat_avw, 'blue', '-', 1, 'o', 4)
+
+    ps.set_xticks(ps.xdata,dd_mm,90,10)
+    ps.set_y_range(400,700)
+    ps.save_plot(file_out)
+
+
+
+
 
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'TEST':
-        from netCDF4 import Dataset
-        from datetime import datetime as dt
+
+        # file_mdb = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/LAIT/MDB_PACE_OCI_1KM_L2GEN_20220701T000000_20240831T235959_MEDA_LAIT.nc'
+        # from netCDF4 import Dataset
+        # from datetime import datetime as dt
+        # dataset = Dataset(file_mdb)
+        # lat_array = dataset.variables['satellite_latitude'][:]
+        # lon_array = dataset.variables['satellite_longitude'][:]
+        # min_lat = np.min(lat_array[:])
+        # max_lat = np.max(lat_array[:])
+        # min_lon = np.min(lon_array[:])
+        # max_lon = np.max(lon_array[:])
+        # print(min_lat,max_lat,min_lon,max_lon)
+        # dataset.close()
+
         # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/EUMETSAT_L2/wide/MDBrc_S3AB_OLCI_WFR_STANDARD_20230101T000000_20231231T235959_HYPERBOOST_wide.nc'
         # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CCI_GLOBAL/1/MDBr__CCI_MULTI_4KM_ESACCI-OC_20230101T000000_20231231T235959_HYPERBOOST.nc'
         # file_in = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/CMEMS_MULTI_GLOBAL/1/MDBr__CMEMS_MULTI_4KM_CMEMS-MULTI_20230101T000000_20231231T235959_HYPERBOOST.nc'
@@ -4007,7 +4112,7 @@ def main():
         #remove_duplicated_insitu_hypstar(args.input_path)
         #check_geo_limits_extracts(args.input_path)
 
-        #make_plots_match_ups()
+
 
 
         #band_list = [413, 442, 490, 510, 560, 665]
@@ -4033,12 +4138,12 @@ def main():
         # get_certo_dates_olci()
         # check_dates()
         # set_certo_dates_extracts()
-        dir_mdb = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs_updated20241114'
-        for name in os.listdir(dir_mdb):
-            if name.endswith('.nc') and name.startswith('MDB'):
-                file_mdb = os.path.join(dir_mdb,name)
-                mdb_r = MDB_READER(file_mdb,True)
-                mdb_r.create_csv_time_difference()
+        # dir_mdb = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs_updated20241114'
+        # for name in os.listdir(dir_mdb):
+        #     if name.endswith('.nc') and name.startswith('MDB'):
+        #         file_mdb = os.path.join(dir_mdb,name)
+        #         mdb_r = MDB_READER(file_mdb,True)
+        #         mdb_r.create_csv_time_difference()
 
         # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import MDBFile
@@ -4385,7 +4490,37 @@ def main():
         # flag_band = 'satellite_WQSF'
         # flag_ac_value = 8
 
+        plot_test_time_series()
+
         return
+
+    if args.mode == 'BASIC_METADATA':
+        if not args.input_path:
+            print(f'[ERROR] -i (--input_path) argument is required')
+            return
+        if not os.path.isfile(args.input_path):
+            print(f'[ERROR] {args.input_path} does not exist or is not a valid file')
+            return
+        get_basic_metadata(args.input_path)
+        return
+
+    if args.mode == 'COMBINE_MATCH_UPS_PLOT':
+        if not args.input_path:
+            print(f'[ERROR] -i (--input_path) argument is required')
+            return
+        if not args.output:
+            print(f'[ERROR] -o (--output_path) argument is required')
+            return
+        if not args.site_name:
+            print(f'[ERROR] -site (--site_name) argument is required')
+            return
+        if not os.path.isfile(args.input_path):
+            print(f'[ERROR] {args.input_path} does not exist or is not a valid file')
+            return
+        if not os.path.isdir(args.output):
+            print(f'[ERROR] {args.output} does not exist or is not a valid directory')
+            return
+        make_plots_match_ups(args.site_name,args.output,args.input_path)
 
     if args.mode == 'CHECK_PROTOCOLS' and args.input_path:
         if os.path.isfile(args.input_path):
@@ -4511,6 +4646,7 @@ def main():
             print(f'python MDB_readerV2.py -m REMOVEREP -i {input_path} -v')
             return
         wllist = None
+        copy_with_wllist = False
         if args.config_file and os.path.exists(args.config_file):
             if args.verbose:
                 print(f'[INFO] Using file: {args.config_file} to set quality control options...')
@@ -4521,14 +4657,22 @@ def main():
             qco = QC_OPTIONS(options)
             wllist = qco.get_wllist()
             check_sat_bands = 1
+            reduced_sat_bands = 0
             if wllist is None: ##taking all the satellite bands
                 wllist = reader.mfile.satellite_bands
             else:
                 check_sat_bands = reader.mfile.check_bands(wllist, 5)
                 if check_sat_bands == -1:
                     return
-            copy_with_wllist = False
-            if check_sat_bands == 0:
+
+            wllist_r = reader.mfile.check_bands_insitu(wllist, 2.5)
+            if wllist_r is not None:
+                print(
+                    f'[WARNING] Reducing number of satellite bands from {len(wllist)} to {len(wllist_r)} to use only those to be associated with in situ data')
+                reduced_sat_bands = 1
+                wllist = wllist_r
+
+            if check_sat_bands==0 or reduced_sat_bands==1:
                 copy_with_wllist = qco.get_create_copy_with_band_list()
 
 
@@ -4554,6 +4698,7 @@ def main():
                     print('[INFO] NIR Correction is not applied. Using insitu_Rrs_nosc as input variable')
         else:
             reader.set_defaults_olci_wfr_hypstar()
+
 
         reader.mfile.allow_repeated = allow_repeated
 

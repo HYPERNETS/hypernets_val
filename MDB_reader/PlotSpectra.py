@@ -64,6 +64,12 @@ class PlotSpectra():
         plt.close()
         plt.figure()
 
+    def get_secondary_axis(self):
+        return plt.gca().twinx()
+
+    def start_plot_with_size(self,width,height):
+        plt.figure(figsize=(width, height))
+
     def close_plot(self):
         plt.close()
 
@@ -93,6 +99,24 @@ class PlotSpectra():
                      marker=style['marker'],
                      markersize=style['markersize'])
         return h
+
+    def plot_data_secondary_axis(self,ydata,ylabel,style):
+        axis = self.get_secondary_axis()
+        if ylabel is not None:
+            print(ylabel,'---------------------------------------------------------------------')
+            axis.set_ylabel(ylabel)
+        axis.plot(self.xdata,ydata,
+                    color=style['color'],
+                     linestyle=style['linestyle'],
+                     linewidth=style['linewidth'],
+                     marker=style['marker'],
+                     markersize=style['markersize'],
+                     mec=style['mec'],
+                     mew=style['mew'],
+                     mfc=style['mfc']
+                  )
+
+
 
     def plot_single_data(self, xdata, ydata, style):
         h = plt.plot(xdata, ydata,
@@ -132,6 +156,26 @@ class PlotSpectra():
 
         return h
 
+    def plot_single_line_secondary_axis(self, ydata,ylabel, line_color, line_type, line_width, marker, marker_size,mec,mew,mfc):
+        style = self.line_style_default
+        style['mec'] = mec
+        style['mew'] = mew
+        style['mfc'] = mfc
+        if line_color is not None:
+            style['color'] = line_color
+        if line_type is not None:
+            style['linestyle'] = line_type
+        if line_width is not None:
+            style['linewidth'] = line_width
+        if marker is not None:
+            style['marker'] = marker
+        if marker_size is not None:
+            style['markersize'] = marker_size
+
+        h = self.plot_data_secondary_axis(ydata,ylabel, style)
+
+        return h
+
     def plot_single_marker(self, xpoint, ypoint, marker, marker_size, color, edge_color, edge_width):
         h = plt.plot(xpoint, ypoint,
                  color=color,
@@ -145,6 +189,23 @@ class PlotSpectra():
     def plot_single_bar_series(self, ydata, color, width, offset,linewidth):
 
         h = plt.bar(self.xdata + offset, ydata, width, color=color, linewidth=linewidth, edgecolor='k')
+        return h
+
+    ##ygroup should be same size than ydata with values idx 0 to n, so that bar are plotted with color[idx]
+    def plot_single_bar_series_grouped(self, ydata, ygroup, colors, width, offset,linewidth):
+        ncolor = len(colors)
+        handles = []
+        for icolor in range(ncolor):
+            xdata_here = self.xdata[ygroup==icolor]
+            ydata_here = ydata[ygroup==icolor]
+            if len(xdata_here)>0:
+                h = plt.bar(xdata_here + offset, ydata_here, width, color=colors[icolor], linewidth=linewidth, edgecolor='k')
+                handles.append(h[0])
+        return handles
+
+    def plot_bar_series_bottom(self, ydata, color, width, bottom, linewidth):
+
+        h = plt.bar(self.xdata, ydata, width, color=color, linewidth=linewidth, edgecolor='k',bottom=bottom)
         return h
 
     def set_legend(self, str_legend):
@@ -173,6 +234,21 @@ class PlotSpectra():
         if fontsize is None:
             fontsize = 9
         plt.xticks(xticks, xtickvalues, rotation=rotation, fontsize=fontsize)
+
+    def set_xticks_time(self, xticks, xtickvalues, rotation, fontsize):
+        if rotation is None:
+            rotation = 0
+        if rotation < 0 or rotation > 90:
+            rotation = 0
+        if xtickvalues is None:
+            xtickvalues = xticks
+        if fontsize is None:
+            fontsize = 9
+        plt.xticks(xticks, xtickvalues, rotation=rotation, fontsize=fontsize,ha='left')
+
+    def set_horizontal_line(self,yval,xmin,xmax):
+        plt.axhline(yval,xmin,xmax,color='blue',linestyle='-')
+
 
     def set_xticks_minor(self, xticks, xtickvalues, rotation, fontsize):
         if rotation is None:
@@ -247,6 +323,9 @@ class PlotSpectra():
 
     def set_y_range(self, ymin, ymax):
         plt.ylim(ymin, ymax)
+
+    def set_x_range(self, xmin, xmax):
+        plt.xlim(xmin, xmax)
 
     def get_y_range(self):
         ymin, ymax = plt.ylim()

@@ -1,3 +1,4 @@
+import pandas as pd
 import pytz
 
 from MDBFile import MDBFile
@@ -209,7 +210,7 @@ class MDBPlot:
         self.global_options = poptions.global_options
         list_figures = poptions.get_list_figures()
         list_virtual = poptions.get_list_virtual_flags()
-        # print(list_figures)
+
         for figure in list_figures:
             print('------------------------------------------------------------------------------------------')
             print(f'[INFO] Starting figure: {figure}')
@@ -221,7 +222,7 @@ class MDBPlot:
                     self.create_virtual_flag(poptions, options_figure['selectBy'])
                 options_figure = self.check_gs_options_impl(options_figure, 'selectBy', 'selectType', 'selectValues')
             if 'groupBy' in options_figure and options_figure['groupBy'] is not None:
-                if options_figure['selectBy'] in list_virtual:
+                if options_figure['groupBy'] in list_virtual:
                     self.create_virtual_flag(poptions, options_figure['groupBy'])
                 options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
             self.plot_from_options_impl(options_figure)
@@ -232,11 +233,132 @@ class MDBPlot:
         if options_figure['type'] == 'spectraplot':
             self.plot_spectraplot_from_options(options_figure)
         if options_figure['type'] == 'timeseries':
-            self.plot_time_series(options_figure)
+            # self.plot_time_series(options_figure)
+            if options_figure['groupBy'] is not None:
+                self.plot_time_series_grouped(options_figure)
         if options_figure['type'] == 'mapplot':
             self.plot_map_plot(options_figure)
         if options_figure['type'] == 'imageplot':
             self.plot_image(options_figure)
+        if options_figure['type'] == 'flagplot':
+            self.plot_flag_plot_from_options(options_figure)
+
+    def plot_flag_plot_from_options(self, options_figure):
+
+        if options_figure['xlabel'] is None:
+            options_figure['xlabel'] = '# of pixels'
+        if options_figure['ylabel'] is None:
+            options_figure['ylabel'] = 'Flag'
+
+        if options_figure['type_flagplot'] == 'single':  ##flag plots for each match-up
+            index_mu = options_figure['index_mu']
+            if index_mu == -1:
+                for imu in range(self.mrfile.n_mu_total):
+                    print(f'[INFO] Plotting single flag plot for match-up {imu} / {self.mrfile.n_mu_total}')
+                    self.plot_single_flag_plot(options_figure, imu)
+            elif 0 <= index_mu < self.mrfile.n_mu_total:
+                print(f'[INFO] Plotting single flag plot for match-up {index_mu}')
+                self.plot_single_flag_plot(options_figure, index_mu)
+
+    def plot_single_flag_plot(self, options_figure, index_mu):
+        name_variable = options_figure['var_flag']
+        if name_variable is None:
+            return
+        flag_list = options_figure['flag_list']
+        array_flag, flag_values, flag_meanings = self.get_flag_array(options_figure, 'var_flag')
+        if flag_list is None:
+            flag_list = ' '.join(flag_meanings)
+        window_sizes = options_figure['window_sizes']
+        n_window = len(window_sizes)
+        n_flag = len(flag_list)
+        coordinates = np.zeros((n_window, 4), dtype=np.int32)
+        series_names = []
+        for iwindow in range(n_window):
+            if window_sizes[iwindow] == -1:
+                coordinates[iwindow, 0] = 0
+                coordinates[iwindow, 1] = len(self.mrfile.dimensions['rows'])
+                coordinates[iwindow, 2] = 0
+                coordinates[iwindow, 3] = len(self.mrfile.dimensions['columns'])
+                series_names.append('Complete')
+            else:
+                self.mrfile.window_size = window_sizes[iwindow]
+                central_r, central_c, r_s, r_e, c_s, c_e = self.mrfile.get_dimensions()
+                coordinates[iwindow, 0] = r_s
+                coordinates[iwindow, 1] = r_e
+                coordinates[iwindow, 2] = c_s
+                coordinates[iwindow, 3] = c_e
+                series_names.append(f'{window_sizes[iwindow]} x {window_sizes[iwindow]}')
+
+        output_data = np.zeros((n_flag, n_window))
+        array_flag = array_flag[index_mu]
+
+        for idx, flag in enumerate(flag_list):
+            flag_here = {
+                '0': {
+                    'is_default': False,
+                    'flag_list': [flag],
+                    'flag_value': 1,
+                    'flag_meaning': 'FLAGGED'
+                }
+            }
+            mask, flag_info = self.create_flag_mask(array_flag, options_figure['var_flag'], flag_here)
+            for iwindow in range(n_window):
+                mask_to_sum = mask[coordinates[iwindow, 0]:coordinates[iwindow, 1],
+                              coordinates[iwindow, 2]:coordinates[iwindow, 3]]
+                output_data[idx, iwindow] = np.sum(mask_to_sum)
+
+        self.plot_flag_plot_impl(options_figure, output_data, series_names, flag_list, index_mu)
+
+    def plot_flag_plot_impl(self, options_figure, output_data, series_names, flag_names, index_mu):
+        nseries = len(series_names)
+        nflag = output_data.shape[0]
+        # colors = options_out['series_color']
+        # if colors is None:
+        #     colors = defaults.get_color_list(nseries)
+        colors = ['blue', 'green']
+
+        from matplotlib import pyplot as plt
+        fig, ax = plt.subplots()
+        height = 0.2
+        xval = 0
+        xticks_pos = []
+        xticks_minor_pos = []
+        handles = [None] * nseries
+        heightbyseries = height / nseries
+        for iflag in range(nflag):
+            xini = xval
+            xticks_minor_pos.append(xini - (heightbyseries / 2))
+            for idx in range(nseries):
+                hbar = plt.barh(xval, output_data[iflag, idx], height=heightbyseries, color=colors[idx])
+                handles[idx] = hbar
+                xval = xval + heightbyseries
+            xfin = xval - heightbyseries
+            xticks_minor_pos.append(xfin + (heightbyseries / 2))
+            xoutput = (xini + xfin) / 2
+            xticks_pos.append(xoutput)
+
+        plt.ylabel(options_figure['ylabel'], fontsize=12)
+        plt.xlabel(options_figure['xlabel'], fontsize=12)
+        plt.yticks(xticks_pos, flag_names)
+        ax.set_yticks(xticks_minor_pos, minor=True)
+        plt.grid(which='minor', color='gray', linestyle='--', axis='y')
+        plt.grid(which='major', color='gray', linestyle='--', axis='x')
+        ax.tick_params(which='major', length=0, axis='y')
+        ax.tick_params(which='minor', length=10, axis='y')
+        if options_figure['legend']:
+            legend_values = series_names if options_figure['legend_values'] is None else options_figure['legend_values']
+            plt.legend(handles, legend_values, framealpha=1, loc='lower right')
+
+        plt.tight_layout()
+
+        if not options_figure['file_out'] is None:
+            file_out = options_figure['file_out']
+            if index_mu is not None:
+                satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y%m%d')
+                file_out = f'{file_out[:-4]}_{satellite_time}_{index_mu}{file_out[-4:]}'
+            plt.savefig(file_out, dpi=300)
+
+        plt.close(fig)
 
     def plot_map_plot(self, options_figure):
         import cartopy
@@ -668,6 +790,85 @@ class MDBPlot:
 
         return array_mask, flag_info
 
+    def plot_time_series_grouped(self, options_figure):
+        if not self.VALID and not os.path.isfile(self.mrfile.file_path):
+            print(f'[ERROR] {self.mrfile.file_path} shoud be a valid NetCDF file')
+            return
+
+        groupVar = options_figure['groupBy']
+
+        if groupVar in self.virtual_flags:
+            time_array = self.virtual_flags[groupVar]['flag_array']
+
+        selectVar = options_figure['selectBy']
+        if selectVar is not None:
+            if selectVar in self.virtual_flags:
+                select_array = self.virtual_flags[selectVar]['flag_array']
+        else:
+            select_array = np.ones(time_array.shape)
+
+        time_array[select_array == 0] = 0
+
+        groupValues = options_figure['groupValues']
+        groupValues.sort()
+
+        dataVars = options_figure['data_var']
+        col_name_ref = ['_num', '_sum', '_avg', '_median', '_std', '_min', '_max', '_p25', '_p75', '_range', '_iqr']
+        col_names = []
+        for dataVar in dataVars:
+            for ref in col_name_ref:
+                col_names.append(f'{dataVar}{ref}')
+
+        dfTime = pd.DataFrame(index=groupValues, columns=col_names)
+
+        # temp = self.mrfile.nc.variables['time'][:]
+        # from datetime import datetime as dt
+        # index_ini = -1
+        # for idx, t in enumerate(temp):
+        #     date_temp = dt.utcfromtimestamp(t)
+        #     if date_temp.year >= 1998 and index_ini == -1:
+        #         index_ini = idx
+        #     if date_temp.year >= 2021:
+        #         index_end = idx - 1
+        #         break
+        # print('INDEX INI->',index_ini)
+        # print('INDEX_END->',index_end)
+
+        # index_ini = 119 #first index 1998
+        # index_end = 8519 # last index 2021
+        # time_array = time_array[index_ini:index_end]
+
+        for dataVar in dataVars:
+            data_array = self.mrfile.nc.variables[dataVar]
+
+            for val in groupValues:
+                print(f'[INFO]-> Computing for {dataVar} / {val}')
+                data_array_here = data_array[time_array == val]
+                if np.ma.is_masked(data_array_here):
+                    data_array_here = data_array_here[~data_array_here.mask]
+
+                num = len(data_array_here)
+
+                dfTime.loc[val, f'{dataVar}_num'] = num
+                if num > 0:
+                    dfTime.loc[val, f'{dataVar}_sum'] = np.sum(data_array_here)
+                    dfTime.loc[val, f'{dataVar}_avg'] = np.mean(data_array_here)
+                    dfTime.loc[val, f'{dataVar}_median'] = np.median(data_array_here)
+                    dfTime.loc[val, f'{dataVar}_std'] = np.std(data_array_here)
+                    dfTime.loc[val, f'{dataVar}_min'] = np.min(data_array_here)
+                    dfTime.loc[val, f'{dataVar}_max'] = np.max(data_array_here)
+                    dfTime.loc[val, f'{dataVar}_p25'] = np.percentile(data_array_here, 25)
+                    dfTime.loc[val, f'{dataVar}_p75'] = np.percentile(data_array_here, 75)
+            dfTime[f'{dataVar}_range'] = dfTime[f'{dataVar}_max'] - dfTime[f'{dataVar}_min']
+            dfTime[f'{dataVar}_iqr'] = dfTime[f'{dataVar}_p75'] - dfTime[f'{dataVar}_p25']
+
+        if 'file_out' in options_figure:
+            file_out = options_figure['file_out']
+            index_label = options_figure['index_label']
+            file_csv = file_out[0:file_out.find('.')] + '.csv'
+            print(f'[INFO] Saving grouped time data frame to: {file_csv}')
+            dfTime.to_csv(file_csv, sep=';', index_label=index_label)
+
     def plot_time_series(self, options_figure):
         if not self.VALID and not os.path.isfile(self.mrfile.file_path):
             print(f'[ERROR] {self.mrfile.file_path} shoud be a valid NetCDF file')
@@ -846,8 +1047,7 @@ class MDBPlot:
         colors = ['blue', 'red', 'green']
 
         ##temporal
-        print('??????????????????????????????????')
-        print(instant_values.shape)
+
         insitu_array = np.ma.masked_all((225,))
         global_array = np.ma.masked_all((225,))
         regional_array = np.ma.masked_all((225,))
@@ -887,13 +1087,13 @@ class MDBPlot:
                         # xdata[:] = ivalue
                         # pspectra.plot_single_data(xdata,ydata,style)
 
-        print('??????????????????????????????????')
-        print(instant_values.shape)
-        print(pspectra.xdata.shape)
-        print(insitu_array.shape)
-        print(global_array.shape)
-        print(regional_array.shape)
-        print(style)
+        # print('??????????????????????????????????')
+        # print(instant_values.shape)
+        # print(pspectra.xdata.shape)
+        # print(insitu_array.shape)
+        # print(global_array.shape)
+        # print(regional_array.shape)
+        # print(style)
         style['linewidth'] = 1
         style['markersize'] = 0
         style['color'] = 'gray'
@@ -1055,6 +1255,23 @@ class MDBPlot:
         return instant_values, time_array_instants
 
     def plot_scatterplot_from_options(self, options_figure):
+        ##WORKING BY MATCH-UPS
+        if options_figure['selectByMu']:
+            index_mu = options_figure['index_mu']
+            mu_valid = np.ones((self.mrfile.n_mu_total,))
+            if 'mu_valid' in self.mrfile.variables:
+                mu_valid = self.mrfile.variables['mu_valid'][:]
+            file_out_base = options_figure['file_out']
+            if index_mu == -1:
+                for imu in range(self.mrfile.n_mu_total):
+                    if mu_valid[imu]==1:
+                        print(f'[INFO] Plotting scatter plot for match-up {imu} / {self.mrfile.n_mu_total}')
+                        self.plot_scatter_plot_mu(options_figure, imu,file_out_base)
+            elif 0 <= index_mu < self.mrfile.n_mu_total and mu_valid[index_mu]==1:
+                print(f'[INFO] Plotting scatter plot for match-up {index_mu}')
+                self.plot_scatter_plot_mu(options_figure, index_mu,file_out_base)
+
+            return
 
         ##WORKING WITH ALL THE DATA
         if options_figure['selectBy'] is None or not options_figure['individual_plots']:
@@ -1073,7 +1290,9 @@ class MDBPlot:
         ##WORKING WITH SELECTED OPTIONS
 
         if options_figure['selectBy'] is not None and options_figure['individual_plots']:
+
             selectValues = options_figure['selectValues']
+
             file_out_base = options_figure['file_out']
             title_base = options_figure['title']
             for svalue in selectValues:
@@ -1097,10 +1316,30 @@ class MDBPlot:
                                           options_figure['selectValues'], options_figure)
         self.plot_scatter_plot(options_figure, None, -1, -1, -1)
 
+    def plot_scatter_plot_mu(self, options_figure, index_mu, file_out_base):
+        if options_figure['apply_wavelength_color'] and options_figure['groupBy'] is None:
+            if options_figure['wlranges_min'] is not None and options_figure['wlranges_max'] is not None:
+                options_figure = self.create_flag_array_wl_ranges(options_figure, 'wl_groups')
+                options_figure['groupBy'] = 'wl_groups'
+                options_figure['groupValues'] = self.virtual_flags['wl_groups']['flag_values']
+                options_figure['groupType'] = 'flag'
+            else:
+                options_figure['groupBy'] = 'mu_wavelength'
+                options_figure['groupValues'] = options_figure['wlvalues']
+                options_figure['groupType'] = 'wavelength'
+
+        if file_out_base is not None:
+            satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y%m%d')
+            file_out = f'{file_out_base[:-4]}_{satellite_time}_{index_mu}{file_out_base[-4:]}'
+            options_figure['file_out'] = file_out
+
+        self.set_data_scatterplot(options_figure['groupBy'], 'mu_satellite_id', index_mu, None, options_figure)
+        self.plot_scatter_plot(options_figure, None, -1, -1, -1)
+
     def plot_global_scatterplot(self, options_figure):
         if options_figure['apply_wavelength_color'] and options_figure['groupBy'] is None:
             if options_figure['wlranges_min'] is not None and options_figure['wlranges_max'] is not None:
-                options_figure = self.create_flag_array_wl_ranges(options_figure,'wl_groups')
+                options_figure = self.create_flag_array_wl_ranges(options_figure, 'wl_groups')
                 options_figure['groupBy'] = 'wl_groups'
                 options_figure['groupValues'] = self.virtual_flags['wl_groups']['flag_values']
                 options_figure['groupType'] = 'flag'
@@ -1314,15 +1553,28 @@ class MDBPlot:
                     yherel = np.log10(yhere)
                     xy = np.vstack([xherel, yherel])
                 else:
+                    xhere = xhere[0:100000]
+                    yhere = yhere[0:100000]
                     xy = np.vstack([xhere, yhere])
 
                 try:
+                    print(f'[INFO] Computing density...')
                     z = gaussian_kde(xy)(xy)
+                    print(f'[INFO]Sorting density...')
                     idx = z.argsort()
                     xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
+                    print(f'[INFO] Density values were sorted')
                     plot.set_cmap('jet')
 
                     plot.plot_data(xhere, yhere, marker, markersize, z, None, 0)
+
+                    # file_kk = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS/stal.csv'
+                    # fw = open(file_kk,'w')
+                    # fw.write('x;y')
+                    # for idx in range(len(xhere)):
+                    #     fw.write('\n')
+                    #     fw.write(f'{xhere[idx]};{yhere[idx]}')
+                    # fw.close()
 
                 except:
                     print(f'[ERROR] Error creating density plot. Using default style')
@@ -1362,21 +1614,20 @@ class MDBPlot:
         if options['x_max'] is not None:
             max_x = options['x_max']
         if options['y_min'] is not None:
-            min_y= options['y_min']
+            min_y = options['y_min']
         if options['y_max'] is not None:
             max_y = options['y_max']
 
-
-        plot.set_limits_X(min_x,max_x)
-        plot.set_limits_Y(min_y,max_y)
-        #plot.set_limits(min_xy, max_xy)
+        plot.set_limits_X(min_x, max_x)
+        plot.set_limits_Y(min_y, max_y)
+        # plot.set_limits(min_xy, max_xy)
 
         # ticks
         if options['ticks'] is None and (options['x_ticks'] is None or options['y_ticks'] is None):
             if not options['log_scale']:
-                #ticks = self.get_ticks_from_min_max_xy(min_xy, max_xy)
-                x_ticks = self.get_ticks_from_min_max_xy(min_x,max_x)
-                y_ticks = self.get_ticks_from_min_max_xy(min_y,max_y)
+                # ticks = self.get_ticks_from_min_max_xy(min_xy, max_xy)
+                x_ticks = self.get_ticks_from_min_max_xy(min_x, max_x)
+                y_ticks = self.get_ticks_from_min_max_xy(min_y, max_y)
             else:
                 min_tx = int(np.log10(min_x))
                 max_tx = int(np.log10(max_x))
@@ -1414,12 +1665,12 @@ class MDBPlot:
             if plot.index_col == 0:
                 plot.set_yaxis_title(options['ylabel'])
             if plot.index_col > 0:
-                plot.set_yticks_labels_off(ticks)
+                plot.set_yticks_labels_off(y_ticks)
             if plot.index_row == prefinal_row and plot.index_col >= index_col_adjust >= 1:
                 plot.set_xaxis_title(options['xlabel'])
             else:
                 if plot.index_row < final_row:
-                    plot.set_xticks_labels_off(ticks)
+                    plot.set_xticks_labels_off(x_ticks)
 
         plot.set_equal_apect()
 
@@ -1483,24 +1734,37 @@ class MDBPlot:
 
     def plot_spectraplot_from_options(self, options_figure):
 
+        if options_figure['xlabel'] is None:
+            options_figure['xlabel'] = 'Wavelength (nm)'
+
         if options_figure['type_rrs'] == 'ins':
             self.plot_insitu_spectraplots(options_figure)
 
+        if options_figure['type_rrs'] == 'mu_ins':
+            index_mu = options_figure['index_mu']
+            if index_mu == -1:
+                for imu in range(self.mrfile.n_mu_total):
+                    print(f'[INFO] Plotting ins spectra for match-up {imu} / {self.mrfile.n_mu_total}')
+                    self.plot_insmu_spectraplot(options_figure, imu)
+            elif 0 <= index_mu < self.mrfile.n_mu_total:
+                print(f'[INFO] Plotting ins spectra for match-up {index_mu}')
+                self.plot_insmu_spectraplot(options_figure, index_mu)
+
         if options_figure['type_rrs'] == 'mu_comparison':
-            mu_valid= np.ones((self.mrfile.n_mu_total,))
+            mu_valid = np.ones((self.mrfile.n_mu_total,))
             if 'mu_valid' in self.mrfile.variables:
                 mu_valid = self.mrfile.variables['mu_valid'][:]
             index_mu = options_figure['index_mu']
             if index_mu == -1:
                 for imu in range(self.mrfile.n_mu_total):
-                    if mu_valid[imu]==1:
+                    if mu_valid[imu] == 1:
                         self.plot_mu_spectraplot(options_figure, imu)
-            elif 0 <= index_mu < self.mrfile.n_mu_total and mu_valid[index_mu]==1:
+            elif 0 <= index_mu < self.mrfile.n_mu_total and mu_valid[index_mu] == 1:
                 self.plot_mu_spectraplot(options_figure, index_mu)
 
     def plot_mu_spectraplot(self, options_figure, index_mu):
         wl, insitu_spectra, sat_spectra, insitu_spectra_unc, sat_spectra_unc = self.mrfile.get_mu_spectra_insitu_and_sat(
-            index_mu,options_figure['scale_factor'])
+            index_mu, options_figure['scale_factor'])
 
         if wl is None:
             return
@@ -1519,13 +1783,13 @@ class MDBPlot:
             hline1 = pspectra.plot_single_line(insitu_spectra, 'red', 'solid', 1, '.', 0)
             hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 1, '.', 0)
             if insitu_spectra_unc is not None:
-                insitu_min =  insitu_spectra.copy()
-                insitu_max  = insitu_spectra.copy()
+                insitu_min = insitu_spectra.copy()
+                insitu_max = insitu_spectra.copy()
                 insitu_min[~insitu_spectra_unc.mask] = insitu_spectra[~insitu_spectra_unc.mask] - insitu_spectra_unc[
                     ~insitu_spectra_unc.mask]
                 insitu_max[~insitu_spectra_unc.mask] = insitu_spectra[~insitu_spectra_unc.mask] + insitu_spectra_unc[
                     ~insitu_spectra_unc.mask]
-                pspectra.plot_iqr_basic(insitu_min,insitu_max,'red')
+                pspectra.plot_iqr_basic(insitu_min, insitu_max, 'red')
 
             if sat_spectra_unc is not None:
                 sat_min = sat_spectra.copy()
@@ -1552,9 +1816,77 @@ class MDBPlot:
             pspectra.set_legend_h([hline1[0], hline2[0]], ['In situ Rrs', 'Satellite Rrs'])
 
         if options_figure['y_min'] is not None and options_figure['y_max'] is not None:
-            pspectra.set_y_range(options_figure['y_min'],options_figure['y_max'])
+            pspectra.set_y_range(options_figure['y_min'], options_figure['y_max'])
         pspectra.set_grid()
         pspectra.set_tigth_layout()
+        if not options_figure['file_out'] is None:
+            file_out = options_figure['file_out']
+            satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y%m%d')
+            file_out = f'{file_out[:-4]}_{satellite_time}_{index_mu}{file_out[-4:]}'
+            pspectra.save_fig(file_out)
+        pspectra.close_plot()
+
+    def plot_insmu_spectraplot(self, options_figure, index_mu):
+        ##GETTING DATA
+        spectra_selected, spectra_valid, spectra_invalid = self.mrfile.get_mu_insitu_spectra(index_mu, options_figure[
+            'scale_factor'])
+        n_selected = spectra_selected.shape[0]
+        n_valid = spectra_valid.shape[0]
+        wl = self.mrfile.insitu_bands
+        from PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+
+        ##Setting wavelenth data and ticks
+        pspectra.xdata = wl
+        if options_figure['wlticks'] is not None:
+            wlt = options_figure['wlticks']
+            wls = [f'{x}' for x in wlt]
+        else:
+            wlt = wl
+            wls = []
+            for wl_value in wl:
+                wlstr = f'{wl_value:.2f}'
+                wlstr = wlstr.replace('.00', '')
+                wls.append(wlstr)
+        pspectra.set_xticks(wlt, wls, 0, 12)
+
+        ##Plotting data
+
+        if n_valid >= 1:
+            style = {'color': 'gray', 'linestyle': '-', 'linewidth': 1, 'marker': None, 'markersize': 10}
+            for idx in range(n_valid):
+                hvalid = pspectra.plot_data(spectra_valid[idx, :], style)
+        if n_selected == 1:
+            hselected = pspectra.plot_single_line(np.squeeze(spectra_selected), 'black', 'solid', 2, None, 10)
+
+        if n_valid==0 and n_selected==0:
+            print('here')
+            pspectra.close_plot()
+            return
+
+        ##title, axis ranges and axis lables
+        pspectra.set_xaxis_title(options_figure['xlabel'])
+        pspectra.set_yaxis_title(options_figure['ylabel'])
+        if options_figure['title'] is not None:
+            title_here = options_figure['title'] + f' MU: {index_mu}'
+            pspectra.set_title(title_here)
+        if options_figure['y_min'] is not None and options_figure['y_max'] is not None:
+            pspectra.set_y_range(options_figure['y_min'], options_figure['y_max'])
+
+        ##legend
+        pspectra.legend_options['loc'] = 'lower center'
+        pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.25)
+        pspectra.legend_options['ncols'] = 2
+        if n_valid > 0:
+            pspectra.set_legend_h([hselected[0], hvalid[0]], ['In situ selected spectrum', 'Other in situ spectra'])
+        if n_valid == 0:
+            pspectra.set_legend_h([hselected[0]], ['In situ selected spectrum'])
+
+        ##compleing
+        pspectra.set_grid()
+        pspectra.set_tigth_layout()
+
+        ##saving
         if not options_figure['file_out'] is None:
             file_out = options_figure['file_out']
             satellite_time = self.mrfile.sat_times[index_mu].strftime('%Y%m%d')
@@ -1801,13 +2133,10 @@ class MDBPlot:
                 group_array = self.get_array_muid_from_array_satelliteid(id_mu, group_array)
             self.groupdata = group_array[valid_all == 1]
 
-
-    def create_flag_array_wl_ranges(self,options_figure,name_fv):
+    def create_flag_array_wl_ranges(self, options_figure, name_fv):
 
         wlmin_values = options_figure['wlranges_min']
         wlmax_values = options_figure['wlranges_max']
-
-
 
         nranges = len(wlmin_values)
         mu_wavelength = self.mrfile.variables['mu_wavelength'][:]
@@ -1819,12 +2148,13 @@ class MDBPlot:
         for idx in range(nranges):
             min_wl = wlmin_values[idx]
             max_wl = wlmax_values[idx]
-            center_wl = min_wl+((max_wl-min_wl)/2)
-            color_wl =  defaults.get_color_wavelength(center_wl)
+            center_wl = min_wl + ((max_wl - min_wl) / 2)
+            color_wl = defaults.get_color_wavelength(center_wl)
+
             colors_wl.append(color_wl)
-            flag_value = 2**idx
+            flag_value = 2 ** idx
             flag_meaning = f'{min_wl}-{max_wl}'
-            array[np.logical_and(mu_wavelength>=min_wl,mu_wavelength<max_wl)]=flag_value
+            array[np.logical_and(mu_wavelength >= min_wl, mu_wavelength < max_wl)] = flag_value
             flag_values.append(flag_value)
             flag_meanings.append(flag_meaning)
 
@@ -1840,18 +2170,20 @@ class MDBPlot:
         }
         options_figure['legend_values'] = flag_meanings
         color_prev = options_figure['color']
-        if len(color_prev)!=len(wlmin_values):
+        if len(color_prev) != len(wlmin_values):
             options_figure['color'] = colors_wl
 
         return options_figure
-
 
     # options_var: selectBy or groupBy
     def get_flag_array(self, options_out, option_var):
         var_flag = options_out[option_var]
         if var_flag in self.mrfile.variables:
             array_flag = np.array(self.mrfile.variables[var_flag][:])
-            flag_values = self.mrfile.variables[var_flag].flag_values
+            if 'flag_values' in self.mrfile.variables[var_flag].ncattrs():
+                flag_values = self.mrfile.variables[var_flag].flag_values
+            elif 'flag_masks' in self.mrfile.variables[var_flag].ncattrs():
+                flag_values = self.mrfile.variables[var_flag].flag_masks
             flag_meanings = self.mrfile.variables[var_flag].flag_meanings.split(' ')
         else:  ##previously virtual flag
             array_flag = self.virtual_flags[var_flag]['flag_array']
@@ -1873,6 +2205,7 @@ class MDBPlot:
         return flag_list
 
     def get_flag_flag(self, val, allValues, allFlags):
+        allValues = np.array(allValues)
         indext = np.where(allValues == val)
         index = indext[0]
         if len(index) == 1:
@@ -1962,7 +2295,9 @@ class MDBPlot:
             str_out = f'{svalue:.2f}'
         if options['selectType'] == 'flag':
             flag_name = options['selectBy']
+
             str_out = self.get_flag_flag(svalue, options[flag_name]['flag_values'], options[flag_name]['flag_meanings'])
+
         return str_out
 
     def get_str_legend(self, options):
@@ -2090,6 +2425,7 @@ class MDBPlot:
         if vflag in self.virtual_flags:
             return
         from FlagBuilder import FlagBuilder
+        print(f'[INFO] Creating virtual flag: {vflag}')
         fbuilder = FlagBuilder(self.path_mdbr_file, None, poptions.options)
         flag_values, flag_names, array = fbuilder.create_flag_array(vflag, False)
 
@@ -2098,12 +2434,3 @@ class MDBPlot:
             'flag_values': flag_values,
             'flag_meanings': flag_names
         }
-
-        # options_flag = fbuilder.get_options_dict(vflag)
-        # print(options_flag)
-        # potential_types = fbuilder.flag_options['typevirtual']['list_values']
-        # #poptions = PlotOptions()
-        # type_v = poptions.get_value_param(vflag,'typevirtual',None,'str',potential_types)
-        # print(type_v)
-
-        # print('aqui')

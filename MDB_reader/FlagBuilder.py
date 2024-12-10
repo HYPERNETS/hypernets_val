@@ -25,13 +25,13 @@ class FlagBuilder:
             try:
                 print(f'[INFO] Starting flag builder using file: {path_mdb_file}')
                 self.mfile = MDBFile(path_mdb_file)
-                self.VALID = self.mfile.VALID
-                if not self.VALID:
+                # self.VALID = self.mfile.VALID
+                if not self.mfile.VALID:
                     print(
                         f'[WARNING] {path_mdb_file} is not a MDB file, it will be used a regular NetCDF file, some functions could not work')
                     self.mfile = None
                     self.nc_file = path_mdb_file
-                    self.VALID = True
+                self.VALID = True
             except:
                 self.VALID = False
 
@@ -45,10 +45,10 @@ class FlagBuilder:
             print(f'[ERROR] Flag configuration could not be started')
 
         if self.VALID:
-            print(f'[INFO] Configuration file with flags correctly started, including:')
-            for f in self.flag_list:
-                print(f'[INFO] {f}')
-            print(f'[INFO]----------------------------------')
+            print(f'[INFO] Configuration file with flags correctly started')
+            # for f in self.flag_list:
+            #     print(f'[INFO] {f}')
+            # print(f'[INFO]----------------------------------')
 
         # flag_insitu_spatial
         self.flag_options = {
@@ -57,7 +57,7 @@ class FlagBuilder:
             'level': {'type_param': 'str', 'list_values': ['l1', 'l2']},
             'var_limit_to_valid': {'type_param': 'str', 'default': None},
             'limit_to_central_pixel': {'type_param': 'boolean', 'default': False},
-            'output_dim': {'type_param': 'str','default':'satellite_id'},
+            'output_dim': {'type_param': 'str', 'default': 'satellite_id'},
             'default_flag': {'type_param': 'str', 'default': 'DEFAULT'},
             'default_value': {'type_param': 'int', 'default': 0},
             'default_masked': {'type_param': 'boolean', 'default': False},
@@ -65,11 +65,9 @@ class FlagBuilder:
             'lat_variable': {'type_group': ['spatial'], 'type_param': 'str', 'default': 'insitu_latitude'},
             'lon_variable': {'type_group': ['spatial'], 'type_param': 'str', 'default': 'insitu_longitude'},
             'time_variable': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'insitu_time'},
-            'time_ini_abs': {'type_group': ['temporal'], 'type_param': 'str', 'default': None},
-            'time_fin_abs': {'type_group': ['temporal'], 'type_param': 'str', 'default': None},
-            'time_flag_type': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'ranges',
-                               'list_values': ['ranges', 'instants']},
-            'instant_format':{'type_group':['temporal'],'type_param':'str','default': '%Y'},
+            'time_flag_type': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'single',
+                               'list_values': ['single', 'ranges']},
+            'time_ranges_index': {'type_group': ['temporal'], 'type_param': 'strlist'},
             'flag_ranges_indexm': {'type_group': ['ranges'], 'type_param': 'strlist'},
             'flag_indexm': {'type_group': ['flag'], 'type_param': 'strlist'},
             'path_csv': {'type_group': ['csv'], 'type_param': 'file', 'default': None},
@@ -103,7 +101,9 @@ class FlagBuilder:
         options_dict = self.omanager.read_options_as_dict(flag_ref, self.flag_options)
         if options_dict is None:
             return None, None, None
-
+        print(f'[INFO][FLAG_ARRAY] Creating flag array {flag_ref} with the following options:')
+        for opt in options_dict:
+            print(f'[INFO][FLAG_ARRAY]    {opt}->{options_dict[opt]}')
         type = options_dict['type']
         if type is None:
             type = options_dict['typevirtual']
@@ -115,7 +115,7 @@ class FlagBuilder:
                 self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_names, dims)
 
         if type == 'temporal':
-            array, dims, flag_names, flag_values = self.create_flag_array_temporal_v2(options_dict)
+            array, dims, flag_names, flag_values = self.create_flag_array_temporal_v3(options_dict)
             if create_copy:
                 self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_names, dims)
 
@@ -164,6 +164,91 @@ class FlagBuilder:
 
         return array, required_arrays
 
+    def create_flag_array_temporal_v3(self, options_dict):
+        if self.mfile is None and self.nc_file is not None:
+            dataset = Dataset(self.nc_file)
+        else:
+            dataset = self.mfile.nc
+        default_value = 0  ##value used for non-defined temporal flags
+        var_time = options_dict['time_variable']
+        time_array = dataset.variables[var_time][:]
+        array = time_array.copy().astype(np.int32)
+        array[:] = default_value
+
+        if options_dict['time_flag_type'] == 'single':
+            if not 'time_ranges_0' in options_dict:
+                print('[ERROR] time_ranges_0 should be defined with time_flag_type == single')
+                array = None
+                flag_names = None
+                flag_values = None
+            else:
+                array, flag_names, flag_values = self.get_time_group_array_from_time_ranges(time_array, options_dict[
+                    'time_ranges_0'], None, -1)
+
+        if options_dict['time_flag_type'] == 'ranges':
+            if not 'time_ranges_0' in options_dict:
+                print('[ERROR] time_ranges_x with x starting in 0 should be defined with time_flag_type == ranges')
+                array = None
+                flag_names = None
+                flag_values = None
+            else:
+                flag_names = []
+                flag_values = []
+                idx = 0
+                while f'time_ranges_{idx}' in options_dict:
+                    flag_value = idx + 1
+                    flag_values.append(flag_value)
+                    flag_names.append(str(flag_value))
+                    array, nn1, nn2 = self.get_time_group_array_from_time_ranges(time_array,options_dict[f'time_ranges_{idx}'],array, flag_value)
+                    idx = idx + 1
+
+
+        if self.mfile is None:
+            dataset.close()
+
+        return array, None, flag_names, flag_values
+
+    def get_time_group_array_from_time_ranges(self, time_array, time_ranges, input_array, flag_value):
+        if len(time_ranges) != 3:
+            print(f'[ERROR] time_ranges in configuration file shoud be defines as a 3 values list: format,min,max')
+            return None, None, None
+        potential_formats = ['%Y', '%m', '%d', '%j', '%Y%m%d', '%Y%m', '%Y%d', '%m%d', '%Y%j', '%H', '%M', '%H%M']
+        format = time_ranges[0]
+        if not format in potential_formats:
+            print(f'[ERROR] Format {format} in time_ranges_ in not a valid format, including: {potential_formats}')
+            return None, None, None
+        try:
+            min_value = np.int64(time_ranges[1])
+        except:
+            print(f'[ERROR] {time_ranges[1]} is not a valid min value, it should be an integer')
+            return None, None, None
+        try:
+            max_value = np.int64(time_ranges[2])
+        except:
+            print(f'[ERROR] {time_ranges[1]} is not a valid min value, it should be an integer')
+            return None, None, None
+
+        if input_array is None:
+            input_array = np.zeros(time_array.shape)
+
+        flag_values = []
+        for idx in range(len(time_array)):
+            there = np.int64(dt.utcfromtimestamp(time_array[idx]).strftime(format))
+            if min_value <= there <= max_value:
+                if flag_value==-1:
+                    input_array[idx] = there
+                    if there not in flag_values:
+                        flag_values.append(there)
+                else:
+                    input_array[idx] = flag_value
+
+        if flag_value==-1:
+            flag_names = [str(x) for x in flag_values]
+            return input_array,flag_names,flag_values
+        else:
+            return input_array,None,None
+
+
     def create_flag_array_temporal_v2(self, options_dict):
         if self.mfile is None and self.nc_file is not None:
             dataset = Dataset(self.nc_file)
@@ -176,12 +261,12 @@ class FlagBuilder:
 
         use_pow2_flags = options_dict['use_pow2_flags']
         time_array = dataset.variables[var_time][:]
-        if var_time=='insitu_time' and  options_dict['output_dim']=='satellite_id':
+        if var_time == 'insitu_time' and options_dict['output_dim'] == 'satellite_id':
             pass
 
         array = time_array.copy().astype(np.int32)
         array[:] = default_value
-        if default_flag is None or default_flag=='DEFAULT':
+        if default_flag is None or default_flag == 'DEFAULT':
             flag_names = []
             flag_values = []
         else:
@@ -189,25 +274,24 @@ class FlagBuilder:
             flag_values = [default_value]
         flag_type = options_dict['time_flag_type']
 
-        if flag_type=='instants':
+        if flag_type == 'instants':
             ins_format = options_dict['instant_format']
             index_flag = 0
-            for idx,t in enumerate(time_array):
-                print(idx,t)
+            for idx, t in enumerate(time_array):
+                print(idx, t)
                 str_instant = dt.utcfromtimestamp(float(t)).strftime(ins_format)
                 if str_instant not in flag_names:
                     flag_names.append(str_instant)
-                    flag_value = self.get_flag_value(index_flag,use_pow2_flags)
+                    flag_value = self.get_flag_value(index_flag, use_pow2_flags)
                     flag_values.append(flag_value)
                     index_flag = index_flag + 1
                 else:
                     index_here = flag_names.index(str_instant)
-                    flag_value = self.get_flag_value(index_here,use_pow2_flags)
+                    flag_value = self.get_flag_value(index_here, use_pow2_flags)
                 array[idx] = np.int64(flag_value)
 
         if self.mfile is None:
             dataset.close()
-
 
         return array, None, flag_names, flag_values
 
@@ -269,8 +353,7 @@ class FlagBuilder:
             flag_names = []
             flag_values = []
 
-
-        #print(indices_ranges)
+        # print(indices_ranges)
         # creating array
         for irange in indices_ranges:
             flag_value = indices_ranges[irange]['flag_value']

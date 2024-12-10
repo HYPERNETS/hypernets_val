@@ -6,8 +6,8 @@ color_dict = dict({ \
     '412.50': 'DeepSkyBlue', \
     '442.50': 'DodgerBlue', \
     '490.00': 'Blue', \
-    '510.00': 'ForestGreen', \
-    '560.00': 'Green', \
+    '510.00': 'LimeGreen', \
+    '560.00': 'ForestGreen', \
     '620.00': 'LightCoral', \
     '665.00': 'Red', \
     '673.75': 'Crimson', \
@@ -633,6 +633,14 @@ options_scatterplots = {
     'wlranges_max':{
         'default': None,
         'type': 'floatlist'
+    },
+    'selectByMu':{
+        'default': False,
+        'type': 'boolean'
+    },
+    'index_mu':{
+        'default': -1,
+        'type': 'int'
     }
 
 }
@@ -830,6 +838,10 @@ options_timeseries = {
         'default': None,
         'type': 'strlist'
     },
+    'data_var': {
+        'default': None,
+        'type': 'strlist'
+    },
     'insitu_id_variable': {
         'default': None,
         'type': 'str'
@@ -898,6 +910,10 @@ options_timeseries = {
     'marker': {
         'default': ['o'],
         'type': 'strlist'
+    },
+    'index_label': {
+        'default': None,
+        'type': 'str'
     }
 }
 
@@ -951,9 +967,25 @@ options_sequences = {
 
 options_flagplot = {
     'type_flagplot': {
-        'default': 'comparison',
+        'default': 'single',
         'type': 'str',
-        'values': ['comparison']
+        'values': ['single','comparison']
+    },
+    'var_flag': {
+        'default': None,
+        'type': 'str'
+    },
+    'flag_list': {
+        'default': None,
+        'type': 'strlist'
+    },
+    'window_sizes': {
+        'default': [-1,3],
+        'type': 'intlist'
+    },
+    'index_mu':{
+        'default': -1,
+        'type': 'int'
     }
 }
 
@@ -1177,6 +1209,8 @@ def get_options_timeseries():
         options[op] = options_title[op]
     for op in options_group:
         options[op] = options_group[op]
+    for op in options_select:
+        options[op] = options_select[op]
 
     return options
 
@@ -1219,6 +1253,10 @@ def get_options_flag_plot():
     options = options_flagplot
     for op in options_title:
         options[op] = options_title[op]
+    for op in options_axis:
+        options[op] = options_axis[op]
+    for op in options_legend:
+        options[op] = options_legend[op]
     return options
 
 def get_options_image_plot():
@@ -1286,7 +1324,7 @@ def get_color_wavelength(wlvalue):
         if dif < dif_ref:
             dif_ref = dif
             color_out = color_dict[wlp]
-    print(wlvalue, '->', color_out)
+    #print(wlvalue, '->', color_out)
     return color_out
 
 

@@ -203,6 +203,12 @@ class PlotScatter():
             self.set_axhere()
         self.axhere.plot(xdata, ydata, color=color, linestyle='-', linewidth=2, marker=None)
 
+    def plot_regress_line_options(self, xdata, ydata, color,linestyle,linewidth):
+        if self.axhere is None:
+            self.set_axhere()
+        self.axhere.plot(xdata, ydata, color=color, linestyle=linestyle, linewidth=linewidth, marker=None)
+
+
     def plot_text(self, xpos, ypos, str):
         if self.axhere is None:
             self.set_axhere()

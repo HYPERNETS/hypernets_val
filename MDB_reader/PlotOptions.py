@@ -429,7 +429,10 @@ class PlotOptions:
     def get_value(self, section, key):
         value = None
         if self.options.has_option(section, key):
-            value = self.options[section][key]
+            try:
+                value = self.options[section][key]
+            except:
+                print(f'[ERROR] Parsin error in section {section} - {key}')
         return value
 
     def get_value_param(self, section, key, default, type, potential_values):

@@ -51,6 +51,9 @@ class PlotMultiple():
     def set_text_size(self, x, y, s,fontsize):
         plt.text(x, y, s, fontsize=fontsize, backgroundcolor='w')
 
+    def set_title(self,title,fontsize):
+        self.fig.suptitle(title,fontsize=fontsize)
+
     def get_axes(self, index_row, index_col):
         if self.nrow > 1 and self.ncol > 1:
             axhere = self.ax[index_row, index_col]
