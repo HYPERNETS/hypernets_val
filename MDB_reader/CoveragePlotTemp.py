@@ -1779,7 +1779,8 @@ def temp_doors():
         dir_date = os.path.join(dir_sources,date_here.strftime('%Y'),date_here.strftime('%j'))
         name_out = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
         file_nc = os.path.join(dir_date,name_out)
-        res = 1 if os.path.exists(file_nc) else 0
+        size = os.stat(file_nc).st_size
+        res = 1 if size>0 else 0
         line_out = f'{date_here_str};{res}'
         fw.write('\n')
         fw.write(line_out)
