@@ -1736,7 +1736,7 @@ def temp_doors():
     #     print(time_here, log_chl_median, owt_dominant[idx], chl_N[idx])
 
     # print('GETTING EXTRA DATES')
-    # file_cmems = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20231220T000000_AERONET_Galata_Platform.csv'
+    file_cmems = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20231220T000000_AERONET_Galata_Platform.csv'
     # file_doors = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/MDB_CSV/MDB_CERTO_OLCI_300M_CERTO-OLCI-L3_20160415T000000_20231110T000000_AERONET_Galata_Platform.csv'
     #
     # date_list = '/mnt/c/DATA_LUIS/DOORS_WORK/AERONET_DATE_CHECK/GalataDateList.csv'
@@ -1767,6 +1767,8 @@ def temp_doors():
     # fw.close()
 
     print('CHECKING SOURCES')
+
+
     file_dates = '/store3/DOORS/config_files/GalataDateList.csv'
     file_out = '/store3/DOORS/config_files/GalataDateList_SourcesCERTO_OLCI.csv'
     dir_sources = '/store/DOORS/CERTO_SOURCES'
@@ -1778,9 +1780,12 @@ def temp_doors():
         date_here = dt.strptime(date_here_str,'%Y-%m-%d')
         dir_date = os.path.join(dir_sources,date_here.strftime('%Y'),date_here.strftime('%j'))
         name_out = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
+
         file_nc = os.path.join(dir_date,name_out)
-        size = os.stat(file_nc).st_size
-        res = 1 if size>0 else 0
+        res = 0
+        if os.path.exists(file_nc):
+            size = os.stat(file_nc).st_size
+            res = 1 if size>0 else 0
         line_out = f'{date_here_str};{res}'
         fw.write('\n')
         fw.write(line_out)
