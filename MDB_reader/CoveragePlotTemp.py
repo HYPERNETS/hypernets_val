@@ -1735,14 +1735,16 @@ def temp_doors():
     #     log_chl_median = np.log10(chl_median[idx])
     #     print(time_here, log_chl_median, owt_dominant[idx], chl_N[idx])
 
-    # print('GETTING EXTRA DATES')
-    # file_cmems = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20231220T000000_AERONET_Galata_Platform.csv'
-    # file_doors = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/MDB_CSV/MDB_CERTO_OLCI_300M_CERTO-OLCI-L3_20160415T000000_20231110T000000_AERONET_Galata_Platform.csv'
+    ##print('GETTING DATES')
+    # file_olci_cmems = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20190827T000000_20240818T000000_AERONET_Section-7_Platform.csv'
+    # file_olci_cmems2 = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/MDB_CSV/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20190808T000000_AERONET_Gloria.csv'
+    # file_olci_doors = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/MDB_CSV/MDB_CERTO_OLCI_300M_CERTO-OLCI-L3_20160415T000000_20190808T000000_AERONET_Gloria.csv'
+    # file_msi_doors = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/MDB_CSV/MDB_CERTO_MSI_60M_CERTO-MSI-L3_20190827T000000_20231107T000000_AERONET_Section-7_Platform.csv'
     #
-    # date_list = '/mnt/c/DATA_LUIS/DOORS_WORK/AERONET_DATE_CHECK/GalataDateList.csv'
-    # file_out = '/mnt/c/DATA_LUIS/DOORS_WORK/AERONET_DATE_CHECK/GalataCERTO-OLCI.csv'
-    # type = 'CERTO-OLCI'
-    # file_ref = file_doors
+    # date_list = '/mnt/c/DATA_LUIS/DOORS_WORK/AERONET_DATE_CHECK/Section7DateList.csv'
+    # file_out = '/mnt/c/DATA_LUIS/DOORS_WORK/AERONET_DATE_CHECK/Section_7_CERTO-MSI.csv'
+    # type = 'CERTO-MSI'
+    # file_ref = file_msi_doors
     #
     # df = pd.read_csv(file_ref,sep=';')
     # time = df['SatelliteTimeStamp']
@@ -1766,32 +1768,68 @@ def temp_doors():
     # fw.close()
     # fw.close()
 
-    print('CHECKING SOURCES')
+    # print('CHECKING SOURCES')
     dir_base = '/store3/DOORS/config_files/'
+    dir_sources_old = '/store/DOORS/CERTO_SOURCES'
+    dir_sources_new = '/store3/DOORS/CERTO_SOURCES'
     files_dates = ['GalataDateList.csv','GloriaDateList.csv','Section7DateList.csv']
     files_out = ['GalataDateList_SourcesCERTO_OLCI.csv','GloriaDateList_SourcesCERTO_OLCI.csv','Section7DateList_SourcesCERTO_OLCI.csv']
     for idx in range(3):
         file_dates = os.path.join(dir_base,files_dates[idx])
         file_out = os.path.join(dir_base,files_out[idx])
-        dir_sources = '/store/DOORS/CERTO_SOURCES'
+
         fw = open(file_out,'w')
-        fw.write('DATE;SOURCE_CERTO_OLCI')
+        fw.write('DATE;SOURCE_CERTO_OLCI_OLD;SOURCE_CERTO_OLCI_NEW')
         fr = open(file_dates,'r')
         for line in fr:
             date_here_str = line.strip()
             date_here = dt.strptime(date_here_str,'%Y-%m-%d')
-            dir_date = os.path.join(dir_sources,date_here.strftime('%Y'),date_here.strftime('%j'))
-            name_out = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
-            file_nc = os.path.join(dir_date,name_out)
-            res = 0
-            if os.path.exists(file_nc):
-                size = os.stat(file_nc).st_size
-                res = 1 if size>0 else 0
-            line_out = f'{date_here_str};{res}'
+            dir_date_old = os.path.join(dir_sources_old,date_here.strftime('%Y'),date_here.strftime('%j'))
+            name_out_old = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
+            file_nc_old = os.path.join(dir_date_old,name_out_old)
+            res_old = 0
+            if os.path.exists(file_nc_old):
+                size = os.stat(file_nc_old).st_size
+                res_old = 1 if size>0 else 0
+            dir_date_new = os.path.join(dir_sources_new, date_here.strftime('%Y'), date_here.strftime('%j'))
+            name_out_new = f'CERTO_olci_blk_p2_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
+            file_nc_new = os.path.join(dir_date_new, name_out_new)
+            res_new= 0
+            if os.path.exists(file_nc_new):
+                size = os.stat(file_nc_new).st_size
+                res_new = 1 if size > 0 else 0
+            line_out = f'{date_here_str};{res_old};{res_new}'
             fw.write('\n')
             fw.write(line_out)
         fr.close()
         fw.close()
+
+    ##GETTING TOGHETER MISSING DATES
+    # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/AERONET_DATE_CHECK'
+    # keys = ['CERTO-OLCI-PENDING-GALATA','CERTO-OLCI-PENDING-GLORIA','CERTO-OLCI-PENDING-SECTION-7']
+    # info_dates = {}
+    # for key in keys:
+    #     file_dates = os.path.join(dir_base,f'{key}.txt')
+    #     fr = open(file_dates,'r')
+    #     for line in fr:
+    #         date_str = line.strip()
+    #         if not date_str in info_dates:
+    #             info_dates[date_str] = {
+    #                 keys[0]:0,
+    #                 keys[1]:0,
+    #                 keys[2]:0
+    #             }
+    #         info_dates[date_str][key]=1
+    #     fr.close()
+    # file_out = os.path.join(dir_base,'CERTO-OLCI-PENDING-AERONET-DATES.csv')
+    # fw = open(file_out,'w')
+    # fw.write('DATE;CERTO-OLCI-PENDING-GALATA;CERTO-OLCI-PENDING-GLORIA;CERTO-OLCI-PENDING-SECTION-7')
+    # for date_str in info_dates:
+    #     line_out = f'{date_str};{info_dates[date_str][keys[0]]};{info_dates[date_str][keys[1]]};{info_dates[date_str][keys[2]]}'
+    #     fw.write('\n')
+    #     fw.write(line_out)
+    #
+    # fw.close()
 
 
 def plot_stats(dir_out):
