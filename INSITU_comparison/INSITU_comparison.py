@@ -197,11 +197,15 @@ class INSITUCOMPARISON:
         var_wl = self.dataset_w.createVariable(variable_wavelength, 'f4', (dim_wavelenght,), zlib=True, complevel=6,fill_value=-999.0)
         var_wl.long_name = 'HYPSTAR Nominal Wavelengths(1538 values)'
         var_wl.units = 'nm'
+        if nominal_wavelengths is None:
+            nominal_wavelengths = np.ma.masked_all((dim_wavelenght,))
         var_wl[:] = nominal_wavelengths[:]
 
         var_wl_alt = self.dataset_w.createVariable(variable_wavelength_alt, 'f4', (dim_wavelenght,), zlib=True, complevel=6,fill_value=-999.0)
         var_wl_alt.long_name = 'Alternative HYPSTAR Nominal Wavelengths(1536 values)'
         var_wl_alt.units = 'nm'
+        if nominal_wavelengths_alt is None:
+            nominal_wavelengths_alt = np.ma.masked_all((dim_wavelenght,))
         var_wl_alt[:] = nominal_wavelengths_alt[:]
 
         time_list.sort()
@@ -347,15 +351,9 @@ class INSITUCOMPARISON:
                 array_hypstar = var_hypstar[0, idx, :]
                 if not np.ma.is_masked(time_idx):
                     if time_idx>=time_ref_alt:
-                        print('Using alternative with hyptar time: ',dt.utcfromtimestamp(time_idx))
-                        #array_hypstar_to_aeronet = array_hypstar[indices_nearest_alt]
                         indices_nearest_touse = indices_nearest_alt
                     else:
-                        print('Using regular with hyptar time: ', dt.utcfromtimestamp(time_idx))
-                        #array_hypstar_to_aeronet = array_hypstar[indices_nearest]
                         indices_nearest_touse = indices_nearest
-
-
                 array_hypstar_to_aeronet = array_hypstar[indices_nearest_touse]
                 array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask==False] = array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask==False] * scale_factor
                 var_new[0, idx, :] = array_hypstar_to_aeronet[:]
