@@ -251,7 +251,7 @@ class INSITUCOMPARISON:
             file_l1 = file_here.replace('L2A_REF', 'L1C_ALL')
             if os.path.exists(file_l1):
                 datasetL1 = Dataset(file_l1)
-                nwl_here = len(dataset.variables['wavelength'][:])
+                nwl_here = len(datasetL1.variables['wavelength'][:])
                 for var in spectral_l1_variables:
                     name_out = f'HYPSTAR_{var}'
                     if name_out not in self.dataset_w.variables:
