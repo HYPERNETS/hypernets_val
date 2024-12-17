@@ -199,7 +199,7 @@ class INSITUCOMPARISON:
         var_wl.units = 'nm'
         var_wl[:] = nominal_wavelengths[:]
 
-        var_wl_alt = self.dataset_w.createVariable(variable_wavelength, 'f4', (dim_wavelenght,), zlib=True, complevel=6,fill_value=-999.0)
+        var_wl_alt = self.dataset_w.createVariable(variable_wavelength_alt, 'f4', (dim_wavelenght,), zlib=True, complevel=6,fill_value=-999.0)
         var_wl_alt.long_name = 'Alternative HYPSTAR Nominal Wavelengths(1536 values)'
         var_wl_alt.units = 'nm'
         var_wl_alt[:] = nominal_wavelengths_alt[:]
