@@ -14,8 +14,10 @@ code_aeronet = os.path.join(os.path.dirname(code_home), 'aeronet')
 sys.path.append(code_aeronet)
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
-parser.add_argument('-m', "--mode", help="Mode.", choices=["COMPARISON", "CONCAT", "GENERATEMU", "TEST"])
+parser.add_argument('-m', "--mode", help="Mode.", choices=["COMPARISON", "CONCAT", "GENERATEMU", "HYPSTAR_QC","TEST"])
 parser.add_argument('-c', "--config_file", help="Config File.")
+parser.add_argument('-cf',"--comparison_file",help="Comparison file.")
+parser.add_argument('-max',"--max_time",help="Maximum time in minutes between observations.")
 # parser.add_argument('-o', "--output",help="Output ")
 # parser.add_argument('-edir', "--sat_extract_dir",
 #                     help="Input sat. extract dir. Optional for --listdates, required for single concatenation")
@@ -187,12 +189,17 @@ def add_mu_to_file_date(date_here):
         add_mu_to_file(file_comparison)
 
 
-def add_mu_to_file(file_comparison):
+def add_mu_to_file(file_comparison,max_time):
     if file_comparison is None:
         return
     print(f'[INFO] Adding match-ups to file: {file_comparison}')
     ic = INSITUCOMPARISON(file_comparison)
-    ic.add_match_ups_to_file(11)
+    ic.add_match_ups_to_file(max_time)
+
+def make_hypstar_qc(file_comparison):
+    print(f'[INFO] Adding HYPSTAR QC variable to: {file_comparison}')
+    ic = INSITUCOMPARISON(file_comparison)
+    ic.add_hypstar_qc()
 
 
 def make_plots():
@@ -572,7 +579,35 @@ def main():
             return
         make_concatenation(options['path_comparison'],options['file_out'],options['start_date'],options['end_date'])
 
-    elif args.mode == 'TEST':
+    if args.mode == 'HYPSTAR_QC':
+        if not args.comparison_file:
+            print(f'[ERROR] Comparison file (-cf,--comparison_file) is required for mode: {args.mode}')
+            return
+        file_c = args.comparison_file
+        if not os.path.isfile(file_c):
+            print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
+            return
+        make_hypstar_qc(file_c)
+
+    if args.mode == 'GENERATEMU':
+        if not args.comparison_file:
+            print(f'[ERROR] Comparison file (-cf,--comparison_file) is required for mode: {args.mode}')
+            return
+        max_time = 11
+        if args.max_time:
+            try:
+                max_time = int(args.max_time)
+            except:
+                print(f'[ERROR] Max time (-max,--max_time) option {args.max_time} is not valid. It should be a number')
+                return
+        file_c = args.comparison_file
+        if not os.path.isfile(file_c):
+            print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
+            return
+        add_mu_to_file(file_c,max_time)
+
+
+    if args.mode == 'TEST':
         # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/05/05/HYPERNETS_W_VEIT_L2A_REF_20230505T1540_20240118T1418_270_v2.0.nc'
         # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/2023/05/05/COMPARISON_20230505.nc'
         # file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20240406_AAOT.LWN_lev20_15.nc'

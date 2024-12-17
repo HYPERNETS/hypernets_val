@@ -145,8 +145,6 @@ class INSITUCOMPARISON:
 
         return True
 
-
-
     def create_hypstar_variables(self, path_day, date_here):
 
         ##checking files and times
@@ -154,7 +152,9 @@ class INSITUCOMPARISON:
         list_files = {}
         time_ini = date_here.replace(tzinfo=pytz.utc, hour=0, minute=0, second=0).timestamp()
         time_end = date_here.replace(tzinfo=pytz.utc, hour=23, minute=59, second=59).timestamp()
+        nwl = self.options['sensor']['HYPSTAR']
         nominal_wavelengths = None
+        nominal_wavelengths_alt = None
         for name in os.listdir(path_day):
             if name.find('L2A_REF') < 0:
                 continue
@@ -168,16 +168,20 @@ class INSITUCOMPARISON:
                 list_files[time_here_str] = file_here
                 time_list.append(time_stamp)
 
-            if nominal_wavelengths is None:
-                nominal_wavelengths = np.array(dataset.variables['wavelength'][:])
+            nwl_here = len(dataset.variables['wavelength'][:])
+            if nominal_wavelengths is None and nwl_here==nwl:
+                nominal_wavelengths = dataset.variables['wavelength'][:]
+            if nominal_wavelengths_alt is None and nwl_here==nwl:
+                nominal_wavelengths_alt = np.ma.masked_all((nwl,))
+                nominal_wavelengths_alt[0:nwl_here] = dataset.variables['wavelength'][:]
+
             dataset.close()
-
-
 
         ##create hypstar variables
         dim_wavelenght = 'HYPSTAR_wavelength'
         variable_time = 'HYPSTAR_time'
         variable_wavelength = 'HYPSTAR_Nominal_Wavelengths'
+        variable_wavelength_alt = 'HYPSTAR_Nominal_Wavelengths_Alt'
         spectral_l2_variables = self.coptions.hypstar_l2_spectral_variables()
         spectral_l1_variables = self.coptions.hypstar_l1_spectral_variables()
 
@@ -189,11 +193,16 @@ class INSITUCOMPARISON:
                                                  fill_value=-999.0)
         var_time.long_name = 'UNIX Time Instant'
         var_time.units = 'Seconds since 1970-01-01 00:00:00.000 UTC'
-        var_wl = self.dataset_w.createVariable(variable_wavelength, 'f4', (dim_wavelenght,), zlib=True, complevel=6,
-                                               fill_value=-999.0)
-        var_wl.long_name = 'HYPSTAR Nominal Wavelengths'
+
+        var_wl = self.dataset_w.createVariable(variable_wavelength, 'f4', (dim_wavelenght,), zlib=True, complevel=6,fill_value=-999.0)
+        var_wl.long_name = 'HYPSTAR Nominal Wavelengths(1538 values)'
         var_wl.units = 'nm'
         var_wl[:] = nominal_wavelengths[:]
+
+        var_wl_alt = self.dataset_w.createVariable(variable_wavelength, 'f4', (dim_wavelenght,), zlib=True, complevel=6,fill_value=-999.0)
+        var_wl_alt.long_name = 'Alternative HYPSTAR Nominal Wavelengths(1536 values)'
+        var_wl_alt.units = 'nm'
+        var_wl_alt[:] = nominal_wavelengths_alt[:]
 
         time_list.sort()
         idx = 0
@@ -202,6 +211,7 @@ class INSITUCOMPARISON:
             time_here_str = dt.utcfromtimestamp(t).strftime('%Y%m%d%H%M')
             file_here = list_files[time_here_str]
             dataset = Dataset(file_here, 'r')
+            nwl_here = len(dataset.variables['wavelength'][:])
             for var in spectral_l2_variables:
                 name_out = f'HYPSTAR_{var}'
                 if name_out not in self.dataset_w.variables:
@@ -218,7 +228,7 @@ class INSITUCOMPARISON:
                 if '_FillValue' in dataset.variables[var].ncattrs():
                     fill_value_orig = dataset.variables[var]._FillValue
                     var_out[var_out == fill_value_orig] = -999.0
-                self.dataset_w.variables[name_out][0, idx, :] = var_out
+                self.dataset_w.variables[name_out][0, idx, 0:nwl_here] = var_out
 
             for var in single_l2_variables:
                 name_out = f'HYPSTAR_{var}'
@@ -241,6 +251,7 @@ class INSITUCOMPARISON:
             file_l1 = file_here.replace('L2A_REF', 'L1C_ALL')
             if os.path.exists(file_l1):
                 datasetL1 = Dataset(file_l1)
+                nwl_here = len(dataset.variables['wavelength'][:])
                 for var in spectral_l1_variables:
                     name_out = f'HYPSTAR_{var}'
                     if name_out not in self.dataset_w.variables:
@@ -260,17 +271,17 @@ class INSITUCOMPARISON:
                     if var == 'std_upwelling_radiance':
                         var_out = np.ma.std(np.ma.array(datasetL1.variables['upwelling_radiance'][:, :]), axis=1)
                         var_out = var_out.filled(-999.0)
-                        self.dataset_w.variables[name_out][0, idx, :] = var_out
+                        self.dataset_w.variables[name_out][0, idx, 0:nwl_here] = var_out
                     elif datasetL1.variables[var].ndim == 2:
                         var_out = np.ma.mean(np.ma.array(datasetL1.variables[var][:, :]), axis=1)
                         var_out = var_out.filled(-999.0)
-                        self.dataset_w.variables[name_out][0, idx, :] = var_out
+                        self.dataset_w.variables[name_out][0, idx, 0:nwl_here] = var_out
                     elif datasetL1.variables[var].ndim == 1 and datasetL1.variables[var].dimensions[0] == 'wavelength':
                         var_out = datasetL1.variables[var][:]
                         if '_FillValue' in datasetL1.variables[var].ncattrs():
                             fill_value_orig = datasetL1.variables[var]._FillValue
                             var_out[var_out == fill_value_orig] = -999.0
-                        self.dataset_w.variables[name_out][0, idx, :] = var_out
+                        self.dataset_w.variables[name_out][0, idx, 0:nwl_here] = var_out
 
                 for var in single_l1_variables:
                     name_out = f'HYPSTAR_{var}'
@@ -291,8 +302,8 @@ class INSITUCOMPARISON:
             idx = idx + 1
 
     def create_hypstar_to_aeronet_variables(self):
-        aeronet_exact_wavelenghts = np.array(self.dataset_w.variables['AERONET_Exact_Wavelengths'][0, 0, :])
-        hypspar_wavelengths = np.array(self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths'][:])
+        aeronet_exact_wavelenghts =self.dataset_w.variables['AERONET_Exact_Wavelengths'][0, 0, :]
+        hypspar_wavelengths = self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths'][:]
         dim_wavelenght = 'AERONET_wavelength'
 
         ##NEAREST NEIGHBOUR METHOD
@@ -300,6 +311,14 @@ class INSITUCOMPARISON:
         for wl in aeronet_exact_wavelenghts:
             index = np.argmin(np.abs(hypspar_wavelengths - wl))
             indices_nearest.append(index)
+        indices_nearest_alt = []
+        for wl in aeronet_exact_wavelenghts:
+            index = np.argmin(np.abs(hypspar_wavelengths - wl))
+            indices_nearest_alt.append(index)
+
+        ##reference time to use alternative nominal wavelengths
+        time_ref_alt = dt(2024,6,4,9,30,0).replace(tzinfo=pytz.utc).timestamp()
+        hypstar_time = self.dataset_w.variables['HYPSTAR_time'][:]
 
         ##spectral variables
         spectral_variables = self.coptions.hypstar_aeronet_spectral_variables()
@@ -321,14 +340,42 @@ class INSITUCOMPARISON:
                 var_new.setncattr(at, spectral_variables[variable][at])
 
             for idx in range(var_hypstar.shape[1]):
-                array_hypstar = np.array(var_hypstar[0, idx, :])
-                array_hypstar_to_aeronet = array_hypstar[indices_nearest]
-                array_hypstar_to_aeronet[array_hypstar_to_aeronet != -999 - 0] = array_hypstar_to_aeronet[
-                                                                                     array_hypstar_to_aeronet != -999 - 0] * scale_factor
+                time_idx = hypstar_time[0,idx]
+                array_hypstar = var_hypstar[0, idx, :]
+                if time_idx>=time_ref_alt:
+                    print('Using alternative with hyptar time: ',dt.utcfromtimestamp(time_idx))
+                    array_hypstar_to_aeronet = array_hypstar[indices_nearest_alt]
+                else:
+                    print('Using regular with hyptar time: ', dt.utcfromtimestamp(time_idx))
+                    array_hypstar_to_aeronet = array_hypstar[indices_nearest]
+                array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask==False] = array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask==False] * scale_factor
                 var_new[0, idx, :] = array_hypstar_to_aeronet[:]
 
     def close_file_w(self):
         self.dataset_w.close()
+
+    def add_hypstar_qc(self):
+        now = dt.now().strftime('%Y%m%d%H%M%S')
+        path_copy = os.path.join(os.path.dirname(self.path_nc), f'Temp_{now}.nc')
+        self.dataset_w = self.copy_nc(self.path_nc, path_copy)
+        var_new = self.dataset_w.createVariable('HYPSTAR_quality_control', 'i2', ('day_id', 'sequence_id'), zlib=True,
+                                                complevel=6)
+        qf = self.dataset_w.variables['HYPSTAR_quality_flag'][:]
+        epsilon = self.dataset_w.variables['HYPSTAR_epsilon'][:]
+        qc = qf.copy()
+        qc[qf.mask == False] = 1  ##all non-masked as valid
+        print('NValid inicial es igual a count non-mansked', np.ma.sum(qc), np.ma.count(qc))
+        # set as invalid values with qf>0
+        qc[qf > 0] = 0
+        print('NValid after step 1', np.ma.sum(qc))
+        # set as invalid values with epsion<-0.05 or epsilon>0.05
+        qc[epsilon < (-0.05)] = 0
+        qc[epsilon > 0.05] = 0
+        print('NValid after step 2', np.ma.sum(qc))
+        var_new[:] = qc[:]
+        self.close_file_w()
+        os.rename(path_copy, self.path_nc)
+        print(f'[INFO] --> Completed')
 
     def add_match_ups_to_file(self, time_diff_minutes):
         now = dt.now().strftime('%Y%m%d%H%M%S')
@@ -371,54 +418,160 @@ class INSITUCOMPARISON:
         nwl = self.dataset_w.dimensions['AERONET_wavelength'].size
         wl_list = np.array(self.dataset_w.variables['AERONET_nominal_wavelengths'][:])
 
-        imu = 0
-
+        identified_match_ups = {}
         for iday in range(ndays):
             # hypstar_time = np.array(self.dataset_w.variables['HYPSTAR_time'][iday,:])
-            aeronet_time = np.array(self.dataset_w.variables['AERONET_time'][iday, :])
+            aeronet_time = self.dataset_w.variables['AERONET_time'][iday, :]
+            aeronet_hypstar_index = np.zeros((nsequences))
+            hypstar_aeronet_index = np.zeros((nsequences))
+            aeronet_hypstar_index[:] = -1
+            hypstar_aeronet_index[:] = -999
+            time_diff_array = np.zeros((nsequences))
             for hsequence in range(nsequences):
                 ht = self.dataset_w.variables['HYPSTAR_time'][iday, hsequence]
-                qf = self.dataset_w.variables['HYPSTAR_quality_flag'][iday, hsequence]
+                hqc = self.dataset_w.variables['HYPSTAR_quality_control'][iday, hsequence]
                 if ma.is_masked(ht):
                     continue
-                if qf > 0:
+                if hqc == 0 or ma.is_masked(hqc):
                     continue
                 asequence = np.argmin(np.abs(ht - aeronet_time))
-
-                at = aeronet_time[asequence]
                 time_diff = abs(aeronet_time[asequence] - ht)
+                if ma.is_masked(time_diff):
+                    continue
                 if time_diff <= max_time_diff:
+                    if aeronet_hypstar_index[asequence] == -1:  ##aeronet sequence not used yet
+                        str = f'HYPSTAR time: {dt.utcfromtimestamp(float(ht))} AERONET-OC time: {dt.utcfromtimestamp(float(aeronet_time[asequence]))} Time diff: {time_diff} seconds'
+                        print(
+                            f'[INFO] --> Index day: {iday} Hypstar sequence: {hsequence} AERONET-OC sequence: {asequence} {str}')
+                        hypstar_aeronet_index[hsequence] = asequence
+                        aeronet_hypstar_index[asequence] = hsequence
+                        time_diff_array[asequence] = time_diff
+                    else:
+                        if time_diff < time_diff_array[asequence]:  ##reassigning
+                            hypstar_sequence_prev = aeronet_hypstar_index[asequence]
+                            hypstar_aeronet_index[hypstar_sequence_prev] = -1
+                            aeronet_hypstar_index[asequence] = hsequence
+                            time_diff_array[asequence] = time_diff
+                            hypstar_aeronet_index[hsequence] = asequence
+                        else:  ##sequence to check in a later step
+                            hypstar_aeronet_index[hsequence] = -1
 
-                    str = f'HYPSTAR time: {dt.utcfromtimestamp(float(ht))} AERONET-OC time: {dt.utcfromtimestamp(float(at))} Time diff: {time_diff} seconds'
-                    print(f'[INFO] --> {str}')
-                    # print(dt.utcfromtimestamp(float(ht)), '<->', dt.utcfromtimestamp(float(at)), '->', time_diff)
-                    imu_ini = imu
-                    imu_fin = imu + nwl
-                    imu = imu_fin
-                    self.dataset_w.variables['mu_wavelength'][imu_ini:imu_fin] = wl_list[:]
-                    self.dataset_w.variables['mu_day_id'][imu_ini:imu_fin] = iday
-                    self.dataset_w.variables['mu_AERONET_sequence_id'][imu_ini:imu_fin] = asequence
-                    self.dataset_w.variables['mu_HYPSTAR_sequence_id'][imu_ini:imu_fin] = hsequence
-                    self.dataset_w.variables['mu_time_diff'][imu_ini:imu_fin] = time_diff
+            identified_match_ups[iday] = {
+                'hypstar_aeronet_index': hypstar_aeronet_index,
+                'aeronet_hypstar_index': aeronet_hypstar_index,
+                'time_diff_array': time_diff_array
+            }
 
-                    for key in mu_variables_keys:
-                        for var in mu_variables:
-                            variable_in = f'{key}_{var}'
-                            if variable_in in self.dataset_w.variables:
-                                new_var_name = f'mu_{variable_in}'
-                                self.dataset_w.variables[new_var_name][imu_ini:imu_fin] = self.dataset_w.variables[
-                                                                                              variable_in][
-                                                                                          iday, asequence, :]
+        for iday in range(ndays):
+            hypstar_aeronet_index = identified_match_ups[iday]['hypstar_aeronet_index']
+            aeronet_hypstar_index = identified_match_ups[iday]['aeronet_hypstar_index']
+            time_diff_array = identified_match_ups[iday]['time_diff_array']
+            for hsequence in range(nsequences):
+                if hypstar_aeronet_index[hsequence] == -1:
+                    aeronet_time = self.dataset_w.variables['AERONET_time'][iday, :]
+                    ht = self.dataset_w.variables['HYPSTAR_time'][iday, hsequence]
+                    print(
+                        f'[INFO] :: Checking sequence {iday}/{hsequence} with HYPSTAR time {dt.utcfromtimestamp(float(ht))}...')
+                    aeronet_time[aeronet_hypstar_index > 0] = np.ma.masked
+                    asequence = np.argmin(np.abs(ht - aeronet_time))
+                    time_diff = abs(aeronet_time[asequence] - ht)
+                    if ma.is_masked(time_diff):
+                        continue
+                    if time_diff <= max_time_diff and aeronet_hypstar_index[asequence] == -1:
+                        str = f'HYPSTAR time: {dt.utcfromtimestamp(float(ht))} AERONET-OC time: {dt.utcfromtimestamp(float(aeronet_time[asequence]))} Time diff: {time_diff} seconds'
+                        print(
+                            f'[INFO] --> Index day: {iday} Hypstar sequence: {hsequence} AERONET-OC sequence: {asequence} {str}')
+                        hypstar_aeronet_index[hsequence] = asequence
+                        aeronet_hypstar_index[asequence] = hsequence
+                        time_diff_array[asequence] = time_diff
 
-                    # self.dataset_w.variables['mu_AERONET_Lw'][imu_ini:imu_fin] = self.dataset_w.variables['AERONET_Lw'][
-                    #                                                              iday, asequence, :]
-                    # self.dataset_w.variables['mu_HYPSTAR_TO_AERONET_Lw'][imu_ini:imu_fin] = self.dataset_w.variables[
-                    #                                                                             'HYPSTAR_TO_AERONET_Lw'][
-                    #                                                                         iday, asequence, :]
+            identified_match_ups[iday]['hypstar_aeronet_index'] = hypstar_aeronet_index
+            identified_match_ups[iday]['aeronet_hypstar_index'] = aeronet_hypstar_index
+            identified_match_ups[iday]['time_diff_array'] = time_diff_array
 
+        print('[INFO] Adding data...')
+        file_csv = self.path_nc[:-3]+'_valid_mu.csv'
+        fw = open(file_csv,'w')
+        fw.write('IndexDay;AERONET_sequence;HYPSTAR_sequence;AERONET_time;HYPSTAR_time;TimeDiff')
+        imu = 0
+        nmu = 0
+        for iday in range(ndays):
+            hypstar_aeronet_index = identified_match_ups[iday]['hypstar_aeronet_index']
+            # aeronet_hypstar_index = identified_match_ups[iday]['aeronet_hypstar_index']
+            time_diff_array = identified_match_ups[iday]['time_diff_array']
+            for hsequence in range(nsequences):
+                asequence = int(hypstar_aeronet_index[hsequence])
+                if asequence<0:
+                    continue
+                nmu = nmu + 1
+                time_diff = time_diff_array[asequence]
+                at = self.dataset_w.variables['AERONET_time'][iday, asequence]
+                ht = self.dataset_w.variables['HYPSTAR_time'][iday, hsequence]
+
+                str_line = f'{iday};{asequence};{hsequence};{dt.utcfromtimestamp(float(at)).strftime("%Y-%m-%dT%H:%M:%S")};{dt.utcfromtimestamp(float(ht)).strftime("%Y-%m-%dT%H:%M:%S")};{time_diff}'
+                fw.write('\n')
+                fw.write(str_line)
+                imu_ini = imu
+                imu_fin = imu + nwl
+                imu = imu_fin
+                self.dataset_w.variables['mu_wavelength'][imu_ini:imu_fin] = wl_list[:]
+                self.dataset_w.variables['mu_day_id'][imu_ini:imu_fin] = iday
+                self.dataset_w.variables['mu_AERONET_sequence_id'][imu_ini:imu_fin] = asequence
+                self.dataset_w.variables['mu_HYPSTAR_sequence_id'][imu_ini:imu_fin] = hsequence
+                self.dataset_w.variables['mu_time_diff'][imu_ini:imu_fin] = time_diff
+
+                for key in mu_variables_keys:
+                    for var in mu_variables:
+                        variable_in = f'{key}_{var}'
+                        if variable_in in self.dataset_w.variables:
+                            new_var_name = f'mu_{variable_in}'
+                            self.dataset_w.variables[new_var_name][imu_ini:imu_fin] = self.dataset_w.variables[variable_in][iday,asequence, :]
+
+        # imu = 0
+        #
+        # for iday in range(ndays):
+        #     # hypstar_time = np.array(self.dataset_w.variables['HYPSTAR_time'][iday,:])
+        #     aeronet_time = np.array(self.dataset_w.variables['AERONET_time'][iday, :])
+        #     aeronet_used_sequences = np.zeros((nsequences))
+        #     for hsequence in range(nsequences):
+        #         ht = self.dataset_w.variables['HYPSTAR_time'][iday, hsequence]
+        #         hqc = self.dataset_w.variables['HYPSTAR_quality_control'][iday, hsequence]
+        #         if ma.is_masked(ht):
+        #             continue
+        #         if hqc == 0 or ma.is_masked(hqc):
+        #             continue
+        #         asequence = np.argmin(np.abs(ht - aeronet_time))
+        #
+        #         at = aeronet_time[asequence]
+        #         time_diff = abs(aeronet_time[asequence] - ht)
+        #         if time_diff <= max_time_diff:
+        #             if aeronet_used_sequences[asequence]==1:
+        #                 print(f'[WARNING] This AERONET sequence {asequence} for {iday} has already been used')
+        #             aeronet_used_sequences[asequence]=1
+        #
+        #             str = f'HYPSTAR time: {dt.utcfromtimestamp(float(ht))} AERONET-OC time: {dt.utcfromtimestamp(float(at))} Time diff: {time_diff} seconds'
+        #             print(f'[INFO] --> {str}')
+        #             imu_ini = imu
+        #             imu_fin = imu + nwl
+        #             imu = imu_fin
+        #             self.dataset_w.variables['mu_wavelength'][imu_ini:imu_fin] = wl_list[:]
+        #             self.dataset_w.variables['mu_day_id'][imu_ini:imu_fin] = iday
+        #             self.dataset_w.variables['mu_AERONET_sequence_id'][imu_ini:imu_fin] = asequence
+        #             self.dataset_w.variables['mu_HYPSTAR_sequence_id'][imu_ini:imu_fin] = hsequence
+        #             self.dataset_w.variables['mu_time_diff'][imu_ini:imu_fin] = time_diff
+        #
+        #             for key in mu_variables_keys:
+        #                 for var in mu_variables:
+        #                     variable_in = f'{key}_{var}'
+        #                     if variable_in in self.dataset_w.variables:
+        #                         new_var_name = f'mu_{variable_in}'
+        #                         self.dataset_w.variables[new_var_name][imu_ini:imu_fin] = self.dataset_w.variables[
+        #                                                                                       variable_in][
+        #                                                                                   iday, asequence, :]
+        fw.close()
         self.close_file_w()
         os.rename(path_copy, self.path_nc)
-        print(f'[INFO] --> Completed')
+        print(f'[INFO] Completed. {nmu} match-ups have been added.')
 
     def copy_nc(self, ifile, ofile):
         with Dataset(ifile) as src:
@@ -670,20 +823,19 @@ class INSITUCOMPARISON:
         day_id = np.array(self.dataset_w['mu_day_id'][:])
         array_1020 = np.array(self.dataset_w['mu_HYPSTAR_TO_AERONET_Lw'][:])
         valid = np.ones(array_1020.shape)
-        valid[array_1020>100000] = 0
-        invalid_days = [21,30,32,35,63,66,80]
+        valid[array_1020 > 100000] = 0
+        invalid_days = [21, 30, 32, 35, 63, 66, 80]
         for iday in invalid_days:
-            valid[day_id==iday] = 0
+            valid[day_id == iday] = 0
         # valid[day_id==21] = 0
         # valid[day_id==35] = 0
         # valid[day_id==80] = 0
 
-
         if wl is None:
             self.xdata = np.array(self.dataset_w.variables[xvariable])
             self.ydata = np.array(self.dataset_w.variables[yvariable])
-            self.xdata = self.xdata[valid==1]
-            self.ydata = self.ydata[valid==1]
+            self.xdata = self.xdata[valid == 1]
+            self.ydata = self.ydata[valid == 1]
         else:
             xdata = np.array(self.dataset_w.variables[xvariable])
             ydata = np.array(self.dataset_w.variables[yvariable])
@@ -691,18 +843,10 @@ class INSITUCOMPARISON:
 
             xdata = xdata[valid == 1]
             ydata = ydata[valid == 1]
-            wl_array = wl_array[valid==1]
-
+            wl_array = wl_array[valid == 1]
 
             self.xdata = xdata[wl_array == wl]
             self.ydata = ydata[wl_array == wl]
-
-
-
-
-
-
-
 
         # print(self.xdata.shape, self.ydata.shape)
         # self.xdata = self.xdata[np.where(self.xdata < 100000)]
@@ -745,27 +889,27 @@ class INSITUCOMPARISON:
         for iday in invalid_days:
             valid[day_id == iday] = 0
 
-        wldata = wldata[valid==1]
+        wldata = wldata[valid == 1]
 
         for variable in variables:
             for idx in range(nwl):
                 wl = wlvalues[idx]
                 values_all = np.array(self.dataset_w.variables[variable])
-                values_all = values_all[valid==1]
+                values_all = values_all[valid == 1]
                 values = values_all[wldata == wl]
                 values = values[values < 100000]
                 self.spectra_stats[variable]['mean'][idx] = np.mean(values)
                 self.spectra_stats[variable]['std'][idx] = np.std(values)
-                #print(idx, wl, np.median(values))
+                # print(idx, wl, np.median(values))
                 self.spectra_stats[variable]['median'][idx] = np.median(values)
                 self.spectra_stats[variable]['p25'][idx] = np.percentile(values, 25)
                 self.spectra_stats[variable]['p75'][idx] = np.percentile(values, 75)
 
         self.close_file_w()
 
-    def plot_spectra_stats(self,file_out,legend,ylabel,title):
+    def plot_spectra_stats(self, file_out, legend, ylabel, title):
 
-        self.plot_spectra_impl(file_out, legend, ylabel,title)
+        self.plot_spectra_impl(file_out, legend, ylabel, title)
 
     def plot_all_spectra(self):
         path_plots = '/mnt/c/DATA_LUIS/ESA-POP_WORK/Technical_Meeting_2024Jan31'
@@ -795,7 +939,7 @@ class INSITUCOMPARISON:
             legend = [f'AERONET-OC({atimestr})', f'HYPSTAR({htimestr})']
             title = f'SPECTRA #{ispectra + 1}'
             ylabel = ''
-            self.plot_spectra_impl(file_out, legend, ylabel,title)
+            self.plot_spectra_impl(file_out, legend, ylabel, title)
             imu = imu_end
 
         self.close_file_w()
@@ -812,7 +956,7 @@ class INSITUCOMPARISON:
         ydata_2_max = self.spectra_stats[variables[1]]['p75']
 
         xlabel = 'Wavelength (nm)'
-        #ylabel = 'Lt'
+        # ylabel = 'Lt'
         from MDB_reader.PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = self.wl_data
@@ -842,7 +986,7 @@ class INSITUCOMPARISON:
         self.dataset_w = Dataset(self.path_nc, 'r')
         wl_list = np.array(self.dataset_w.variables['AERONET_nominal_wavelengths'][:])
         self.close_file_w()
-        xvariables  = ['mu_HYPSTAR_TO_AERONET_Li_mean','mu_HYPSTAR_TO_AERONET_Lt_mean','mu_HYPSTAR_TO_AERONET_Lw']
+        xvariables = ['mu_HYPSTAR_TO_AERONET_Li_mean', 'mu_HYPSTAR_TO_AERONET_Lt_mean', 'mu_HYPSTAR_TO_AERONET_Lw']
         yvariables = ['mu_AERONET_Li_mean', 'mu_AERONET_Lt_mean', 'mu_AERONET_Lw']
 
         # self.dataset_w = Dataset(self.path_nc, 'r')
@@ -869,8 +1013,6 @@ class INSITUCOMPARISON:
         #     self.plot_scatterplot(None,xvariables[idx],yvariables[idx],'mu_wavelength')
         #     self.plot_scatterplot('rrsdensity', xvariables[idx], yvariables[idx], 'mu_wavelength')
 
-
-
     def get_wl_list(self, wlvariable):
         self.dataset_w = Dataset(self.path_nc, 'r')
         wl_list = np.unique(np.array(self.dataset_w.variables[wlvariable][:]))
@@ -889,14 +1031,12 @@ class INSITUCOMPARISON:
         # self.xdata = [0] * nspectra
         # self.ydata = [0] * nspectra
 
-
-        print('NData:',ndata,'Nwl:',nwl,'NSpectra:',nspectra)
+        print('NData:', ndata, 'Nwl:', nwl, 'NSpectra:', nspectra)
         self.xdata = []
         self.ydata = []
 
-        array_mu_1020 =np.array(self.dataset_w['mu_HYPSTAR_TO_AERONET_Lw'][:])
+        array_mu_1020 = np.array(self.dataset_w['mu_HYPSTAR_TO_AERONET_Lw'][:])
         invalid_days = [21, 30, 32, 35, 63, 66, 80]
-
 
         imu = 0
         for ispectra in range(int(nspectra)):
@@ -910,10 +1050,9 @@ class INSITUCOMPARISON:
             if iday in invalid_days:
                 imu = imu + nwl
                 continue
-            if np.count_nonzero(array_mu_1020[imu_ini:imu_fin]>100000)>0:
+            if np.count_nonzero(array_mu_1020[imu_ini:imu_fin] > 100000) > 0:
                 imu = imu + nwl
                 continue
-
 
             # self.xdata[ispectra] = float(self.dataset_w.variables['AERONET_Rho'][iday, ias, 0])
             # self.ydata[ispectra] = float(self.dataset_w.variables['HYPSTAR_rhof'][iday, ihs])
@@ -923,14 +1062,13 @@ class INSITUCOMPARISON:
 
             imu = imu + nwl
 
-
         print(len(self.xdata))
 
         self.close_file_w()
 
-        self.plot_scatterplot('rho',None,None,None)
+        self.plot_scatterplot('rho', None, None, None)
 
-    def plot_scatterplot(self, wl, xvariable, yvariable,wlvariable):
+    def plot_scatterplot(self, wl, xvariable, yvariable, wlvariable):
 
         path_plots = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS'
         marker = 'o'
@@ -947,13 +1085,13 @@ class INSITUCOMPARISON:
             max_xy = 0.030
             ticks = [0.025, 0.026, 0.027, 0.028, 0.029, 0.030]
         else:
-            if xvariable.find('Li')>0:
+            if xvariable.find('Li') > 0:
                 ylabel = r'AERONET-OC Li [μW/(cm$^2$·sr·nm)]'
                 xlabel = r'HYPSTAR Li [μW/(cm$^2$·sr·nm)]'
-            elif xvariable.find('Lt')>0:
+            elif xvariable.find('Lt') > 0:
                 ylabel = r'AERONET-OC Lt [μW/(cm$^2$·sr·nm)]'
                 xlabel = r'HYPSTAR Lt [μW/(cm$^2$·sr·nm)]'
-            elif xvariable.find('Lw')>0:
+            elif xvariable.find('Lw') > 0:
                 ylabel = r'AERONET-OC [μW/(cm$^2$·sr·nm)]'
                 xlabel = r'HYPSTAR Lw [μW/(cm$^2$·sr·nm)]'
             min_xy = None
@@ -979,20 +1117,19 @@ class INSITUCOMPARISON:
         stat_list = ['NMATCH-UPS', 'r2', 'RMSD', 'BIAS']
         stats_xpos = 0.05
         stats_ypos = 0.80
-        #self.set_data_scatterplot(wl)
+        # self.set_data_scatterplot(wl)
 
-        if wl!='rho':
-            if wl=='rrsdensity':
+        if wl != 'rho':
+            if wl == 'rrsdensity':
                 valid_array = self.set_data_scatterplot_spectral(None, xvariable, yvariable, wlvariable)
             else:
-                valid_array = self.set_data_scatterplot_spectral(wl,xvariable,yvariable,wlvariable)
+                valid_array = self.set_data_scatterplot_spectral(wl, xvariable, yvariable, wlvariable)
 
         # print(self.xdata)
         # print(self.ydata)
         # print(min_xy,max_xy)
 
         self.compute_stats(False, False)
-
 
         from MDB_reader.PlotScatter import PlotScatter
         import MDB_reader.MDBPlotDefaults as defaults
@@ -1006,7 +1143,7 @@ class INSITUCOMPARISON:
             self.dataset_w = Dataset(self.path_nc, 'r')
             groupData = np.array(self.dataset_w.variables['mu_wavelength'][:])
             if valid_array is not None:
-                groupData = groupData[valid_array==1]
+                groupData = groupData[valid_array == 1]
             self.dataset_w.close()
             groupValues = np.unique(groupData)
 
@@ -1017,7 +1154,7 @@ class INSITUCOMPARISON:
 
             for idx in range(ngroup):  # groupValues:
                 g = groupValues[idx]
-                #color = defaults.get_color_ref(g)
+                # color = defaults.get_color_ref(g)
                 color = defaults.get_color_wavelength(g)
                 xhere = self.xdata[groupData == g]
                 yhere = self.ydata[groupData == g]
