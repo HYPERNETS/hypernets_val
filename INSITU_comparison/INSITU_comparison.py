@@ -342,12 +342,18 @@ class INSITUCOMPARISON:
             for idx in range(var_hypstar.shape[1]):
                 time_idx = hypstar_time[0,idx]
                 array_hypstar = var_hypstar[0, idx, :]
-                if time_idx>=time_ref_alt:
-                    print('Using alternative with hyptar time: ',dt.utcfromtimestamp(time_idx))
-                    array_hypstar_to_aeronet = array_hypstar[indices_nearest_alt]
-                else:
-                    print('Using regular with hyptar time: ', dt.utcfromtimestamp(time_idx))
-                    array_hypstar_to_aeronet = array_hypstar[indices_nearest]
+                if not np.ma.is_masked(time_idx):
+                    if time_idx>=time_ref_alt:
+                        print('Using alternative with hyptar time: ',dt.utcfromtimestamp(time_idx))
+                        #array_hypstar_to_aeronet = array_hypstar[indices_nearest_alt]
+                        indices_nearest_touse = indices_nearest_alt
+                    else:
+                        print('Using regular with hyptar time: ', dt.utcfromtimestamp(time_idx))
+                        #array_hypstar_to_aeronet = array_hypstar[indices_nearest]
+                        indices_nearest_touse = indices_nearest
+
+
+                array_hypstar_to_aeronet = array_hypstar[indices_nearest_touse]
                 array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask==False] = array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask==False] * scale_factor
                 var_new[0, idx, :] = array_hypstar_to_aeronet[:]
 
