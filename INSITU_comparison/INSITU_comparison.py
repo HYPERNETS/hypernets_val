@@ -171,7 +171,7 @@ class INSITUCOMPARISON:
             nwl_here = len(dataset.variables['wavelength'][:])
             if nominal_wavelengths is None and nwl_here==nwl:
                 nominal_wavelengths = dataset.variables['wavelength'][:]
-            if nominal_wavelengths_alt is None and nwl_here==nwl:
+            if nominal_wavelengths_alt is None and nwl_here<nwl:
                 nominal_wavelengths_alt = np.ma.masked_all((nwl,))
                 nominal_wavelengths_alt[0:nwl_here] = dataset.variables['wavelength'][:]
 
@@ -303,18 +303,21 @@ class INSITUCOMPARISON:
 
     def create_hypstar_to_aeronet_variables(self):
         aeronet_exact_wavelenghts =self.dataset_w.variables['AERONET_Exact_Wavelengths'][0, 0, :]
-        hypspar_wavelengths = self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths'][:]
+        hypstar_wavelengths = self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths'][:]
+        hypstar_wavelengths_alt  = self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths_Alt'][:]
         dim_wavelenght = 'AERONET_wavelength'
 
         ##NEAREST NEIGHBOUR METHOD
         indices_nearest = []
-        for wl in aeronet_exact_wavelenghts:
-            index = np.argmin(np.abs(hypspar_wavelengths - wl))
-            indices_nearest.append(index)
+        if np.ma.count(hypstar_wavelengths)>0:
+            for wl in aeronet_exact_wavelenghts:
+                index = np.argmin(np.abs(hypstar_wavelengths - wl))
+                indices_nearest.append(index)
         indices_nearest_alt = []
-        for wl in aeronet_exact_wavelenghts:
-            index = np.argmin(np.abs(hypspar_wavelengths - wl))
-            indices_nearest_alt.append(index)
+        if np.ma.count(hypstar_wavelengths_alt)>0:
+            for wl in aeronet_exact_wavelenghts:
+                index = np.argmin(np.abs(hypstar_wavelengths_alt - wl))
+                indices_nearest_alt.append(index)
 
         ##reference time to use alternative nominal wavelengths
         time_ref_alt = dt(2024,6,4,9,30,0).replace(tzinfo=pytz.utc).timestamp()
