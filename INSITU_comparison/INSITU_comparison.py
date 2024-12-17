@@ -152,7 +152,7 @@ class INSITUCOMPARISON:
         list_files = {}
         time_ini = date_here.replace(tzinfo=pytz.utc, hour=0, minute=0, second=0).timestamp()
         time_end = date_here.replace(tzinfo=pytz.utc, hour=23, minute=59, second=59).timestamp()
-        nwl = self.options['sensor']['HYPSTAR']
+        nwl = self.options['sensors']['HYPSTAR']
         nominal_wavelengths = None
         nominal_wavelengths_alt = None
         for name in os.listdir(path_day):
