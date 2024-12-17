@@ -702,6 +702,7 @@ def plot_scatter_plot(xdata, ydata, x_label, y_label, yx_range, groups, plot_lin
 
     else:
         pscatter.plot_data(xdata, ydata, 'o', 12, 'blue', 'blue', 0)
+        #pscatter.plot_data(xdata, ydata, 'o', 10, 'blue', 'grey', 1)
 
     pscatter.set_xaxis_title(x_label)
     pscatter.set_yaxis_title(y_label)
@@ -732,6 +733,157 @@ def plot_scatter_plot(xdata, ydata, x_label, y_label, yx_range, groups, plot_lin
     pscatter.save_fig(file_out)
     pscatter.close_plot()
 
+def plot_histograms(file_average):
+    dir_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS'
+    dataset = Dataset(file_average)
+    f_coverage = np.array(dataset.variables['f_coverage'][:])
+    f_cloud_free = np.array(dataset.variables['f_cloud_free'][:])
+    f_time = np.array(dataset.variables['f_time'][:])
+    dataset.close()
+    f_coverage = f_coverage[0:4589858]
+    f_cloud_free = f_cloud_free[0:4589858]
+    f_time = f_time[0:4589858]
+    porc_min = np.arange(0, 101, 5)
+    porc_max = porc_min+5
+    n_ranges = len(porc_min)
+    values_cloud_free = np.zeros(n_ranges)
+    values_coverage = np.zeros(n_ranges)
+    for irange in range(n_ranges):
+        p_min = porc_min[irange]
+        p_max = porc_max[irange]
+        indices = np.where(np.logical_and(f_cloud_free>=p_min,f_cloud_free<p_max))
+        values_cloud_free[irange] = len(indices[0])
+        indices = np.where(np.logical_and(f_coverage >= p_min, f_coverage <p_max))
+        values_coverage[irange] = len(indices[0])
+
+    file_out = os.path.join(dir_out,'HistogramCloudFreeFraction.tif')
+    plot_histogram_impl(porc_min,values_cloud_free,'Cloud-Free Fraction(%)','# Pixels',[0,2.25e6],False,file_out)
+
+    file_out = os.path.join(dir_out, 'HistogramOCCCICoverage.tif')
+    plot_histogram_impl(porc_min, values_coverage, 'OC-CCI Coverage(%)', '# Pixels',[0,2.25e6], False,file_out)
+
+    ntot = 0
+    for irange in range(n_ranges):
+        p_min = porc_min[irange]
+        p_max = porc_max[irange]
+        indices = np.where(np.logical_and(f_cloud_free >= p_min, f_cloud_free < p_max))
+        print(p_min,p_max,len(indices[0]))
+        ntot = ntot + len(indices[0])
+        f_coverage_here = f_coverage[indices]
+        f_time_here = f_time[indices]
+        values_coverage_here = np.zeros(n_ranges)
+        for irange_here in range(n_ranges):
+            p_min_here = porc_min[irange_here]
+            p_max_here = porc_max[irange_here]
+            indices_here = np.where(np.logical_and(f_coverage_here >= p_min_here, f_coverage_here < p_max_here))
+            values_coverage_here[irange_here] = len(indices_here[0])
+            # if irange==20 and irange_here==0:
+            #     print('------------------------------------------->',values_coverage_here[irange_here])
+            #     f_time_here_here = f_time_here[indices_here]
+            #     time_limit = dt(2002, 4, 28).replace(tzinfo=pytz.utc).timestamp()
+            #     print(len(f_time_here_here))
+            #     print(time_limit)
+            #     print(np.min(f_time_here_here),'-->',np.max(f_time_here_here))
+            #     f_time_here_here = f_time_here_here[f_time_here_here<=time_limit]
+            #     print(len(f_time_here_here))
+
+        file_out = os.path.join(dir_out, f'HistogramOCCCICoverage_WithCloudFraction_{p_min:.0f}_{p_max:.0f}.tif')
+        plot_histogram_impl(porc_min, values_coverage_here, 'OC-CCI Coverage(%)', '% Pixels', None, True,file_out)
+
+    print(ntot)
+def plot_histogram_impl(porc_min,values,xlabel,ylabel,yrange,use_percent,file_out):
+    if use_percent:
+        values = (values/np.sum(values))*100
+        if yrange is None:
+            yrange = [0,100]
+    pspectra = PlotSpectra()
+    pspectra.close_plot()
+    pspectra.start_plot()
+    xdata = np.arange(0,len(values))
+    pspectra.xdata = xdata
+    pspectra.plot_single_bar_series(values,'blue',1,0,1)
+    pspectra.remove_major_x_ticks()
+    pspectra.set_xticks_minor(xdata-0.5,porc_min,0,8)
+    pspectra.set_grid_horizontal()
+    pspectra.set_xaxis_title(xlabel)
+    pspectra.set_yaxis_title(ylabel)
+    if yrange is not None:
+        pspectra.set_y_range(yrange[0],yrange[1])
+    pspectra.save_plot(file_out)
+
+
+
+def plot_sensor_coverage_versus_cloud_free_all(file_average):
+    dir_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS'
+    dataset = Dataset(file_average)
+    f_coverage = np.array(dataset.variables['f_coverage'][:])
+    f_cloud_free = np.array(dataset.variables['f_cloud_free'][:])
+    # f_time = np.array(dataset.variables['f_time'][:])
+    dataset.close()
+    f_coverage = f_coverage[0:4589858]
+    f_cloud_free = f_cloud_free[0:4589858]
+    #median_1 = get_medians_by_increm_percent(f_cloud_free,f_coverage,1)
+    median_2 = get_medians_by_increm_percent(f_cloud_free,f_coverage,2)
+    median_5 = get_medians_by_increm_percent(f_cloud_free, f_coverage, 5)
+    median_10 = get_medians_by_increm_percent(f_cloud_free, f_coverage, 10)
+    x_data = np.arange(0,101)
+    pspectra = PlotSpectra()
+    pspectra.xdata = x_data
+    #pspectra.plot_single_line(median_1,'blue','-',0,'o',6)
+    h2 = pspectra.plot_single_line(median_2, 'salmon', '-', 1, 'o', 6)
+    h5 = pspectra.plot_single_line(median_5, 'red', '-', 1, 'o', 6)
+    h10 = pspectra.plot_single_line(median_10, 'magenta', '-', 1, 'o', 6)
+    pspectra.set_xaxis_title('Cloud-Free Fraction (%)')
+    y_label = 'OC-CCI Coverage (%)'
+    pspectra.set_yaxis_title(y_label)
+    tick_data = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
+    tick_values = ['0', '', '10', '', '20', '', '30', '', '40', '', '50', '', '60', '', '70', '', '80', '', '90', '','100']
+    pspectra.set_xticks(tick_data, tick_values, None, None)
+    pspectra.set_yticks(tick_data, tick_values, None, None)
+    pspectra.set_grid()
+    handles = [h2[0],h5[0],h10[0]]
+
+    from scipy.optimize import curve_fit
+    p0 = [np.median(f_coverage), 1]
+    popt, pcov = curve_fit(sigmoid, f_cloud_free, f_coverage, p0, method='trf', loss='soft_l1')
+    ypredicted = sigmoid(x_data, *popt)
+    pspectra.plot_single_line(ypredicted,'black','-',2,'o',0)
+
+    ##to add legend
+    #pspectra.set_legend_h(handles,['Increm. 2%','Increm. 5%','Increm. 10%'])
+    pspectra.set_tigth_layout()
+    file_out = os.path.join(dir_out,'MultipleMedianLines_Curve.tif')
+    pspectra.save_plot(file_out)
+
+
+def get_medians_by_increm_percent(f_cloud_free,f_coverage,increm):
+    porc_min = np.arange(0, 101, increm)
+    nporc = len(porc_min)
+    median_values = np.ma.masked_all((101,))
+
+    for iporc in range(nporc):
+        min_value = porc_min[iporc]
+        max_value = porc_min[iporc] + increm
+        values = f_coverage[np.logical_and(f_cloud_free >= min_value, f_cloud_free < max_value)]
+        median_values[min_value] = np.median(values)
+
+    return median_values
+
+
+def plot_sensor_coverage_versus_clould_free_scatter_plot(file_average):
+    dataset = Dataset(file_average)
+    f_coverage = np.array(dataset.variables['f_coverage'][:])
+    f_cloud_free = np.array(dataset.variables['f_cloud_free'][:])
+    #f_time = np.array(dataset.variables['f_time'][:])
+    dataset.close()
+    f_coverage = f_coverage[0:4589858]
+    f_cloud_free = f_cloud_free[0:4589858]
+    # f_time = f_time[0:4589858]
+    # tobj = [dt.utcfromtimestamp(x) for x in f_time]
+    # year_array = np.array([t.year for t in tobj])
+    # groups = get_era_year_groups(year_array)
+    file_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS/ScatterPlot_SensorCoverageVSCloudFree.tif'
+    plot_scatter_plot(f_cloud_free,f_coverage,'Cloud-Free Fraction(%)','OC-CCI Coverage(%)',[0,100],None,True,file_out)
 
 def plot_sensor_coverage_versus_clould_free(file_average, increm):
     dataset = Dataset(file_average)
@@ -742,7 +894,7 @@ def plot_sensor_coverage_versus_clould_free(file_average, increm):
     eras = {
         'All': {
             'start_time': dt(1997, 9, 4).replace(tzinfo=pytz.utc).timestamp(),
-            'end_time': dt(2024, 10, 31).replace(tzinfo=pytz.utc).timestamp(),
+            'end_time': dt(2024, 8, 31).replace(tzinfo=pytz.utc).timestamp(),
             'color': 'black'
         },
         'SeaWiFS': {
@@ -777,12 +929,13 @@ def plot_sensor_coverage_versus_clould_free(file_average, increm):
         },
         'OLCIAB': {
             'start_time': dt(2020, 1, 1).replace(tzinfo=pytz.utc).timestamp(),
-            'end_time': dt(2024, 10, 31).replace(tzinfo=pytz.utc).timestamp(),
+            'end_time': dt(2024, 8, 31).replace(tzinfo=pytz.utc).timestamp(),
             'color': 'magenta'
         }
     }
 
     dir_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS'
+
     for era in eras:
         print(f'Working with era: {era}')
         start_time = eras[era]['start_time']
@@ -795,6 +948,7 @@ def plot_sensor_coverage_versus_clould_free(file_average, increm):
                                                                                increm, None, file_out)
         eras[era]['median'] = median_f_coverage
         eras[era]['popt'] = popt
+        print('Options->',popt)
 
     file_out = os.path.join(dir_out, 'SensorCoverage_vs_CloudFree_Multiple.tif')
     plot_sensor_coverage_versus_clould_free_multiple_era(eras, increm, file_out)
@@ -894,35 +1048,39 @@ def plot_sensor_coverage_versus_clould_free_impl(f_coverage, f_cloud_free, incre
     pspectra = PlotSpectra()
     pspectra.xdata = porc_values
     style = {'color': 'blue', 'linestyle': '-', 'linewidth': 1, 'marker': 'o', 'markersize': 3}
-    pspectra.plot_data(median_f_coverage, style)
+    hmedian = pspectra.plot_data(median_f_coverage, style)
     style = {'color': 'red', 'linestyle': '-', 'linewidth': 0, 'marker': 'o', 'markersize': 3}
-    pspectra.plot_data(avg_f_coverage, style)
+    havg = pspectra.plot_data(avg_f_coverage, style)
 
     if y_label != 'Bloom coverage(%) - Image':
         style = {'color': 'k', 'linestyle': '--', 'linewidth': 1, 'marker': None, 'markersize': 2}
         pspectra.plot_data(porc_values, style)
 
     style = {'color': 'blue', 'linestyle': '--', 'linewidth': 0.5, 'marker': None, 'markersize': 3}
-    pspectra.plot_data(p25_f_coverage, style)
+    hiqr = pspectra.plot_data(p25_f_coverage, style)
     pspectra.plot_data(p75_f_coverage, style)
     # pspectra.plot_iqr_basic(p25_f_coverage,p75_f_coverage,'blue')
 
-    pspectra.set_xaxis_title('Clould-free fraction (%)')
+    pspectra.set_xaxis_title('Cloud-Free Fraction (%)')
     if y_label is None:
-        y_label = 'Sensor coverage (%)'
+        y_label = 'OC-CCI Coverage (%)'
 
     pspectra.set_yaxis_title(y_label)
-    pspectra.set_xticks([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], None, None, None)
-    pspectra.set_yticks([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], None, None, None)
+    tick_data = [0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100]
+    tick_values = ['0', '','10','', '20','', '30','', '40','', '50','', '60','', '70','', '80','', '90', '','100']
+    pspectra.set_xticks(tick_data, tick_values, None, None)
+    pspectra.set_yticks(tick_data, tick_values, None, None)
     if y_label == 'Bloom coverage(%) - Image':
         pspectra.set_y_range(0, 25)
         pspectra.set_yticks([0, 5, 10, 15, 20, 25], None, None, None)
     pspectra.set_grid()
+    handles = [hmedian[0],hiqr[0],havg[0]]
+    #pspectra.set_legend_h(handles,['Median','IQR','Average'])
     pspectra.set_tigth_layout()
     pspectra.save_plot(file_out)
     pspectra.close_plot()
 
-    fit_curve = False
+    fit_curve = True
     popt = None
     if fit_curve:
         from scipy.optimize import curve_fit
@@ -1326,12 +1484,70 @@ def plot_maps_clara_cfc(dir_out):
         cfc_data = 100 - cfc_data
     plot_baltic_map_impl(cfc_data,lat_array,lon_array,'cfc',file_out)
 
-def plot_baltic_map_impl(data,lat_array,lon_array,type,file_out):
+def plot_comparison_date(dir_out,file_average,date):
+    dataset = Dataset(file_average)
+    time = dataset.variables['time'][:]
+    daily_cloud_free_map = dataset.variables['daily_cloud_free_map'][:]
+    p_coverage_map = dataset.variables['p_coverage_map'][:]
+    n_coverage_map = dataset.variables['n_coverage_map_corrected'][:]
+    n_expected_map = dataset.variables['n_expected_map'][:]
+    indices_water_cfc  = dataset.variables['Indices_Water_CFC'][:]
+    daily_cloud_free_percent = dataset.variables['daily_cloud_free_percent'][:]
+    daily_p_coverage = dataset.variables['p_coverage'][:]
+    daily_p_expected = dataset.variables['p_coverage_cf'][:]
+    n_lat = len(dataset.dimensions['lat_cfc'])
+    n_lon = len(dataset.dimensions['lon_cfc'])
+    lat = dataset.variables['lat_cfc'][:]
+    lon = dataset.variables['lon_cfc'][:]
+    lon = lon[32:105]
+    dataset.close()
+
+    index_time = np.where(time==date.replace(tzinfo=pytz.utc).timestamp())
+    index_time = index_time[0][0]
+    row,col = np.unravel_index(indices_water_cfc,(n_lat,n_lon))
+
+    daily_cloud_free_map_time = daily_cloud_free_map[index_time,:]
+    map = np.ma.masked_all((n_lat,n_lon),np.float64)
+    map[row,col] = daily_cloud_free_map_time[:]
+    map = map[:,32:105]
+    file_out = os.path.join(dir_out,f'DailyCloudFree_{date.strftime("%Y%m%d")}.tif')
+    plot_baltic_map_impl(map,lat,lon,'cfc-free',None,file_out)
+
+    coverage_map_time = p_coverage_map[index_time,:]
+    map = np.ma.masked_all((n_lat, n_lon), np.float64)
+    map[row, col] =coverage_map_time[:]
+    map = map[:, 32:105]
+    file_out = os.path.join(dir_out, f'CCICoverage_{date.strftime("%Y%m%d")}.tif')
+    plot_baltic_map_impl(map, lat, lon, 'cci-coverage', None,file_out)
+
+    n_coverage_map_time = n_coverage_map[index_time,:]
+    n_expected_map_time = n_expected_map[index_time,:]
+    expected_map_time = (n_coverage_map_time/n_expected_map_time)*100
+    map = np.ma.masked_all((n_lat, n_lon), np.float64)
+    map[row, col] = expected_map_time[:]
+    map = map[:, 32:105]
+    file_out = os.path.join(dir_out, f'CCIExpected_{date.strftime("%Y%m%d")}.tif')
+    plot_baltic_map_impl(map, lat, lon, 'cci-expected', [0,200], file_out)
+
+    print('Daily Cloud Free Percent:',daily_cloud_free_percent[index_time])
+    print('Daily CCI Coverage:', daily_p_coverage[index_time])
+    daily_expected = (np.ma.sum(n_coverage_map_time)/np.ma.sum(n_expected_map_time))*100
+    print('Daily CCI Expected:', daily_expected,daily_p_expected[index_time])
+
+
+def plot_baltic_map_impl(data,lat_array,lon_array,type,range,file_out):
     start_full_figure()
     fig, ax = start_full_figure()
 
     if type.startswith('cfc'):
         h = ax.pcolormesh(lon_array, lat_array, data, vmin=0, vmax=100,cmap=mpl.colormaps['jet'])
+    if type=='cci-coverage':
+        h = ax.pcolormesh(lon_array, lat_array, data, vmin=0, vmax=100, cmap=mpl.colormaps['jet'])
+    if type=='cci-expected':
+        if range is not None:
+            h = ax.pcolormesh(lon_array, lat_array, data, vmin=range[0], vmax=range[1], cmap=mpl.colormaps['jet'])
+        else:
+            h = ax.pcolormesh(lon_array, lat_array, data, cmap=mpl.colormaps['jet'])
     if type=='chl':
         h = ax.pcolormesh(lon_array, lat_array, data, norm=LogNorm(vmin=0.01, vmax=10))
     cbar = fig.colorbar(h, cax=None, ax=ax, use_gridspec=True, fraction=0.03, format="$%.2f$")
@@ -1341,6 +1557,10 @@ def plot_baltic_map_impl(data,lat_array,lon_array,type,file_out):
         label = 'Cloud fraction area(%)'
     elif type=='cfc-free':
         label = 'Cloud-free fraction area(%)'
+    elif type =='cci-coverage':
+        label = 'OC-CCI Coverage(%)'
+    elif type =='cci-expected':
+        label = 'OC-CCI Observed/Expected (%)'
     elif type=='chl':
         label = 'chl'
 
@@ -1526,8 +1746,17 @@ def plot_methods_plots():
     #plot_era_sensors(dir_out)
     #file_mask = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/BAL_Land_Mask_hr_CFC.nc'
     #plot_mask_clara(file_mask,dir_out)
+    file_average = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/CoverageAnalysis_BAL_MULTI_COMPLETED_19970904_20241031.nc'
+    #plot_comparison_date(dir_out,file_average,dt(2009,8,8))
+    #plot_comparison_date(dir_out, file_average, dt(2004, 3, 4))
 
-    #plot_stats(dir_out)
+
+
+
+
+
+
+
 
 
 
@@ -1682,7 +1911,7 @@ def get_era_info():
         },
         'OLCIAB': {
             'start_time': dt(2020, 1, 1).replace(tzinfo=pytz.utc).timestamp(),
-            'end_time': dt(2024, 10, 31).replace(tzinfo=pytz.utc).timestamp(),
+            'end_time': dt(2024, 8, 31).replace(tzinfo=pytz.utc).timestamp(),
             'color': 'magenta',
             'regline': [1.00, -3.48]
         }
@@ -1769,40 +1998,40 @@ def temp_doors():
     # fw.close()
 
     # print('CHECKING SOURCES')
-    dir_base = '/store3/DOORS/config_files/'
-    dir_sources_old = '/store/DOORS/CERTO_SOURCES'
-    dir_sources_new = '/store3/DOORS/CERTO_SOURCES'
-    files_dates = ['GalataDateList.csv','GloriaDateList.csv','Section7DateList.csv']
-    files_out = ['GalataDateList_SourcesCERTO_OLCI.csv','GloriaDateList_SourcesCERTO_OLCI.csv','Section7DateList_SourcesCERTO_OLCI.csv']
-    for idx in range(3):
-        file_dates = os.path.join(dir_base,files_dates[idx])
-        file_out = os.path.join(dir_base,files_out[idx])
-
-        fw = open(file_out,'w')
-        fw.write('DATE;SOURCE_CERTO_OLCI_OLD;SOURCE_CERTO_OLCI_NEW')
-        fr = open(file_dates,'r')
-        for line in fr:
-            date_here_str = line.strip()
-            date_here = dt.strptime(date_here_str,'%Y-%m-%d')
-            dir_date_old = os.path.join(dir_sources_old,date_here.strftime('%Y'),date_here.strftime('%j'))
-            name_out_old = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
-            file_nc_old = os.path.join(dir_date_old,name_out_old)
-            res_old = 0
-            if os.path.exists(file_nc_old):
-                size = os.stat(file_nc_old).st_size
-                res_old = 1 if size>0 else 0
-            dir_date_new = os.path.join(dir_sources_new, date_here.strftime('%Y'), date_here.strftime('%j'))
-            name_out_new = f'CERTO_olci_blk_p2_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
-            file_nc_new = os.path.join(dir_date_new, name_out_new)
-            res_new= 0
-            if os.path.exists(file_nc_new):
-                size = os.stat(file_nc_new).st_size
-                res_new = 1 if size > 0 else 0
-            line_out = f'{date_here_str};{res_old};{res_new}'
-            fw.write('\n')
-            fw.write(line_out)
-        fr.close()
-        fw.close()
+    # dir_base = '/store3/DOORS/config_files/'
+    # dir_sources_old = '/store/DOORS/CERTO_SOURCES'
+    # dir_sources_new = '/store3/DOORS/CERTO_SOURCES'
+    # files_dates = ['GalataDateList.csv','GloriaDateList.csv','Section7DateList.csv']
+    # files_out = ['GalataDateList_SourcesCERTO_OLCI.csv','GloriaDateList_SourcesCERTO_OLCI.csv','Section7DateList_SourcesCERTO_OLCI.csv']
+    # for idx in range(3):
+    #     file_dates = os.path.join(dir_base,files_dates[idx])
+    #     file_out = os.path.join(dir_base,files_out[idx])
+    #
+    #     fw = open(file_out,'w')
+    #     fw.write('DATE;SOURCE_CERTO_OLCI_OLD;SOURCE_CERTO_OLCI_NEW')
+    #     fr = open(file_dates,'r')
+    #     for line in fr:
+    #         date_here_str = line.strip()
+    #         date_here = dt.strptime(date_here_str,'%Y-%m-%d')
+    #         dir_date_old = os.path.join(dir_sources_old,date_here.strftime('%Y'),date_here.strftime('%j'))
+    #         name_out_old = f'CERTO_blk_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
+    #         file_nc_old = os.path.join(dir_date_old,name_out_old)
+    #         res_old = 0
+    #         if os.path.exists(file_nc_old):
+    #             size = os.stat(file_nc_old).st_size
+    #             res_old = 1 if size>0 else 0
+    #         dir_date_new = os.path.join(dir_sources_new, date_here.strftime('%Y'), date_here.strftime('%j'))
+    #         name_out_new = f'CERTO_olci_blk_p2_{date_here.strftime("%Y%m%d")}_OLCI_RES300__final_l3_product.nc'
+    #         file_nc_new = os.path.join(dir_date_new, name_out_new)
+    #         res_new= 0
+    #         if os.path.exists(file_nc_new):
+    #             size = os.stat(file_nc_new).st_size
+    #             res_new = 1 if size > 0 else 0
+    #         line_out = f'{date_here_str};{res_old};{res_new}'
+    #         fw.write('\n')
+    #         fw.write(line_out)
+    #     fr.close()
+    #     fw.close()
 
     ##GETTING TOGHETER MISSING DATES
     # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/AERONET_DATE_CHECK'
@@ -1831,27 +2060,181 @@ def temp_doors():
     #
     # fw.close()
 
+    dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/AERONET_DATE_CHECK'
+    file_orig = os.path.join(dir_base, 'CERTO-OLCI-PENDING-AERONET-DATES.csv')
+    file_out = os.path.join(dir_base, 'new_dates.csv')
+    df = pd.read_csv(file_orig,sep=';')
+    dates = df['DATE']
+    files_new = ['GalataDateList_SourcesCERTO_OLCI.csv','GloriaDateList_SourcesCERTO_OLCI.csv','Section7DateList_SourcesCERTO_OLCI.csv']
+    dates_new = []
+    for name in files_new:
+        file_new = os.path.join(dir_base,name)
+        df_here = pd.read_csv(file_new,sep=';')
+        dates_here = df_here['DATE'][:]
+        source_new = df_here['SOURCE_CERTO_OLCI_NEW'][:]
+        dates_here_good = dates_here[source_new==1]
+        if len(dates_here_good)>0:
+            if len(dates_new)==0:
+                dates_new = dates_here_good
+            else:
+                dates_new = pd.concat([dates_new,dates_here_good])
+
+    dates_new = dates_new.tolist()
+    print(dates_new)
+    fw = open(file_out,'w')
+    fw.write('DATE;NEW')
+    for date in dates:
+        res = 1 if date in dates_new else 0
+        fw.write('\n')
+        fw.write(f'{date};{res}')
+
+    fw.close()
 
 def plot_stats(dir_out):
-    print('here')
+
+    ##RPD - APD
+    file_out = os.path.join(dir_out, 'APD_RPD.tif')
+    xticks = [-20, 0, 20, 40, 60, 80, 100, 120, 140, 160, 180]
+    yticks = [20, 40, 60, 80, 100, 120, 140]
+    plot_stats_impl(dir_out,'RPD','APD',[-20,180],[0,140],xticks,yticks,'RPD (%)','APD (%)',[True,False],file_out)
+
+    ##RMSD-BIAS
+    file_out = os.path.join(dir_out, 'RMSD_BIAS.tif')
+    xticks = [-2,-1.5,-1,-0.5,0,0.5,1,1.5,2]
+    yticks = [0.5,1,1.5,2,2.5,3,3.5,4]
+    plot_stats_impl(dir_out, 'BIAS', 'RMSD', [-2,2], [0,4.0], xticks, yticks, 'BIAS', 'RMSD',[True,False], file_out)
+
+    ##R2-SLOPE
+    file_out = os.path.join(dir_out, 'R2_SLOPE.tif')
+    xticks = [0,0.10,0.20,0.30,0.40]
+    yticks = [0.25,0.5,0.75,1.0,1.25]
+    plot_stats_impl(dir_out, 'DETER(r2)', 'slope_II', [0,0.40], [0,1.25], xticks, yticks, 'R2', 'SLOPE II',[False,True], file_out)
+
+    ##R2-RANGE
+    # file_out = os.path.join(dir_out, 'R2_RANGE.tif')
+    # xticks = [0,20,40,60,80]
+    # yticks = [0,0.10,0.20,0.30,0.40,0.50]
+    # plot_stats_impl(dir_out, 'RANGE_X','DETER(r2)', [0,80], [0,0.5], xticks, yticks, 'IN SITU CHL-A RANGE', 'R2', file_out)
+
+#extra_lines: 0: bias lines; 1:slope_line
+def plot_stats_impl(dir_out,xstat,ystat,x_ranges,y_ranges,x_ticks,y_ticks,x_label,y_label,extra_lines,file_out):
+    file_stats_202211 = os.path.join(dir_out, '_202211', 'stats_table_all_202211.csv')
+    file_stats_202411 = os.path.join(dir_out, '_202411', 'stats_table_all_202411.csv')
+    df_202211 = pd.read_csv(file_stats_202211, sep=';')
+    df_202411 = pd.read_csv(file_stats_202411, sep=';')
+    col_names = ['NO_BLOOM', 'BLOOM','SUB_SURFACE_BLOOM', 'SURFACE_BLOOM', 'BOTH_BLOOMS', 'CDF','NO_CDF']
+    colors = ['gray', 'blue','palegreen', 'lime', 'green', 'magenta','salmon']
+    Y = []
+    X = []
+    for col_name in col_names:
+        Y.append(df_202211[df_202211['METRIC'] == ystat][col_name].values[0])
+        X.append(df_202211[df_202211['METRIC'] == xstat][col_name].values[0])
+    Y_202211 = np.array(Y)
+    X_202211 = np.array(X)
+
+    Y = []
+    X = []
+    for col_name in col_names:
+        Y.append(df_202411[df_202411['METRIC'] == ystat][col_name].values[0])
+        X.append(df_202411[df_202411['METRIC'] == xstat][col_name].values[0])
+    Y_202411 = np.array(Y)
+    X_202411 = np.array(X)
+    print('Y:', np.min(Y_202411), np.max(Y_202411), np.min(Y_202211), np.max(Y_202211))
+    print('X:', np.min(X_202411), np.max(X_202411), np.min(X_202211), np.max(X_202211))
+    Y_202211[Y_202211 >= y_ranges[1]] = y_ranges[1]
+    Y_202211[Y_202211 <= y_ranges[0]] = y_ranges[0]
+    X_202211[X_202211 >= x_ranges[1]] = x_ranges[1]
+    X_202211[X_202211 <= x_ranges[0]] = x_ranges[0]
+    Y_202411[Y_202411 >= y_ranges[1]] = y_ranges[1]
+    Y_202411[Y_202411 <= y_ranges[0]] = y_ranges[0]
+    X_202411[X_202411 >= x_ranges[1]] = x_ranges[1]
+    X_202411[X_202411 <= x_ranges[0]] = x_ranges[0]
+    plt.close('all')
+    handles = []
+    for idx in range(len(col_names)):
+
+        color_mec = 'k'
+        if X_202411[idx]==x_ranges[0] or X_202411[idx]==x_ranges[1] or Y_202411[idx]==y_ranges[0] or Y_202411[idx]==y_ranges[1]:
+            color_mec = 'r'
+        h = plt.plot(X_202411[idx], Y_202411[idx], marker='o',markersize=8, color=colors[idx],linewidth=0,mec=color_mec,mew=0.2)
+        color_mec = 'k'
+        if X_202211[idx]==x_ranges[0] or X_202211[idx]==x_ranges[1] or Y_202211[idx]==y_ranges[0] or Y_202211[idx]==y_ranges[1]:
+            color_mec = 'r'
+        plt.plot(X_202211[idx], Y_202211[idx], marker='^', markersize=8, color=colors[idx],mec=color_mec,mew=0.2)
+
+        handles.append(h[0])
+
+
+
+    # plt.yticks(y_ticks)
+    # plt.xticks(x_ticks)
+    plt.grid(which='major', color='gray', linestyle=':', axis='both')
+    if extra_lines[0]:
+        plt.plot([0,0],[0,y_ranges[1]],color='k',marker=None,linewidth=1,linestyle='-')
+    if extra_lines[1]:
+        plt.plot([x_ranges[0],x_ranges[1]], [1,1],color='k', marker=None, linewidth=1, linestyle='-')
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.xlim(x_ranges)
+    plt.ylim(y_ranges)
+    if xstat=='DETER(r2)' or ystat=='DETER(r2)':
+        plt.legend(handles, col_names,ncol=3,frameon=True,framealpha=1,loc = 'upper center')#,bbox_to_anchor=(0.5,-0.4))
+    else:
+        plt.legend(handles,col_names,loc='lower right')
+    plt.tight_layout()
+    plt.savefig(file_out,dpi=300)
+
+
+def plot_stats_deprecated(dir_out):
+
+    file_stats_202211 = os.path.join(dir_out,'_202211','stats_table_all_202211.csv')
+    file_stats_202411 = os.path.join(dir_out, '_202211', 'stats_table_all_202411.csv')
+    df_202211 = pd.read_csv(file_stats_202211,sep=';')
+    df_202411 = pd.read_csv(file_stats_202211, sep=';')
+
+
+
+    col_names = ['NO_BLOOM','SUB_SURFACE_BLOOM','SURFACE_BLOOM','BOTH_BLOOMS','NO_CDF','CDF']
+    colors  = ['salmon','lime','green','magenta','cyan','blue']
+    APD = []
+    RPD = []
+    for col_name in col_names:
+        #apd_val = df_202411[df_202411['METRIC']=='APD'][col_name]
+        #print(type(apd_val),'-->',apd_val.values[0])
+        APD.append(df_202411[df_202411['METRIC']=='APD'][col_name].values[0])
+        RPD.append(df_202411[df_202411['METRIC']=='RPD'][col_name].values[0])
+    APD = np.array(APD)
+    RPD = np.array(RPD)
+    RPD_angle = ((RPD-(-100))/200)*180
+    angle = (RPD_angle * np.pi) / 180
+
+    #theta_grids = [0,30,60,90,120,150,180]
+    theta_labels = [-100,-75,-50,-25,0,25,50,75,100]
+    theta_grids = ((np.array(theta_labels) - (-100)) / 200) * 180
+
+
     plt.close('all')
     fig, ax_here = plt.subplots(subplot_kw=dict(projection='polar'))
     #ax_here.set_rscale('log')
-    ax_here.set_rlim((0,100))
-    ax_here.set_rticks([20, 40, 60, 80, 100])
-    ax_here.set_theta_zero_location("N")
+    ax_here.set_rlim((0, 140))
+
+
+    ax_here.set_theta_zero_location("W")
     ax_here.set_theta_direction(-1)
 
-    APD = np.array([67,63,90,60])
-    RPD = np.array([5,-5,42,-1])
-    RPD = ((RPD-(-100))/200)*180
-    angle = (RPD * np.pi) / 180
-    file_out = os.path.join(dir_out,'test.tif')
-    ax_here.scatter(angle, APD, marker='o',s=8, color='green')
+
+    ax_here.set_thetagrids(theta_grids,labels=theta_labels)
+    ax_here.set_rticks([0, 40, 80,120])
+    ax_here.set_thetalim(thetamin=0, thetamax=180)
+    file_out = os.path.join(dir_out,'test2.tif')
+    for idx in range(len(angle)):
+        ax_here.scatter(angle[idx], APD[idx], marker='o',s=10, color=colors[idx])
     plt.savefig(file_out,dpi=300)
 
 
 def main():
+    plot_stats('/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/MDBs/PLOTS')
+
     file_mask = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/BAL_Land_Mask_hr_CFC.nc'
     # dir_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/MASK_PLOTS'
     # plot_mask_clara(file_mask,dir_out)
@@ -1992,7 +2375,12 @@ def main():
     #     is_percent = data_var.endswith('percent')
     #     plot_lines(file_csv,time_vars[idx],data_var,is_percent,y_axis_titles[idx],file_out)
 
-    # PLOTTING SENSOR COVERAGE Versus CLOUD-FREE
+    # PLOTTING OC-CCI COVERAGE Versus CLOUD-FREE - GLOBAL SCATTER-PLOT
+    #plot_sensor_coverage_versus_clould_free_scatter_plot(file_average)
+    #HISTOGRAMS
+    #plot_histograms(file_average)
+    # PLOTTING OC-CCI COVERAGE Versus CLOUD-FREE - S-SHAPE CURVES USING INCREM
+    #plot_sensor_coverage_versus_cloud_free_all(file_average)
     # plot_sensor_coverage_versus_clould_free(file_average,5)
 
     # PLOTTING BLOOM COVERAGE
@@ -2010,7 +2398,7 @@ def main():
 
     ##METHODS PLOTS
     #plot_methods_plots()
-    temp_doors()
+    #temp_doors()
 
 
     # ##until 2024-08-31: 0:9859

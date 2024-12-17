@@ -74,10 +74,10 @@ def create_mdb_from_csv():
     df = pd.read_csv(file_csv, sep=';')
     col_names =df.columns.tolist()
 
-    mu_variables = ['LATITUDE', 'LONGITUDE', 'INSITU_CHL','FLAG_CYANO_PORC_MODE']
+    mu_variables = ['LATITUDE', 'LONGITUDE', 'INSITU_CHL','FLAG_CYANO_PORC_MODE','DISTANCE']
 
     flag_variables_num = ['satellite_CHL_NVALID','FLAG_CDF','BLOOM','SUB_SURFACE','SURFACE']
-    flag_variables_str = ['SOURCE_ORIG','SOURCE','FlagPrec','FlagBrando','FlagOldNew']
+    flag_variables_str = ['SOURCE_ORIG','SOURCE','FlagPrec','FlagBrando','FlagOldNew','FLAG_DISTANCE']
 
     for col in col_names:
         if col.startswith('satellite_RRS'):

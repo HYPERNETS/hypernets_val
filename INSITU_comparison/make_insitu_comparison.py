@@ -606,10 +606,10 @@ if __name__ == '__main__':
     # add_mu_to_file_date(date_here)
 
     ##PLOTING
-    make_plots()
+    #make_plots()
 
     ##CHECKING HYPSTAR QF (TEST)
     # check_hypstar_qf()
     # check_angles()
 
-    #main()
+    main()

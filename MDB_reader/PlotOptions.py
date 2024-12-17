@@ -160,6 +160,10 @@ class PlotOptions:
             doptions = defaults.get_options_mapplot()
         if type == 'imageplot':
             doptions = defaults.get_options_image_plot()
+        if type == 'singlestatstable':
+            doptions = defaults.get_options_single_stats_table()
+        if type == 'multipleboundingbox':
+            doptions = defaults.get_options_multiple_bounding_box()
 
 
         if doptions is None:

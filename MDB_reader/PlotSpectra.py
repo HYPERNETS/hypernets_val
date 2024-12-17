@@ -246,6 +246,10 @@ class PlotSpectra():
             fontsize = 9
         plt.xticks(xticks, xtickvalues, rotation=rotation, fontsize=fontsize,ha='left')
 
+    def remove_major_x_ticks(self):
+        self.set_xticks(self.xdata,['']*len(self.xdata),0,0)
+        plt.tick_params(axis='x', which='major', length=0)
+
     def set_horizontal_line(self,yval,xmin,xmax):
         plt.axhline(yval,xmin,xmax,color='blue',linestyle='-')
 

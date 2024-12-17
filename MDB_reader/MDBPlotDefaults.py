@@ -224,7 +224,7 @@ global_options = {
 }
 
 type_list = ['scatterplot', 'statswlplot', 'spectraplot', 'multipleplot', 'flagplot', 'histogram', 'timeseries',
-             'sequence', 'angleplot', 'mapplot', 'imageplot']
+             'sequence', 'angleplot', 'mapplot', 'imageplot', 'singlestatstable','multipleboundingbox']
 
 valid_stats = {
     'N': {
@@ -337,7 +337,38 @@ valid_stats = {
         'name': 'MAE',
         'desc': 'Mean absolute error',
         'format': 'f3+units'
+    },
+    'MIN_Y':{
+        'name': 'MIN_Y',
+        'desc': 'Minimal Y(satellite) value',
+        'format': 'f3+units'
+    },
+    'MAX_Y': {
+        'name': 'MAX_Y',
+        'desc': 'Maximum Y(satellite) value',
+        'format': 'f3+units'
+    },
+    'RANGE_Y': {
+        'name': 'RANGE_Y',
+        'desc': 'Y(satellite) range',
+        'format': 'f3+units'
+    },
+    'MIN_X':{
+        'name': 'MIN_X',
+        'desc': 'Minimal X(reference) value',
+        'format': 'f3+units'
+    },
+    'MAX_X': {
+        'name': 'MAX_X',
+        'desc': 'Maximum Y(reference) value',
+        'format': 'f3+units'
+    },
+    'RANGE_X': {
+        'name': 'RANGE_X',
+        'desc': 'X(reference) range',
+        'format': 'f3+units'
     }
+
 }
 
 options_legend = {
@@ -1155,6 +1186,40 @@ options_image  = {
     }
 }
 
+options_multiple_bounding_box = {
+    'vars': {
+        'default': None,
+        'type': 'strlist'
+    },
+    'groups': {
+        'default': None,
+        'type': 'strlist'
+    },
+    'groupsValues': {
+        'default': None,
+        'type': 'strlist'
+    },
+    'groupsTicks':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'color': {
+        'default': [marker_color_default],
+        'type': 'strlist'
+    }
+}
+
+
+options_single_stats_table = {
+    'xvar':{
+        'default': None,
+        'type': 'str'
+    },
+    'yvar':{
+        'default': None,
+        'type': 'str'
+    }
+}
 
 def get_options_spectraplots():
     options = options_spectraplots
@@ -1263,6 +1328,21 @@ def get_options_image_plot():
     options = options_image
     for op in options_title:
         options[op] = options_title[op]
+    return options
+
+def get_options_single_stats_table():
+    options = options_single_stats_table
+    for op in options_select:
+        options[op] = options_select[op]
+    return options
+
+def get_options_multiple_bounding_box():
+    options = options_multiple_bounding_box
+    for op in options_axis:
+        options[op] = options_axis[op]
+    for op in options_legend:
+        options[op] = options_legend[op]
+
     return options
 
 def get_scale_factor_str(scale_factor):

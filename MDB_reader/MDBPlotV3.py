@@ -127,6 +127,14 @@ class MDBPlot:
         #  the mean of absolute (unsigned) percent differences
         self.valid_stats['APD'] = np.mean(np.abs(rel_diff))
 
+        self.valid_stats['MIN_Y'] = np.ma.min(sat_obs)
+        self.valid_stats['MAX_Y'] = np.ma.max(sat_obs)
+        self.valid_stats['MIN_X'] = np.ma.min(ref_obs)
+        self.valid_stats['MAX_X'] = np.ma.max(ref_obs)
+        self.valid_stats['RANGE_Y'] = self.valid_stats['MAX_Y'] - self.valid_stats['MIN_Y']
+        self.valid_stats['RANGE_X'] = self.valid_stats['MAX_X'] - self.valid_stats['MIN_X']
+
+
         if use_log_scale:
             sat_obs = np.log10(sat_obs)
             ref_obs = np.log10(ref_obs)
@@ -242,6 +250,158 @@ class MDBPlot:
             self.plot_image(options_figure)
         if options_figure['type'] == 'flagplot':
             self.plot_flag_plot_from_options(options_figure)
+        if options_figure['type'] == 'singlestatstable':
+            self.plot_single_stats_table(options_figure)
+        if options_figure['type'] == 'multipleboundingbox':
+            self.plot_multiple_bounding_box(options_figure)
+
+    def plot_multiple_bounding_box(self, options_figure):
+        from matplotlib import pyplot as plt
+        ##dimensions
+        vars = options_figure['vars']
+        groupsTicks = options_figure['groupsTicks']
+        ##dimensions
+        nseries = len(vars)
+        ngroups = len(groupsTicks)
+        width = 0.6
+        intra = 0.1
+        inter = 0.6
+
+        all_pos_series = []
+
+        width_series = round(nseries * (width + intra), 2)
+        increm = round(width_series + inter, 2)
+        for idx in range(nseries):
+            start = inter + ((idx + 1) * (width + intra)) - (width / 2)
+            start = round(start, 2)
+            end = start + (increm * (ngroups - 1))
+            end = round(end, 2)
+            pos_series = np.arange(start, end + (increm / 2), increm)
+            max_value = end + (width / 2) + inter + intra
+            all_pos_series.append(pos_series)
+
+        ticks = [0] * ngroups
+        pos_ini = all_pos_series[0]
+        pos_end = all_pos_series[-1]
+
+        for idx in range(ngroups):
+            ticks[idx] = pos_ini[idx] + ((pos_end[idx] - pos_ini[idx]) / 2)
+
+        max_value = round(max_value, 2)
+
+        ##getting data and plotting
+        handles = []
+        colors = options_figure['color']
+
+        plt.figure(figsize=(7,5.25))
+        for idx, var in enumerate(vars):
+            series_name = var
+            array = self.mrfile.nc.variables[var][:]
+            data_boxplot = []
+            if len(colors)==1:
+                color = colors[0]
+            elif len(colors)==nseries:
+                color = colors[idx]
+
+            for igroup, group in enumerate(options_figure['groups']):
+
+                values = [x.strip() for x in options_figure['groupsValues'][igroup].split(';')]
+                options_figure['selectBy'] = group
+                options_figure['selectValues'] = values
+                options_figure['selectType'] = 'flag'
+                options_figure = self.check_gs_options_impl(options_figure, 'selectBy', 'selectType', 'selectValues')
+                select_array, all_select_values, all_select_meanings = self.get_flag_array(options_figure, 'selectBy')
+                for val_s in values:
+                    val_n = all_select_values[all_select_meanings.index(val_s)]
+                    data_here = array[select_array == val_n]
+                    data_boxplot.append(data_here)
+
+            positions = all_pos_series[idx]
+
+
+
+            bbox = plt.boxplot(data_boxplot, positions=positions, widths=width,patch_artist = True,showmeans=True,
+                               boxprops=dict(facecolor=color),
+                               medianprops=dict(color='black'),
+                               meanprops=dict(linewidth=0,marker='o',mec='black',mfc=color,markersize=4,mew=0.5),
+                               flierprops=dict(markersize=0, markeredgecolor='none'))
+
+            handles.append(bbox['boxes'][0])
+
+            # hlegend = define_box_properties(bbox, series[series_name], series_name)
+            # handles.append(hlegend)
+            # if plot_average:
+            #     for itime in range(n_time):
+            #         plt.plot(positions[itime], data_average[itime], color=series[series_name], linewidth=0, marker='o',
+            #                  markersize=8, mec='black', mew=1)
+
+        plt.grid(which='major', color='lightgray', linestyle='--', axis='y')
+        groupsTicks = options_figure['groupsTicks']
+        plt.xticks(ticks,groupsTicks,fontsize=10)
+        plt.yticks(fontsize=10)
+        if options_figure['legend_values'] is not None:
+            legend_values = options_figure['legend_values']
+        else:
+            legend_values = vars
+        plt.legend(handles, legend_values, loc='lower center', ncols=nseries, bbox_to_anchor=(0.5, -0.2))
+        plt.ylim([0,30])
+        if options_figure['ylabel'] is not None:
+            y_label = options_figure['ylabel']
+            plt.ylabel(y_label,fontsize=10)
+
+        plt.tight_layout()
+
+        file_out = options_figure['file_out']
+        if file_out is not None:
+            plt.savefig(file_out, dpi=300)
+        plt.close()
+
+    def plot_single_stats_table(self, options_figure):
+        yvar = options_figure['yvar']
+        xvar = options_figure['xvar']
+        if yvar is None or xvar is None:
+            print(f'[ERROR] Please select xvar and yvar options for single stats table {options_figure["name"]}')
+            return
+        file_out = options_figure['file_out']
+        if file_out is not None:
+            name_out = os.path.basename(file_out)
+            ext = name_out[name_out.find('.'):]
+            name_out = name_out.replace(ext, '.csv')
+            file_out = os.path.join(os.path.dirname(file_out), name_out)
+
+        if options_figure['selectBy'] is None:
+            self.set_data_scatterplot_general(None, None, None, options_figure)
+            self.compute_statistics(False, False, 'II')
+            col_names = ['GLOBAL']
+            df = pd.DataFrame(index=list(self.valid_stats.keys()), columns=col_names)
+            df = self.assign_stats_to_table(df, 'GLOBAL')
+            df.to_csv(file_out, sep=';', index_label='METRIC')
+        else:
+            selectBy = options_figure['selectBy']
+            selectValues = options_figure['selectValues']
+            flagValues = self.get_flag_list(selectValues, options_figure[selectBy]['flag_values'],
+                                            options_figure[selectBy]['flag_meanings'])
+            col_names = ['GLOBAL'] + flagValues
+            print('aqui')
+            print(self.valid_stats)
+            df = pd.DataFrame(index=list(self.valid_stats.keys()), columns=col_names)
+
+            self.set_data_scatterplot_general(None, None, None, options_figure)
+            self.compute_statistics(True, False, 'II')
+            df = self.assign_stats_to_table(df, 'GLOBAL')
+
+            for idx, val in enumerate(selectValues):
+                col_name = flagValues[idx]
+                self.set_data_scatterplot_general(None, selectBy, val, options_figure)
+                self.compute_statistics(True, False, 'II')
+                df = self.assign_stats_to_table(df, col_name)
+
+            df.to_csv(file_out, sep=';', index_label='METRIC')
+
+    def assign_stats_to_table(self, df, col_name):
+        for key in list(self.valid_stats.keys()):
+            df.loc[key].at[col_name] = self.valid_stats[key]
+        return df
 
     def plot_flag_plot_from_options(self, options_figure):
 
@@ -1264,12 +1424,12 @@ class MDBPlot:
             file_out_base = options_figure['file_out']
             if index_mu == -1:
                 for imu in range(self.mrfile.n_mu_total):
-                    if mu_valid[imu]==1:
+                    if mu_valid[imu] == 1:
                         print(f'[INFO] Plotting scatter plot for match-up {imu} / {self.mrfile.n_mu_total}')
-                        self.plot_scatter_plot_mu(options_figure, imu,file_out_base)
-            elif 0 <= index_mu < self.mrfile.n_mu_total and mu_valid[index_mu]==1:
+                        self.plot_scatter_plot_mu(options_figure, imu, file_out_base)
+            elif 0 <= index_mu < self.mrfile.n_mu_total and mu_valid[index_mu] == 1:
                 print(f'[INFO] Plotting scatter plot for match-up {index_mu}')
-                self.plot_scatter_plot_mu(options_figure, index_mu,file_out_base)
+                self.plot_scatter_plot_mu(options_figure, index_mu, file_out_base)
 
             return
 
@@ -1553,20 +1713,27 @@ class MDBPlot:
                     yherel = np.log10(yhere)
                     xy = np.vstack([xherel, yherel])
                 else:
-                    xhere = xhere[0:100000]
-                    yhere = yhere[0:100000]
+                    #xhere = xhere[0:100000]
+                    #yhere = yhere[0:100000]
                     xy = np.vstack([xhere, yhere])
 
                 try:
                     print(f'[INFO] Computing density...')
+
                     z = gaussian_kde(xy)(xy)
+
+                    #z = self.mrfile.variables['DISTANCE'][:]
+
+
                     print(f'[INFO]Sorting density...')
                     idx = z.argsort()
                     xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
                     print(f'[INFO] Density values were sorted')
                     plot.set_cmap('jet')
 
-                    plot.plot_data(xhere, yhere, marker, markersize, z, None, 0)
+                    hscatter = plot.plot_data(xhere, yhere, marker, markersize, z, None, 0)
+
+
 
                     # file_kk = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS/stal.csv'
                     # fw = open(file_kk,'w')
@@ -1582,6 +1749,10 @@ class MDBPlot:
 
             else:
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
+
+
+        #plot.colorbar(hscatter)
+
 
         ##limitss
         if options['log_scale']:
@@ -1859,7 +2030,7 @@ class MDBPlot:
         if n_selected == 1:
             hselected = pspectra.plot_single_line(np.squeeze(spectra_selected), 'black', 'solid', 2, None, 10)
 
-        if n_valid==0 and n_selected==0:
+        if n_valid == 0 and n_selected == 0:
             print('here')
             pspectra.close_plot()
             return
