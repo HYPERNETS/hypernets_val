@@ -557,6 +557,38 @@ class HYPERNETS_DAY_FILE():
             pm.save_fig(f'{file_out_base}_all{self.format_img}')
             pm.close_plot()
 
+    def save_img_files_general(self,dir_img,multiple_plot):
+        flags = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
+        if not os.path.exists(dir_img):
+            os.mkdir(dir_img)
+        file_out_base = os.path.join(dir_img, f'CameraImages_{self.isequence}')
+        if multiple_plot:
+            pm = PlotMultiple()
+            nrow = 2
+            ncol = 3
+            pm.start_multiple_plot_advanced(nrow, ncol, 10, 7.0, 0.1, 0.15, True)
+        index_row = 0
+        index_col = 0
+        for flag in flags:
+            file_img, title = self.get_img_file(flag)
+            if index_col == ncol:
+                index_col = 0
+                index_row = index_row + 1
+            # print(f'{flag}->{index_row} {index_col}')
+            if multiple_plot:
+                if file_img is not None:
+                    # pm.plot_image_title(file_img,index_row,index_col,title)
+                    pm.plot_image_hypernets(file_img, index_row, index_col, title)
+                else:
+                    pm.plot_blank_with_title(index_row, index_col, title[:9])
+
+            index_col = index_col + 1
+        file_out = None
+        if multiple_plot:
+            file_out = f'{file_out_base}_all{self.format_img}'
+            pm.save_fig(file_out)
+            pm.close_plot()
+        return file_out
     def save_spectra_files(self, multiple_plot):
         dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
         if not os.path.exists(dir_img):

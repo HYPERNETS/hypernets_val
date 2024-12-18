@@ -4,6 +4,9 @@ import shutil
 from datetime import datetime as dt
 from datetime import timedelta
 import sys
+
+import numpy as np
+
 import INSITU_comparison
 from INSITU_comparison import INSITUCOMPARISON
 from INSITU_plots import INSITU_plots
@@ -14,7 +17,7 @@ code_aeronet = os.path.join(os.path.dirname(code_home), 'aeronet')
 sys.path.append(code_aeronet)
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
-parser.add_argument('-m', "--mode", help="Mode.", choices=["COMPARISON", "CONCAT", "GENERATEMU", "HYPSTAR_QC","TEST"])
+parser.add_argument('-m', "--mode", help="Mode.", choices=["COMPARISON", "CONCAT", "GENERATEMU", "HYPSTAR_QC","PLOT_MU","TEST"])
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-cf',"--comparison_file",help="Comparison file.")
 parser.add_argument('-max',"--max_time",help="Maximum time in minutes between observations.")
@@ -200,6 +203,74 @@ def make_hypstar_qc(file_comparison):
     print(f'[INFO] Adding HYPSTAR QC variable to: {file_comparison}')
     ic = INSITUCOMPARISON(file_comparison)
     ic.add_hypstar_qc()
+
+def make_plots_mu(file_nc,options):
+    dir_base_out = options['output_path']
+    if not os.path.exists(dir_base_out):
+        dir_base_out = os.path.dirname(file_nc)
+    name_nc = os.path.basename(file_nc)
+    name_out = f'{name_nc[:-3]}_PLOTS_MU'
+    dir_out = os.path.join(dir_base_out,name_out)
+    if not os.path.isdir(dir_out):
+        try:
+            os.mkdir(dir_out)
+        except:
+            print(f'[ERROR] Ouput path {dir_out} does not exist and could not be created. Review permissions.')
+            return
+    print(f'[INFO] Creating plots for individual match-ups...')
+    print(f'[INFO] Ouput path: {dir_out}')
+    from netCDF4 import Dataset
+    dataset = Dataset(file_nc,'r')
+    mu_wavelength = dataset.variables['mu_wavelength'][:]
+    wl_unique = np.unique((mu_wavelength))
+    wl_ref = wl_unique[0]
+    nwl = len(wl_unique)
+    nmu = int(len(mu_wavelength)/nwl)
+    print(f'[INFO] Number of match-ups: {nmu}')
+    mu_day_id = dataset.variables['mu_day_id'][:]
+    mu_a = dataset.variables['mu_AERONET_sequence_id'][:]
+    mu_h = dataset.variables['mu_HYPSTAR_sequence_id'][:]
+    h_time = dataset.variables['HYPSTAR_time'][:]
+    dataset.close
+
+    mu_day_id = mu_day_id[mu_wavelength==wl_ref]
+    if len(mu_day_id)!=nmu:
+        print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
+        return
+    mu_a = mu_a[mu_wavelength == wl_ref]
+    if len(mu_a)!=nmu:
+        print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
+        return
+    mu_h =  mu_h[mu_wavelength == wl_ref]
+    if len(mu_h)!=nmu:
+        print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
+        return
+
+    for imu in range(nmu):
+        iday = mu_day_id[imu]
+        ih = mu_h[imu]
+        ia = mu_a[imu]
+        hypstar_time = h_time[iday,ih]
+        hypstar_time_obj = dt.utcfromtimestamp(hypstar_time)
+        yyyy = hypstar_time_obj.strftime('%Y')
+        mm = hypstar_time_obj.strftime('%m')
+        dd = hypstar_time_obj.strftime('%d')
+        dir_qc = os.path.join(options['qc_path'],yyyy,mm,dd)
+        file_qc = os.path.join(dir_qc,f'HYPERNETES_W_DAY_{yyyy}{mm}{dd}.nc')
+        dir_img = os.path.join(options['img_path'],yyyy,mm,dd)
+        if os.path.isfile(file_qc) and os.path.isdir(dir_img):
+            from HYPERNETS_QC.hypernets_day_file import HYPERNETS_DAY_FILE
+            hday = HYPERNETS_DAY_FILE(file_qc,dir_img)
+            tarray = hday.get_array_variable('l2_acquisition_time')
+            index_time = np.where(tarray==hypstar_time)
+            if len(index_time[0])==1:
+                isequence = index_time[0][0]
+                hday.isequence = isequence
+                file_pictures = hday.save_img_files_general(dir_out,True)
+
+
+        #print(imu,iday,ih,ia,'->',dt.utcfromtimestamp(hypstar_time))
+
 
 
 def make_plots():
@@ -558,6 +629,31 @@ def get_options_concat(config_file):
 
     return options_dict
 
+def get_options_plot_mu(config_file):
+
+    options_dict = {
+        'qc_path':'/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV_QC/VEIT',
+        'img_path': '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV/VEIT',
+        'output_path': '/store3/HYPERNETS/COMPARISON_HYPSTAR_AERONET'
+    }
+    if config_file is None:
+        print(f'[WARNING] Config file was not defined. Using default options')
+        return options_dict
+    if not os.path.exists(config_file):
+        print(f'[WARNING] Config file: {config_file} does not exist. Using default options')
+        return options_dict
+    import configparser
+    try:
+        options = configparser.ConfigParser()
+        options.read(config_file)
+    except:
+        print(f'[WARNING] Parse error reading config file: {config_file}. Using default options')
+        return options_dict
+    section = 'plot_mu'
+    for key in options_dict.keys():
+        if options.has_option(section,key):
+            options_dict[key] = options[section][key].strip()
+    return options_dict
 
 def main():
     if args.mode == 'COMPARISON':
@@ -605,6 +701,17 @@ def main():
             print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
             return
         add_mu_to_file(file_c,max_time)
+
+    if args.mode == 'PLOT_MU':
+        if not args.comparison_file:
+            print(f'[ERROR] Comparison file (-cf,--comparison_file) is required for mode: {args.mode}')
+            return
+        file_c = args.comparison_file
+        if not os.path.isfile(file_c):
+            print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
+            return
+        options = get_options_plot_mu(args.config_file)
+        make_plots_mu(file_c,options)
 
 
     if args.mode == 'TEST':
