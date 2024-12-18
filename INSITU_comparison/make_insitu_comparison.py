@@ -233,6 +233,7 @@ def make_plots_mu(file_nc,options):
     h_time = dataset.variables['HYPSTAR_time'][:]
     dataset.close()
 
+
     mu_day_id = mu_day_id[mu_wavelength==wl_ref]
     if len(mu_day_id)!=nmu:
         print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
@@ -246,29 +247,58 @@ def make_plots_mu(file_nc,options):
         print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
         return
 
+    ic = INSITUCOMPARISON(file_nc)
+
     for imu in range(nmu):
+        if imu==1:
+            break
         iday = mu_day_id[imu]
         ih = mu_h[imu]
         ia = mu_a[imu]
-        hypstar_time = h_time[iday,ih]
-        hypstar_time_obj = dt.utcfromtimestamp(hypstar_time)
-        yyyy = hypstar_time_obj.strftime('%Y')
-        mm = hypstar_time_obj.strftime('%m')
-        dd = hypstar_time_obj.strftime('%d')
-        dir_qc = os.path.join(options['qc_path'],yyyy,mm,dd)
-        file_qc = os.path.join(dir_qc,f'HYPERNETES_W_DAY_{yyyy}{mm}{dd}.nc')
-        dir_img = os.path.join(options['img_path'],yyyy,mm,dd)
+        file_Lt = os.path.join(dir_out,f'Lt_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(file_Lt,'HYPSTAR_TO_AERONET_Lt_mean','AERONET_Lt_mean',iday,ih,ia,'Lt')
+        file_Li = os.path.join(dir_out, f'Li_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(file_Li, 'HYPSTAR_TO_AERONET_Li_mean', 'AERONET_Li_mean', iday, ih, ia, 'Li')
+        file_Lw = os.path.join(dir_out, f'Lw_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(file_Lw, 'HYPSTAR_TO_AERONET_Lw', 'AERONET_Lw', iday, ih, ia, 'Lw')
 
-        if os.path.isfile(file_qc) and os.path.isdir(dir_img):
-            from HYPERNETS_QC.hypernets_day_file import HYPERNETS_DAY_FILE
-            hday = HYPERNETS_DAY_FILE(file_qc,dir_img)
-            tarray = hday.get_array_variable('l2_acquisition_time')
-            index_time = np.where(tarray==hypstar_time)
-            if len(index_time[0])==1:
-                isequence = index_time[0][0]
-                hday.isequence = isequence
-                hday.path_images_date = dir_img
-                file_pictures = hday.save_img_files_general(dir_out,True)
+        file_spectra = os.path.join(dir_out, f'Spectra_{iday}_{ia}_{ih}.png')
+        from MDB_reader.PlotMultiple import PlotMultiple
+        pm = PlotMultiple()
+
+        pm.start_multiple_plot_advanced(1, 3, 10, 5, 0, 0, True)
+        pm.plot_image(file_Lt, 0, 0)
+        pm.plot_image(file_Li, 0, 1)
+        pm.plot_image(file_Lw, 0, 2)
+        pm.save_fig(file_spectra)
+        file_pictures = os.path.join(dir_out,'CameraImages_SEQ_20240111T0840_all.png')
+
+        file_final = os.path.join(dir_out,'SEQ_20240111T0840_match_up.tif')
+        pmfinal = PlotMultiple()
+        pmfinal.start_multiple_plot_advanced(2,1,10,12,0,0,True)
+        pmfinal.plot_image(file_pictures,0,0)
+        pmfinal.plot_image(file_spectra, 1, 0)
+        pmfinal.save_fig_with_resolution(file_final,300)
+
+
+        # hypstar_time = h_time[iday,ih]
+        # hypstar_time_obj = dt.utcfromtimestamp(hypstar_time)
+        # yyyy = hypstar_time_obj.strftime('%Y')
+        # mm = hypstar_time_obj.strftime('%m')
+        # dd = hypstar_time_obj.strftime('%d')
+        # dir_qc = os.path.join(options['qc_path'],yyyy,mm,dd)
+        # file_qc = os.path.join(dir_qc,f'HYPERNETES_W_DAY_{yyyy}{mm}{dd}.nc')
+        # dir_img = os.path.join(options['img_path'],yyyy,mm,dd)
+        # if os.path.isfile(file_qc) and os.path.isdir(dir_img):
+        #     from HYPERNETS_QC.hypernets_day_file import HYPERNETS_DAY_FILE
+        #     hday = HYPERNETS_DAY_FILE(file_qc,dir_img)
+        #     tarray = hday.get_array_variable('l2_acquisition_time')
+        #     index_time = np.where(tarray==hypstar_time)
+        #     if len(index_time[0])==1:
+        #         isequence = index_time[0][0]
+        #         hday.isequence = isequence
+        #         hday.path_images_date = dir_img
+        #         file_pictures = hday.save_img_files_general(dir_out,True)
 
 
         #print(imu,iday,ih,ia,'->',dt.utcfromtimestamp(hypstar_time))
@@ -280,7 +310,7 @@ def make_plots():
     # date_here = dt(2023, 9, 26)
     # file_comparison = get_file_comparison_date(path_out, date_here, False)
 
-    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_20230425_20240331.nc'
+    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_2024.nc'
 
     file_config = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/config_plot.ini'
     import configparser
@@ -302,33 +332,30 @@ def make_plots():
 
 
 
-    #ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean','mu_AERONET_Lt_mean','mu_wavelength')
 
-    ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Li_mean', 'mu_AERONET_Li_mean', 'mu_wavelength')
-    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Li.tif'
-    legend = ['HYPSTAR - Li', 'AERONET-OC - Li']
-    ylabel = r'Li [μW/(cm$^2$·sr·nm)]'
-    title = 'Downwelling radiance'
-    ic.plot_spectra_stats(file_out, legend, ylabel, title)
 
-    ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean', 'mu_AERONET_Lt_mean', 'mu_wavelength')
-    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Lt.tif'
-    legend = ['HYPSTAR - Lt', 'AERONET-OC - Lt']
-    ylabel = r'Lt [μW/(cm$^2$·sr·nm)]'
-    title = 'Upwelling radiance'
-    ic.plot_spectra_stats(file_out, legend, ylabel, title)
-
-    ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
-    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS/SpectraComparison_Lw.tif'
-    legend = ['HYPSTAR - Lw', 'AERONET-OC - Lw']
-    ylabel = r'Lw [μW/(cm$^2$·sr·nm)]'
-    title = 'Water-leaving radiance'
-    ic.plot_spectra_stats(file_out,legend,ylabel,title)
-
-    #ic.plot_scatterplot(None)
-    #ic.plot_all_scatterplots_wl()
-    #ic.plot_all_spectra()
-    #ic.plot_rho_scatterplot()
+    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Li_mean', 'mu_AERONET_Li_mean', 'mu_wavelength')
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Li.tif'
+    # legend = ['HYPSTAR - Li', 'AERONET-OC - Li']
+    # ylabel = r'Li [μW/(cm$^2$·sr·nm)]'
+    # title = 'Downwelling radiance'
+    # ic.plot_spectra_stats(file_out, legend, ylabel, title)
+    #
+    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean', 'mu_AERONET_Lt_mean', 'mu_wavelength')
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Lt.tif'
+    # legend = ['HYPSTAR - Lt', 'AERONET-OC - Lt']
+    # ylabel = r'Lt [μW/(cm$^2$·sr·nm)]'
+    # title = 'Upwelling radiance'
+    # ic.plot_spectra_stats(file_out, legend, ylabel, title)
+    #
+    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Lw.tif'
+    # legend = ['HYPSTAR - Lw', 'AERONET-OC - Lw']
+    # ylabel = r'Lw [μW/(cm$^2$·sr·nm)]'
+    # title = 'Water-leaving radiance'
+    # ic.plot_spectra_stats(file_out,legend,ylabel,title)
+    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/WindTimeSeries.tif'
+    ic.plot_wind_time_series(file_out)
 
 
 def get_file_comparison_date(path_out, date_here, to_create):

@@ -1221,3 +1221,60 @@ class INSITUCOMPARISON:
 
         plot.save_fig(file_out)
         plot.close_plot()
+
+    def plot_spectra_comparison_mu(self,file_out,h_variable,a_variable,iday,hsequence,asequence,y_label):
+        dataset = Dataset(self.path_nc)
+        wl = dataset.variables['AERONET_nominal_wavelengths'][:]
+        h_variable = dataset.variables[h_variable][iday,hsequence,:]
+        a_variable = dataset.variables[a_variable][iday,asequence,:]
+        dataset.close()
+        from MDB_reader.PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = wl
+        hline1= pspectra.plot_single_line(h_variable,'red','-',1,'o',5)
+        hline2 = pspectra.plot_single_line(a_variable, 'blue', '-', 1, 'o', 5)
+        pspectra.set_yaxis_title(y_label)
+        pspectra.set_xaxis_title('Wavelength(nm)')
+        pspectra.set_grid()
+        pspectra.legend_options['loc'] = 'lower center'
+        pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.3)
+        pspectra.legend_options['ncols'] = 2
+        pspectra.set_legend_h([hline1[0], hline2[0]], ['AERONET-OC', 'HYPSTAR'])
+
+
+        pspectra.set_tigth_layout()
+        pspectra.save_plot(file_out)
+
+
+
+    def plot_wind_time_series(self,file_out):
+        dataset = Dataset(self.path_nc, 'r')
+        a_wind = dataset.variables['AERONET_Wind_Speed(m_s)'][:]
+        h_wind = dataset.variables['HYPSTAR_rhof_wind'][:]
+        time = dataset.variables['AERONET_time'][:]
+        dataset.close()
+        mask = np.ones(a_wind.shape)
+        mask[a_wind.mask]=0
+        mask[h_wind.mask]=0
+
+        a_wind_ts = a_wind[mask==1]
+        h_wind_ts = h_wind[mask==1]
+        time_ts = time[mask==1]
+        print(a_wind_ts.shape,h_wind_ts.shape)
+        n_wind = len(a_wind_ts)
+
+        from MDB_reader.PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = np.arange(n_wind)
+        hline1 = pspectra.plot_single_line(a_wind_ts, 'red', 'solid', 1, 'o', 0)
+        hline2 = pspectra.plot_single_line(h_wind_ts, 'blue','solid',1,'o',0)
+        pspectra.legend_options['loc'] = 'lower center'
+        pspectra.legend_options['bbox_to_anchor'] = (0.5,-0.3)
+        pspectra.legend_options['ncols'] = 2
+        pspectra.set_legend_h([hline1[0],hline2[0]],['AERONET-OC Wind(m/s)','HYPSTAR Wind(m/s)'])
+        pspectra.set_yaxis_title('Wind (m/s)')
+        pspectra.set_xaxis_title('Time')
+        pspectra.set_grid_horizontal()
+        pspectra.remove_major_x_ticks()
+        pspectra.set_tigth_layout()
+        pspectra.save_plot(file_out)
