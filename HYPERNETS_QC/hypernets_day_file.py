@@ -561,7 +561,12 @@ class HYPERNETS_DAY_FILE():
         flags = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
         if not os.path.exists(dir_img):
             os.mkdir(dir_img)
-        file_out_base = os.path.join(dir_img, f'CameraImages_{self.isequence}')
+        ref = self.isequence
+        if len(self.sequences)==0:
+            self.sequences = self.get_sequences()
+        if len(self.sequences)>0:
+            ref = f'SEQ_{self.sequences[self.isequence]}'
+        file_out_base = os.path.join(dir_img, f'CameraImages_{ref}')
         if multiple_plot:
             pm = PlotMultiple()
             nrow = 2

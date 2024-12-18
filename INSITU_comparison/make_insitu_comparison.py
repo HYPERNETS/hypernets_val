@@ -231,7 +231,7 @@ def make_plots_mu(file_nc,options):
     mu_a = dataset.variables['mu_AERONET_sequence_id'][:]
     mu_h = dataset.variables['mu_HYPSTAR_sequence_id'][:]
     h_time = dataset.variables['HYPSTAR_time'][:]
-    dataset.close
+    dataset.close()
 
     mu_day_id = mu_day_id[mu_wavelength==wl_ref]
     if len(mu_day_id)!=nmu:
@@ -258,6 +258,7 @@ def make_plots_mu(file_nc,options):
         dir_qc = os.path.join(options['qc_path'],yyyy,mm,dd)
         file_qc = os.path.join(dir_qc,f'HYPERNETES_W_DAY_{yyyy}{mm}{dd}.nc')
         dir_img = os.path.join(options['img_path'],yyyy,mm,dd)
+
         if os.path.isfile(file_qc) and os.path.isdir(dir_img):
             from HYPERNETS_QC.hypernets_day_file import HYPERNETS_DAY_FILE
             hday = HYPERNETS_DAY_FILE(file_qc,dir_img)
@@ -266,6 +267,7 @@ def make_plots_mu(file_nc,options):
             if len(index_time[0])==1:
                 isequence = index_time[0][0]
                 hday.isequence = isequence
+                hday.path_images_date = dir_img
                 file_pictures = hday.save_img_files_general(dir_out,True)
 
 

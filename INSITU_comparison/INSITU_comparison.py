@@ -455,7 +455,9 @@ class INSITUCOMPARISON:
                         time_diff_array[asequence] = time_diff
                     else:
                         if time_diff < time_diff_array[asequence]:  ##reassigning
-                            hypstar_sequence_prev = aeronet_hypstar_index[asequence]
+
+                            hypstar_sequence_prev = int(aeronet_hypstar_index[asequence])
+
                             hypstar_aeronet_index[hypstar_sequence_prev] = -1
                             aeronet_hypstar_index[asequence] = hsequence
                             time_diff_array[asequence] = time_diff
