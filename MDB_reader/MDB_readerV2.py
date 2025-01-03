@@ -4138,12 +4138,12 @@ def main():
         # get_certo_dates_olci()
         # check_dates()
         # set_certo_dates_extracts()
-        # dir_mdb = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs_updated20241114'
-        # for name in os.listdir(dir_mdb):
-        #     if name.endswith('.nc') and name.startswith('MDB'):
-        #         file_mdb = os.path.join(dir_mdb,name)
-        #         mdb_r = MDB_READER(file_mdb,True)
-        #         mdb_r.create_csv_time_difference()
+        dir_mdb = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC'
+        for name in os.listdir(dir_mdb):
+            if name.endswith('.nc') and name.startswith('MDB'):
+                file_mdb = os.path.join(dir_mdb,name)
+                mdb_r = MDB_READER(file_mdb,True)
+                mdb_r.create_csv_time_difference()
 
         # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import MDBFile

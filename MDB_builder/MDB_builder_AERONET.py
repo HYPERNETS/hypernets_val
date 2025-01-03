@@ -446,6 +446,12 @@ def main():
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
     path_mdb = mo.get_mdb_path()
+
+    import MDB_builderV2 as MDBBuilderBase
+    check, remove_variables = MDBBuilderBase.check_files(mdb_extract_files)
+    if not check:
+        MDBBuilderBase.remove_uncommon_variables(mdb_extract_files, remove_variables)
+
     concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')

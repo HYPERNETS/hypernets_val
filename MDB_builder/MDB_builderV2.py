@@ -25,7 +25,8 @@ parser.add_argument('-ld', "--listdates",
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-nd', "--nodelfiles", help="Do not delete temp files.", action="store_true")
-parser.add_argument('-chvar',"--check_variables_extract", help="Check variables of extracts in single CSV files", action="store_true")
+parser.add_argument('-chvar', "--check_variables_extract", help="Check variables of extracts in single CSV files",
+                    action="store_true")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 
 args = parser.parse_args()
@@ -62,6 +63,82 @@ def test():
 
     return True
 
+
+def check_files(input_files):
+    from netCDF4 import Dataset
+    n_files = len(input_files)
+    dims = None
+    variables_dict = {}
+    for file in input_files:
+        print(f'[INFO] Checking file: {file}')
+        dataset = Dataset(file,'r')
+        if dims is None:
+            dataset.dimensions
+        else:
+            if dims!=dataset.dimensions:
+                print(f'[ERROR] Files to be concatenated should have the same dimensions')
+                return False,None
+        for variable in dataset.variables:
+            if not variable in variables_dict:
+                variables_dict[variable]=1
+            else:
+                variables_dict[variable] = variables_dict[variable]+1
+        dataset.close()
+
+    remove_variables = []
+
+    check  = True
+    for variable in variables_dict:
+        if variables_dict[variable]==n_files:
+            print(f'[INFO] Variable {variable} is available in all the files')
+        else:
+            check = False
+            remove_variables.append(variable)
+            print(f'[WARNING] Variable {variable} is not available in all the files')
+
+    return check,remove_variables
+
+def remove_uncommon_variables(list_files,variables_to_remove):
+    for idx,file in enumerate(list_files):
+        print(f'[INFO] Correcting file: {file}')
+        output_file = os.path.join(os.path.dirname(file),f'Temp_{idx}.nc')
+        creating_copy_limiting_variables(file,output_file,[],variables_to_remove)
+        os.rename(output_file,file)
+
+
+def creating_copy_limiting_variables(input_file,output_file,variables_keep,variables_remove):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(input_dataset.__dict__)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+        if len(variables_keep)>0:
+            if not name in variables_keep:
+                continue
+        if len(variables_remove)>0:
+            if  name in variables_remove:
+                continue
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        ncout[name][:] = input_dataset[name][:]
+
+    ncout.close()
+    input_dataset.close()
 
 def main():
     print('[INFO] Creating MDB files!')
@@ -122,6 +199,9 @@ def main():
         if len(input_files) == 0:
             print(f'[WARNING] No input NC files found in {input_path}')
             return
+        check, remove_variables = check_files(input_files)
+        if not check:
+            remove_uncommon_variables(input_files,remove_variables)
         concatenate_nc_impl(input_files, output_path, output_file)
         return
 
@@ -197,7 +277,7 @@ def main():
     if mo.insitu_type == 'SINGLE_CSV_VAR':
         insitu_file = mo.get_single_insitu_file()
         mo.get_dates_from_insitu_file()
-        #print(mo.get_mdb_path())
+        # print(mo.get_mdb_path())
         create_mdb_single_csv_var(mo, insitu_file)
         return
 
@@ -596,12 +676,13 @@ def create_mdb_single_csv_var(mo, insitu_file):
     if col_flags is not None:
         for var in col_flags:
             if var not in df.columns.tolist():
-                print(f'[ERROR] Variable {var} is not a valid variable in the csv file {insitu_file}. Please review col_flags key in the [insitu_options] of the configuration file ')
+                print(
+                    f'[ERROR] Variable {var} is not a valid variable in the csv file {insitu_file}. Please review col_flags key in the [insitu_options] of the configuration file ')
                 return
             flag_meanings_list = np.unique(df[var]).tolist()
-            flag_values = [pow(2,x) for x in range(len(flag_meanings_list))]
+            flag_values = [pow(2, x) for x in range(len(flag_meanings_list))]
             flag_meanings = " ".join(flag_meanings_list)
-            flags_info[var]={
+            flags_info[var] = {
                 'flag_meanings_list': flag_meanings_list,
                 'flag_values': flag_values,
                 'attrs': {
@@ -609,7 +690,6 @@ def create_mdb_single_csv_var(mo, insitu_file):
                     'flag_meanings': flag_meanings
                 }
             }
-
 
     # print(mo.insitu_options)
     col_extract = mo.insitu_options['col_extract']
@@ -631,23 +711,23 @@ def create_mdb_single_csv_var(mo, insitu_file):
                 file_extract = os.path.join(mo.satellite_path_source, name_extract)
             if not os.path.exists(file_extract):
                 continue
-            dataset = Dataset(file_extract,'r')
+            dataset = Dataset(file_extract, 'r')
             for var_name in dataset.variables:
                 if var_name not in all_variables.keys():
-                    all_variables[var_name]=1
+                    all_variables[var_name] = 1
                 else:
                     all_variables[var_name] = all_variables[var_name] + 1
             dataset.close()
             nfiles = nfiles + 1
         for var_name in all_variables:
-            if all_variables[var_name]<nfiles:
+            if all_variables[var_name] < nfiles:
                 variables_to_exclude.append(var_name)
-        if len(variables_to_exclude)>0:
-            print(f'[WARNING] The following {len(variables_to_exclude)} satellite variables will be excluded from the MDB:')
+        if len(variables_to_exclude) > 0:
+            print(
+                f'[WARNING] The following {len(variables_to_exclude)} satellite variables will be excluded from the MDB:')
             for var_name in variables_to_exclude:
                 print(f'-->{var_name}')
     ##END CHECKING VARIABLES
-
 
     extra_extracts = mo.insitu_options['col_extract_extra']
     if extra_extracts is None:
@@ -705,7 +785,7 @@ def create_mdb_single_csv_var(mo, insitu_file):
         name_extract = f'{row[col_extract]}'
         file_extract = name_extract
         if not os.path.exists(file_extract):
-            file_extract = os.path.join(mo.satellite_path_source,name_extract)
+            file_extract = os.path.join(mo.satellite_path_source, name_extract)
         if not os.path.exists(file_extract):
             name_extract = f'extract_{row[col_extract]}'
             file_extract = os.path.join(mo.satellite_path_source, name_extract)
@@ -741,8 +821,8 @@ def create_mdb_single_csv_var(mo, insitu_file):
                         extract_list[name_extract][col] = int(flags_info[col]['flag_values'][index_val])
                 if (index % 100) == 0: print(f'[INFO] MDB extract file already exists. Skipping...')
                 continue
-                #os.remove(mdb_extract)
-            ibase.start_add_insitu_no_rrs(file_extract, mdb_extract,variables_to_exclude)
+                # os.remove(mdb_extract)
+            ibase.start_add_insitu_no_rrs(file_extract, mdb_extract, variables_to_exclude)
             ibase.add_shipborne_variables()
             ##adding variables and data for extra_extrats
             if len(extra_extracts_info) > 0:
@@ -753,10 +833,10 @@ def create_mdb_single_csv_var(mo, insitu_file):
                                                    extra_extracts_info[extra][f'{variable}.dtype'],
                                                    extra_extracts_info[extra][f'{variable}.atts'])
                     path = extra_extracts_info[extra]['path']
-                    file_extract = os.path.join(path,f'extract_{row[extra]}')
+                    file_extract = os.path.join(path, f'extract_{row[extra]}')
                     if os.path.exists(file_extract):
                         for variable in variables:
-                            ibase.add_data_variable(file_extract,variable,ibase.get_name_satellite_variable(variable))
+                            ibase.add_data_variable(file_extract, variable, ibase.get_name_satellite_variable(variable))
             for col in col_vars:
                 name_var = f'insitu_{col}' if not col.startswith('insitu_') else col
                 ats = mo.insitu_options[col] if col in mo.insitu_options else None
@@ -800,8 +880,6 @@ def create_mdb_single_csv_var(mo, insitu_file):
                     print('AQUI DEBERIAMOS ESTAR O QUE NARICES, APPENDING...')
                     extract_list[name_extract][col].append(int(flags_info[col]['flag_values'][index_val]))
 
-
-
     mdb_paths_to_concatenate = []
     for extract in extract_list:
         print(f'[INFO] Setting data for extract {extract}')
@@ -814,7 +892,6 @@ def create_mdb_single_csv_var(mo, insitu_file):
 
         max_time_diff = mo.insitu_options['time_window']
         dataset_w = Dataset(mdb_path, 'a')
-
 
         if max_time_diff > 0:
             time_diff = np.abs(time_array - dataset_w.variables['satellite_time'][0])
@@ -845,7 +922,6 @@ def create_mdb_single_csv_var(mo, insitu_file):
 
         dataset_w.variables['time_difference'][0, 0:n_valid] = time_diff[:]
 
-
         for col in col_vars:
             name_var = f'insitu_{col}' if not col.startswith('insitu_') else col
             array = np.array(extract_list[extract][col])[indices_sort]
@@ -861,7 +937,6 @@ def create_mdb_single_csv_var(mo, insitu_file):
                         name_var = f'insitu_flag_{col.split("_")[1]}'
                     else:
                         name_var = f'insitu_flag_{col}'
-
 
                 array = np.array(extract_list[extract][col])[indices_sort]
                 if max_time_diff > (-1):
@@ -932,8 +1007,6 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
                 print(f'[INFO] Concatening: {icent} / {len(list_files)}')
             indextmp = int(icent / nfiles_ref)
             list_files_here = list_files[icent:icent + nfiles_ref]
-            if icent == 74:
-                print(list_files_here)
             ncout_file_tmp = os.path.join(path_out, f'Temp_{indextmp}.nc')
             list_files_tmp.append(ncout_file_tmp)
             list_files_here.append(ncout_file_tmp)
@@ -944,7 +1017,7 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
             out, err = prog.communicate()
             if err:
                 print(f'[ERROR]{err}')
-
+        print()
         list_files_tmp.append(ncout_file)
         cmd = [f"ncrcat -O -h"] + list_files_tmp
         cmd = " ".join(cmd)
