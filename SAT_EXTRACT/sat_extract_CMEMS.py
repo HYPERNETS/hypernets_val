@@ -1829,11 +1829,17 @@ def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset
 
         ##DONWLOAD CERTO SOURCES
         if namefile.find('CERTO') >= 0:
-            folder_cmd = 'OLCI'
-            if namefile.find('OLCI') < 0:
-                folder_cmd = 'MSI'
+            # folder_cmd = 'OLCI'
+            # if namefile.find('OLCI') < 0:
+            #     folder_cmd = 'MSI'
             # cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/{folder_cmd}/{namefile} -O {file}'
-            cmd = f'wget https://rsg.pml.ac.uk/shared_files/liat/DOORS_final2024/OLCI/{namefile} -O {file}'
+
+            url = 'https://rsg.pml.ac.uk/shared_files/liat/DOORS_final2024/OLCI'
+
+            if cmems_download_options is not None and 'url' in cmems_download_options.keys():
+                url = cmems_download_options['url']
+
+            cmd = f'wget {url}/{namefile} -O {file}'
 
             if args.verbose:
                 print(f'[INFO] Trying download with cmd:')
@@ -1934,7 +1940,7 @@ def download_doors_sources(options):
             print(f'[ERROR] Option {coption} is compulsory in section {section}')
             return
         options_dict[coption] = options[section][coption]
-    other_options = ['path_csv', 'start_date', 'end_date']
+    other_options = ['path_csv', 'start_date', 'end_date','url']
     for coption in other_options:
         if not options.has_option(section, coption):
             continue
@@ -1961,7 +1967,7 @@ def download_doors_sources(options):
 
             sfile = get_cmems_product_day(options_dict['sat_source_dir'], 'YYYYjjj', work_date,
                                           options_dict['dataset_name_file'], options_dict['dataset_name_format_date'],
-                                          None,
+                                          options_dict,
                                           False)
             if sfile is not None:
                 print(f'[INFO] File {sfile} has been downloaded for date: {work_date.strftime("%Y-%m-%d")}')
