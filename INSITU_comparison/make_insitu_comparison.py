@@ -87,7 +87,7 @@ def create_multiple_comparison_files(options):
     # end_date = dt(2023, 10, 31)
     start_date = options['start_date']
     end_date = options['end_date']
-    aeronet_file = ['aeronet_file'],
+    aeronet_file = ['aeronet_file']
     path_hypstar = options['path_hypstar']
     path_out = options['path_out']
     overwrite = options['overwrite']
