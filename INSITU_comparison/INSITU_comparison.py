@@ -169,9 +169,9 @@ class INSITUCOMPARISON:
                 time_list.append(time_stamp)
 
             nwl_here = len(dataset.variables['wavelength'][:])
-            if nominal_wavelengths is None and nwl_here==nwl:
+            if nominal_wavelengths is None and nwl_here == nwl:
                 nominal_wavelengths = dataset.variables['wavelength'][:]
-            if nominal_wavelengths_alt is None and nwl_here<nwl:
+            if nominal_wavelengths_alt is None and nwl_here < nwl:
                 nominal_wavelengths_alt = np.ma.masked_all((nwl,))
                 nominal_wavelengths_alt[0:nwl_here] = dataset.variables['wavelength'][:]
 
@@ -194,14 +194,16 @@ class INSITUCOMPARISON:
         var_time.long_name = 'UNIX Time Instant'
         var_time.units = 'Seconds since 1970-01-01 00:00:00.000 UTC'
 
-        var_wl = self.dataset_w.createVariable(variable_wavelength, 'f4', (dim_wavelenght,), zlib=True, complevel=6,fill_value=-999.0)
+        var_wl = self.dataset_w.createVariable(variable_wavelength, 'f4', (dim_wavelenght,), zlib=True, complevel=6,
+                                               fill_value=-999.0)
         var_wl.long_name = 'HYPSTAR Nominal Wavelengths(1538 values)'
         var_wl.units = 'nm'
         if nominal_wavelengths is None:
             nominal_wavelengths = np.ma.masked_all((nwl,))
         var_wl[:] = nominal_wavelengths[:]
 
-        var_wl_alt = self.dataset_w.createVariable(variable_wavelength_alt, 'f4', (dim_wavelenght,), zlib=True, complevel=6,fill_value=-999.0)
+        var_wl_alt = self.dataset_w.createVariable(variable_wavelength_alt, 'f4', (dim_wavelenght,), zlib=True,
+                                                   complevel=6, fill_value=-999.0)
         var_wl_alt.long_name = 'Alternative HYPSTAR Nominal Wavelengths(1536 values)'
         var_wl_alt.units = 'nm'
         if nominal_wavelengths_alt is None:
@@ -305,26 +307,72 @@ class INSITUCOMPARISON:
 
             idx = idx + 1
 
-    def create_hypstar_to_aeronet_variables(self):
-        aeronet_exact_wavelenghts =self.dataset_w.variables['AERONET_Exact_Wavelengths'][0, 0, :]
+    def create_hypstar_to_aeronet_variables(self, sr_method, sr_params):
+        aeronet_exact_wavelenghts = self.dataset_w.variables['AERONET_Exact_Wavelengths'][0, 0, :]
         hypstar_wavelengths = self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths'][:]
-        hypstar_wavelengths_alt  = self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths_Alt'][:]
+        hypstar_wavelengths_alt = self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths_Alt'][:]
         dim_wavelenght = 'AERONET_wavelength'
 
         ##NEAREST NEIGHBOUR METHOD
-        indices_nearest = []
-        if np.ma.count(hypstar_wavelengths)>0:
-            for wl in aeronet_exact_wavelenghts:
-                index = np.argmin(np.abs(hypstar_wavelengths - wl))
-                indices_nearest.append(index)
-        indices_nearest_alt = []
-        if np.ma.count(hypstar_wavelengths_alt)>0:
-            for wl in aeronet_exact_wavelenghts:
-                index = np.argmin(np.abs(hypstar_wavelengths_alt - wl))
-                indices_nearest_alt.append(index)
+        if sr_method == 'NEAREST':
+            indices_nearest = []
+            if np.ma.count(hypstar_wavelengths) > 0:
+                for wl in aeronet_exact_wavelenghts:
+                    index = np.argmin(np.abs(hypstar_wavelengths - wl))
+                    indices_nearest.append(index)
+            indices_nearest_alt = []
+            if np.ma.count(hypstar_wavelengths_alt) > 0:
+                for wl in aeronet_exact_wavelenghts:
+                    index = np.argmin(np.abs(hypstar_wavelengths_alt - wl))
+                    indices_nearest_alt.append(index)
+
+        ##RUNNING AVERAGE METHOD
+        if sr_method == 'RUNNING_AVG':
+            width = 10.0
+            if sr_params is not None:
+                try:
+                    width = float(sr_params)
+                except:
+                    print(
+                        f'[WARNING] {sr_params} is not a valid wavelength width to compute runnning average. Using default: 10 nm')
+                    width = 10.0
+            nwl_aeronet = len(aeronet_exact_wavelenghts)
+
+            indices_nearest_list = []
+            nindices = 0
+            if np.ma.count(hypstar_wavelengths) > 0:
+                for wl in aeronet_exact_wavelenghts:
+                    wl_min = wl - (width / 2)
+                    wl_max = wl + (width / 2)
+                    indices = np.where(np.logical_and(hypstar_wavelengths >= wl_min, hypstar_wavelengths <= wl_max))
+                    nhere = len(indices[0])
+                    if nhere > nindices:
+                        nindices = nhere
+                    indices_nearest_list.append(indices[0])
+                indices_nearest = np.ma.masked_all((nwl_aeronet, nindices))
+                for iwl in range(nwl_aeronet):
+                    indices_here = np.ma.array(indices_nearest_list[iwl])
+                    indices_nearest[iwl, 0:len(indices_here)] = indices_here[:]
+
+            indices_nearest_alt_list = []
+            nindices = 0
+            if np.ma.count(hypstar_wavelengths_alt) > 0:
+                for wl in aeronet_exact_wavelenghts:
+                    wl_min = wl - (width / 2)
+                    wl_max = wl + (width / 2)
+                    indices = np.where(
+                        np.logical_and(hypstar_wavelengths_alt >= wl_min, hypstar_wavelengths_alt <= wl_max))
+                    nhere = len(indices[0])
+                    if nhere > nindices:
+                        nindices = nhere
+                    indices_nearest_alt_list.append(indices[0])
+                indices_nearest_alt = np.ma.masked_all((nwl_aeronet, nindices))
+                for iwl in range(nwl_aeronet):
+                    indices_here = np.ma.array(indices_nearest_alt_list[iwl])
+                    indices_nearest_alt[iwl, 0:len(indices_here)] = indices_here[:]
 
         ##reference time to use alternative nominal wavelengths
-        time_ref_alt = dt(2024,6,4,9,30,0).replace(tzinfo=pytz.utc).timestamp()
+        time_ref_alt = dt(2024, 6, 4, 9, 30, 0).replace(tzinfo=pytz.utc).timestamp()
         hypstar_time = self.dataset_w.variables['HYPSTAR_time'][:]
 
         ##spectral variables
@@ -347,16 +395,30 @@ class INSITUCOMPARISON:
                 var_new.setncattr(at, spectral_variables[variable][at])
 
             for idx in range(var_hypstar.shape[1]):
-                time_idx = hypstar_time[0,idx]
+                time_idx = hypstar_time[0, idx]
+
+                if np.ma.is_masked(time_idx):
+                    continue
                 array_hypstar = var_hypstar[0, idx, :]
-                if not np.ma.is_masked(time_idx):
-                    if time_idx>=time_ref_alt:
-                        indices_nearest_touse = indices_nearest_alt
-                    else:
-                        indices_nearest_touse = indices_nearest
-                array_hypstar_to_aeronet = array_hypstar[indices_nearest_touse]
-                array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask==False] = array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask==False] * scale_factor
-                var_new[0, idx, :] = array_hypstar_to_aeronet[:]
+                indices_nearest_touse = indices_nearest
+                if time_idx >= time_ref_alt:
+                    indices_nearest_touse = indices_nearest_alt
+
+                array_hypstar_to_aeronet = None
+                if sr_method == 'NEAREST':
+                    array_hypstar_to_aeronet = array_hypstar[indices_nearest_touse]
+
+                if sr_method == 'RUNNING_AVG':
+                    indices_f = indices_nearest_touse.flatten()
+                    values_f = array_hypstar[indices_f]
+                    values_f[indices_f.mask]=np.ma.masked
+                    values = values_f.reshape(indices_nearest_touse.shape)
+                    array_hypstar_to_aeronet = np.ma.mean(values,axis=1)
+
+                if array_hypstar_to_aeronet is not None:
+                    array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask == False] = array_hypstar_to_aeronet[
+                                                                                       array_hypstar_to_aeronet.mask == False] * scale_factor
+                    var_new[0, idx, :] = array_hypstar_to_aeronet[:]
 
     def close_file_w(self):
         self.dataset_w.close()
@@ -499,8 +561,8 @@ class INSITUCOMPARISON:
             identified_match_ups[iday]['time_diff_array'] = time_diff_array
 
         print('[INFO] Adding data...')
-        file_csv = self.path_nc[:-3]+'_valid_mu.csv'
-        fw = open(file_csv,'w')
+        file_csv = self.path_nc[:-3] + '_valid_mu.csv'
+        fw = open(file_csv, 'w')
         fw.write('IndexDay;AERONET_sequence;HYPSTAR_sequence;AERONET_time;HYPSTAR_time;TimeDiff')
         imu = 0
         nmu = 0
@@ -510,7 +572,7 @@ class INSITUCOMPARISON:
             time_diff_array = identified_match_ups[iday]['time_diff_array']
             for hsequence in range(nsequences):
                 asequence = int(hypstar_aeronet_index[hsequence])
-                if asequence<0:
+                if asequence < 0:
                     continue
                 nmu = nmu + 1
                 time_diff = time_diff_array[asequence]
@@ -534,7 +596,9 @@ class INSITUCOMPARISON:
                         variable_in = f'{key}_{var}'
                         if variable_in in self.dataset_w.variables:
                             new_var_name = f'mu_{variable_in}'
-                            self.dataset_w.variables[new_var_name][imu_ini:imu_fin] = self.dataset_w.variables[variable_in][iday,asequence, :]
+                            self.dataset_w.variables[new_var_name][imu_ini:imu_fin] = self.dataset_w.variables[
+                                                                                          variable_in][iday, asequence,
+                                                                                      :]
 
         # imu = 0
         #
@@ -1222,16 +1286,16 @@ class INSITUCOMPARISON:
         plot.save_fig(file_out)
         plot.close_plot()
 
-    def plot_spectra_comparison_mu(self,file_out,h_variable,a_variable,iday,hsequence,asequence,y_label):
+    def plot_spectra_comparison_mu(self, file_out, h_variable, a_variable, iday, hsequence, asequence, y_label):
         dataset = Dataset(self.path_nc)
         wl = dataset.variables['AERONET_nominal_wavelengths'][:]
-        h_variable = dataset.variables[h_variable][iday,hsequence,:]
-        a_variable = dataset.variables[a_variable][iday,asequence,:]
+        h_variable = dataset.variables[h_variable][iday, hsequence, :]
+        a_variable = dataset.variables[a_variable][iday, asequence, :]
         dataset.close()
         from MDB_reader.PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = wl
-        hline1= pspectra.plot_single_line(h_variable,'red','-',1,'o',5)
+        hline1 = pspectra.plot_single_line(h_variable, 'red', '-', 1, 'o', 5)
         hline2 = pspectra.plot_single_line(a_variable, 'blue', '-', 1, 'o', 5)
         pspectra.set_yaxis_title(y_label)
         pspectra.set_xaxis_title('Wavelength(nm)')
@@ -1241,37 +1305,34 @@ class INSITUCOMPARISON:
         pspectra.legend_options['ncols'] = 2
         pspectra.set_legend_h([hline1[0], hline2[0]], ['AERONET-OC', 'HYPSTAR'])
 
-
         pspectra.set_tigth_layout()
         pspectra.save_plot(file_out)
 
-
-
-    def plot_wind_time_series(self,file_out):
+    def plot_wind_time_series(self, file_out):
         dataset = Dataset(self.path_nc, 'r')
         a_wind = dataset.variables['AERONET_Wind_Speed(m_s)'][:]
         h_wind = dataset.variables['HYPSTAR_rhof_wind'][:]
         time = dataset.variables['AERONET_time'][:]
         dataset.close()
         mask = np.ones(a_wind.shape)
-        mask[a_wind.mask]=0
-        mask[h_wind.mask]=0
+        mask[a_wind.mask] = 0
+        mask[h_wind.mask] = 0
 
-        a_wind_ts = a_wind[mask==1]
-        h_wind_ts = h_wind[mask==1]
-        time_ts = time[mask==1]
-        print(a_wind_ts.shape,h_wind_ts.shape)
+        a_wind_ts = a_wind[mask == 1]
+        h_wind_ts = h_wind[mask == 1]
+        time_ts = time[mask == 1]
+        print(a_wind_ts.shape, h_wind_ts.shape)
         n_wind = len(a_wind_ts)
 
         from MDB_reader.PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = np.arange(n_wind)
         hline1 = pspectra.plot_single_line(a_wind_ts, 'red', 'solid', 1, 'o', 0)
-        hline2 = pspectra.plot_single_line(h_wind_ts, 'blue','solid',1,'o',0)
+        hline2 = pspectra.plot_single_line(h_wind_ts, 'blue', 'solid', 1, 'o', 0)
         pspectra.legend_options['loc'] = 'lower center'
-        pspectra.legend_options['bbox_to_anchor'] = (0.5,-0.3)
+        pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.3)
         pspectra.legend_options['ncols'] = 2
-        pspectra.set_legend_h([hline1[0],hline2[0]],['AERONET-OC Wind(m/s)','HYPSTAR Wind(m/s)'])
+        pspectra.set_legend_h([hline1[0], hline2[0]], ['AERONET-OC Wind(m/s)', 'HYPSTAR Wind(m/s)'])
         pspectra.set_yaxis_title('Wind (m/s)')
         pspectra.set_xaxis_title('Time')
         pspectra.set_grid_horizontal()

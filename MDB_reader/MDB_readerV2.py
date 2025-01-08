@@ -322,7 +322,7 @@ class MDB_READER():
                     continue
                 sat_time_here = dt.utcfromtimestamp(satellite_timestamp).strftime('%Y-%m-%d %H:%M:%S')
                 ins_time_here = dt.utcfromtimestamp(insitu_timestamp).strftime('%Y-%m-%d %H:%M:%S')
-                time_diff_here = np.abs(insitu_timestamp - satellite_timestamp)
+                time_diff_here = np.abs((dt.utcfromtimestamp(satellite_timestamp)-dt.utcfromtimestamp(insitu_timestamp)).total_seconds())
                 line = f'{satellite_id};{insitu_id};{satellite_timestamp};{insitu_timestamp};{sat_time_here};{ins_time_here};{time_diff_here}'
                 fw.write('\n')
                 fw.write(line)
@@ -4142,6 +4142,8 @@ def main():
         for name in os.listdir(dir_mdb):
             if name.endswith('.nc') and name.startswith('MDB'):
                 file_mdb = os.path.join(dir_mdb,name)
+                file_csv = file_mdb.replace('.nc','.csv')
+
                 mdb_r = MDB_READER(file_mdb,True)
                 mdb_r.create_csv_time_difference()
 

@@ -81,10 +81,19 @@ def get_files_concatenation(files_append, path_out, start_date, end_date):
     return files_append
 
 
-def create_multiple_comparison_files(start_date, end_date, aeronet_file, path_hypstar, path_out, overwrite):
+def create_multiple_comparison_files(options):
     # path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
     # start_date = dt(2023, 3, 24)
     # end_date = dt(2023, 10, 31)
+    start_date = options['start_date']
+    end_date = options['end_date']
+    aeronet_file = ['aeronet_file'],
+    path_hypstar = options['path_hypstar']
+    path_out = options['path_out']
+    overwrite = options['overwrite']
+    sr_method = options['spectral_resampling']
+    sr_params = options['spectral_resampling_params']
+
     if args.verbose:
         print(f'[INFO] Started in situ comparison...')
         print(f'[INFO] > AERONET-NC file: {aeronet_file}')
@@ -92,6 +101,8 @@ def create_multiple_comparison_files(start_date, end_date, aeronet_file, path_hy
         print(f'[INFO] > Output path: {path_out}')
         print(f'[INFO] > Start date: {start_date.strftime("%Y-%m-%d")}')
         print(f'[INFO] > End date: {start_date.strftime("%Y-%m-%d")}')
+        print(f'[INFO] > Spectral resampling method: {sr_method}')
+        print(f'[INFO] > Spectral resampling params: {sr_params}')
         print(f'[INFO] > Overwrite: {overwrite}')
     date_here = start_date
     while date_here <= end_date:
@@ -100,12 +111,12 @@ def create_multiple_comparison_files(start_date, end_date, aeronet_file, path_hy
             print(
                 f'[INFO] -----------------------------------------------------------------------------------------------')
             print(f'[INFO] Working with date: {date_here_str}')
-        create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out, overwrite)
+        create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out, sr_method,sr_params,overwrite)
         ##add_mu_to_file_date(date_here)##-> only for test a specific date
         date_here = date_here + timedelta(hours=24)
 
 
-def create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out, overwrite):
+def create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out,sr_method,sr_params, overwrite):
     # path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
     # # date_here = dt(2023, 9, 26)
     # aeronet_file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_AAOT.LWN_lev20_15.nc'
@@ -148,7 +159,7 @@ def create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out,
     ic.create_hypstar_variables(path_hypstar_date, date_here)
     if args.verbose:
         print(f'[INFO] --> Creating HYPSTAR to AERONET variables..')
-    ic.create_hypstar_to_aeronet_variables()
+    ic.create_hypstar_to_aeronet_variables(sr_method,sr_params)
     ic.close_file_w()
     if args.verbose:
         print(f'[INFO] --> Completed')
@@ -587,6 +598,18 @@ def get_options_comparison(config_file):
         if sval in strue:
             options_dict['overwrite'] = True
 
+    resampling_methods = ['NEAREST','RUNNING_AVG']
+    options_dict['spectral_resampling'] = 'NEAREST'
+    options_dict['spectral_resampling_params'] = None
+    if options.has_option(section,'spectral_resampling'):
+        options_dict['spectral_resampling'] = options[section]['spectral_resampling'].strip().upper()
+    if not options_dict['spectral_resampling'] in resampling_methods:
+        print(f'[ERROR] Spectral resampling method (option spectral_resampling) {options_dict["spectral_resampling"]} is not available.')
+        print(f'[ERROR] Please use amont the following options: {resampling_methods}')
+        return None
+    if options.has_option(section,'spectral_resampling_params'):
+        options_dict['spectral_resampling_params'] = options[section]['spectral_resampling_params'].strip().upper()
+
     return options_dict
 
 
@@ -692,8 +715,7 @@ def main():
         options = get_options_comparison(args.config_file)
         if options is None:
             return
-        create_multiple_comparison_files(options['start_date'], options['end_date'], options['aeronet_file'],
-                                         options['path_hypstar'], options['path_out'], options['overwrite'])
+        create_multiple_comparison_files(options)
 
     if args.mode == 'CONCAT':
         if not args.config_file:
