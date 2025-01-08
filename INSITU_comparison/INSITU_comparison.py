@@ -410,8 +410,10 @@ class INSITUCOMPARISON:
 
                 if sr_method == 'RUNNING_AVG':
                     indices_f = indices_nearest_touse.flatten()
+                    mask_f = indices_f.mask
+                    indices_f = np.ma.filled(indices_f,0)
                     values_f = array_hypstar[indices_f]
-                    values_f[indices_f.mask]=np.ma.masked
+                    values_f[mask_f]=np.ma.masked
                     values = values_f.reshape(indices_nearest_touse.shape)
                     array_hypstar_to_aeronet = np.ma.mean(values,axis=1)
 
