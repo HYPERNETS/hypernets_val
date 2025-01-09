@@ -409,7 +409,7 @@ class INSITUCOMPARISON:
                     array_hypstar_to_aeronet = array_hypstar[indices_nearest_touse]
 
                 if sr_method == 'RUNNING_AVG':
-                    indices_f = indices_nearest_touse.flatten()
+                    indices_f = indices_nearest_touse.flatten().astype(np.int32)
                     mask_f = indices_f.mask
                     indices_f = np.ma.filled(indices_f,0)
                     values_f = array_hypstar[indices_f]
