@@ -45,7 +45,7 @@ def get_info_instrument_id(input_path, start_date, end_date):
                     file_nc = os.path.join(folder_date, name)
                     dataset = Dataset(file_nc)
                     if 'instrument_id' in dataset.ncattrs():
-                        time_here = float(dataset.variables.acquisition_time[:][0])
+                        time_here = float(dataset.variables['acquisition_time'][0])
                         time_here_obj = dt.utcfromtimestamp(time_here)
                         id_here = str(dataset.instrument_id)
                         if id_here not in ids_list.keys():
