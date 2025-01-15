@@ -32,7 +32,7 @@ def main():
 def get_info_instrument_id(input_path, start_date, end_date):
     date_ref = start_date
     ids_list = {}
-    while start_date <= end_date:
+    while date_ref <= end_date:
         print(f'[INFO] Checking date: {date_ref.strftime("%Y-%m-%d")}')
         yyyy = date_ref.strftime('%Y')
         mm = date_ref.strftime('%m')
