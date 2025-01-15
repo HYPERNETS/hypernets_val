@@ -1,6 +1,7 @@
 import argparse
 import os.path
 from datetime import timedelta
+from datetime import datetime as dt
 from netCDF4 import Dataset
 
 parser = argparse.ArgumentParser(
@@ -33,7 +34,7 @@ def get_info_instrument_id(input_path, start_date, end_date):
     date_ref = start_date
     ids_list = {}
     while date_ref <= end_date:
-        print(f'[INFO] Checking date: {date_ref.strftime("%Y-%m-%d")}')
+        #print(f'[INFO] Checking date: {date_ref.strftime("%Y-%m-%d")}')
         yyyy = date_ref.strftime('%Y')
         mm = date_ref.strftime('%m')
         dd = date_ref.strftime('%d')
@@ -44,14 +45,28 @@ def get_info_instrument_id(input_path, start_date, end_date):
                     file_nc = os.path.join(folder_date, name)
                     dataset = Dataset(file_nc)
                     if 'instrument_id' in dataset.ncattrs():
+                        time_here = float(dataset.variables.acquisition_time[:][0])
+                        time_here_obj = dt.utcfromtimestamp(time_here)
                         id_here = str(dataset.instrument_id)
                         if id_here not in ids_list.keys():
                             nwl = dataset.variables['wavelength'].shape[0]
-                            ids_list[id_here] = nwl
+                            ids_list[id_here] = {
+                                'nwl':nwl,
+                                'start_time': time_here_obj,
+                                'end_time': time_here_obj
+                            }
+                        else:
+                            if time_here_obj<ids_list[id_here]['start_time']:
+                                ids_list[id_here]['start_time'] = time_here_obj
+                            if time_here_obj>ids_list[id_here]['end_time']:
+                                ids_list[id_here]['end_time'] = time_here_obj
+
                     dataset.close()
         date_ref = date_ref + timedelta(hours=24)
     for id_here in ids_list:
-        print(f'[INFO] Instrument id: {id_here} Number of wavelengths: {ids_list[id_here]}')
+        stime = ids_list[id_here]['start_time'].strftime('%Y-%m-%d %H:%M:%S')
+        etime = ids_list[id_here]['end_time'].strftime('%Y-%m-%d %H:%M:%S')
+        print(f'[INFO] Instrument id: {id_here} Number of wavelengths: {ids_list[id_here]["nwl"]} Start time: {stime} End time: {etime} ')
 
 
 def check_required_params(param_list):
