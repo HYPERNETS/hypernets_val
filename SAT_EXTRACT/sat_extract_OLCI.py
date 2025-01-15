@@ -583,6 +583,8 @@ def launch_download(edac, date, path_day, insitu_lat, insitu_lon, products):
 
 
 def check_donwload():
+    if not args.allow_download:
+        return None
     import sat_extract
     code_home = os.path.dirname(os.path.dirname(os.path.dirname(sat_extract.__file__)))
     code_download = os.path.join(code_home, 'cnrdownload')
