@@ -48,6 +48,8 @@ class INSITUBASE:
         self.new_MDB.createDimension('insitu_id', n_insitu_id)
         self.new_MDB.createDimension('insitu_original_bands',  n_insitu_bands)
 
+
+
         ##TIME VARIABLE
         insitu_time = self.new_MDB.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id',), zlib=True,
                                                   complevel=6)

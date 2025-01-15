@@ -266,6 +266,7 @@ class MDBBuilderOptions:
             'rsync_user': self.get_value_param(section,'rsync_user','hypstar','str'),
             'n_insitu_id': self.get_value_param(section,'n_insitu_id',40,'int'),
             'n_insitu_bands': self.get_value_param(section,'n_insitu_bands',1600,'int'),
+            'instrument_ids': self.get_value_param(section,'instrument_ids',['N/Av'],'strlist'),
             'time_window': self.get_value_param(section,'time_window',180,'int')*60,
             'time_sat_default': self.get_value_param(section,'time_sat_default',None,'str'),
             'insitu_site_flags': self.get_value_param(section,'insitu_site_flag_flags','INVALID','str'),
@@ -446,7 +447,7 @@ class MDBBuilderOptions:
             self.end_date = dt.strptime(self.options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d').replace(
                 hour=23, minute=59, second=59)
 
-        ##checking dates with available in situ dates
+        ##checking dates with available in situ dates (implemented for HYPSTAR)
         if self.insitu_type is not None and self.param_insitu is not None and 'station_name' in self.param_insitu:
             check_rsync = False
             if self.insitu_options is not None:

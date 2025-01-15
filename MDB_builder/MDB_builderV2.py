@@ -285,105 +285,11 @@ def main():
         create_mdb_single_csv_var(mo, insitu_file)
         return
 
-    ihd = INSITU_HYPERNETS_DAY(mo, None, args.verbose)
-    if args.verbose:
-        if mo.insitu_options['apply_rsync']:
-            print(f'[INFO] Checking SSH access: {ihd.CHECK_SSH}')
-        time_maxh = ihd.mdb_options.insitu_options['time_window'] / 3600
-        print(f'[INFO] Maximum time window: {time_maxh:0.2f} hours')
-    ins_sensor = 'HYPSTAR'
-    mdb_extract_files = []
-    for extract in extract_list:
-        if args.verbose:
-            print(f'[INFO] Working with extract: {extract} *******************')
-        bad_spectra_times = {}
-        extract_name = os.path.basename(extract_list[extract]['path'])
-        ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
-        if os.path.exists(ofile):
-            from netCDF4 import Dataset
-            import numpy as np
-            dtal = Dataset(ofile)
-            if 'insitu_original_bands' not in dtal.variables:
-                dtal.close()
-                print(f'[ERROR] Error in MDB extract file: {ofile}. Skipping...')
-                continue
-            insitu_bands = np.array(dtal.variables['insitu_original_bands'])
-            vtal = insitu_bands[0]
-            dtal.close()
-            if vtal == -999.0:
-                print(f'[ERROR] Error in MDB extract file. Skipping...')
-                continue
-            mdb_extract_files.append(ofile)
-            print(f'[WARNING] MDB extract file already exits. Skipping...')
-            continue
-        # date_here_str = extract_list[extract]['time']
-        # date_here = dt.strptime(date_here_str, '%Y%m%dT%H%M%S')
-        date_here = extract_list[extract]['time']
-        insitu_files = ihd.get_insitu_files(date_here)
-        if insitu_files is None and mo.insitu_options['apply_rsync'] and ihd.check_ssh():
-            ihd.get_files_day_ssh(date_here, True)
-            insitu_files = ihd.get_insitu_files(date_here)
-
-        # print(mo.insitu_options)
-        if mo.insitu_options['bad_spectra_file_list'] is not None:
-            prefix = mo.insitu_options['bad_spectra_prefix']
-            time_format = mo.insitu_options['bad_spectra_format_time']
-            f1 = open(mo.insitu_options['bad_spectra_file_list'])
-            for line in f1:
-                if prefix is not None:
-                    if not line.strip().startswith(prefix):
-                        continue
-                    datestr = line.replace(prefix, '').strip()
-                else:
-                    datestr = line.strip()
-                date_py = dt.strptime(datestr, time_format)
-                date_py_str = date_py.strftime('%Y%m%d%H%M')
-                bad_spectra_times[date_py_str] = 1
-            f1.close()
-
-        if len(bad_spectra_times) > 0 and args.verbose:
-            for bad_time in bad_spectra_times:
-                print(bad_time)
-                print(f'[INFO] Spectrum at {bad_time} is invalid')
-
-        if not insitu_files is None:
-            ninsitu = len(insitu_files)
-            if args.verbose:
-                print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
-                print(f'[INFO] Creating MDB in situ extract: {ofile}')
-            ihd.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
-            idx = 0
-            for insitu_file in insitu_files:
-                b = ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
-                if b:
-                    idx = idx + 1
-
-            ihd.close_mdb()
-
-            if os.path.exists(ofile):
-                mdb_extract_files.append(ofile)
-                if args.verbose:
-                    print(f'[INFO] MDB extract file was created')
-
-    nextract_files = len(mdb_extract_files)
-    if args.verbose:
-        print(f'[INFO] {nextract_files} were created/added')
-        print(f'[INFO] Generating MDB extract files----------------------------------------------------------STOP')
-    if nextract_files == 0:
-        print(f'[INFO] Completed. No MDB file was created')
+    if mo.insitu_type == 'HYPERNETS':
+        create_mdb_hypernets(mo)
         return
 
-    if args.verbose:
-        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
-    path_mdb = mo.get_mdb_path()
-    concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
-    if args.verbose:
-        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
-    if len(bad_spectra_times) > 0 and args.verbose:
-        for bad_time in bad_spectra_times:
-            print(bad_time)
-            print(f'[INFO] Spectrum at {bad_time} is invalid')
 
 
 def create_mdb_tara_file(mo, extract_list):
@@ -962,6 +868,114 @@ def create_mdb_single_csv_var(mo, insitu_file):
     if args.verbose:
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
+def create_mdb_hypernets(mo,extract_list):
+    ihd = INSITU_HYPERNETS_DAY(mo, None, args.verbose)
+    if args.verbose:
+        if mo.insitu_options['apply_rsync']:
+            print(f'[INFO] Checking SSH access: {ihd.CHECK_SSH}')
+        time_maxh = ihd.mdb_options.insitu_options['time_window'] / 3600
+        print(f'[INFO] Maximum time window: {time_maxh:0.2f} hours')
+    ins_sensor = 'HYPSTAR'
+    mdb_extract_files = []
+    for extract in extract_list:
+        if args.verbose:
+            print(f'[INFO] Working with extract: {extract} *******************')
+        #bad_spectra_times = {} DEPRECATED
+        extract_name = os.path.basename(extract_list[extract]['path'])
+        ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
+        if os.path.exists(ofile):
+            from netCDF4 import Dataset
+            import numpy as np
+            dtal = Dataset(ofile)
+            if 'insitu_original_bands' not in dtal.variables:
+                dtal.close()
+                print(f'[ERROR] Error in MDB extract file: {ofile}. Skipping...')
+                continue
+            insitu_bands = np.array(dtal.variables['insitu_original_bands'])
+            vtal = insitu_bands[0]
+            dtal.close()
+            if vtal == -999.0:
+                print(f'[ERROR] Error in MDB extract file. Skipping...')
+                continue
+            mdb_extract_files.append(ofile)
+            print(f'[WARNING] MDB extract file already exits. Skipping...')
+            continue
+        date_here = extract_list[extract]['time']
+        insitu_files = ihd.get_insitu_files(date_here)
+        if insitu_files is None and mo.insitu_options['apply_rsync'] and ihd.check_ssh():
+            ihd.get_files_day_ssh(date_here, True)
+            insitu_files = ihd.get_insitu_files(date_here)
+
+        ##option of bad_spectra_file_list is DEPRECATED, it's better to include in a later stpe
+        # if mo.insitu_options['bad_spectra_file_list'] is not None:
+        #     prefix = mo.insitu_options['bad_spectra_prefix']
+        #     time_format = mo.insitu_options['bad_spectra_format_time']
+        #     f1 = open(mo.insitu_options['bad_spectra_file_list'])
+        #     for line in f1:
+        #         if prefix is not None:
+        #             if not line.strip().startswith(prefix):
+        #                 continue
+        #             datestr = line.replace(prefix, '').strip()
+        #         else:
+        #             datestr = line.strip()
+        #         date_py = dt.strptime(datestr, time_format)
+        #         date_py_str = date_py.strftime('%Y%m%d%H%M')
+        #         bad_spectra_times[date_py_str] = 1
+        #     f1.close()
+        #
+        # if len(bad_spectra_times) > 0 and args.verbose:
+        #     for bad_time in bad_spectra_times:
+        #         print(bad_time)
+        #         print(f'[INFO] Spectrum at {bad_time} is invalid')
+
+        if not insitu_files is None:
+            ninsitu = len(insitu_files)
+            if args.verbose:
+                print(f'[INFO] Number of in situ files for the extract: {ninsitu}')
+                print(f'[INFO] Creating MDB in situ extract: {ofile}')
+            ihd.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
+            idx = 0
+            for insitu_file in insitu_files:
+                b = ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
+                if b:
+                    idx = idx + 1
+
+            ihd.close_mdb()
+
+            if os.path.exists(ofile):
+                mdb_extract_files.append(ofile)
+                if args.verbose:
+                    print(f'[INFO] MDB extract file was created')
+
+    nextract_files = len(mdb_extract_files)
+    if args.verbose:
+        print(f'[INFO] {nextract_files} were created/added')
+        print(f'[INFO] Generating MDB extract files----------------------------------------------------------STOP')
+    if nextract_files == 0:
+        print(f'[INFO] Completed. No MDB file was created')
+        return
+
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------START')
+
+    check, remove_variables = check_files(mdb_extract_files)
+    if not check:
+        remove_uncommon_variables(mdb_extract_files, remove_variables)
+    path_mdb = mo.get_mdb_path()
+    concatenate_nc_impl(mdb_extract_files, mo.path_out, path_mdb)
+    if args.verbose:
+        print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
+
+    if args.verbose:
+        print(f'[INFO] Adding sensor_id variable and dimension-------------------------------------------------------------START')
+    add_instrument_id_to_mdb_file(path_mdb,mdb_extract_files)
+    if args.verbose:
+        print(f'[INFO] Adding sensor_id variable and dimension-------------------------------------------------------------STOP')
+
+    # if len(bad_spectra_times) > 0 and args.verbose:
+    #     for bad_time in bad_spectra_times:
+    #         print(bad_time)
+    #         print(f'[INFO] Spectrum at {bad_time} is invalid')
 
 def get_datetime_from_row(index, row, col_date, format_date, col_time, format_time, insitu_time):
     date_row = str(row[col_date])
