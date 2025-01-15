@@ -448,6 +448,31 @@ class INSITUCOMPARISON:
         os.rename(path_copy, self.path_nc)
         print(f'[INFO] --> Completed')
 
+    def add_aeronet_ed(self):
+        now = dt.now().strftime('%Y%m%d%H%M%S')
+        path_copy = os.path.join(os.path.dirname(self.path_nc), f'Temp_{now}.nc')
+        self.dataset_w = self.copy_nc(self.path_nc, path_copy)
+        var_new = self.dataset_w.createVariable('AERONET_Ed', 'f4', ('day_id', 'sequence_id','AERONET_wavelength'), zlib=True,
+                                                complevel=6)
+        F0 = self.dataset_w.variables['AERONET_F0'][:]
+        Lw = self.dataset_w.variables['AERONET_Lw'][:]
+        Lwn = self.dataset_w.variables['AERONET_Lwn'][:]
+        aeronet_ed = (F0 * Lw) / Lwn
+        var_new[:] = aeronet_ed[:]
+        self.close_file_w()
+        os.rename(path_copy, self.path_nc)
+        print(f'[INFO] --> Completed')
+
+    def add_temporal_100(self):
+        now = dt.now().strftime('%Y%m%d%H%M%S')
+        path_copy = os.path.join(os.path.dirname(self.path_nc), f'Temp_{now}.nc')
+        self.dataset_w = self.copy_nc(self.path_nc, path_copy)
+        var_array = self.dataset_w.variables['HYPSTAR_TO_AERONET_Ed'][:]
+        var_array = var_array*100
+        self.dataset_w.variables['HYPSTAR_TO_AERONET_Ed'][:] = var_array[:]
+        self.close_file_w()
+        os.rename(path_copy, self.path_nc)
+
     def add_match_ups_to_file(self, time_diff_minutes):
         now = dt.now().strftime('%Y%m%d%H%M%S')
         path_copy = os.path.join(os.path.dirname(self.path_nc), f'Temp_{now}.nc')
@@ -594,12 +619,13 @@ class INSITUCOMPARISON:
                 self.dataset_w.variables['mu_time_diff'][imu_ini:imu_fin] = time_diff
 
                 for key in mu_variables_keys:
+                    key_sequence = asequence if key.startswith('AERONET') else hsequence
                     for var in mu_variables:
                         variable_in = f'{key}_{var}'
                         if variable_in in self.dataset_w.variables:
                             new_var_name = f'mu_{variable_in}'
                             self.dataset_w.variables[new_var_name][imu_ini:imu_fin] = self.dataset_w.variables[
-                                                                                          variable_in][iday, asequence,
+                                                                                          variable_in][iday, key_sequence,
                                                                                       :]
 
         # imu = 0

@@ -18,6 +18,7 @@ parser.add_argument('-o', "--output",
                     help="Output file. Required with --listdates or single concatenation")
 parser.add_argument('-edir', "--sat_extract_dir",
                     help="Input sat. extract dir. Optional for --listdates, required for single concatenation")
+parser.add_argument('-ifolder',"--insitu_folder",help="In situ data folder. Optional with --listdates")
 parser.add_argument('-site', "--sitename", help="Site name. Only required with --listdates")
 parser.add_argument('-ld', "--listdates",
                     help="Option to obtain a date list for a specific HYPERNETS site (-site option).",
@@ -169,6 +170,9 @@ def main():
             idm.get_datelist_file(args.output, start_date, end_date)
         else:
             ihd = INSITU_HYPERNETS_DAY(None, None, args.verbose)
+            if args.insitu_folder:
+                if os.path.isdir(args.insitu_folder):
+                    ihd.insitu_data_folder = args.insitu_folder
             ihd.save_list_dates_to_file(args.output, args.sitename, start_date, end_date, sat_extract_dir)
         return
 

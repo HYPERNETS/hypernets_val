@@ -17,11 +17,14 @@ code_aeronet = os.path.join(os.path.dirname(code_home), 'aeronet')
 sys.path.append(code_aeronet)
 
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
-parser.add_argument('-m', "--mode", help="Mode.", choices=["COMPARISON", "CONCAT", "GENERATEMU", "HYPSTAR_QC","PLOT_MU","TEST"])
+parser.add_argument('-m', "--mode", help="Mode.",
+                    choices=["COMPARISON", "CONCAT", "GENERATEMU", "HYPSTAR_QC", "AERONET_ED", "T100","PLOT_MU",
+                             "TO_CSV", "TEST"])
 parser.add_argument('-c', "--config_file", help="Config File.")
-parser.add_argument('-cf',"--comparison_file",help="Comparison file.")
-parser.add_argument('-max',"--max_time",help="Maximum time in minutes between observations.")
-# parser.add_argument('-o', "--output",help="Output ")
+parser.add_argument('-cf', "--comparison_file", help="Comparison file.")
+parser.add_argument('-max', "--max_time", help="Maximum time in minutes between observations.")
+parser.add_argument('-o', "--output", help="Output ")
+
 # parser.add_argument('-edir', "--sat_extract_dir",
 #                     help="Input sat. extract dir. Optional for --listdates, required for single concatenation")
 # parser.add_argument('-site', "--sitename", help="Site name. Only required with --listdates")
@@ -56,7 +59,7 @@ def make_concatenation(path_out, file_out, start_dates, end_dates):
     for idate in range(len(start_dates)):
         files_append = get_files_concatenation(files_append, path_out, start_dates[idate], end_dates[idate])
 
-    if len(files_append)>1:
+    if len(files_append) > 1:
         if args.verbose:
             print(f'[INFO] Concatenating: {len(files_append)}')
         concatenate_nc_impl(files_append, path_out, file_out)
@@ -111,12 +114,12 @@ def create_multiple_comparison_files(options):
             print(
                 f'[INFO] -----------------------------------------------------------------------------------------------')
             print(f'[INFO] Working with date: {date_here_str}')
-        create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out, sr_method,sr_params,overwrite)
+        create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out, sr_method, sr_params, overwrite)
         ##add_mu_to_file_date(date_here)##-> only for test a specific date
         date_here = date_here + timedelta(hours=24)
 
 
-def create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out,sr_method,sr_params, overwrite):
+def create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out, sr_method, sr_params, overwrite):
     # path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
     # # date_here = dt(2023, 9, 26)
     # aeronet_file = '/mnt/c/DATA_LUIS/AERONET_OC/AERONET_NC/20020101_20231111_AAOT.LWN_lev20_15.nc'
@@ -159,7 +162,7 @@ def create_comparison_file_date(date_here, aeronet_file, path_hypstar, path_out,
     ic.create_hypstar_variables(path_hypstar_date, date_here)
     if args.verbose:
         print(f'[INFO] --> Creating HYPSTAR to AERONET variables..')
-    ic.create_hypstar_to_aeronet_variables(sr_method,sr_params)
+    ic.create_hypstar_to_aeronet_variables(sr_method, sr_params)
     ic.close_file_w()
     if args.verbose:
         print(f'[INFO] --> Completed')
@@ -203,25 +206,38 @@ def add_mu_to_file_date(date_here):
         add_mu_to_file(file_comparison)
 
 
-def add_mu_to_file(file_comparison,max_time):
+def add_mu_to_file(file_comparison, max_time):
     if file_comparison is None:
         return
     print(f'[INFO] Adding match-ups to file: {file_comparison}')
     ic = INSITUCOMPARISON(file_comparison)
     ic.add_match_ups_to_file(max_time)
 
+
 def make_hypstar_qc(file_comparison):
     print(f'[INFO] Adding HYPSTAR QC variable to: {file_comparison}')
     ic = INSITUCOMPARISON(file_comparison)
     ic.add_hypstar_qc()
 
-def make_plots_mu(file_nc,options):
+def make_aeronet_ed(file_comparison):
+    print(f'[INFO] Adding AERONET ED variable to: {file_comparison}')
+    ic = INSITUCOMPARISON(file_comparison)
+    ic.add_aeronet_ed()
+
+def make_temporal_100(file_comparison):
+    print(f'[INFO] Adding AERONET ED variable to: {file_comparison}')
+    ic = INSITUCOMPARISON(file_comparison)
+    ic.add_temporal_100()
+
+
+
+def make_plots_mu(file_nc, options):
     dir_base_out = options['output_path']
     if not os.path.exists(dir_base_out):
         dir_base_out = os.path.dirname(file_nc)
     name_nc = os.path.basename(file_nc)
     name_out = f'{name_nc[:-3]}_PLOTS_MU'
-    dir_out = os.path.join(dir_base_out,name_out)
+    dir_out = os.path.join(dir_base_out, name_out)
     if not os.path.isdir(dir_out):
         try:
             os.mkdir(dir_out)
@@ -231,12 +247,12 @@ def make_plots_mu(file_nc,options):
     print(f'[INFO] Creating plots for individual match-ups...')
     print(f'[INFO] Ouput path: {dir_out}')
     from netCDF4 import Dataset
-    dataset = Dataset(file_nc,'r')
+    dataset = Dataset(file_nc, 'r')
     mu_wavelength = dataset.variables['mu_wavelength'][:]
     wl_unique = np.unique((mu_wavelength))
     wl_ref = wl_unique[0]
     nwl = len(wl_unique)
-    nmu = int(len(mu_wavelength)/nwl)
+    nmu = int(len(mu_wavelength) / nwl)
     print(f'[INFO] Number of match-ups: {nmu}')
     mu_day_id = dataset.variables['mu_day_id'][:]
     mu_a = dataset.variables['mu_AERONET_sequence_id'][:]
@@ -244,30 +260,29 @@ def make_plots_mu(file_nc,options):
     h_time = dataset.variables['HYPSTAR_time'][:]
     dataset.close()
 
-
-    mu_day_id = mu_day_id[mu_wavelength==wl_ref]
-    if len(mu_day_id)!=nmu:
+    mu_day_id = mu_day_id[mu_wavelength == wl_ref]
+    if len(mu_day_id) != nmu:
         print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
         return
     mu_a = mu_a[mu_wavelength == wl_ref]
-    if len(mu_a)!=nmu:
+    if len(mu_a) != nmu:
         print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
         return
-    mu_h =  mu_h[mu_wavelength == wl_ref]
-    if len(mu_h)!=nmu:
+    mu_h = mu_h[mu_wavelength == wl_ref]
+    if len(mu_h) != nmu:
         print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
         return
 
     ic = INSITUCOMPARISON(file_nc)
 
     for imu in range(nmu):
-        if imu==1:
+        if imu == 1:
             break
         iday = mu_day_id[imu]
         ih = mu_h[imu]
         ia = mu_a[imu]
-        file_Lt = os.path.join(dir_out,f'Lt_{iday}_{ia}_{ih}.png')
-        ic.plot_spectra_comparison_mu(file_Lt,'HYPSTAR_TO_AERONET_Lt_mean','AERONET_Lt_mean',iday,ih,ia,'Lt')
+        file_Lt = os.path.join(dir_out, f'Lt_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(file_Lt, 'HYPSTAR_TO_AERONET_Lt_mean', 'AERONET_Lt_mean', iday, ih, ia, 'Lt')
         file_Li = os.path.join(dir_out, f'Li_{iday}_{ia}_{ih}.png')
         ic.plot_spectra_comparison_mu(file_Li, 'HYPSTAR_TO_AERONET_Li_mean', 'AERONET_Li_mean', iday, ih, ia, 'Li')
         file_Lw = os.path.join(dir_out, f'Lw_{iday}_{ia}_{ih}.png')
@@ -282,15 +297,14 @@ def make_plots_mu(file_nc,options):
         pm.plot_image(file_Li, 0, 1)
         pm.plot_image(file_Lw, 0, 2)
         pm.save_fig(file_spectra)
-        file_pictures = os.path.join(dir_out,'CameraImages_SEQ_20240111T0840_all.png')
+        file_pictures = os.path.join(dir_out, 'CameraImages_SEQ_20240111T0840_all.png')
 
-        file_final = os.path.join(dir_out,'SEQ_20240111T0840_match_up.tif')
+        file_final = os.path.join(dir_out, 'SEQ_20240111T0840_match_up.tif')
         pmfinal = PlotMultiple()
-        pmfinal.start_multiple_plot_advanced(2,1,10,12,0,0,True)
-        pmfinal.plot_image(file_pictures,0,0)
+        pmfinal.start_multiple_plot_advanced(2, 1, 10, 12, 0, 0, True)
+        pmfinal.plot_image(file_pictures, 0, 0)
         pmfinal.plot_image(file_spectra, 1, 0)
-        pmfinal.save_fig_with_resolution(file_final,300)
-
+        pmfinal.save_fig_with_resolution(file_final, 300)
 
         # hypstar_time = h_time[iday,ih]
         # hypstar_time_obj = dt.utcfromtimestamp(hypstar_time)
@@ -311,9 +325,76 @@ def make_plots_mu(file_nc,options):
         #         hday.path_images_date = dir_img
         #         file_pictures = hday.save_img_files_general(dir_out,True)
 
+        # print(imu,iday,ih,ia,'->',dt.utcfromtimestamp(hypstar_time))
 
-        #print(imu,iday,ih,ia,'->',dt.utcfromtimestamp(hypstar_time))
 
+def create_csv(file_comparison, output_file):
+    from netCDF4 import Dataset
+    dataset = Dataset(file_comparison)
+    indices_mu_all = dataset.variables['mu_day_id'][:]
+    sequence_hypstar_all = dataset.variables['mu_HYPSTAR_sequence_id'][:]
+    sequence_aeronet_all = dataset.variables['mu_AERONET_sequence_id'][:]
+    mu_wavelength = dataset.variables['mu_wavelength'][:]
+    mu_time_diff = dataset.variables['mu_time_diff'][:]
+
+    wl_list = np.unique(mu_wavelength)
+    indices_mu = indices_mu_all[mu_wavelength == wl_list[0]]
+    sequence_hypstar = sequence_hypstar_all[mu_wavelength == wl_list[0]]
+    sequence_aeronet = sequence_aeronet_all[mu_wavelength == wl_list[0]]
+    mu_time_diff = mu_time_diff[mu_wavelength == wl_list[0]]
+
+    wl_list_str = [f'{wl:.0f}' for wl in wl_list]
+
+
+    fw = open(output_file, 'w')
+    aeronet_single = ['Rho','Solar_Azimuth_Angle','Solar_Zenith_Angle','Wind_Speed(m_s)','Chlorophyll-a','Pressure(hPa)','Total_NO2(DU)','Total_Ozone(Du)','Total_Precipitable_Water(cm)']
+    aeronet_single = [f'AERONET_{x}' for x in aeronet_single]
+    hypstar_single = ['epsilon','n_total_scans','n_valid_scans','rhof','solar_zenith_angle','rhof_wind']
+    hypstar_single = [f'HYPSTAR_{x}' for x in hypstar_single]
+    spectral_vars = ['Li_mean','Lt_mean','Lw']
+    all_spectral_vars = []
+    line_spectral_vars = []
+    for var in spectral_vars:
+        all_spectral_vars.append(f'mu_HYPSTAR_TO_AERONET_{var}')
+        all_spectral_vars.append(f'mu_AERONET_{var}')
+        for wl in wl_list_str:
+            line_spectral_vars.append(f'HYPSTAR_{var}_{wl}')
+        for wl in wl_list_str:
+            line_spectral_vars.append(f'AERONET_{var}_{wl}')
+
+
+
+    first_line = 'IndexMu;IndexDay;HYSPTAR_id;AERONET_id;HYPSTAR_time;AERONET_time;TimeDiff'
+    first_line = f'{first_line};{";".join(aeronet_single)};{";".join(hypstar_single)};{";".join(line_spectral_vars)}'
+    fw.write(first_line)
+    for idx, index_mu in enumerate(indices_mu):
+        hindex = sequence_hypstar[idx]
+        aindex = sequence_aeronet[idx]
+
+        htime = dt.utcfromtimestamp(np.int64(dataset.variables['HYPSTAR_time'][index_mu, hindex]))
+        atime = dt.utcfromtimestamp(np.int64(dataset.variables['AERONET_time'][index_mu, aindex]))
+        indices_here = np.where(np.logical_and(indices_mu_all==index_mu,np.logical_and(sequence_aeronet_all==aindex,sequence_hypstar_all==hindex)))
+        indices_here = indices_here[0]
+        line = f'{idx};{index_mu};{hindex};{aindex};{htime.strftime("%Y-%m-%d %H:%M:%S")};{atime.strftime("%Y-%m-%d %H:%M:%S")};{mu_time_diff[idx]}'
+        for var in aeronet_single:
+            data = dataset.variables[var][index_mu,aindex]
+            line = f'{line};{data[0]}' if data.ndim==1 else f'{line};{data}'
+        for var in hypstar_single:
+            data = dataset.variables[var][index_mu, hindex]
+            line = f'{line};{data}'
+        for var in all_spectral_vars:
+            data = dataset.variables[var][indices_here]
+            line_data = ";".join([f'{x}' for x in data.tolist()])
+            line = f'{line};{line_data}'
+
+
+
+        fw.write('\n')
+        fw.write(line)
+    fw.close()
+    dataset.close()
+
+    print(wl_list)
 
 
 def make_plots():
@@ -328,22 +409,45 @@ def make_plots():
     options = configparser.ConfigParser()
     options.read(file_config)
     ic = INSITUCOMPARISON(file_comparison)
-    # iplots = INSITU_plots(ic)
-    # iplots.plot_from_options(options)
+    iplots = INSITU_plots(ic)
+    iplots.plot_from_options(options)
 
-    # if xvariable.find('Li') > 0:
-    #     ylabel = r'AERONET-OC Li [μW/(cm$^2$·sr·nm)]'
-    #     xlabel = r'HYPSTAR Li [μW/(cm$^2$·sr·nm)]'
-    # elif xvariable.find('Lt') > 0:
-    #     ylabel = r'AERONET-OC Lt [μW/(cm$^2$·sr·nm)]'
-    #     xlabel = r'HYPSTAR Lt [μW/(cm$^2$·sr·nm)]'
-    # elif xvariable.find('Lw') > 0:
-    #     ylabel = r'AERONET-OC [μW/(cm$^2$·sr·nm)]'
-    #     xlabel = r'HYPSTAR Lw [μW/(cm$^2$·sr·nm)]'
+    # wl_all = [400,412,443,490,510,560,620,667,779,865]
+    # for wl in wl_all:
+    #     name_out = f'Ratio_Li_HYPSTAR_AERONET_{wl}.tif'
+    #     ytitle = f'Li[HYSPTAR]/Li[AERONET] {wl} nm'
+    #     wl_list = [wl]
+    #     variable_h = 'mu_HYPSTAR_TO_AERONET_Li_mean'
+    #     variable_a = 'mu_AERONET_Li_mean'
+    #     iplots.plot_time_series(variable_h,variable_a,wl_list,ytitle,name_out)
+    # for wl in wl_all:
+    #     name_out = f'Ratio_Lt_HYPSTAR_AERONET_{wl}.tif'
+    #     ytitle = f'Lt[HYSPTAR]/Lt[AERONET] {wl} nm'
+    #     wl_list = [wl]
+    #     variable_h = 'mu_HYPSTAR_TO_AERONET_Lt_mean'
+    #     variable_a = 'mu_AERONET_Lt_mean'
+    #     iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
 
+    # name_out = f'Ratio_Li_HYPSTAR_AERONET_400_560.tif'
+    # ytitle = f'Li[HYSPTAR]/Li[AERONET]'
+    # wl_list = [400,560]
+    # variable_h = 'mu_HYPSTAR_TO_AERONET_Li_mean'
+    # variable_a = 'mu_AERONET_Li_mean'
+    # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
 
+    # name_out = f'Ratio_Lt_HYPSTAR_AERONET_400_560.tif'
+    # ytitle = f'Lt[HYSPTAR]/Lt[AERONET]'
+    # wl_list = [400, 560]
+    # variable_h = 'mu_HYPSTAR_TO_AERONET_Lt_mean'
+    # variable_a = 'mu_AERONET_Lt_mean'
+    # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
 
-
+    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Ed', 'mu_AERONET_Ed', 'mu_wavelength')
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Ed.tif'
+    # legend = ['HYPSTAR - Ed', 'AERONET-OC - Ed']
+    # ylabel = r'Ed [W/(cm$^2$·sr)]'
+    # title = 'Downwelling irradiance'
+    # ic.plot_spectra_stats(file_out, legend, ylabel, title)
 
     # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Li_mean', 'mu_AERONET_Li_mean', 'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Li.tif'
@@ -358,15 +462,24 @@ def make_plots():
     # ylabel = r'Lt [μW/(cm$^2$·sr·nm)]'
     # title = 'Upwelling radiance'
     # ic.plot_spectra_stats(file_out, legend, ylabel, title)
-    #
+
+    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean', 'mu_AERONET_Lt_min_rel', 'mu_wavelength')
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Lt_min_rel.tif'
+    # legend = ['HYPSTAR - Lt', 'AERONET-OC - Lt [min_rel]']
+    # ylabel = r'Lt [μW/(cm$^2$·sr·nm)]'
+    # title = 'Upwelling radiance'
+    # ic.plot_spectra_stats(file_out, legend, ylabel, title)
+
+
     # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Lw.tif'
     # legend = ['HYPSTAR - Lw', 'AERONET-OC - Lw']
     # ylabel = r'Lw [μW/(cm$^2$·sr·nm)]'
     # title = 'Water-leaving radiance'
     # ic.plot_spectra_stats(file_out,legend,ylabel,title)
-    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/WindTimeSeries.tif'
-    ic.plot_wind_time_series(file_out)
+    #
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/WindTimeSeries.tif'
+    # ic.plot_wind_time_series(file_out)
 
 
 def get_file_comparison_date(path_out, date_here, to_create):
@@ -598,16 +711,17 @@ def get_options_comparison(config_file):
         if sval in strue:
             options_dict['overwrite'] = True
 
-    resampling_methods = ['NEAREST','RUNNING_AVG']
+    resampling_methods = ['NEAREST', 'RUNNING_AVG']
     options_dict['spectral_resampling'] = 'NEAREST'
     options_dict['spectral_resampling_params'] = None
-    if options.has_option(section,'spectral_resampling'):
+    if options.has_option(section, 'spectral_resampling'):
         options_dict['spectral_resampling'] = options[section]['spectral_resampling'].strip().upper()
     if not options_dict['spectral_resampling'] in resampling_methods:
-        print(f'[ERROR] Spectral resampling method (option spectral_resampling) {options_dict["spectral_resampling"]} is not available.')
+        print(
+            f'[ERROR] Spectral resampling method (option spectral_resampling) {options_dict["spectral_resampling"]} is not available.')
         print(f'[ERROR] Please use amont the following options: {resampling_methods}')
         return None
-    if options.has_option(section,'spectral_resampling_params'):
+    if options.has_option(section, 'spectral_resampling_params'):
         options_dict['spectral_resampling_params'] = options[section]['spectral_resampling_params'].strip().upper()
 
     return options_dict
@@ -681,10 +795,10 @@ def get_options_concat(config_file):
 
     return options_dict
 
-def get_options_plot_mu(config_file):
 
+def get_options_plot_mu(config_file):
     options_dict = {
-        'qc_path':'/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV_QC/VEIT',
+        'qc_path': '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV_QC/VEIT',
         'img_path': '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV/VEIT',
         'output_path': '/store3/HYPERNETS/COMPARISON_HYPSTAR_AERONET'
     }
@@ -703,9 +817,10 @@ def get_options_plot_mu(config_file):
         return options_dict
     section = 'plot_mu'
     for key in options_dict.keys():
-        if options.has_option(section,key):
+        if options.has_option(section, key):
             options_dict[key] = options[section][key].strip()
     return options_dict
+
 
 def main():
     if args.mode == 'COMPARISON':
@@ -724,9 +839,9 @@ def main():
         options = get_options_concat(args.config_file)
         if options is None:
             return
-        make_concatenation(options['path_comparison'],options['file_out'],options['start_date'],options['end_date'])
+        make_concatenation(options['path_comparison'], options['file_out'], options['start_date'], options['end_date'])
 
-    if args.mode == 'HYPSTAR_QC':
+    if args.mode == 'HYPSTAR_QC' or args.mode=='AERONET_ED' or args.mode=='T100':
         if not args.comparison_file:
             print(f'[ERROR] Comparison file (-cf,--comparison_file) is required for mode: {args.mode}')
             return
@@ -734,7 +849,13 @@ def main():
         if not os.path.isfile(file_c):
             print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
             return
-        make_hypstar_qc(file_c)
+        if args.mode == 'HYPSTAR_QC': make_hypstar_qc(file_c)
+        if args.mode == 'AERONET_ED': make_aeronet_ed(file_c)
+        if args.mode == 'T100': make_temporal_100(file_c)
+
+
+
+
 
     if args.mode == 'GENERATEMU':
         if not args.comparison_file:
@@ -751,7 +872,7 @@ def main():
         if not os.path.isfile(file_c):
             print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
             return
-        add_mu_to_file(file_c,max_time)
+        add_mu_to_file(file_c, max_time)
 
     if args.mode == 'PLOT_MU':
         if not args.comparison_file:
@@ -762,8 +883,21 @@ def main():
             print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
             return
         options = get_options_plot_mu(args.config_file)
-        make_plots_mu(file_c,options)
+        make_plots_mu(file_c, options)
 
+    if args.mode == 'TO_CSV':
+        if not args.comparison_file:
+            print(f'[ERROR] Comparison file (-cf,--comparison_file) is required for mode: {args.mode}')
+            return
+        file_c = args.comparison_file
+        if not os.path.isfile(file_c):
+            print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
+            return
+        if args.output:
+            output_file = args.output
+        else:
+            output_file = file_c.replace('.nc', '.csv')
+        create_csv(file_c, output_file)
 
     if args.mode == 'TEST':
         # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/05/05/HYPERNETS_W_VEIT_L2A_REF_20230505T1540_20240118T1418_270_v2.0.nc'
@@ -777,8 +911,8 @@ def main():
         # # print(dataset.variables['rhof'])
         # dataset.close()
         # # do_test()
-        #file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_20230425_20240331.nc'
-        #add_mu_to_file(file_out)
+        # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_20230425_20240331.nc'
+        # add_mu_to_file(file_out)
         make_plots()
 
 
@@ -799,7 +933,7 @@ if __name__ == '__main__':
     # add_mu_to_file_date(date_here)
 
     ##PLOTING
-    #make_plots()
+    # make_plots()
 
     ##CHECKING HYPSTAR QF (TEST)
     # check_hypstar_qf()

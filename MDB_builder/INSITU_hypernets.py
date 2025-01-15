@@ -17,6 +17,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if rsync_user is None:
             rsync_user = 'hypstar'
 
+        self.insitu_data_folder = None ##insitu_data_folder to check dates with data in folder this/site/year/month/date
 
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
         self.base_folder = '/waterhypernet/hypstar/processed_v2/'
@@ -500,6 +501,17 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             print(f'[ERROR] Access to {self.url_base} via ssh is not allowed')
             return False
 
+    def get_list_dates_from_insitu_data_folder(self,sitename,start_date_ref,end_date_ref):
+        list_dates = []
+        date_ref = start_date_ref
+        while date_ref<=end_date_ref:
+            cmd = f'ls {self.insitu_data_folder}/{sitename}/{date_ref.strftime("%Y")}/{date_ref.strftime("%m")}/{date_ref.strftime("%d")}/*L2A_REF*.nc'
+            lfiles = self.get_list_files(cmd)
+            if len(lfiles)>0:
+                list_dates.append(date_ref)
+            date_ref = date_ref+timedelta(hours=24)
+        return list_dates
+
     def get_list_dates(self, sitename, start_date_ref, end_date_ref):
         list_dates = []
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}'
@@ -528,7 +540,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         return list_dates
 
     def save_list_dates_to_file(self, fout, sitename, start_date_ref, end_date_ref, sat_extract_dir):
-        list_dates = self.get_list_dates(sitename, start_date_ref, end_date_ref)
+        if self.insitu_data_folder is not None and start_date_ref is not None and end_date_ref is not None:
+            list_dates = self.get_list_dates_from_insitu_data_folder(sitename,start_date_ref,end_date_ref)
+        else:
+            list_dates = self.get_list_dates(sitename, start_date_ref, end_date_ref)
         if len(list_dates) == 0:
             print(f'[WARNING] Data were not found for site: {sitename}')
             return
@@ -629,10 +644,13 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             if l == '':
                 continue
             try:
-                listd.append(l)
+                if os.path.exists(l):
+                    listd.append(l)
             except:
                 pass
         return listd
+
+
 
     def get_files_download(self, date_here, site):
         folder_date = os.path.join(self.base_folder, site, date_here.strftime('%Y'), date_here.strftime('%m'),

@@ -42,13 +42,12 @@ class ComparisonOptions:
                 'long_name': 'Total radiance from the sea surface - Mean',
                 'units': 'mW/(cm2·μm·sr)',
                 'scale_factor': 0.1
-
             },
             'irradiance':{
-                'name': 'F0',
-                'long_name': 'Extraterrestrial Solar Irradiance',
+                'name': 'Ed',
+                'long_name': 'Downwelling Irradiance',
                 'units': 'W/(m2·nm)',
-                'scale_factor': 0.001
+                'scale_factor': 0.1
             },
             'reflectance':{
                 'name': 'Rrs',
@@ -226,7 +225,7 @@ class ComparisonOptions:
         return basic_mu_variables
 
     def mu_variables(self):
-        mu_variables = ['Lw','F0','Li_mean','Li_stddev','Lt_mean','Lt_stddev','Rrs','Rrs_nosc']
+        mu_variables = ['Lw','Ed','Li_mean','Li_stddev','Lt_mean','Lt_stddev','Rrs','Rrs_nosc','Lt_min_rel']
         return mu_variables
 
     def mu_variables_keys(self):
