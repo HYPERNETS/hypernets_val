@@ -2,6 +2,8 @@ import argparse
 import os.path
 from datetime import timedelta
 from datetime import datetime as dt
+
+import numpy as np
 from netCDF4 import Dataset
 
 parser = argparse.ArgumentParser(
@@ -47,6 +49,8 @@ def get_info_instrument_id(input_path, start_date, end_date):
                     if 'instrument_id' in dataset.ncattrs():
                         time_here = float(dataset.variables['acquisition_time'][0])
                         if time_here==0:
+                            continue
+                        if np.isnan(time_here):
                             continue
                         time_here_obj = dt.utcfromtimestamp(time_here)
                         id_here = str(dataset.instrument_id)
