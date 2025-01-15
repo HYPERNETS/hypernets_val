@@ -46,6 +46,8 @@ def get_info_instrument_id(input_path, start_date, end_date):
                     dataset = Dataset(file_nc)
                     if 'instrument_id' in dataset.ncattrs():
                         time_here = float(dataset.variables['acquisition_time'][0])
+                        if time_here==0:
+                            continue
                         time_here_obj = dt.utcfromtimestamp(time_here)
                         id_here = str(dataset.instrument_id)
                         if id_here not in ids_list.keys():
@@ -63,7 +65,7 @@ def get_info_instrument_id(input_path, start_date, end_date):
 
                     dataset.close()
         date_ref = date_ref + timedelta(hours=24)
-    for id_here in ids_list:
+    for id_here in ids_list.keys():
         stime = ids_list[id_here]['start_time'].strftime('%Y-%m-%d %H:%M:%S')
         etime = ids_list[id_here]['end_time'].strftime('%Y-%m-%d %H:%M:%S')
         print(f'[INFO] Instrument id: {id_here} Number of wavelengths: {ids_list[id_here]["nwl"]} Start time: {stime} End time: {etime} ')
