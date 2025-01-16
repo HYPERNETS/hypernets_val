@@ -1,4 +1,4 @@
-
+import numpy as np
 class INSITUBASE:
 
     def __init__(self, mdb_options):
@@ -42,27 +42,33 @@ class INSITUBASE:
         # time_window = 2  # del mdb_options
         # self.new_MDB.time_diff = f'{time_window * 60 * 60}'  # in seconds
         self.new_MDB.time_diff = self.mdb_options.insitu_options['time_window']
-
         n_insitu_id = self.mdb_options.insitu_options['n_insitu_id']
         n_insitu_bands = self.mdb_options.insitu_options['n_insitu_bands']
+        instrument_id_list = self.mdb_options.insitu_options['instrument_ids']
+        if not instrument_id_list[0]=='N/A':
+            instrument_id_list.insert(0,'N/A')
+        n_instrument_id = len(instrument_id_list)
         self.new_MDB.createDimension('insitu_id', n_insitu_id)
         self.new_MDB.createDimension('insitu_original_bands',  n_insitu_bands)
-
+        self.new_MDB.createDimension('instrument_id',n_instrument_id)
 
 
         ##TIME VARIABLE
-        insitu_time = self.new_MDB.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id',), zlib=True,
-                                                  complevel=6)
-        insitu_time.units = "Seconds since 1970-1-1"
+        insitu_time = self.new_MDB.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id'), zlib=True,
+                                                  complevel=6,fill_value=-999.0)
+        insitu_time.units = "Seconds since 1970-01-01 00:00:00"
         insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
 
-        ##FILENAME VARIABLE->DEPRECATED
-        # insitu_filename = self.new_MDB.createVariable('insitu_filename', 'S2', ('satellite_id', 'insitu_id'), zlib=True,
-        #                                               complevel=6)
-        # insitu_filename.description = 'In situ filename.'
+        #INSTRUMENT_ID VARIABLE
+        instrument_id_var = self.new_MDB.createVariable('insitu_instrument_id','i2',('satellite_id', 'insitu_id'),fill_value=-999,zlib=True,complevel=6)
+        instrument_id_var.description = 'Instrument id'
+        instrument_id_var.flag_values = np.arange(n_instrument_id).tolist()
+        instrument_id_var.flag_meanings = " ".join(instrument_id_list)
+
+
 
         # ORIGINAL BANDS VARIABLE
-        insitu_original_bands = self.new_MDB.createVariable('insitu_original_bands', 'f4', ('insitu_original_bands'),
+        insitu_original_bands = self.new_MDB.createVariable('insitu_original_bands', 'f4', ('instrument_id','insitu_original_bands'),
                                                             fill_value=-999, zlib=True, complevel=6)
         insitu_original_bands.description = 'In situ bands in nm.'
 

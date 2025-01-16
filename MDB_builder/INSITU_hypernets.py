@@ -168,6 +168,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
     def create_mdb_insitu_extract(self, extract_path, ofile):
         self.start_add_insitu(extract_path, ofile)
+        self.new_MDB.variables['insitu_instrument_id'].description = 'HYPSTAR Serial Number'
         self.add_new_variables()
 
     def add_new_variables(self):
