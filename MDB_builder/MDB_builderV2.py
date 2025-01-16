@@ -286,7 +286,7 @@ def main():
         return
 
     if mo.insitu_type == 'HYPERNETS':
-        create_mdb_hypernets(mo)
+        create_mdb_hypernets(mo, extract_list)
         return
 
 
@@ -967,10 +967,14 @@ def create_mdb_hypernets(mo,extract_list):
         print(f'[INFO] Generating final MDB file-------------------------------------------------------------STOP')
 
     if args.verbose:
-        print(f'[INFO] Adding sensor_id variable and dimension-------------------------------------------------------------START')
-    add_instrument_id_to_mdb_file(path_mdb,mdb_extract_files)
+        print(f'[INFO] Checking wavelength array-------------------------------------------------------------START')
+    print(ihd.wavelength_array.shape)
+    for idx in range(ihd.wavelength_array.shape[0]):
+        print(idx,'==============================')
+        print(ihd.wavelength_array[0,:])
+        print('================')
     if args.verbose:
-        print(f'[INFO] Adding sensor_id variable and dimension-------------------------------------------------------------STOP')
+        print(f'[INFO] Checking wavelength array-------------------------------------------------------------STOP')
 
     # if len(bad_spectra_times) > 0 and args.verbose:
     #     for bad_time in bad_spectra_times:
