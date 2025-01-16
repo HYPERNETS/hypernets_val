@@ -262,7 +262,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         #     # print(wini,wfin,iini,ifin)
 
         wini = 0
-        wfin = nc_ins.variables['wavelength'].shape[0]
+        wfin = nc_ins.variables['wavelength'].shape[0]+1
 
         if insitu_idx == 0:
             self.new_MDB.variables['insitu_original_bands'][instrument_index,wini:wfin] = nc_ins.variables['wavelength'][:]
