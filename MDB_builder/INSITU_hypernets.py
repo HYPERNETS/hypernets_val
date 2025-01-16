@@ -242,7 +242,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             instrument_index = instrument_ids.index(instrument_id)
         except:
             instrument_index = 0
-        self.new_MDB.variables['instrument_id'][0, insitu_idx] = instrument_index
+        self.new_MDB.variables['insitu_instrument_id'][0, insitu_idx] = instrument_index
 
 
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
