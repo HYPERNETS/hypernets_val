@@ -234,7 +234,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             print(f'[INFO] Sat. Time: {sat_time} Ins. Time: {insitu_time} Time diff.: {time_diffh:.2f} hours')
 
         ##instrument_index
-        instrument_ids = self.new_MDB.variables['instrument_id'].flag_meanings.split(' ')
+        instrument_ids = self.new_MDB.variables['insitu_instrument_id'].flag_meanings.split(' ')
         instrument_id = 'N/A'
         if 'instrument_id' in nc_ins.ncattrs():
             instrument_id = str(nc_ins.instrument_id)
