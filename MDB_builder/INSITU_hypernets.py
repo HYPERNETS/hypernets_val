@@ -165,8 +165,6 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
     def create_mdb_insitu_extract(self, extract_path, ofile):
         self.start_add_insitu(extract_path, ofile)
-        if self.wavelength_array is None:
-            self.wavelength_array = self.new_MDB.variables['insitu_original_bands'][:]
         self.new_MDB.variables['insitu_instrument_id'].description = 'HYPSTAR Serial Number'
         self.add_new_variables()
 
@@ -188,7 +186,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 var[:] = 0
         for var_name in self.insitu_spectral_variables:
             type = self.insitu_spectral_variables[var_name]['type']
-            var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_original_bands', 'insitu_id'),
+            var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_bands', 'insitu_id'),
                                               zlib=True, complevel=6, fill_value=-999.0)
             for at in self.insitu_spectral_variables[var_name]:
                 if at == 'type' or at == 'name_orig':
@@ -248,33 +246,20 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
         self.new_MDB.variables['time_difference'][0, insitu_idx] = time_diff
 
-        ##DEPRECATED, DIFFERENCES IN WAVELENGTHS ARE MANAGED USING instrument_id
-        # wini = 0
-        # wfin = 1600
-        # iini = 0
-        # ifin = 1600
-        # if nc_ins.variables['wavelength'].shape[0] < 1600:  # == 1537:
-        #     iref = 1600 - nc_ins.variables['wavelength'].shape[0]
-        #     wini = iref
-        #     wfin = 1600
-        #     iini = 0
-        #     ifin = 1600 - iref
-        #     # print(wini,wfin,iini,ifin)
+
 
         wini = 0
-        wfin = nc_ins.variables['wavelength'].shape[0]+1
+        wfin = nc_ins.variables['wavelength'][:].shape[0]
 
         if insitu_idx == 0:
             self.new_MDB.variables['insitu_original_bands'][instrument_index,wini:wfin] = nc_ins.variables['wavelength'][:]
-            self.wavelength_array[instrument_index,wini:wfin]  = nc_ins.variables['wavelength'][:]
-            # if wini > 0:
-            #     wlref = self.new_MDB.variables['insitu_original_bands'][wini]
-            #     for iw in range(wini, -1, -1):
-            #         self.new_MDB.variables['insitu_original_bands'][iw] = wlref
-            #         wlref = wlref - 0.50
+            if self.wavelength_array is None:
+                self.wavelength_array = self.new_MDB.variables['insitu_original_bands'][:]
+            else:
+                self.wavelength_array[instrument_index,wini:wfin]  = nc_ins.variables['wavelength'][:]
 
-        #insitu_rhow_vec = [x for x in nc_ins.variables['reflectance'][:]]
-        #insitu_RrsArray = ma.array(insitu_rhow_vec).transpose() / np.pi
+
+
         insitu_RrsArray = ma.squeeze(nc_ins.variables['reflectance'][wini:wfin,0]) / np.pi
         self.new_MDB.variables['insitu_Rrs'][0, wini:wfin, insitu_idx] = insitu_RrsArray[:]
 
@@ -290,7 +275,6 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 var_array = var_array / np.pi
             else:
                 var_array = var_array
-            # print('--->', var_array.shape)
             self.new_MDB.variables[var_name][0, wini:wfin, insitu_idx] = var_array[:]
         nc_ins.close()
 

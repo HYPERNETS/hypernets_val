@@ -891,12 +891,13 @@ def create_mdb_hypernets(mo,extract_list):
                 dtal.close()
                 print(f'[ERROR] Error in MDB extract file: {ofile}. Skipping...')
                 continue
-            insitu_bands = np.array(dtal.variables['insitu_original_bands'])
-            vtal = insitu_bands[0]
+            insitu_bands = dtal.variables['insitu_original_bands'][:]
             dtal.close()
-            if vtal == -999.0:
-                print(f'[ERROR] Error in MDB extract file. Skipping...')
-                continue
+            if ihd.wavelength_array is None:
+                ihd.wavelength_array = insitu_bands
+            else:
+                ihd.wavelength_array[insitu_bands.mask==False]=insitu_bands[insitu_bands.mask==False]
+
             mdb_extract_files.append(ofile)
             print(f'[WARNING] MDB extract file already exits. Skipping...')
             continue
@@ -927,6 +928,8 @@ def create_mdb_hypernets(mo,extract_list):
         #     for bad_time in bad_spectra_times:
         #         print(bad_time)
         #         print(f'[INFO] Spectrum at {bad_time} is invalid')
+
+
 
         if not insitu_files is None:
             ninsitu = len(insitu_files)
@@ -968,11 +971,7 @@ def create_mdb_hypernets(mo,extract_list):
 
     if args.verbose:
         print(f'[INFO] Checking wavelength array-------------------------------------------------------------START')
-    print(ihd.wavelength_array.shape)
-    for idx in range(ihd.wavelength_array.shape[0]):
-        print(idx,'==============================')
-        print(ihd.wavelength_array[0,:])
-        print('================')
+    update_orginal_band_array(path_mdb,ihd.wavelength_array)
     if args.verbose:
         print(f'[INFO] Checking wavelength array-------------------------------------------------------------STOP')
 
@@ -981,6 +980,11 @@ def create_mdb_hypernets(mo,extract_list):
     #         print(bad_time)
     #         print(f'[INFO] Spectrum at {bad_time} is invalid')
 
+def update_orginal_band_array(path_mdb,wl_array):
+    from netCDF4 import Dataset
+    dataset_w = Dataset(path_mdb,'a')
+    dataset_w.variables['insitu_original_bands'][:] = wl_array[:]
+    dataset_w.close
 def get_datetime_from_row(index, row, col_date, format_date, col_time, format_time, insitu_time):
     date_row = str(row[col_date])
     format_row = format_date

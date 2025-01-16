@@ -49,7 +49,8 @@ class INSITUBASE:
             instrument_id_list.insert(0,'N/A')
         n_instrument_id = len(instrument_id_list)
         self.new_MDB.createDimension('insitu_id', n_insitu_id)
-        self.new_MDB.createDimension('insitu_original_bands',  n_insitu_bands)
+        #self.new_MDB.createDimension('insitu_original_bands',  n_insitu_bands)
+        self.new_MDB.createDimension('insitu_bands', n_insitu_bands)
         self.new_MDB.createDimension('instrument_id',n_instrument_id)
 
 
@@ -68,12 +69,13 @@ class INSITUBASE:
 
 
         # ORIGINAL BANDS VARIABLE
-        insitu_original_bands = self.new_MDB.createVariable('insitu_original_bands', 'f4', ('instrument_id','insitu_original_bands'),
+        insitu_original_bands = self.new_MDB.createVariable('insitu_original_bands', 'f4', ('instrument_id','insitu_bands'),
                                                             fill_value=-999, zlib=True, complevel=6)
         insitu_original_bands.description = 'In situ bands in nm.'
 
+
         # RRS VARIABLE
-        insitu_Rrs = self.new_MDB.createVariable('insitu_Rrs', 'f4', ('satellite_id', 'insitu_original_bands', 'insitu_id'),
+        insitu_Rrs = self.new_MDB.createVariable('insitu_Rrs', 'f4', ('satellite_id', 'insitu_bands', 'insitu_id'),
                                             fill_value=-999, zlib=True, complevel=6)
         insitu_Rrs.description = 'In situ Rrs'
 
