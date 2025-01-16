@@ -1,10 +1,7 @@
-import os
-import argparse
-import configparser
-
+import os,argparse,configparser,pytz
+from netCDF4 import Dataset
+import numpy as np
 import pandas as pd
-import pytz
-
 from MDB_builder_options import MDBBuilderOptions
 from SATEXTRACTS_list import SAT_EXTRACTS_LIST
 from INSITU_hypernets import INSITU_HYPERNETS_DAY
@@ -51,11 +48,11 @@ def test():
     date_here = dt(2023, 4, 3)
     im.retrieve_metadata_from_file(date_here)
     file_extract = '/mnt/c/DATA_LUIS/TARA_TEST/extracts/S3B_OL_2_WFR____20230403T111113_20230403T111413_20230404T221050_0179_078_037_2160_MAR_O_NT_003_SEN3_extract_549_4638.nc'
-    from netCDF4 import Dataset
+
     dataset = Dataset(file_extract)
     lat_array = dataset.variables['satellite_latitude'][0, :, :]
     lon_array = dataset.variables['satellite_longitude'][0, :, :]
-    import numpy as np
+
     index_time = float(np.array(dataset.variables['satellite_time'][0]))
     sat_time = dt.fromtimestamp(index_time).replace(tzinfo=pytz.utc)
     dataset.close()
@@ -66,7 +63,7 @@ def test():
 
 
 def check_files(input_files):
-    from netCDF4 import Dataset
+
     n_files = len(input_files)
     dims = None
     variables_dict = {}
@@ -108,7 +105,7 @@ def remove_uncommon_variables(list_files,variables_to_remove):
 
 
 def creating_copy_limiting_variables(input_file,output_file,variables_keep,variables_remove):
-    from netCDF4 import Dataset
+
     input_dataset = Dataset(input_file)
     ncout = Dataset(output_file, 'w', format='NETCDF4')
 
@@ -194,11 +191,23 @@ def main():
         input_path = args.sat_extract_dir
         if not os.path.isdir(input_path):
             print(f'[ERROR] Input path {input_path} should be a directory')
-
         input_files = []
+        wavelength_array = None
         for name in os.listdir(input_path):
             if name.endswith('.nc'):
                 input_file = os.path.join(input_path, name)
+                if name.startswith('MDB_'):##MDB mini file,we should extract array_wavelength
+                    dtal = Dataset(input_file)
+                    if 'insitu_original_bands' not in dtal.variables:
+                        dtal.close()
+                        print(f'[ERROR] Error in MDB extract file: {input_file}. Skipping...')
+                        continue
+                    insitu_bands = dtal.variables['insitu_original_bands'][:]
+                    dtal.close()
+                    if wavelength_array is None:
+                        wavelength_array = insitu_bands
+                    else:
+                        wavelength_array[insitu_bands.mask == False] = insitu_bands[insitu_bands.mask == False]
                 input_files.append(input_file)
         if len(input_files) == 0:
             print(f'[WARNING] No input NC files found in {input_path}')
@@ -207,6 +216,8 @@ def main():
         if not check:
             remove_uncommon_variables(input_files,remove_variables)
         concatenate_nc_impl(input_files, output_path, output_file)
+        if wavelength_array is not None:
+            update_orginal_band_array(output_file, wavelength_array)
         return
 
     if not args.config_file:
@@ -334,8 +345,7 @@ def create_mdb_tara_file(mo, extract_list):
 ##all these extracts are associated to the same date, hence to the same metadata and data files.
 def create_mdb_tara_file_impl(mo, extract_list, mdb_extract_files):
     from INSITU_tara import INSITU_TARA
-    from netCDF4 import Dataset
-    import numpy as np
+
     ins_sensor = 'HyperBOOST'
 
     it = INSITU_TARA(mo, args.verbose)
@@ -393,8 +403,7 @@ def create_mdb_meda_file(mo, extract_list):
         extract_name = os.path.basename(extract_list[extract]['path'])
         ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
         if os.path.exists(ofile):
-            from netCDF4 import Dataset
-            import numpy as np
+
             dtal = Dataset(ofile)
             if 'insitu_original_bands' not in dtal.variables:
                 dtal.close()
@@ -454,8 +463,7 @@ def create_mdb_wisp_file(mo, extract_list, insitu_file):
         extract_name = os.path.basename(extract_list[extract]['path'])
         ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
         if os.path.exists(ofile):
-            from netCDF4 import Dataset
-            import numpy as np
+
             dtal = Dataset(ofile)
             if 'insitu_original_bands' not in dtal.variables:
                 dtal.close()
@@ -499,7 +507,7 @@ def create_mdb_wisp_file(mo, extract_list, insitu_file):
 
 
 def create_mdb_single_csv_rrs(mo, insitu_file):
-    import numpy as np
+
     first_rrs = mo.insitu_options['first_rrs']
     if first_rrs is None:
         print('Option first_rrs is not defined in [insitu_options] section in the configuration file')
@@ -556,8 +564,8 @@ def create_mdb_single_csv_rrs(mo, insitu_file):
 
 
 def create_mdb_single_csv_var(mo, insitu_file):
-    import numpy as np
-    from netCDF4 import Dataset
+
+
     try:
         df = pd.read_csv(insitu_file, sep=';')
     except:
@@ -884,8 +892,6 @@ def create_mdb_hypernets(mo,extract_list):
         extract_name = os.path.basename(extract_list[extract]['path'])
         ofile = mo.get_mdb_extract_path(extract_name, ins_sensor)
         if os.path.exists(ofile):
-            from netCDF4 import Dataset
-            import numpy as np
             dtal = Dataset(ofile)
             if 'insitu_original_bands' not in dtal.variables:
                 dtal.close()
@@ -981,10 +987,10 @@ def create_mdb_hypernets(mo,extract_list):
     #         print(f'[INFO] Spectrum at {bad_time} is invalid')
 
 def update_orginal_band_array(path_mdb,wl_array):
-    from netCDF4 import Dataset
     dataset_w = Dataset(path_mdb,'a')
     dataset_w.variables['insitu_original_bands'][:] = wl_array[:]
     dataset_w.close
+
 def get_datetime_from_row(index, row, col_date, format_date, col_time, format_time, insitu_time):
     date_row = str(row[col_date])
     format_row = format_date

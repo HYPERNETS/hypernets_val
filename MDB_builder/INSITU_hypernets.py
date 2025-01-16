@@ -265,17 +265,18 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         for var_name in self.insitu_extract_variables:
             var_ins = self.insitu_extract_variables[var_name]['name_orig']
-            if var_ins is not None:
+            if var_ins is not None and var_ins in nc_ins.variables:
                 self.new_MDB.variables[var_name][0, insitu_idx] = nc_ins.variables[var_ins][:]
 
         for var_name in self.insitu_spectral_variables:
             var_ins = self.insitu_spectral_variables[var_name]['name_orig']
-            var_array = ma.squeeze(nc_ins.variables[var_ins][wini:wfin,0])
-            if var_name.find('Rrs') > 0:
-                var_array = var_array / np.pi
-            else:
-                var_array = var_array
-            self.new_MDB.variables[var_name][0, wini:wfin, insitu_idx] = var_array[:]
+            if var_ins in nc_ins.variables:
+                var_array = ma.squeeze(nc_ins.variables[var_ins][wini:wfin,0])
+                if var_name.find('Rrs') > 0:
+                    var_array = var_array / np.pi
+                else:
+                    var_array = var_array
+                self.new_MDB.variables[var_name][0, wini:wfin, insitu_idx] = var_array[:]
         nc_ins.close()
 
         if insitu_idx == 0:
