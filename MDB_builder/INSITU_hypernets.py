@@ -17,7 +17,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if rsync_user is None:
             rsync_user = 'hypstar'
 
-        self.insitu_data_folder = None ##insitu_data_folder to check dates with data in folder this/site/year/month/date
+        self.insitu_data_folder = None  ##insitu_data_folder to check dates with data in folder this/site/year/month/date
 
         self.url_base = f'{rsync_user}@enhydra.naturalsciences.be'
         self.base_folder = '/waterhypernet/hypstar/processed_v2/'
@@ -28,17 +28,13 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'
         self.rsync_url = f'rsync -a -e \'ssh -p 9022\' {self.url_base}'
 
-
         ##land
         self.url_base_npl = f'cnr@hypernetssvr1.npl.co.uk'
         self.base_folder_npl = '/home/cnr/processed'
         self.base_folder_l2_npl = '/home/cnr/'
         self.ssh_base_npl = 'ssh -Y'
-        self.ls_base_npl  = 'ls /home/cnr/processed/'
+        self.ls_base_npl = 'ls /home/cnr/processed/'
         self.rsync_url_npl = f'rsync -a -e \'ssh\' {self.url_base_npl}'
-
-
-
 
         self.CHECK_SSH = self.check_ssh()
 
@@ -111,14 +107,14 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 'flag_meanings': 'INVALID',
                 'flag_values': '1'
             },
-            'insitu_epsilon':{
+            'insitu_epsilon': {
                 'name_orig': 'epsilon',
                 'type': 'f4',
-                'standard_name':'insitu_epsilon',
-                'long_name':'Similarity spectrum ratio at two wavelengths see Ruddick et al. (2016)',
-                'reference':'',
-                'units':'-',
-                'unc_comps':''
+                'standard_name': 'insitu_epsilon',
+                'long_name': 'Similarity spectrum ratio at two wavelengths see Ruddick et al. (2016)',
+                'reference': '',
+                'units': '-',
+                'unc_comps': ''
             }
         }
         self.insitu_spectral_variables = {
@@ -130,10 +126,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 'long_name': 'Reflectance of the water column at the surface without correction for the NIR similarity spectrum (see Ruddick et al., 2006)',
                 'units': '-'
             },
-            'insitu_Rrs_unc':{
+            'insitu_Rrs_unc': {
                 'name_orig': 'std_reflectance',
-                'type':'f4',
-                'standard_name':'standard_deviation_reflectance',
+                'type': 'f4',
+                'standard_name': 'standard_deviation_reflectance',
                 'long_name': 'standard deviation on reflectance that is due to the variability in radiance (i.e. not accounting for variability in darks or in irradiance)',
                 'units': '-'
             },
@@ -150,13 +146,12 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
     # def add_insitu(self, extract_path, ofile):
     #     self.start_add_insitu(extract_path, ofile)
 
-    def set_rbins_path_data(self,path_data):
+    def set_rbins_path_data(self, path_data):
         self.base_folder = path_data
         self.ls_base = f'ls {path_data}/'
         self.rsync_base = f'rsync -a -e \'ssh -p 9022\' {self.url_base}:{self.base_folder}'
 
-
-    def download_sequence_metadata(self,site,sequence_folder,output_folder):
+    def download_sequence_metadata(self, site, sequence_folder, output_folder):
         url_base_raw = f'hypstar@enhydra.naturalsciences.be'
         base_folder = '/home/hypstar/'
         rsync_url = f'rsync -a -e \'ssh -p 9022\' {url_base_raw}:{base_folder}{site}/DATA/{sequence_folder}/metadata.txt'
@@ -190,7 +185,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         for var_name in self.insitu_spectral_variables:
             type = self.insitu_spectral_variables[var_name]['type']
             var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_original_bands', 'insitu_id'),
-                                              zlib=True, complevel=6,fill_value=-999.0)
+                                              zlib=True, complevel=6, fill_value=-999.0)
             for at in self.insitu_spectral_variables[var_name]:
                 if at == 'type' or at == 'name_orig':
                     continue
@@ -233,6 +228,17 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if self.verbose:
             print(f'[INFO] In situ path: {file_name}')
             print(f'[INFO] Sat. Time: {sat_time} Ins. Time: {insitu_time} Time diff.: {time_diffh:.2f} hours')
+
+        ##instrument_index
+        instrument_ids = self.new_MDB.variables['instrument_id'].flag_meanings.split(' ')
+        instrument_id = 'N/A'
+        if 'instrument_id' in nc_ins.ncattrs():
+            instrument_id = str(nc_ins.instrument_id)
+        try:
+            instrument_index = instrument_ids.index(instrument_id)
+        except:
+            instrument_index = 0
+        self.new_MDB.variables['instrument_id'][0, insitu_idx] = instrument_index
 
         # print(inputpath,insitu_time,sat_time,time_diff/3600)
         self.new_MDB.variables['insitu_time'][0, insitu_idx] = insitu_time_f
@@ -350,16 +356,16 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             os.mkdir(path_day)
         return path_day
 
-    def get_sequences_day_ssh(self,sitename,date_here):
+    def get_sequences_day_ssh(self, sitename, date_here):
         year_str = date_here.strftime('%Y')
         month_str = date_here.strftime('%m')
         day_str = date_here.strftime('%d')
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
-        #print(cmd)
+        # print(cmd)
         sequence_list = self.get_list_sequence_folders(cmd)
         return sequence_list
 
-    def get_sequences_day_ssh_land(self,sitename,date_here):
+    def get_sequences_day_ssh_land(self, sitename, date_here):
 
         year_str = date_here.strftime('%Y')
         month_str = date_here.strftime('%m')
@@ -502,15 +508,15 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             print(f'[ERROR] Access to {self.url_base} via ssh is not allowed')
             return False
 
-    def get_list_dates_from_insitu_data_folder(self,sitename,start_date_ref,end_date_ref):
+    def get_list_dates_from_insitu_data_folder(self, sitename, start_date_ref, end_date_ref):
         list_dates = []
         date_ref = start_date_ref
-        while date_ref<=end_date_ref:
+        while date_ref <= end_date_ref:
             cmd = f'ls {self.insitu_data_folder}/{sitename}/{date_ref.strftime("%Y")}/{date_ref.strftime("%m")}/{date_ref.strftime("%d")}/*L2A_REF*.nc'
             lfiles = self.get_list_files(cmd)
-            if len(lfiles)>0:
+            if len(lfiles) > 0:
                 list_dates.append(date_ref)
-            date_ref = date_ref+timedelta(hours=24)
+            date_ref = date_ref + timedelta(hours=24)
         return list_dates
 
     def get_list_dates(self, sitename, start_date_ref, end_date_ref):
@@ -542,7 +548,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
     def save_list_dates_to_file(self, fout, sitename, start_date_ref, end_date_ref, sat_extract_dir):
         if self.insitu_data_folder is not None and start_date_ref is not None and end_date_ref is not None:
-            list_dates = self.get_list_dates_from_insitu_data_folder(sitename,start_date_ref,end_date_ref)
+            list_dates = self.get_list_dates_from_insitu_data_folder(sitename, start_date_ref, end_date_ref)
         else:
             list_dates = self.get_list_dates(sitename, start_date_ref, end_date_ref)
         if len(list_dates) == 0:
@@ -651,8 +657,6 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 pass
         return listd
 
-
-
     def get_files_download(self, date_here, site):
         folder_date = os.path.join(self.base_folder, site, date_here.strftime('%Y'), date_here.strftime('%m'),
                                    date_here.strftime('%d'))
@@ -673,9 +677,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
 
         self.find_ref = self.find_ref.replace('SITE', site)
 
-
         cmd = f'{self.ssh_base_npl} {self.url_base_npl} find {folder_date} -name {self.find_ref}'
-
 
         list_files = self.get_list_files(cmd)
 
@@ -698,14 +700,10 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 pass
         return listd
 
-
-    def get_files_img_download_land(self,site,sequence_folder):
+    def get_files_img_download_land(self, site, sequence_folder):
 
         ssh_path = f'{self.base_folder_l2_npl}{site}/DATA/{sequence_folder}'
         path_image = f'{ssh_path}/RADIOMETER/*.jpg'
         cmd = f'{self.ssh_base_npl} {self.url_base_npl} ls {path_image}'
         list_images = self.get_list_files_from_ls_cmd(cmd)
         return list_images
-
-
-
