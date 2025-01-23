@@ -75,6 +75,7 @@ class MDBPlot:
         for plot in plot_list:
             if plot == 'GLOBAL_OPTIONS':
                 continue
+            #print('---------------------------------------------------->',plot)
             options_out = self.get_options(options, plot)
 
             # print(options_out)
@@ -374,8 +375,8 @@ class MDBPlot:
 
         plt.yticks(xticks_pos, flag_list)
         ax.set_yticks(xticks_pos_minor, minor=True)
-        plt.grid(b=True, which='minor', color='gray', linestyle='--', axis='y')
-        plt.grid(b=True, which='major', color='gray', linestyle='--', axis='x')
+        plt.grid(visible=True, which='minor', color='gray', linestyle='--', axis='y')
+        plt.grid(visible=True, which='major', color='gray', linestyle='--', axis='x')
         ax.tick_params(which='major', length=0, axis='y')
         ax.tick_params(which='minor', length=10, axis='y')
 
@@ -499,6 +500,8 @@ class MDBPlot:
     def plot_multiple_temporal_fromoptions(self, options_out):
         flag = options_out['flag']
         flag_list = options_out['flag_list']
+        print(flag)
+        print(flag_list)
         dfdata_total = self.mrfile.analyse_mu_temporal_flag(False, 'mu_valid', flag, flag_list)
         dfdata_valid = self.mrfile.analyse_mu_temporal_flag(True, 'mu_valid', flag, flag_list)
         dfall_month_withnan = dfdata_total.copy()
@@ -506,26 +509,44 @@ class MDBPlot:
         dfvalid_month_withnan = dfdata_valid.copy()
         # dfvalid_month_withnan[dfdata_valid == 0] = np.nan
 
+        #print('aqui...')
+        #print(dfall_month_withnan)
+
         from PlotMultiple import PlotMultiple
         pm = PlotMultiple()
+        if len(flag_list) == 1:
+            pm.start_multiple_plot_advanced(1,1,8,4,0,0,True)
         if len(flag_list) == 6:
             pm.start_multiple_plot_advanced(6, 1, 8, 12, 0.1, 0.1, True)
         if len(flag_list) == 4:
             pm.start_multiple_plot_advanced(4, 1, 8, 8, 0.1, 0.1, True)
         idx = 0
         nrows = len(dfall_month_withnan)
-        x_data_val = list(dfall_month_withnan.columns)[0:27]
+        ncols = len(list(dfall_month_withnan.columns))
+        print(list(dfall_month_withnan.columns))
+        print('ncols',ncols)
+        ncols_to_use = 36
+        x_data_val = list(dfall_month_withnan.columns)[0:ncols_to_use]
         x_data_val = [x[2:] for x in x_data_val]
         x_data_val.append('')
         x_data_val.append('')
+        # for ital in range(0,len(x_data_val)-1,2):
+        #     x_data_val[ital]=''
+
         x_data_val_empty = [''] * len(x_data_val)
         # x_data_val = [''] + x_data_val + ['','']
 
         for index, row in dfall_month_withnan.iterrows():
-            y_data_total = np.array(row[1:27])
-            x_data = np.linspace(0, 25, 26)
-            y_data_valid = np.array(dfvalid_month_withnan.loc[index][1:27])
-            axhere = pm.ax[idx]
+            #y_data_total = np.array(row[1:27])
+            y_data_total = np.array(row[1:ncols_to_use])
+            #x_data = np.linspace(0, 25, 26)
+            x_data = np.linspace(0,ncols_to_use-2,ncols_to_use-1)
+            #y_data_valid = np.array(dfvalid_month_withnan.loc[index][1:27])
+            y_data_valid = np.array(dfvalid_month_withnan.loc[index][1:ncols_to_use])
+            if len(flag_list)==1:
+                axhere = pm.ax
+            else:
+                axhere = pm.ax[idx]
             bar1 = axhere.bar(x_data, y_data_total, color='darkblue', edgecolor='black',
                               linewidth=0.5)  # ,marker='o',markersize=10)
             bar2 = axhere.bar(x_data, y_data_valid, color='palegreen', edgecolor='black',
@@ -539,7 +560,8 @@ class MDBPlot:
                 axhere.set_ylim([0, 17])
                 axhere.set_yticks([0, 5, 10, 15], fontsize=11)
 
-            x_data_grid = np.linspace(-1, 27, 29) - 0.5
+            #x_data_grid = np.linspace(-1, 27, 29) - 0.5
+            x_data_grid = np.linspace(-1, ncols_to_use, ncols_to_use+2) - 0.5
             axhere.set_xticks(x_data_grid)
             if idx == (nrows - 1):
                 axhere.set_xticks(x_data_grid, x_data_val, rotation=90, fontsize=11, ha='left')
@@ -548,17 +570,24 @@ class MDBPlot:
             else:
                 axhere.set_xticks(x_data_grid, x_data_val_empty)
             axhere.grid(ls='--')
-            axhere.set_xlim([-1.69, 25.69])
+            #axhere.set_xlim([-1.69, 25.69])
+            axhere.set_xlim([-1.69, ncols_to_use-1.31])
             axhere.axvline(x_data_grid[0], color='black', linewidth=1, ls='--')
             axhere.axvline(x_data_grid[12], color='black', linewidth=1, ls='--')
             axhere.axvline(x_data_grid[24], color='black', linewidth=1, ls='--')
+            # axhere.axvline(x_data_grid[36], color='black', linewidth=1, ls='--')
+            # axhere.axvline(x_data_grid[48], color='black', linewidth=1, ls='--')
+            # axhere.axvline(x_data_grid[60], color='black', linewidth=1, ls='--')
+
             ylabel = f'{index}'
+            ylabel = 'LAIT'
             axhere.set_ylabel(ylabel, fontsize=11)
             axhere.set_axisbelow(True)
             idx = idx + 1
 
         file_out = options_out['file_out']
         pm.set_global_legend_2(handles, ['# All match-ups', '# Valid match-ups'])
+        pm.tigth_layout()
         pm.save_fig(file_out)
 
     def plot_temporal_heat_map_fromoptions(self, options_out):

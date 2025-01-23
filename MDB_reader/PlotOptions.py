@@ -164,6 +164,8 @@ class PlotOptions:
             doptions = defaults.get_options_single_stats_table()
         if type == 'multipleboundingbox':
             doptions = defaults.get_options_multiple_bounding_box()
+        if type == 'spectraparam':
+            doptions = defaults.get_options_spectraparam()
 
 
         if doptions is None:

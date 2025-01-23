@@ -62,6 +62,12 @@ class MDBFile:
             self.n_mu_total = len(self.dimensions['satellite_id'])
             self.n_insitu_day = len(self.dimensions['insitu_id'])
             print('[INFO] Total mu: ', self.n_mu_total)
+            self.n_instrument = -1
+            if 'insitu_instrument_id' in self.variables:
+                self.n_instrument = len(self.variables['insitu_instrument_id'].flag_values)
+            if self.n_instrument > 0:
+                print(f'[INFO] Number of instruments (incluiding N/A): {self.n_instrument}')
+
             self.sat_times = []
             for st in self.variables['satellite_time']:
                 sat_time_here = datetime.utcfromtimestamp(float(st))
@@ -113,6 +119,7 @@ class MDBFile:
 
         # QUALITY CONTROL
         self.only_complete_spectra_valid = False
+
         self.qc_insitu = QC_INSITU(self.variables['insitu_Rrs'], self.variables['insitu_original_bands'])
         self.qc_insitu.time_max = self.delta_t
         self.qc_insitu.set_wllist_using_wlref(self.wlref)
@@ -137,7 +144,7 @@ class MDBFile:
 
         # Variables to make validation...
         self.col_names = ['Index', 'Index_MU', 'Index_Band', 'Sat_Time', 'Ins_Time', 'Time_Diff', 'Wavelenght',
-                          'Ins_Rrs','Sat_Rrs', 'Ins_Rrs_unc','Sat_Rrs_unc','Valid', 'status']
+                          'Ins_Rrs', 'Sat_Rrs', 'Ins_Rrs_unc', 'Sat_Rrs_unc', 'Valid', 'status']
         self.df_validation = None
         self.df_validation_valid = None
         self.mu_dates = {}
@@ -465,8 +472,11 @@ class MDBFile:
                 return 0
         for dim in DIMENSION_NAMES:
             if dim not in self.dimensions:
-                print(f'[WARNING] Dimension: {dim} is not available in MDB file')
-                return 0
+                if dim == 'insitu_original_bands' and 'insitu_bands' in self.dimensions:
+                    pass
+                else:
+                    print(f'[WARNING] Dimension: {dim} is not available in MDB file')
+                    return 0
 
         check_atrib = True
         for atrib in ATRIB_NAMES:
@@ -586,6 +596,7 @@ class MDBFile:
         return mask, cond_min_valid_pxs, NGP, NTP
 
     def retrieve_ins_info_mu_spectra(self, index_mu):
+
         time_difference_prev = self.variables['time_difference'][index_mu]
         time_difference = np.ma.copy(time_difference_prev)
         times_here = self.variables['insitu_time'][index_mu]
@@ -597,6 +608,14 @@ class MDBFile:
         else:
             self.qc_insitu.spatial_index_array = None
 
+        ##CHECK IF EXIST insitu_instrument_id
+        if 'insitu_instrument_id' in self.variables:
+            self.qc_insitu.instrument_id_array = self.variables['insitu_instrument_id'][index_mu]
+        else:
+            self.qc_insitu.instrument_id_array = None
+
+
+        ##CHECK TIME DIFFERENCE
         for idx in range(len(times_here)):
             itime = times_here[idx]
 
@@ -621,28 +640,19 @@ class MDBFile:
         else:
             exact_wl = self.variables['insitu_original_bands']
 
-        ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = \
-            self.qc_insitu.get_finalspectrum_mu(index_mu, time_difference, exact_wl, self.wlref)
-
-        #print('gettting in situ spectra',ins_time_index, time_condition,valid_insitu)
+        ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = self.qc_insitu.get_finalspectrum_mu(
+            index_mu, time_difference, exact_wl, self.wlref)
 
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
-
         else:  ##aunque los datos sean invalidos (time dif>max time dif), obtenemos el mu_insitu_time como referencia
-
             ins_time_index = np.argmin(np.abs(time_difference))
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            # s_index = spatial_index[ins_time_index]
-            # print('Me llega aqui con index_mu igual a: ', index_mu, 'ins time: ',ins_time, 's_index must be zero: ',s_index)
             if np.ma.is_masked(ins_time):  ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
                 mu_insitu_time = sat_time_here
             else:
                 mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
-
-        # if index_mu==0:
-        #     print('->', mu_insitu_time)
 
         return ins_time_index, mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_values
 
@@ -683,22 +693,12 @@ class MDBFile:
         # Sat and instrument time
         self.mu_sat_time = self.sat_times[index_mu]
 
-        # THIS STEP IS NOW DONE BEFORE PREPARING DF FOR VALIDATION
-        # if self.info['satellite_aco_processor'] == 'CCI':
-        #     self.mu_sat_time = self.mu_sat_time.replace(hour=11)
-
-        # print(index_mu)
-        # if index_mu==95 or index_mu==181:
-        #     self.mu_curr_ins_rrs = []
-        #     self.mu_curr_sat_rrs_mean = []
-        #     load_info['status'] = -3  # f'IN SITU DATA OUT OF TIME WINDOW'
-        #     return is_mu_valid, load_info
-
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
-        if valid_insitu and self.ins_time_index>=0 and self.qc_insitu.insitu_rrs_unc is not None:
-            rrs_ins_values_unc, indices_unc, valid_bands_unc = self.qc_insitu.get_spectrum_for_mu_and_index_insitu_unc(index_mu,self.ins_time_index)
+        if valid_insitu and self.ins_time_index >= 0 and self.qc_insitu.insitu_rrs_unc is not None:
+            rrs_ins_values_unc, indices_unc, valid_bands_unc = self.qc_insitu.get_spectrum_for_mu_and_index_insitu_unc(
+                index_mu, self.ins_time_index)
         else:
             if rrs_ins_values is not None:
                 rrs_ins_values_unc = rrs_ins_values.copy()
@@ -708,8 +708,6 @@ class MDBFile:
 
         if rrs_ins_values is not None and self.PI_DIVIDED:
             rrs_ins_values = rrs_ins_values / np.pi
-
-
 
         load_info['spectrum_complete'] = spectrum_complete
 
@@ -753,8 +751,6 @@ class MDBFile:
         self.mu_curr_ins_rrs_unc = []
         self.mu_curr_sat_rrs_mean = []
         self.mu_curr_sat_rrs_unc = []
-
-
 
         for iref in range(len(self.wlref_sat_indices)):
             if not np.ma.is_masked(rrs_ins_values[iref]):
@@ -1066,7 +1062,6 @@ class MDBFile:
         nbands = len(self.wlref)
         ntot = nbands * self.n_mu_total
         self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
-        # ['Index','Index_MU','Index_Band','Sat_Time','Ins_Time','Time_Diff','Wavelenght','Ins_Rrs','Sat_Rrs','Valid']
         index_tot = 0
         nmu_valid = 0
         nmu_valid_complete = 0
@@ -1080,10 +1075,6 @@ class MDBFile:
             if info_mu['status'] < 0:
                 spos = info_mu['status'] * (-1)
                 status_error[spos] = status_error[spos] + 1
-
-            # print(index_mu)
-            # # print(info_mu)
-            # print('------------')
 
             if mu_valid:
                 nmu_valid = nmu_valid + 1
@@ -1199,7 +1190,7 @@ class MDBFile:
 
         self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
 
-        #print(self.df_validation.loc[0:50,:])
+        # print(self.df_validation.loc[0:50,:])
 
         self.prepare_df_mu()
         print(
@@ -1353,13 +1344,18 @@ class MDBFile:
 
         return 1
 
-    def check_bands_insitu(self,wllist,maxdiff):
+    def check_bands_insitu(self, wllist, maxdiff):
         wllist_r = []
         no_insitu = False
         for wl in wllist:
-            index = np.argmin(np.abs(wl - self.insitu_bands))
-            diff = np.abs(wl - self.insitu_bands[index])
-            if diff<maxdiff:
+            index = np.ma.argmin(np.abs(wl - self.insitu_bands))
+            if len(self.insitu_bands.shape) == 2:  ##more than one instrument
+                iins, iwl = np.unravel_index(index, self.insitu_bands.shape)
+                diff = np.abs(wl - self.insitu_bands[iins, iwl])
+            else:
+                diff = np.abs(wl - self.insitu_bands[index])
+
+            if diff < maxdiff:
                 wllist_r.append(wl)
             else:
                 no_insitu = True
@@ -1445,13 +1441,13 @@ class MDBFile:
         noriginal_bands = len(self.dimensions['insitu_original_bands'])
         spectra_all = ma.zeros((self.n_insitu_day, noriginal_bands))
         var_insitu = self.nc.variables['insitu_Rrs']
-        #insitu_valid = np.array(self.nc.variables['insitu_valid'][index_mu])
+        # insitu_valid = np.array(self.nc.variables['insitu_valid'][index_mu])
         insitu_valid = np.ones((self.n_insitu_day))
         insitu_id = self.nc.variables['mu_insitu_id'][index_mu]
         insitu_valid[insitu_id] = 2
         for idx in range(self.n_insitu_day):
             spectra_here = var_insitu[index_mu, :, idx].transpose()
-            if ma.count(spectra_here)==0:##all the values are masked
+            if ma.count(spectra_here) == 0:  ##all the values are masked
                 insitu_valid[idx] = -1
             else:
                 if scale_factor is not None:
@@ -1739,7 +1735,7 @@ class MDBFile:
 
             return wl, insitu_spectra, sat_spectra, insitu_spectra_unc, sat_spectra_unc
         else:
-            return [None]*5
+            return [None] * 5
 
     def get_all_spectra_insitu_sat_with_wlvalues_group(self, scale_factor, wlvalues, flag_name, flag_value, flag_array,
                                                        group_value, group_array):
@@ -1882,7 +1878,7 @@ class MDBFile:
         ins_time = inst_time_here.strftime('%Y%m%d%H%M%S')
         return sat_time, ins_time, ac
 
-    def get_metadata_mu(self,index_mu):
+    def get_metadata_mu(self, index_mu):
         from datetime import datetime as dt
         sat_time = self.sat_times[index_mu]
 
@@ -1896,20 +1892,18 @@ class MDBFile:
             'valid': valid
         }
         valid_str = f'Status: Valid'
-        if valid==0: valid_str = f'Status: Invalid'
-        if valid==-1: valid_str = f'Status: Out of time window'
+        if valid == 0: valid_str = f'Status: Invalid'
+        if valid == -1: valid_str = f'Status: Out of time window'
         import math
         hours = math.floor(time_diff)
-        minutes = math.floor((time_diff-hours)*60)
-        if hours==0:
+        minutes = math.floor((time_diff - hours) * 60)
+        if hours == 0:
             tds = f'{minutes} min.'
         else:
             tds = f'{hours} h. {minutes} min.'
 
         line = f'Match-up: {index_mu}. {valid_str}. Satellite time: {sat_time.strftime("%Y-%m-%d %H:%M:%S")}. In situ time: {ins_time.strftime("%Y-%m-%d %H:%M:%S")}. Time difference: {tds}'
-        return info,line
-
-
+        return info, line
 
     def obtain_mu_valid_with_ac(self, ac_ref):
         # step 1: obtain valid keys with ac
@@ -2271,6 +2265,7 @@ class MDBFile:
     def analyse_mu_temporal_flag(self, onlyvalid, varvalid, name_flag_var, flag_list):
         year_min = self.start_date.year
         year_max = self.end_date.year + 1
+        #year_max = 2025
 
         correct = 1
         if varvalid == 'mu_valid_common':  # number of common mu is divided by the number of ac
@@ -2287,7 +2282,7 @@ class MDBFile:
                 # print(date_here)
                 monthl.append(date_here.strftime('%Y-%m'))
 
-        print(monthl)
+
 
         flag_var = self.nc.variables[name_flag_var]
         flag_var_array = np.array(flag_var)
@@ -2297,11 +2292,14 @@ class MDBFile:
         else:
             all_flag_list = flag_var.flag_meanings.split(' ')
             all_flag_values = flag_var.flag_values
+            if len(all_flag_list)==1 and np.isscalar(all_flag_values):
+                all_flag_values = np.array([all_flag_values])
             flag_values = np.zeros(all_flag_values.shape)
             for idx in range(len(flag_list)):
                 flag_here = flag_list[idx]
                 index = all_flag_list.index(flag_here)
                 flag_values[idx] = all_flag_values[index]
+
 
         dfall_month = pd.DataFrame(index=flag_list, columns=monthl, dtype=np.float)
         dfall_month[:] = 0

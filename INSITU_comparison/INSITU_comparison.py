@@ -1314,24 +1314,73 @@ class INSITUCOMPARISON:
         plot.save_fig(file_out)
         plot.close_plot()
 
+    def plot_hypstar_reflectance_and_ratio_mu(self,file_out,iday,hsequence):
+        dataset = Dataset(self.path_nc)
+        wl = dataset.variables['HYPSTAR_Nominal_Wavelengths'][:]
+        nwl = np.ma.count(wl)
+        if nwl==0:
+            wl = dataset.variables['HYPSTAR_Nominal_Wavelengths_Alt'][:]
+            nwl = np.ma.count(wl)
+        wl = wl[0:nwl]
+        ratio = (dataset.variables['HYPSTAR_upwelling_radiance'][iday,hsequence,0:nwl]*np.pi)/dataset.variables['HYPSTAR_irradiance'][iday,hsequence,0:nwl]
+        reflectance = dataset.variables['HYPSTAR_reflectance'][iday,hsequence,0:nwl]
+        reflectance_nosc = dataset.variables['HYPSTAR_reflectance_nosc'][iday,hsequence,0:nwl]
+        dataset.close()
+        from MDB_reader.PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = wl
+
+        hline1 = pspectra.plot_single_line(reflectance, 'black', '-', 1, 'o', 0)
+        hline2 = pspectra.plot_single_line(reflectance_nosc, 'black', '--', 1, 'o', 0)
+        hline3 = pspectra.plot_single_line(ratio, 'blue', '-', 0.5, 'o', 0)
+        pspectra.set_xaxis_title('Wavelength(nm)')
+        pspectra.set_yaxis_title('ρw(-)')
+        pspectra.set_grid()
+        pspectra.legend_options['loc'] = 'lower center'
+        pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.3)
+        pspectra.legend_options['ncols'] = 3
+        pspectra.set_legend_h([hline1[0], hline2[0], hline3[0]], ['ρw', 'ρw NoSC', 'ρ Lt/Ed'])
+
+        pspectra.set_tigth_layout()
+        pspectra.save_plot(file_out)
+
     def plot_spectra_comparison_mu(self, file_out, h_variable, a_variable, iday, hsequence, asequence, y_label):
         dataset = Dataset(self.path_nc)
         wl = dataset.variables['AERONET_nominal_wavelengths'][:]
-        h_variable = dataset.variables[h_variable][iday, hsequence, :]
-        a_variable = dataset.variables[a_variable][iday, asequence, :]
+        wl_ticks = [f'{x:.0f}' for x in wl]
+        is_reflectance = False
+        if isinstance(h_variable,str):
+            is_reflectance = True if h_variable == 'HYPSTAR_TO_AERONET_Rrs' else False
+            h_variable = dataset.variables[h_variable][iday, hsequence, :]
+        if isinstance(a_variable,str):
+            a_variable = dataset.variables[a_variable][iday, asequence, :]
+
+        if is_reflectance:
+            h_variable_nosc = dataset.variables['HYPSTAR_TO_AERONET_Rrs_nosc'][iday,hsequence,:]
+
         dataset.close()
         from MDB_reader.PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = wl
         hline1 = pspectra.plot_single_line(h_variable, 'red', '-', 1, 'o', 5)
         hline2 = pspectra.plot_single_line(a_variable, 'blue', '-', 1, 'o', 5)
+        if is_reflectance:
+            hline3 = pspectra.plot_single_line(h_variable_nosc, 'red', '--', 1, 'o', 5)
         pspectra.set_yaxis_title(y_label)
         pspectra.set_xaxis_title('Wavelength(nm)')
+        pspectra.set_xticks(wl,wl_ticks,90,10)
         pspectra.set_grid()
         pspectra.legend_options['loc'] = 'lower center'
-        pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.3)
-        pspectra.legend_options['ncols'] = 2
-        pspectra.set_legend_h([hline1[0], hline2[0]], ['AERONET-OC', 'HYPSTAR'])
+
+
+        if is_reflectance:
+            pspectra.legend_options['ncols'] = 3
+            pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.35)
+            pspectra.set_legend_h([hline2[0], hline1[0],hline3[0]], ['AERONET-OC-Rrs', 'HYPSTAR-Rrs','HYPSTAR-Rrs_NoSC'])
+        else:
+            pspectra.legend_options['ncols'] = 2
+            pspectra.legend_options['bbox_to_anchor'] = (0.48, -0.35)
+            pspectra.set_legend_h([hline2[0], hline1[0]], ['AERONET-OC', 'HYPSTAR'])
 
         pspectra.set_tigth_layout()
         pspectra.save_plot(file_out)

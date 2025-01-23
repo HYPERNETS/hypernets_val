@@ -37,6 +37,12 @@ class PlotMultiple():
         self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(xfigsize, yfigsize), frameon=frameon,
                                          gridspec_kw={'wspace': wspace, 'hspace': hspace})
 
+    def start_multiple_plot_contrained(self, nrow, ncol, xfigsize, yfigsize, wspace, hspace, frameon):
+        self.nrow = nrow
+        self.ncol = ncol
+        self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(xfigsize, yfigsize), frameon=frameon,
+                                         gridspec_kw={'wspace': wspace, 'hspace': hspace},layout="constrained")
+
     def start_multiple_plot_polar(self, nrow, ncol, xfigsize, yfigsize, wspace, hspace, frameon):
         self.nrow = nrow
         self.ncol = ncol
@@ -167,7 +173,7 @@ class PlotMultiple():
     def set_global_legend_2(self, handles, str_legend):
         # self.fig.legend(handles, str_legend, fontsize = 8, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.55,0.08))
         self.fig.legend(handles, str_legend, fontsize=11, loc='lower center', ncol=len(str_legend), markerscale=1.0,
-                        bbox_to_anchor=(0.50, -0.03))
+                        bbox_to_anchor=(0.50, -0.050))
 
     def set_global_legend_3(self, handles, str_legend):
         # self.fig.legend(handles, str_legend, fontsize = 8, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.55,0.08))

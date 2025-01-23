@@ -119,6 +119,13 @@ dispersion_line_style_default = {
     'linestyle': 'dashed',
     'linewidth': 0
 }
+stat_line_style_default = {
+    'color': 'black',
+    'marker': 'o',
+    'markersize': 5,
+    'linestyle': '-',
+    'linewidth': 1
+}
 fill_style_default = {
     'color': 'gray',
     'alpha': 0.5
@@ -224,7 +231,7 @@ global_options = {
 }
 
 type_list = ['scatterplot', 'statswlplot', 'spectraplot', 'multipleplot', 'flagplot', 'histogram', 'timeseries',
-             'sequence', 'angleplot', 'mapplot', 'imageplot', 'singlestatstable','multipleboundingbox']
+             'sequence', 'angleplot', 'mapplot', 'imageplot', 'singlestatstable','multipleboundingbox','spectraparam']
 
 valid_stats = {
     'N': {
@@ -726,10 +733,6 @@ options_spectraplots = {
         'default': all_line_style_default,
         'type': 'linestyle'
     },
-    'linestyle': {
-        'default': line_style_default,
-        'type': 'linestyle'
-    },
     'color': {
         'default': [line_style_default['color']],
         'type': 'strlist'
@@ -829,7 +832,71 @@ options_spectraplots = {
     'rrsticks': {
         'default': None,
         'type': 'floatlist'
+    },
+    'y_min': {
+        'default': None,
+        'type': 'float'
+    },
+    'y_max': {
+        'default': None,
+        'type': 'float'
     }
+}
+
+options_spectraparam = {
+    'xvar': {
+        'default': 'mu_ins_rrs',
+        'type': 'str'
+    },
+    'yvar': {
+        'default': 'mu_sat_rrs',
+        'type': 'str'
+    },
+    'log_scale': {
+        'default': False,
+        'type': 'boolean'
+    },
+    'use_rhow': {
+        'default': False,
+        'type': 'boolean'
+    },
+    'wlvalues': {
+        'default': None,
+        'type': 'floatlist'
+    },
+    'wl_min': {
+        'default': None,
+        'type': 'float'
+    },
+    'wl_max': {
+        'default': None,
+        'type': 'float'
+    },
+    'stat_list': {
+        'default': ['R2'],
+        'type': 'strlist',
+        'values': [x.lower() for x in valid_stats.keys()]
+    },
+    'color': {
+        'default': [stat_line_style_default['color']],
+        'type': 'strlist'
+    },
+    'marker': {
+        'default': [stat_line_style_default['marker']],
+        'type': 'strlist'
+    },
+    'markersize': {
+        'default': [stat_line_style_default['markersize']],
+        'type': 'floatlist'
+    },
+    'linestyle': {
+        'default': [stat_line_style_default['linestyle']],
+        'type': 'strlist'
+    },
+    'linewidth': {
+        'default': [stat_line_style_default['linewidth']],
+        'type': 'strlist'
+    },
 }
 
 options_histogram = {
@@ -1237,6 +1304,19 @@ def get_options_spectraplots():
         options[op] = options_axis[op]
     return options
 
+def get_options_spectraparam():
+    options = options_spectraparam
+    for op in options_legend:
+        options[op] = options_legend[op]
+    for op in options_title:
+        options[op] = options_title[op]
+    for op in options_group:
+        options[op] = options_group[op]
+    for op in options_axis:
+        options[op] = options_axis[op]
+    for op in options_legend:
+        options[op] = options_legend[op]
+    return options
 
 def get_options_scatterplots():
     options = options_scatterplots

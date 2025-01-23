@@ -245,18 +245,15 @@ class MDB_READER():
                 new_MDB.variables['insitu_Rrs'][index_mu, :, 0] = self.mfile.nc.variables['insitu_Rrs'][index_mu, :,
                                                                   insitu_id_here]
 
-            # for index_mu in range(self.mfile.n_mu_total):
-            #     insitu_id_here = array_mu_insitu_id[index_mu]
-            #     if (index_mu % 100) == 0 and args.verbose:
-            #         print(f'[INFO] Checking spectra validity for mu {index_mu} of {self.mfile.n_mu_total} -> {insitu_id_here}')
-            #     validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
-            #     new_var[index_mu] = validity_spectra[insitu_id_here]
-            #     new_MDB.variables['mu_insitu_id'][index_mu] = [0]
-
         else:
             for index_mu in range(self.mfile.n_mu_total):
                 if (index_mu % 100) == 0 and args.verbose:
                     print(f'[INFO] Checking spectra validity for mu : {index_mu} of {self.mfile.n_mu_total}')
+                if 'insitu_instrument_id' in self.mfile.variables:
+                    self.mfile.qc_insitu.instrument_id_array = self.mfile.variables['insitu_instrument_id'][index_mu]
+                else:
+                    self.mfile.qc_insitu.instrument_id_array = None
+
                 validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
                 new_var[index_mu] = validity_spectra[:]
 
@@ -379,6 +376,7 @@ def get_flag_lists(input_path, ats_in, flag_bands):
             name_band = flag_bands[idx]
             at_names = ats_in[idx]
             at_value = get_at_value(reader, at_names)
+            at_value = str(at_value)
             if name_band not in flag_lists:
                 flag_lists[name_band] = {
                     'input_ats': at_names,
@@ -966,6 +964,7 @@ def creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref
         var.flag_values = flag_values
         at_in = flag_lists[name_flag]['input_ats']
         value = get_at_value(reader, at_in)
+        value = str(value)
         id = flag_list.index(value)
         var[:] = flag_values[id]
 
@@ -4769,11 +4768,14 @@ def main():
         else:
             ncout_file = os.path.join(input_path, 'MDBrc.nc')
 
-        # ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
+        #ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
         ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'site']
         flag_bands = ['flag_satellite', 'flag_sensor', 'flag_ac', 'flag_site']
 
         flag_lists = get_flag_lists(input_path, ats_in, flag_bands)
+
+        print(flag_lists)
+
         all_bands = get_band_list(input_path)
 
         idfile = 1

@@ -14,9 +14,14 @@ class QC_INSITU:
 
     def __init__(self, insitu_rrs, insitu_bands):
         self.name = ''
+
         self.insitu_rrs = insitu_rrs
         self.insitu_rrs_unc = None
         self.insitu_bands = insitu_bands
+        self.n_instrument = -1
+        if len(self.insitu_bands.shape) == 2:
+            self.n_instrument = self.insitu_bands.shape[0]
+        self.instrument_id_array = None
 
         self.nmu = self.insitu_rrs.shape[0]
         self.nbands = self.insitu_rrs.shape[1]
@@ -28,14 +33,9 @@ class QC_INSITU:
 
         self.band_stats = None
 
-        # self.wl_list = np.zeros((self.nmu, self.nbands))
-        # self.wl_indices = np.zeros((self.nmu, self.nbands))
-        # for imu in range(self.nmu):
-        #     self.wl_list[imu, :] = self.insitu_bands[:]
-        #     self.wl_indices[imu, :] = np.array(range(self.nbands))
-        # self.mu_spectra_complete = None
-        self.wl_list = list(self.insitu_bands[:])
-        self.wl_indices = list(range(self.nbands))
+        self.wl_list = None
+        self.wl_indices = None
+
 
         self.thersholds = None
 
@@ -125,20 +125,23 @@ class QC_INSITU:
 
     def set_wllist_using_wlref(self, wlreflist):
         self.wl_list = wlreflist
-        self.wl_indices = []
+        nwl_max = len(wlreflist)
+        n_check = 1 if self.n_instrument == -1 else self.n_instrument
+        self.wl_indices = np.ma.masked_all((n_check, nwl_max)).astype(np.int32)
         self.msibands = self.get_msi_bands_dict()
         self.olcibands = self.get_olci_bands_dict()
-        for wl in self.wl_list:
-            index, wl_index = self.get_insitu_index(wl)
 
-            if index >= 0:
-                self.wl_indices.append(index)
-                for b in self.msibands:
-                    if abs(wl - self.msibands[b]['wl']) < 10:
-                        self.msibands[b]['apply'] = True
-                for b in self.olcibands:
-                    if abs(wl - self.olcibands[b]['wl']) < 2:
-                        self.olcibands[b]['apply'] = True
+        for idx in range(n_check):
+            for iwl, wl in enumerate(self.wl_list):
+                index, wl_index = self.get_insitu_index_instrument(wl, idx)
+                if index > 0:
+                    self.wl_indices[idx, iwl] = index
+                    for b in self.msibands:
+                        if abs(wl - self.msibands[b]['wl']) < 10:
+                            self.msibands[b]['apply'] = True
+                    for b in self.olcibands:
+                        if abs(wl - self.olcibands[b]['wl']) < 2:
+                            self.olcibands[b]['apply'] = True
 
     def start_quality_control(self):
         self.thersholds = {}
@@ -301,6 +304,21 @@ class QC_INSITU:
                 break
         return val_array
 
+    def get_insitu_index_instrument(self, wl, idx):
+        if self.n_instrument == -1:
+            all_wl = self.insitu_bands[:]
+        else:
+            all_wl = self.insitu_bands[idx, :]
+        dif_wl = np.abs(all_wl - wl)
+        index = np.argmin(dif_wl)
+        wl_index = all_wl[index]
+        if np.ma.is_masked(wl_index):
+            index = -1
+        else:
+            if dif_wl[index] > self.maxdifwl:
+                index = -1
+        return index, wl_index
+
     def get_insitu_index(self, wl):
         all_wl = self.insitu_bands[:]
         dif_wl = np.abs(all_wl - wl)
@@ -360,53 +378,8 @@ class QC_INSITU:
 
         return np.array(stat_spectra)
 
-    # def get_finalspectrum_mu_deprecated(self, index_mu, dif_time_array, exact_wl_array, wl_ref):
-    # print('check here')
-    # dif_time_good = dif_time_array[~dif_time_array.mask]
-    # ngood_alt = len(dif_time_good)
-    # indices = np.argsort(dif_time_array)
-    # indices_t = np.argsort(dif_time_good)
-    # print(indices)
-    # print(indices_t)
-    # dif_with = np.max(indices[0:ngood_alt]-indices_t)
-    # print('dif indices',dif_with)
-    # print('ngood_alt',ngood_alt,'id min time: ',indices_t[0])
 
-    # print('qc in situ 194')
-    # for idx in range(len(dif_time_array)):
-    #     t = dif_time_array[idx]
-    #     if not ma.is_masked(t):
-    #         ngood = ngood + 1
-    #         if t < time_dif:
-    #             time_dif = t
-    #             id_min_time = idx
-    #             time_condition = True
-    # print('qc in situ 203-> ', ngood, 'id min time:', id_min_time)
-    # rrs_values = None
-    # valid_values = False
-    # if time_condition:
-    #     print('qc in situ 207 ngood->', ngood)
-    #     rrs_values, indices, valid_bands = self.get_good_spectrum_for_mu(index_mu, id_min_time, ngood)
-    #     print('qc in situ 209')
-    #     print(rrs_values)
-    #     print(indices)
-    #     print(valid_bands)
-    #     print('**************************')
-    #     if self.check_validity_spectrum(rrs_values, index_mu):
-    #
-    #         # print(spectrum_complete, valid_bands)
-    #         # print('-------------> ',len(rrs_values))
-    #         valid_values = True
-    #         if self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
-    #             if len(exact_wl_array.shape) == 1:
-    #                 exact_wl = exact_wl_array[indices]
-    #             else:
-    #                 exact_wl = exact_wl_array[indices, id_min_time]
-    #             rrs_values = bsc_qaa.bsc_qaa(rrs_values, exact_wl, wl_ref)
-    #         # print('*************> ', len(rrs_values))
-    #         spectrum_complete = sum(valid_bands) == len(self.wl_list)
-    #         if not spectrum_complete:
-    #             rrs_values[np.array(valid_bands) == False] = ma.masked
+
     def get_finalspectrum_mu(self, index_mu, dif_time_array, exact_wl_array, wl_ref):
 
         time_condition = False
@@ -499,24 +472,34 @@ class QC_INSITU:
         if index_mu < 0 or index_mu >= self.nmu:
             return None, None, None
         spectra_unc = ma.array(self.insitu_rrs_unc[index_mu, :, index_insitu])
-        return self.get_spectrum_for_mu_and_index_insitu_impl(spectra_unc, index_mu)
+        return self.get_spectrum_for_mu_and_index_insitu_impl(spectra_unc, index_mu, index_insitu)
 
     def get_spectrum_for_mu_and_index_insitu(self, index_mu, index_insitu):
         if index_mu < 0 or index_mu >= self.nmu:
             return None, None, None
         spectra = ma.array(self.insitu_rrs[index_mu, :, index_insitu])
-        return self.get_spectrum_for_mu_and_index_insitu_impl(spectra, index_mu)
+        return self.get_spectrum_for_mu_and_index_insitu_impl(spectra, index_mu, index_insitu)
 
-    def get_spectrum_for_mu_and_index_insitu_impl(self, spectra, index_mu):
+    def get_spectrum_for_mu_and_index_insitu_impl(self, spectra, index_mu,index_insitu):
         if self.check_indices_by_mu:
             indices, valid_bands = self.get_insitu_indices_mu(index_mu)
             rrs_values = spectra[indices]
             rrs_values[valid_bands == False] = np.ma.masked
 
         else:
-            indices = self.wl_indices
+            if self.n_instrument==-1:
+                indices = self.wl_indices
+            else:
+                iins = 0
+                if self.instrument_id_array is not None:
+                    iins = self.instrument_id_array[index_insitu]
+                if np.ma.is_masked(iins):
+                    return None,None,None
+                indices = self.wl_indices[iins]
+
             rrs_values = spectra[indices]
             valid_bands = np.invert(ma.getmaskarray(rrs_values)).tolist()
+
 
         # implementation of spectral response function here
 

@@ -244,6 +244,15 @@ def make_plots_mu(file_nc, options):
         except:
             print(f'[ERROR] Ouput path {dir_out} does not exist and could not be created. Review permissions.')
             return
+
+    dir_out_tmp = os.path.join(dir_out,'SINGLE_PLOTS')
+    if not os.path.isdir(dir_out_tmp):
+        try:
+            os.mkdir(dir_out_tmp)
+        except:
+            print(f'[ERROR] Ouput path {dir_out} does not exist and could not be created. Review permissions.')
+            return
+
     print(f'[INFO] Creating plots for individual match-ups...')
     print(f'[INFO] Ouput path: {dir_out}')
     from netCDF4 import Dataset
@@ -258,6 +267,7 @@ def make_plots_mu(file_nc, options):
     mu_a = dataset.variables['mu_AERONET_sequence_id'][:]
     mu_h = dataset.variables['mu_HYPSTAR_sequence_id'][:]
     h_time = dataset.variables['HYPSTAR_time'][:]
+    #a_time = dataset.variables['AERONET_time'][:]
     dataset.close()
 
     mu_day_id = mu_day_id[mu_wavelength == wl_ref]
@@ -276,57 +286,110 @@ def make_plots_mu(file_nc, options):
     ic = INSITUCOMPARISON(file_nc)
 
     for imu in range(nmu):
-        if imu == 1:
-            break
         iday = mu_day_id[imu]
         ih = mu_h[imu]
         ia = mu_a[imu]
-        file_Lt = os.path.join(dir_out, f'Lt_{iday}_{ia}_{ih}.png')
-        ic.plot_spectra_comparison_mu(file_Lt, 'HYPSTAR_TO_AERONET_Lt_mean', 'AERONET_Lt_mean', iday, ih, ia, 'Lt')
-        file_Li = os.path.join(dir_out, f'Li_{iday}_{ia}_{ih}.png')
-        ic.plot_spectra_comparison_mu(file_Li, 'HYPSTAR_TO_AERONET_Li_mean', 'AERONET_Li_mean', iday, ih, ia, 'Li')
-        file_Lw = os.path.join(dir_out, f'Lw_{iday}_{ia}_{ih}.png')
-        ic.plot_spectra_comparison_mu(file_Lw, 'HYPSTAR_TO_AERONET_Lw', 'AERONET_Lw', iday, ih, ia, 'Lw')
+        time_here = h_time[iday,ih]
+        time_here_obj = dt.utcfromtimestamp(float(h_time[iday,ih]))
+        print(f'[INFO] Working for date: {time_here_obj.strftime("%Y-%m-%d")}')
 
-        file_spectra = os.path.join(dir_out, f'Spectra_{iday}_{ia}_{ih}.png')
+        file_Ed = os.path.join(dir_out_tmp, f'Ed_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(file_Ed, 'HYPSTAR_TO_AERONET_Ed', 'AERONET_Ed', iday, ih, ia, 'Ed [μW/(cm$^2$·nm)]')
+        # dataset = Dataset(file_nc, 'r')
+        # h_variable = (dataset.variables['HYPSTAR_TO_AERONET_Lt_mean'][iday, ih, :]*np.pi)/dataset.variables['HYPSTAR_TO_AERONET_Ed'][iday, ih, :]
+        # a_variable = (dataset.variables['AERONET_Lt_mean'][iday, ia, :]*np.pi)/dataset.variables['AERONET_Ed'][iday, ia, :]
+        # dataset.close()
+        # file_Lt_Ed = os.path.join(dir_out, f'Ratio_Lt_Ed_{iday}_{ia}_{ih}.png')
+        # ic.plot_spectra_comparison_mu(file_Lt_Ed, h_variable, a_variable, iday, ih, ia, 'Pi * Lt / Ed')
+        file_Lt = os.path.join(dir_out_tmp, f'Lt_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(file_Lt, 'HYPSTAR_TO_AERONET_Lt_mean', 'AERONET_Lt_mean', iday, ih, ia, 'Lt [μW/(cm$^2$·sr·nm)]')
+        file_Li = os.path.join(dir_out_tmp, f'Li_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(file_Li, 'HYPSTAR_TO_AERONET_Li_mean', 'AERONET_Li_mean', iday, ih, ia, 'Li [μW/(cm$^2$·sr·nm)]')
+        file_Lw = os.path.join(dir_out_tmp, f'Lw_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(file_Lw, 'HYPSTAR_TO_AERONET_Lw', 'AERONET_Lw', iday, ih, ia, 'Lw [μW/(cm$^2$·sr·nm)]')
+        fileRrs = os.path.join(dir_out_tmp, f'Rrs_{iday}_{ia}_{ih}.png')
+        ic.plot_spectra_comparison_mu(fileRrs, 'HYPSTAR_TO_AERONET_Rrs', 'AERONET_Rrs', iday, ih, ia, 'Rrs (sr$^-$$^1$')
+        file_HYPSTAR = os.path.join(dir_out_tmp,f'HYPSTAR_Reflectance_{iday}_{ih}.png')
+        ic.plot_hypstar_reflectance_and_ratio_mu(file_HYPSTAR,iday,ih)
+
+        file_spectra = os.path.join(dir_out_tmp, f'Spectra_{iday}_{ia}_{ih}.png')
         from MDB_reader.PlotMultiple import PlotMultiple
         pm = PlotMultiple()
-
-        pm.start_multiple_plot_advanced(1, 3, 10, 5, 0, 0, True)
-        pm.plot_image(file_Lt, 0, 0)
+        pm.start_multiple_plot_advanced(2, 3, 10, 5, 0, 0, True)
+        pm.plot_image(file_Ed, 0, 0)
         pm.plot_image(file_Li, 0, 1)
-        pm.plot_image(file_Lw, 0, 2)
+        pm.plot_image(file_Lt, 0, 2)
+        pm.plot_image(file_Lw, 1, 0)
+        pm.plot_image(fileRrs, 1, 1)
+        pm.plot_image(file_HYPSTAR, 1, 2)
         pm.save_fig(file_spectra)
-        file_pictures = os.path.join(dir_out, 'CameraImages_SEQ_20240111T0840_all.png')
 
-        file_final = os.path.join(dir_out, 'SEQ_20240111T0840_match_up.tif')
+        file_pictures = create_file_pictures(dir_out_tmp,options,time_here)
+        #file_pictures = os.path.join(dir_out_tmp, 'CameraImages_SEQ_20240111T0840_all.png')
+
+        name_out = f'Match_up_{imu}_{time_here_obj.strftime("%Y%m%d")}.tif'
+        file_final = os.path.join(dir_out, name_out)
+
+        str_lines = get_info_match_ups(file_nc,iday,ia,ih)
+        #print(str_lines)
+
         pmfinal = PlotMultiple()
-        pmfinal.start_multiple_plot_advanced(2, 1, 10, 12, 0, 0, True)
+        pmfinal.start_multiple_plot_contrained(2, 1, 10, 8, 0, 0.09, True)
         pmfinal.plot_image(file_pictures, 0, 0)
         pmfinal.plot_image(file_spectra, 1, 0)
+        pmfinal.set_title(f'Match-up {imu} - {time_here_obj.strftime("%Y-%m-%d")}',16)
+        pmfinal.set_text(100, -200,str_lines[0])
+        pmfinal.set_text(100, -100, str_lines[1])
+        pmfinal.set_text(100, -0, str_lines[2])
+
         pmfinal.save_fig_with_resolution(file_final, 300)
 
-        # hypstar_time = h_time[iday,ih]
-        # hypstar_time_obj = dt.utcfromtimestamp(hypstar_time)
-        # yyyy = hypstar_time_obj.strftime('%Y')
-        # mm = hypstar_time_obj.strftime('%m')
-        # dd = hypstar_time_obj.strftime('%d')
-        # dir_qc = os.path.join(options['qc_path'],yyyy,mm,dd)
-        # file_qc = os.path.join(dir_qc,f'HYPERNETES_W_DAY_{yyyy}{mm}{dd}.nc')
-        # dir_img = os.path.join(options['img_path'],yyyy,mm,dd)
-        # if os.path.isfile(file_qc) and os.path.isdir(dir_img):
-        #     from HYPERNETS_QC.hypernets_day_file import HYPERNETS_DAY_FILE
-        #     hday = HYPERNETS_DAY_FILE(file_qc,dir_img)
-        #     tarray = hday.get_array_variable('l2_acquisition_time')
-        #     index_time = np.where(tarray==hypstar_time)
-        #     if len(index_time[0])==1:
-        #         isequence = index_time[0][0]
-        #         hday.isequence = isequence
-        #         hday.path_images_date = dir_img
-        #         file_pictures = hday.save_img_files_general(dir_out,True)
+def get_info_match_ups(file_nc,iday,ia,ih):
+    from netCDF4 import Dataset
+    lines = ['']*3
+    dataset = Dataset(file_nc, 'r')
+    a_time = dt.utcfromtimestamp(float(dataset.variables['AERONET_time'][iday,ia]))
+    a_rho = dataset.variables['AERONET_Rho'][iday,ia,0]
+    a_sza = dataset.variables['AERONET_Solar_Zenith_Angle'][iday,ia,0]
+    a_wind = dataset.variables['AERONET_Wind_Speed(m_s)'][iday,ia]
+    lines[0] = f'AERONET-OC->{a_time.strftime("%Y-%m-%d %H:%M:%S")} Rho: {a_rho:.4f} SZA: {a_sza:.2f}° Wind speed: {a_wind:.2f} m/s'
 
-        # print(imu,iday,ih,ia,'->',dt.utcfromtimestamp(hypstar_time))
 
+    h_time = dt.utcfromtimestamp(float(dataset.variables['HYPSTAR_time'][iday, ih]))
+    h_rho = dataset.variables['HYPSTAR_rhof'][iday, ih]
+    h_sza = dataset.variables['HYPSTAR_rhof_sza'][iday, ih]
+    h_wind = dataset.variables['HYPSTAR_rhof_wind'][iday, ih]
+    lines[1] = f'HYPSTAR------->{h_time.strftime("%Y-%m-%d %H:%M:%S")} Rho: {h_rho:.4f} SZA: {h_sza:.2f}° Wind speed: {h_wind:.2f} m/s'
+
+    time_diff = abs((h_time-a_time).total_seconds()/60)
+    lines[2] = f'Time difference: {time_diff:.2f} minutes'
+
+    dataset.close()
+
+    return lines
+def create_file_pictures(dir_out,options,hypstar_time):
+    #hypstar_time = h_time[iday,ih]
+    hypstar_time_obj = dt.utcfromtimestamp(hypstar_time)
+    yyyy = hypstar_time_obj.strftime('%Y')
+    mm = hypstar_time_obj.strftime('%m')
+    dd = hypstar_time_obj.strftime('%d')
+    dir_qc = os.path.join(options['qc_path'],yyyy,mm,dd)
+    file_qc = os.path.join(dir_qc,f'HYPERNETES_W_DAY_{yyyy}{mm}{dd}.nc')
+    dir_img = os.path.join(options['img_path'],yyyy,mm,dd)
+    if os.path.isfile(file_qc) and os.path.isdir(dir_img):
+        from HYPERNETS_QC.hypernets_day_file import HYPERNETS_DAY_FILE
+        hday = HYPERNETS_DAY_FILE(file_qc,dir_img)
+        tarray = hday.get_array_variable('l2_acquisition_time')
+        index_time = np.where(tarray==hypstar_time)
+        if len(index_time[0])==1:
+            isequence = index_time[0][0]
+            hday.isequence = isequence
+            hday.path_images_date = dir_img
+            file_pictures = hday.save_img_files_general(dir_out,True)
+            return file_pictures
+
+    return None
+    #print(imu,iday,ih,ia,'->',dt.utcfromtimestamp(hypstar_time))
 
 def create_csv(file_comparison, output_file):
     from netCDF4 import Dataset

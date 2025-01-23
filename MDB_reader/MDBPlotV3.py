@@ -134,7 +134,6 @@ class MDBPlot:
         self.valid_stats['RANGE_Y'] = self.valid_stats['MAX_Y'] - self.valid_stats['MIN_Y']
         self.valid_stats['RANGE_X'] = self.valid_stats['MAX_X'] - self.valid_stats['MIN_X']
 
-
         if use_log_scale:
             sat_obs = np.log10(sat_obs)
             ref_obs = np.log10(ref_obs)
@@ -254,6 +253,163 @@ class MDBPlot:
             self.plot_single_stats_table(options_figure)
         if options_figure['type'] == 'multipleboundingbox':
             self.plot_multiple_bounding_box(options_figure)
+        if options_figure['type'] == 'spectraparam':
+            self.plot_spectra_params(options_figure)
+
+    def plot_spectra_params(self, options_figure):
+
+        wlvalues = options_figure['wlvalues']
+        if wlvalues is None:
+            wlvalues = list(np.unique(np.array(self.mrfile.nc.variables['mu_wavelength'])))
+        self.mrfile.var_mu_valid = 'mu_valid'
+        stat_list = options_figure['stat_list']
+
+        pspectra = None
+        wl_stats = {}
+
+        if options_figure['groupBy'] is None:
+            for wl in wlvalues:
+                self.set_data_scatterplot(None, None, None, wl, options_figure)
+                self.compute_statistics(False, False, 'II')
+                wl_stats[wl] = self.valid_stats.copy()
+
+            for istat, stat in enumerate(stat_list):
+                pspectra = self.start_spectra_params(wl_stats)
+                self.add_line_to_spectra_params(options_figure, pspectra, stat, wl_stats, 0)
+                self.close_spectra_params(options_figure, pspectra, stat, wl_stats)
+
+        else:
+            flag_name = options_figure['groupBy']
+            for stat in stat_list:
+                pspectra = None
+                gflags = []
+                for igroup,group in enumerate(options_figure['groupValues']):
+                    wl_stats = {}.copy()
+                    for wl in wlvalues:
+                        self.set_data_scatterplot(None, options_figure['groupBy'], group, wl, options_figure)
+                        self.compute_statistics(False, False, 'II')
+                        wl_stats[wl] = self.valid_stats.copy()
+                    if igroup==0:
+                        pspectra = self.start_spectra_params(wl_stats)
+                    gflags.append(self.get_flag_flag(group,options_figure[flag_name]['flag_values'], options_figure[flag_name]['flag_meanings']))
+                    self.add_line_to_spectra_params(options_figure,pspectra,stat,wl_stats,igroup)
+                if options_figure['legend'] and options_figure['legend_values'] is None:
+                    options_figure['legend_values'] = gflags
+                self.close_spectra_params(options_figure,pspectra,stat,wl_stats)
+
+
+
+
+    def start_spectra_params(self,wl_stats):
+        wl_values = list(wl_stats.keys())
+        from PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = wl_values
+        return pspectra
+
+    def add_line_to_spectra_params(self,options_figure, pspectra, stat, wl_stats, iseries):
+        wl_values = list(wl_stats.keys())
+        ydata = []
+        for wl in wl_values:
+            stat_ref = defaults.valid_stats[stat]['name']
+            ydata.append(wl_stats[wl][stat_ref])
+
+        colors = options_figure['color']
+        color = colors[iseries] if iseries<len(colors) else colors[0]
+        markers = options_figure['marker']
+        marker  = markers[iseries] if iseries<len(markers) else markers[0]
+        markersizes = options_figure['markersize']
+        markersize = markersizes[iseries] if iseries < len(markersizes) else markersizes[0]
+        linestyles = options_figure['linestyle']
+        linestyle = linestyles[iseries] if iseries < len(linestyles) else linestyles[0]
+        linewidths = options_figure['linewidth']
+        linewidth = linewidths[iseries] if iseries < len(linewidths) else linewidths[0]
+
+        pspectra.plot_single_line(ydata, color, linestyle, linewidth, marker,markersize)
+
+    def close_spectra_params(self,options_figure, pspectra, stat, wl_stats):
+        wl_values = list(wl_stats.keys())
+        wl_col = [self.get_wl_str_from_wl(x) for x in wl_values]
+
+        xticks_size = 12
+        if len(wl_col) >= 15:
+            xticks_size = 10
+
+        if len(wl_col) > 100:
+            xdata_plot = np.array([350, 400, 450, 500, 550, 600, 650, 700])
+            wl_col = [f'{x}' for x in xdata_plot]
+            pspectra.set_xticks(xdata_plot, wl_col, 0, xticks_size)
+        else:
+            pspectra.set_xticks(wl_values, wl_col, 90, xticks_size)
+
+        pspectra.set_grid()
+
+        file_out = options_figure['file_out']
+
+        pspectra.set_yaxis_title(stat)
+        pspectra.set_xaxis_title('Wavelength (nm)')
+
+        if options_figure['legend']:
+            pspectra.legend_options['loc']='lower center'
+            pspectra.legend_options['ncols'] = len(options_figure['legend_values'])
+            pos = (0.50,-0.40)
+            pspectra.legend_options['bbox_to_anchor'] = pos
+            pspectra.set_legend(options_figure['legend_values'])
+
+        pspectra.set_tigth_layout()
+
+
+
+        if file_out is not None:
+            file_out = f'{file_out[:file_out.rindex(".")]}_{stat}{file_out[file_out.rindex("."):]}'
+            pspectra.save_plot(file_out)
+
+
+    def plot_spectra_params_impl(self, options_figure, pspectra, stat, wl_stats, iseries):
+        wl_values = list(wl_stats.keys())
+        if pspectra is None:
+            from PlotSpectra import PlotSpectra
+            pspectra = PlotSpectra()
+            pspectra.xdata = wl_values
+
+        ydata = []
+        for wl in wl_values:
+            stat_ref = defaults.valid_stats[stat]['name']
+            ydata.append(wl_stats[wl][stat_ref])
+
+        color = options_figure['color']
+        marker = options_figure['marker']
+        marker_size = options_figure['markersize']
+        line_type = options_figure['linestyle']
+        line_width = options_figure['linewidth']
+        pspectra.plot_single_line(ydata, color[iseries], line_type[iseries], line_width[iseries], marker[iseries],
+                                  marker_size[iseries])
+
+        wl_col = [self.get_wl_str_from_wl(x) for x in wl_values]
+
+        xticks_size = 12
+        if len(wl_col) >= 15:
+            xticks_size = 10
+
+        if len(wl_col) > 100:
+            xdata_plot = np.array([350, 400, 450, 500, 550, 600, 650, 700])
+            wl_col = [f'{x}' for x in xdata_plot]
+            pspectra.set_xticks(xdata_plot, wl_col, 0, xticks_size)
+        else:
+            pspectra.set_xticks(wl_values, wl_col, 90, xticks_size)
+
+        pspectra.set_grid()
+
+        file_out = options_figure['file_out']
+
+        pspectra.set_yaxis_title(stat)
+        pspectra.set_xaxis_title('Wavelength (nm)')
+        pspectra.set_tigth_layout()
+        if file_out is not None:
+            file_out = f'{file_out[:file_out.rindex(".")]}_{stat}{file_out[file_out.rindex("."):]}'
+            pspectra.save_plot(file_out)
+
+        return pspectra
 
     def plot_multiple_bounding_box(self, options_figure):
         from matplotlib import pyplot as plt
@@ -293,14 +449,14 @@ class MDBPlot:
         handles = []
         colors = options_figure['color']
 
-        plt.figure(figsize=(7,5.25))
+        plt.figure(figsize=(7, 5.25))
         for idx, var in enumerate(vars):
             series_name = var
             array = self.mrfile.nc.variables[var][:]
             data_boxplot = []
-            if len(colors)==1:
+            if len(colors) == 1:
                 color = colors[0]
-            elif len(colors)==nseries:
+            elif len(colors) == nseries:
                 color = colors[idx]
 
             for igroup, group in enumerate(options_figure['groups']):
@@ -318,12 +474,10 @@ class MDBPlot:
 
             positions = all_pos_series[idx]
 
-
-
-            bbox = plt.boxplot(data_boxplot, positions=positions, widths=width,patch_artist = True,showmeans=True,
+            bbox = plt.boxplot(data_boxplot, positions=positions, widths=width, patch_artist=True, showmeans=True,
                                boxprops=dict(facecolor=color),
                                medianprops=dict(color='black'),
-                               meanprops=dict(linewidth=0,marker='o',mec='black',mfc=color,markersize=4,mew=0.5),
+                               meanprops=dict(linewidth=0, marker='o', mec='black', mfc=color, markersize=4, mew=0.5),
                                flierprops=dict(markersize=0, markeredgecolor='none'))
 
             handles.append(bbox['boxes'][0])
@@ -337,17 +491,17 @@ class MDBPlot:
 
         plt.grid(which='major', color='lightgray', linestyle='--', axis='y')
         groupsTicks = options_figure['groupsTicks']
-        plt.xticks(ticks,groupsTicks,fontsize=10)
+        plt.xticks(ticks, groupsTicks, fontsize=10)
         plt.yticks(fontsize=10)
         if options_figure['legend_values'] is not None:
             legend_values = options_figure['legend_values']
         else:
             legend_values = vars
         plt.legend(handles, legend_values, loc='lower center', ncols=nseries, bbox_to_anchor=(0.5, -0.2))
-        plt.ylim([0,30])
+        plt.ylim([0, 30])
         if options_figure['ylabel'] is not None:
             y_label = options_figure['ylabel']
-            plt.ylabel(y_label,fontsize=10)
+            plt.ylabel(y_label, fontsize=10)
 
         plt.tight_layout()
 
@@ -1504,6 +1658,8 @@ class MDBPlot:
                 options_figure['groupValues'] = self.virtual_flags['wl_groups']['flag_values']
                 options_figure['groupType'] = 'flag'
             else:
+                if options_figure['wlvalues'] is None:
+                    options_figure['wlvalues'] = np.unique(self.mrfile.nc.variables['mu_wavelength'][:])
                 options_figure['groupBy'] = 'mu_wavelength'
                 options_figure['groupValues'] = options_figure['wlvalues']
                 options_figure['groupType'] = 'wavelength'
@@ -1534,6 +1690,8 @@ class MDBPlot:
                                                options_figure['yfigsize'], options_figure['widthspace'],
                                                options_figure['heightspace'])
         print(f'[INFO] Starting multiple plot with {nrow} rows and {ncol} cols')
+        if options_figure['wlvalues'] is None:
+            options_figure['wlvalues'] = np.unique(self.mrfile.nc.variables['mu_wavelength'][:])
         wl_values = options_figure['wlvalues']
         print(f'[INFO] Wavelenthts: {wl_values}')
         nblank = ntot - len(wl_values)
@@ -1581,6 +1739,8 @@ class MDBPlot:
     def plot_multiple_wavelength_scatterplots_multiple_files(self, options_figure):
         file_out_base = options_figure['file_out']
         title_base = options_figure['title']
+        if options_figure['wlvalues'] is None:
+            options_figure['wlvalues'] = np.unique(self.mrfile.nc.variables['mu_wavelength'][:])
         wl_values = options_figure['wlvalues']
         print(f'[INFO] Wavelenthts: {wl_values}')
         for wl in wl_values:
@@ -1713,8 +1873,8 @@ class MDBPlot:
                     yherel = np.log10(yhere)
                     xy = np.vstack([xherel, yherel])
                 else:
-                    #xhere = xhere[0:100000]
-                    #yhere = yhere[0:100000]
+                    # xhere = xhere[0:100000]
+                    # yhere = yhere[0:100000]
                     xy = np.vstack([xhere, yhere])
 
                 try:
@@ -1722,8 +1882,7 @@ class MDBPlot:
 
                     z = gaussian_kde(xy)(xy)
 
-                    #z = self.mrfile.variables['DISTANCE'][:]
-
+                    # z = self.mrfile.variables['DISTANCE'][:]
 
                     print(f'[INFO]Sorting density...')
                     idx = z.argsort()
@@ -1732,8 +1891,6 @@ class MDBPlot:
                     plot.set_cmap('jet')
 
                     hscatter = plot.plot_data(xhere, yhere, marker, markersize, z, None, 0)
-
-
 
                     # file_kk = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS/stal.csv'
                     # fw = open(file_kk,'w')
@@ -1750,9 +1907,7 @@ class MDBPlot:
             else:
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
 
-
-        #plot.colorbar(hscatter)
-
+        # plot.colorbar(hscatter)
 
         ##limitss
         if options['log_scale']:
@@ -1932,6 +2087,124 @@ class MDBPlot:
                         self.plot_mu_spectraplot(options_figure, imu)
             elif 0 <= index_mu < self.mrfile.n_mu_total and mu_valid[index_mu] == 1:
                 self.plot_mu_spectraplot(options_figure, index_mu)
+
+        if options_figure['type_rrs'] == 'comparison_sat_insitu':
+            print(f'[INFO] Plotting comparison sat-insitu')
+            if options_figure['selectBy'] is None:
+                self.plot_comparison_sat_insitu(options_figure,None,None,None)
+            else:
+                #var_select = options_figure['selectBy']
+                select_values = options_figure['selectValues']
+                file_out_base = options_figure['file_out']
+                for svalue in select_values:
+                    #options_figure['selectValues'] = svalue
+                    flag = self.get_str_select_value(options_figure, svalue)
+                    options_figure['file_out'] = self.get_file_out_name(file_out_base, None, flag)
+                    #options_figure['title'] = self.get_title(title_base, None, flag, None)
+                    self.plot_comparison_sat_insitu(options_figure, options_figure['selectBy'], svalue, None)
+
+
+    def plot_comparison_sat_insitu(self, options_figure,flag_name,flag_value,flag_array):
+        wlvalues = options_figure['wlvalues']
+        if wlvalues is None:
+            wlvalues = list(np.unique(np.array(self.mrfile.nc.variables['mu_wavelength'])))
+        self.mrfile.var_mu_valid = 'mu_valid'
+
+        sat_stats, insitu_stats = self.mrfile.get_all_spectra_insitu_sat_with_wlvalues(options_figure['scale_factor'],
+                                                                                       wlvalues, flag_name, flag_value, flag_array)
+
+        from PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        if options_figure['stat_plot_method'] is not None:
+            if options_figure['stat_plot_method'] == 'iqr':
+                pspectra.set_iqr_as_stats_plot()
+            if options_figure['stat_plot_method'].startswith('std'):
+                try:
+                    factor = float(options_figure['stat_plot_method'].split(',')[1])
+                except:
+                    factor = 1.0
+                pspectra.set_std_as_stats_plot(factor)
+
+        imin, imax = pspectra.get_imin_imax_from_wavelength(wlvalues, options_figure['wl_min'],
+                                                            options_figure['wl_max'])
+        str_legend = ['insitu Rrs', 'satellite Rrs']
+
+        if options_figure['y_min'] is None or options_figure['y_max'] is None:
+            ymin_sat, ymax_sat = pspectra.get_ymin_ymax_from_stats(sat_stats, imin, imax)
+            ymin_insitu, ymax_insitu = pspectra.get_ymin_ymax_from_stats(insitu_stats, imin, imax)
+            ymin = np.min([ymin_sat, ymin_insitu])
+            ymax = np.max([ymax_sat, ymax_insitu])
+        if options_figure['y_min'] is not None:
+            ymin = options_figure['y_min']
+        if options_figure['y_max'] is not None:
+            ymax = options_figure['y_max']
+
+
+
+        wl_list = wlvalues[imin:imax]
+        xdata_plot = [float(self.get_wl_str_from_wl(x)) for x in wl_list]
+        wl_col = [self.get_wl_str_from_wl(x) for x in wl_list]
+
+        pspectra.xdata = xdata_plot
+
+        color = 'red'
+        pspectra.stats_style['central']['color'] = color
+        pspectra.stats_style['central']['marker'] = 'o'
+        pspectra.stats_style['central']['markersize'] = 5
+        if len(wl_col) > 100:
+            pspectra.stats_style['central']['markersize'] = 0.5
+        pspectra.stats_style['fill']['color'] = color
+        pspectra.stats_style['fill']['framealpha'] = 0.5
+        hlineinsitu = pspectra.plot_stats(insitu_stats, imin, imax)
+
+        color = 'blue'
+        pspectra.xdata = wlvalues[imin:imax]
+        pspectra.stats_style['central']['color'] = color
+        pspectra.stats_style['central']['marker'] = 'o'
+        pspectra.stats_style['central']['markersize'] = 5
+        if len(wl_col) > 100:
+            pspectra.stats_style['central']['markersize'] = 0.5
+        pspectra.stats_style['fill']['color'] = color
+        pspectra.stats_style['fill']['framealpha'] = 0.5
+        hlinesat = pspectra.plot_stats(sat_stats, imin, imax)
+
+        h_legend = [hlineinsitu[0], hlinesat[0]]
+
+        xticks_size = 12
+
+        if len(xdata_plot) == 16 or len(xdata_plot) == 15:
+            xticks_size = 10
+
+        if len(wl_col) > 100:
+            xdata_plot = np.array([350, 400, 450, 500, 550, 600, 650, 700])
+            wl_col = [f'{x}' for x in xdata_plot]
+            pspectra.set_xticks(xdata_plot, wl_col, 0, xticks_size)
+        else:
+            pspectra.set_xticks(xdata_plot, wl_col, 90, xticks_size)
+
+        if len(xdata_plot) == 16 or len(xdata_plot) == 15:
+            xticks, xlabels = pspectra.get_xticks()
+            xlabels[8].set_visible(False)
+        pspectra.set_yticks(None, None, None, 12)
+
+        pspectra.set_y_range(ymin, ymax)
+
+        pspectra.set_xaxis_title(options_figure['xlabel'])
+        ylabel = options_figure['ylabel'] if options_figure['ylabel'] is not None else defaults.ylabel_rrs_scaled
+        pspectra.set_yaxis_title(ylabel)
+        if options_figure['title'] is not None:
+            title_here = options_figure['title']
+            pspectra.set_title(title_here)
+        pspectra.set_grid()
+        pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
+        pspectra.legend_options['framealpha'] = 1
+        if options_figure['legend']:
+            pspectra.set_legend_h(h_legend, str_legend)
+        pspectra.set_tigth_layout()
+        file_out = options_figure['file_out']
+        if not file_out is None:
+            pspectra.save_fig(file_out)
+        pspectra.close_plot()
 
     def plot_mu_spectraplot(self, options_figure, index_mu):
         wl, insitu_spectra, sat_spectra, insitu_spectra_unc, sat_spectra_unc = self.mrfile.get_mu_spectra_insitu_and_sat(
@@ -2451,7 +2724,7 @@ class MDBPlot:
                 str0 = f'{str0}y = {val_slope.strip()}x {sign} {val_offset.strip()}'
             else:
                 val = self.valid_stats[defaults.valid_stats[stat.upper()]['name']]
-                print(stat.upper(), val)
+                # print(stat.upper(), val)
 
                 valstr = self.get_str_stat(val, options[f'{stat.upper()}_FORMAT'], options['units'])
                 if stat.upper() == 'APD' or stat.upper() == 'RPD':
@@ -2481,7 +2754,12 @@ class MDBPlot:
             if ngroup > 1:
                 if options['groupType'] == 'float' or options['groupType'] == 'wavelength':
                     for g in groupValues:
-                        str_legend.append(f'{g:.2f}')
+                        value_a = f'{g:.2f}'
+                        if options['groupType'] == 'wavelength':
+                            value_a = value_a.replace('.30', '.25')
+                            value_a = value_a.replace('.80', '.75')
+
+                        str_legend.append(value_a)
                 if options['groupType'] == 'flag':
                     flag_name = options['groupBy']
                     str_legend = self.get_flag_list(groupValues, options[flag_name]['flag_values'],
