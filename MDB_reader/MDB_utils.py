@@ -36,9 +36,9 @@ def main():
 
 
 def run_hypstar_check():
-    dir_data = '/store3/HYPERNETS/INSITU_HYPSTARv2.0bis/VEIT'
-    dir_out = '/store3/HYPERNETS/DATA_CHECK/VEIT'
-    dir_zip_level1c = '/store3/HYPERNETS/DATA_CHECK/VEIT/level1c'
+    dir_data = '/store3/HYPERNETS/INSITU_HYPSTARv2.0bis/JSIT'
+    dir_out = '/store3/HYPERNETS/DATA_CHECK/JSIT'
+    dir_zip_level1c = '/store3/HYPERNETS/DATA_CHECK/JSIT/level1c'
     year = 2024
     start_date_impl = None
     end_date_impl = None
@@ -86,11 +86,13 @@ def run_hypstar_check():
             rrs = np.ma.squeeze(dataset.variables['reflectance'][:])
             ts = float(dataset.variables['acquisition_time'][0])
             qf = float(dataset.variables['quality_flag'][0])
-            epsilon = float(dataset.variables['epsilon'][0])
+            #epsilon = float(dataset.variables['epsilon'][0])
             n_total = n_total + 1
-            if qf == 0 or qf == 268435456:
-                if (-0.005) <= epsilon <= 0.005:
-                    n_valid = n_valid + 1
+            if qf == 0:
+                n_valid = n_valid + 1
+            # if qf == 0 or qf == 268435456:
+            #     if (-0.005) <= epsilon <= 0.005:
+            #         n_valid = n_valid + 1
 
             line = dt.utcfromtimestamp(ts).strftime('%Y%m%dT%H%M%S')
             rrs_line = ';'.join([str(x) for x in rrs.tolist()])
