@@ -1061,12 +1061,12 @@ class INSITUCOMPARISON:
         from MDB_reader.PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
         pspectra.xdata = self.wl_data
-        hline1 = pspectra.plot_single_line(self.ydata_1, 'red', 'solid', 1, 'o', 5)
+        hline1 = pspectra.plot_single_line(self.ydata_1, 'blue', 'solid', 1, 'o', 5)
 
-        pspectra.plot_iqr_basic(ydata_1_min, ydata_1_max, 'red')
+        pspectra.plot_iqr_basic(ydata_1_min, ydata_1_max, 'blue')
 
-        hline2 = pspectra.plot_single_line(self.ydata_2, 'blue', 'solid', 1, 'o', 5)
-        pspectra.plot_iqr_basic(ydata_2_min, ydata_2_max, 'blue')
+        hline2 = pspectra.plot_single_line(self.ydata_2, 'red', 'solid', 1, 'o', 5)
+        pspectra.plot_iqr_basic(ydata_2_min, ydata_2_max, 'red')
 
         handles = [hline1[0], hline2[0]]
 

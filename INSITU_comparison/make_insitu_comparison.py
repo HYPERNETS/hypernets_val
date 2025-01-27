@@ -505,38 +505,38 @@ def make_plots():
     # variable_a = 'mu_AERONET_Lt_mean'
     # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
 
-    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Ed', 'mu_AERONET_Ed', 'mu_wavelength')
+    # ic.set_spectra_stats('mu_AERONET_Ed','mu_HYPSTAR_TO_AERONET_Ed', 'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Ed.tif'
-    # legend = ['HYPSTAR - Ed', 'AERONET-OC - Ed']
-    # ylabel = r'Ed [W/(cm$^2$·sr)]'
+    # legend = ['AERONET-OC - Ed','HYPSTAR - Ed']
+    # ylabel = r'Ed [mW/(cm2·μm)]'
     # title = 'Downwelling irradiance'
     # ic.plot_spectra_stats(file_out, legend, ylabel, title)
 
-    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Li_mean', 'mu_AERONET_Li_mean', 'mu_wavelength')
+    # ic.set_spectra_stats('mu_AERONET_Li_mean','mu_HYPSTAR_TO_AERONET_Li_mean', 'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Li.tif'
-    # legend = ['HYPSTAR - Li', 'AERONET-OC - Li']
+    # legend = ['AERONET-OC - Li','HYPSTAR - Li']
     # ylabel = r'Li [μW/(cm$^2$·sr·nm)]'
     # title = 'Downwelling radiance'
     # ic.plot_spectra_stats(file_out, legend, ylabel, title)
     #
-    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean', 'mu_AERONET_Lt_mean', 'mu_wavelength')
+    # ic.set_spectra_stats('mu_AERONET_Lt_mean','mu_HYPSTAR_TO_AERONET_Lt_mean',  'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Lt.tif'
-    # legend = ['HYPSTAR - Lt', 'AERONET-OC - Lt']
+    # legend = ['AERONET-OC - Lt','HYPSTAR - Lt']
     # ylabel = r'Lt [μW/(cm$^2$·sr·nm)]'
     # title = 'Upwelling radiance'
     # ic.plot_spectra_stats(file_out, legend, ylabel, title)
-
-    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lt_mean', 'mu_AERONET_Lt_min_rel', 'mu_wavelength')
+    #
+    # ic.set_spectra_stats('mu_AERONET_Lt_min_rel','mu_HYPSTAR_TO_AERONET_Lt_mean',  'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Lt_min_rel.tif'
-    # legend = ['HYPSTAR - Lt', 'AERONET-OC - Lt [min_rel]']
+    # legend = ['AERONET-OC - Lt [min_rel]','HYPSTAR - Lt']
     # ylabel = r'Lt [μW/(cm$^2$·sr·nm)]'
     # title = 'Upwelling radiance'
     # ic.plot_spectra_stats(file_out, legend, ylabel, title)
-
-
-    # ic.set_spectra_stats('mu_HYPSTAR_TO_AERONET_Lw', 'mu_AERONET_Lw', 'mu_wavelength')
+    #
+    #
+    # ic.set_spectra_stats('mu_AERONET_Lw','mu_HYPSTAR_TO_AERONET_Lw',  'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Lw.tif'
-    # legend = ['HYPSTAR - Lw', 'AERONET-OC - Lw']
+    # legend = ['AERONET-OC - Lw','HYPSTAR - Lw']
     # ylabel = r'Lw [μW/(cm$^2$·sr·nm)]'
     # title = 'Water-leaving radiance'
     # ic.plot_spectra_stats(file_out,legend,ylabel,title)

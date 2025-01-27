@@ -1,5 +1,6 @@
 import argparse
 import os.path
+import shutil
 from datetime import timedelta
 from datetime import datetime as dt
 
@@ -9,7 +10,7 @@ from netCDF4 import Dataset
 parser = argparse.ArgumentParser(
     description="Obtaining information for running MDB_builder.")
 
-parser.add_argument('-m', "--mode", help='Mode option', choices=["add_instrument_id"], required=True)
+parser.add_argument('-m', "--mode", help='Mode option', choices=["add_instrument_id","hypstar_check","TEST"], required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file.")
 args = parser.parse_args()
@@ -24,6 +25,45 @@ def main():
             return
         output_path = args.output if args.output else None
         add_instrument_id(args.input_path,output_path)
+
+    if args.mode == 'hypstar_check':
+        run_hypstar_check()
+
+    if args.mode=='TEST':
+        run_test()
+
+
+def run_hypstar_check():
+    dir_data = '/store3/HYPERNETS/INSITU_HYPSTARv2.0bis/GAIT'
+    dir_out = '/store3/HYPERNETS/DATA_CHECK/GAIT'
+    year = 2024
+    work_date = dt(year,1,1)
+    end_date = dt(year,12,31)
+    while work_date<=end_date:
+        yyyy = work_date.strftime('%Y')
+        mm = work_date.strftime('%m')
+        dd = work_date.strftime('%d')
+        dir_data_date = os.path.join(dir_data,yyyy,mm,dd)
+        if os.path.isdir(dir_data_date):
+            for name in os.listdir(dir_data_date):
+                if name.endswith('.nc'):
+                    file_in = os.path.join(dir_data_date,name)
+                    file_out = os.path.join(dir_out,name)
+                    shutil.copy(file_in,file_out)
+        work_date =work_date+timedelta(hours=24)
+def run_test():
+    #dir_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
+    # for name in os.listdir(dir_extracts):
+    #     file_here = os.path.join(dir_extracts,name)
+    #     dataset = Dataset(file_here,'r')
+    #     rrs = dataset.variables['satellite_Rrs'][:]
+    #     print(name,'-->',np.ma.min(rrs))
+    #   dataset.close()
+
+    file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci/extract_CMEMS_OLCI_300m_20240619_1404_635.nc'
+    dataset = Dataset(file_extracts, 'r')
+    rrs = dataset.variables['satellite_Rrs'][:]
+    dataset.close()
 
 def add_instrument_id(input_path,output_path):
     rename_file = False

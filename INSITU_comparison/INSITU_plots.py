@@ -166,16 +166,26 @@ class INSITU_plots():
             xlabel = f'{stat_ref}(%)'
         ps = PlotSpectra()
         ps.xdata = wl_values
+
+
         for iseries in range(nseries):
             stats_series = all_stats[iseries]
             ydata = []
             for wl in wl_values:
                 stats_wl = stats_series[wl]
-                ydata.append(stats_wl[stat_ref])
+                stat_value_here = stats_wl[stat_ref]
+                if stat.upper() == 'APD' or stat.upper() == 'RPD':
+                    if stat_value_here>=100: stat_value_here=100
+                    if stat_value_here<=(-100): stat_value_here=-100
+                ydata.append(stat_value_here)
 
             ps.plot_single_line(ydata,colors[iseries],'-',1,'o',6)
 
         ps.set_xticks(wl_values,wl_values,90,10)
+        if stat.upper() == 'APD':
+            ps.set_y_range(0,100)
+        if stat.upper() == 'RPD':
+            ps.set_y_range(-100,100)
         ps.set_grid()
         ps.set_xaxis_title('Wavelength(nm)')
         ps.set_yaxis_title(xlabel)
