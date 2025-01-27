@@ -54,10 +54,12 @@ def run_hypstar_check():
             end_date_impl = work_date
             n_operational = n_operational +1
             for name in os.listdir(dir_data_date):
-                if name.endswith('.nc'):
-                    file_in = os.path.join(dir_data_date,name)
+                file_in = os.path.join(dir_data_date, name)
+                if name.endswith('.nc') and name.find('L2A_REF')>0:
                     file_out = os.path.join(dir_out,name)
-                    shutil.copy(file_in,file_out)
+                if name.endswith('.nc') and name.find('L1C_ALL')>0:
+                    file_out = os.path.join(dir_zip_level1c,name)
+                shutil.copy(file_in,file_out)
         work_date =work_date+timedelta(hours=24)
 
     # dir_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/temp'
