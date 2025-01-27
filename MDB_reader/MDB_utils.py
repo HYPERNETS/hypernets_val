@@ -36,9 +36,9 @@ def main():
 
 
 def run_hypstar_check():
-    dir_data = '/store3/HYPERNETS/INSITU_HYPSTARv2.0bis/GAIT'
-    dir_out = '/store3/HYPERNETS/DATA_CHECK/GAIT'
-    dir_zip_level1c = '/store3/HYPERNETS/DATA_CHECK/GAIT/level1c'
+    dir_data = '/store3/HYPERNETS/INSITU_HYPSTARv2.0bis/VEIT'
+    dir_out = '/store3/HYPERNETS/DATA_CHECK/VEIT'
+    dir_zip_level1c = '/store3/HYPERNETS/DATA_CHECK/VEIT/level1c'
     year = 2024
     start_date_impl = None
     end_date_impl = None
