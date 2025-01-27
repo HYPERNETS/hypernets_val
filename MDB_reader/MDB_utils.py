@@ -36,7 +36,11 @@ def main():
 def run_hypstar_check():
     dir_data = '/store3/HYPERNETS/INSITU_HYPSTARv2.0bis/GAIT'
     dir_out = '/store3/HYPERNETS/DATA_CHECK/GAIT'
+    dir_zip_level1c = '/store3/HYPERNETS/DATA_CHECK/GAIT/level1c'
     year = 2024
+    start_date_impl = None
+    end_date_impl = None
+    n_operational = 0
     work_date = dt(year,1,1)
     end_date = dt(year,12,31)
     while work_date<=end_date:
@@ -46,12 +50,84 @@ def run_hypstar_check():
         dd = work_date.strftime('%d')
         dir_data_date = os.path.join(dir_data,yyyy,mm,dd)
         if os.path.isdir(dir_data_date):
+            if start_date_impl is None: start_date_impl = work_date
+            end_date_impl = work_date
+            n_operational = n_operational +1
             for name in os.listdir(dir_data_date):
                 if name.endswith('.nc'):
                     file_in = os.path.join(dir_data_date,name)
                     file_out = os.path.join(dir_out,name)
                     shutil.copy(file_in,file_out)
         work_date =work_date+timedelta(hours=24)
+
+    # dir_out = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/temp'
+    # dir_zip_level1c = os.path.join(dir_out,'level1c')
+    n_valid = 0
+    n_total = 0
+    file_zip_level1c = os.path.join(dir_out, 'level1c.zip')
+    file_zip_level2a = os.path.join(dir_out, 'level2a.zip')
+    file_csv_level2a = os.path.join(dir_out,'level2a.csv')
+    fout = None
+    for name in os.listdir(dir_out):
+        if name.find('L2A_REF')>0:
+            file_h = os.path.join(dir_out, name)
+            dataset = Dataset(file_h)
+            if fout is None:
+                fout = open(file_csv_level2a,'w')
+                wl = dataset.variables['wavelength'][:]
+                wl = [str(x) for x in wl.tolist()]
+                wl_list = ';'.join(wl)
+                fout.write(f'Date;{wl_list}')
+            rrs = np.ma.squeeze(dataset.variables['reflectance'][:])
+            ts = float(dataset.variables['acquisition_time'][0])
+            qf = float(dataset.variables['quality_flag'][0])
+            epsilon = float(dataset.variables['epsilon'][0])
+            n_total = n_total +1
+            if qf==0 or qf==268435456:
+                if (-0.005) <= epsilon <= 0.005:
+                    n_valid = n_valid + 1
+
+            line = dt.utcfromtimestamp(ts).strftime('%Y%m%dT%H%M%S')
+            rrs_line = ';'.join([str(x) for x in rrs.tolist()])
+            line = f'{line};{rrs_line}'
+            fout.write('\n')
+            fout.write(line)
+
+
+            dataset.close()
+
+
+    fout.close()
+
+    cmd_level1c = f'zip -r {file_zip_level1c} {dir_zip_level1c}'
+    cmd_level2a = f'zip {file_zip_level2a} {file_csv_level2a}'
+
+
+    import subprocess
+    if os.path.isfile(file_zip_level1c):
+        os.remove(file_zip_level1c)
+    if os.path.isfile(file_zip_level2a):
+        os.remove(file_zip_level2a)
+    prog = subprocess.Popen(cmd_level1c, shell=True, stderr=subprocess.PIPE)
+    prog.communicate()
+    stats_1c = os.stat(file_zip_level1c)
+
+    prog = subprocess.Popen(cmd_level2a, shell=True, stderr=subprocess.PIPE)
+    prog.communicate()
+    stats_2a = os.stat(file_zip_level2a)
+
+    print(f'START DATE: {start_date_impl.strftime("%Y-%m-%d")}')
+    print(f'END DATE: {end_date_impl.strftime("%Y-%m-%d")}')
+    print(f'N OPERATIONAL DAYS: {n_operational}')
+    print(f'LEVEL 1C: {stats_1c.st_size} bytes ({stats_1c.st_size / (1024 * 1024)} Mb)')
+    print(f'LEVEL 2A: {stats_2a.st_size} bytes ({stats_2a.st_size / (1024 * 1024)} Mb)')
+    print(f'#VALID MEASURMENTS: {n_valid} / {n_total}')
+
+
+
+
+
+
 def run_test():
     #dir_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
     # for name in os.listdir(dir_extracts):
