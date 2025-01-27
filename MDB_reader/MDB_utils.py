@@ -40,6 +40,7 @@ def run_hypstar_check():
     work_date = dt(year,1,1)
     end_date = dt(year,12,31)
     while work_date<=end_date:
+        print(f'[INFO] {work_date}')
         yyyy = work_date.strftime('%Y')
         mm = work_date.strftime('%m')
         dd = work_date.strftime('%d')
