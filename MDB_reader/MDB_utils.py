@@ -268,8 +268,6 @@ def correct_negative_values_from_extracts(input_path,output_path):
     bands_str = None
     for name in os.listdir(input_path):
         if not name.endswith('.nc'):continue
-        if not name=='extract_CMEMS_OLCI_300m_20240619_1404_635.nc':
-            continue
         print(f'[INFO] Working with file: {name}')
         input_file = os.path.join(input_path,name)
         output_file = os.path.join(output_path,name)
