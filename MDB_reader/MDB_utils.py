@@ -3,9 +3,11 @@ import os.path
 import shutil
 from datetime import timedelta
 from datetime import datetime as dt
-
 import numpy as np
 from netCDF4 import Dataset
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 parser = argparse.ArgumentParser(
     description="Obtaining information for running MDB_builder.")
@@ -14,6 +16,7 @@ parser.add_argument('-m', "--mode", help='Mode option', choices=["add_instrument
                     required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file.")
+parser.add_argument('-p', "--param",help="Param for TEST")
 args = parser.parse_args()
 
 
@@ -32,7 +35,10 @@ def main():
         run_hypstar_check()
 
     if args.mode == 'TEST':
-        run_test()
+        year = -1
+        if args.param:
+            year = int(args.param)
+        run_test(year)
 
 
 def run_hypstar_check():
@@ -86,7 +92,7 @@ def run_hypstar_check():
             rrs = np.ma.squeeze(dataset.variables['reflectance'][:])
             ts = float(dataset.variables['acquisition_time'][0])
             qf = float(dataset.variables['quality_flag'][0])
-            #epsilon = float(dataset.variables['epsilon'][0])
+            # epsilon = float(dataset.variables['epsilon'][0])
             n_total = n_total + 1
             if qf == 0:
                 n_valid = n_valid + 1
@@ -128,19 +134,112 @@ def run_hypstar_check():
     print(f'#VALID MEASURMENTS: {n_valid} / {n_total}')
 
 
-def run_test():
+def run_test(year):
     # dir_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
-    # for name in os.listdir(dir_extracts):
-    #     file_here = os.path.join(dir_extracts,name)
-    #     dataset = Dataset(file_here,'r')
-    #     rrs = dataset.variables['satellite_Rrs'][:]
-    #     print(name,'-->',np.ma.min(rrs))
-    #   dataset.close()
+    # source_folder = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
+    # file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/NegData_{year}.csv'
 
-    file_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci/extract_CMEMS_OLCI_300m_20240619_1404_635.nc'
-    dataset = Dataset(file_extracts, 'r')
+    dir_extracts = '/store3/DOORS/extracts/cmems_olci'
+    source_folder = '/dst04-data1/OC/OLCI/daily_v202311_bc'
+    file_out = f'/store3/DOORS/extracts/NegData_{year}.csv'
+
+
+    fcsv = open(file_out, 'w')
+    fcsv.write('Date;WL;RRS_O;RRS_Oa;RRS_Ob;CHL_O;CHL_Oa;CHL_Ob')
+    bands = None
+    bands_str = None
+    for name in os.listdir(dir_extracts):
+
+        file_extract = os.path.join(dir_extracts, name)
+        time_obj = dt.strptime(name.split('_')[-3], '%Y%m%d')
+        if 0 < year != time_obj.year:
+            continue
+        print(f'[INFO] Extract file: {name}')
+        if bands is None:
+            dataset = Dataset(file_extract, 'r')
+            bands = dataset.variables['satellite_bands'][:]
+            bands_str = [f'{b:.2f}'.replace('.', '_').replace('_00', '').replace('_50', '_5') for b in bands]
+            dataset.close()
+        fcsv = check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, fcsv)
+
+    # file_extract = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci/extract_CMEMS_OLCI_300m_20240619_1404_635.nc'
+
+    fcsv.close()
+
+
+def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, fcsv):
+
+
+    dataset = Dataset(file_extract, 'r')
     rrs = dataset.variables['satellite_Rrs'][:]
     dataset.close()
+
+    yyyy = time_obj.strftime('%Y')
+    jjj = time_obj.strftime('%j')
+    source_folder_date = os.path.join(source_folder, yyyy, jjj)
+    if not os.path.isdir(source_folder_date):
+        return fcsv
+
+    rrs_o = np.ma.masked_all(rrs.shape)
+    y_point = int(file_extract[:-3].split('_')[-2])
+    x_point = int(file_extract[:-3].split('_')[-1])
+    rmin = y_point - 12
+    rmax = y_point + 13
+    cmin = x_point - 12
+    cmax = x_point + 13
+
+    file_chl = os.path.join(source_folder_date, f'O{yyyy}{jjj}-chl-bs-fr.nc')
+    dataset_chl = Dataset(file_chl)
+    chl_here = dataset_chl['CHL'][0, rmin:rmax, cmin:cmax]
+    dataset_chl.close()
+    file_chl_a = os.path.join(source_folder_date, f'Oa{yyyy}{jjj}-chl-bs-fr.nc')
+    dataset_chl_a = Dataset(file_chl_a)
+    chl_here_a = dataset_chl_a['CHL'][0, rmin:rmax, cmin:cmax]
+    dataset_chl_a.close()
+    file_chl_b = os.path.join(source_folder_date, f'Ob{yyyy}{jjj}-chl-bs-fr.nc')
+    dataset_chl_b = Dataset(file_chl_b)
+    chl_here_b = dataset_chl_b['CHL'][0, rmin:rmax, cmin:cmax]
+    dataset_chl_b.close()
+
+    for idx, b in enumerate(bands_str):
+        rrs_here = np.ma.squeeze(rrs[0, idx, :, :])
+        file_a = os.path.join(source_folder_date, f'Oa{yyyy}{jjj}-rrs{b}-bs-fr.nc')
+        file_b = os.path.join(source_folder_date, f'Ob{yyyy}{jjj}-rrs{b}-bs-fr.nc')
+        if os.path.exists(file_a) and os.path.exists(file_b):
+            dataset_a = Dataset(file_a)
+            rrs_a_here = dataset_a.variables[f'RRS{b}'][0, rmin:rmax, cmin:cmax]
+            dataset_a.close()
+            dataset_b = Dataset(file_b)
+            rrs_b_here = dataset_b.variables[f'RRS{b}'][0, rmin:rmax, cmin:cmax]
+            dataset_b.close()
+
+            indices_neg = np.logical_and(rrs_here.mask == False, rrs_here < (-10))
+            n_neg = np.count_nonzero(indices_neg)
+            if n_neg > 0:
+                rrs_here_neg = rrs_here[indices_neg]
+                rrs_a_here_neg = rrs_a_here[indices_neg]
+                rrs_b_here_neg = rrs_b_here[indices_neg]
+                chl_here_neg = chl_here[indices_neg]
+                chl_here_a_neg = chl_here_a[indices_neg]
+                chl_here_b_neg = chl_here_b[indices_neg]
+
+                for ihere in range(n_neg):
+                    line = f'{time_obj.strftime("%Y-%m-%d")};{bands[idx]};{rrs_here_neg[ihere]};{rrs_a_here_neg[ihere]};{rrs_b_here_neg[ihere]};{chl_here_neg[ihere]};{chl_here_a_neg[ihere]};{chl_here_b_neg[ihere]}'
+                    fcsv.write('\n')
+                    fcsv.write(line)
+
+        file_o = os.path.join(source_folder_date, f'O{yyyy}{jjj}-rrs{b}-bs-fr.nc')
+        if os.path.exists(file_o):
+            dataset_o = Dataset(file_o)
+            var_dat = dataset_o.variables[f'RRS{b}'][0, rmin:rmax, cmin:cmax]
+            dataset_o.close()
+            rrs_o[0, idx, :, :] = var_dat[:, :]
+
+    check = rrs / rrs_o
+    print(
+        f'[INFO] Check for: {time_obj.strftime("%Y-%m-%d")} Min. ratio: {np.ma.min(check)} Max. ratio: {np.ma.min(check)}')
+
+    return fcsv
 
 
 def add_instrument_id(input_path, output_path):
