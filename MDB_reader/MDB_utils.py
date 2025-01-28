@@ -38,11 +38,13 @@ def main():
             return
         if os.path.isdir(args.input_path) and os.path.isdir(args.output):
             correct_negative_values_from_extracts(args.input_path,args.output)
+        if os.path.isfile(args.input_path):
+            correct_negative_values_from_mdb(args.input_path,args.output)
         else:
             if not os.path.exists(args.input_path):
                 print(f'[ERROR]{args.input_path} does not exist. It should be a valid file or directory')
                 return
-            if not os.path.exists(args.output):
+            if not os.path.exists(args.output) and os.path.isdir(args.input_path):
                 print(f'[ERROR]{args.output} does not exist. It should be a valid file or directory')
                 return
 
@@ -259,6 +261,35 @@ def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, 
 
     return fcsv
 
+def correct_negative_values_from_mdb(input_path,output_path):
+    source_folder = args.source_path
+    if not os.path.isdir(source_folder):
+        print(f'[ERROR] Source folder: {source_folder} is not a valid directory')
+        return
+    dataset = Dataset(input_path,'r')
+    bands = dataset.variables['satellite_bands'][:]
+    bands_str = [f'{b:.2f}'.replace('.', '_').replace('_00', '').replace('_50', '_5') for b in bands]
+    rrs = dataset.variables['satellite_Rrs'][:]
+    rrs_final = rrs.copy()
+    time = dataset.variables['satellite_time'][:]
+    dataset.close()
+
+    nmu = rrs.shape[0]
+    dims = None
+    for imu in range(nmu):
+        time_obj = dt.utcfromtimestamp(float(time[imu]))
+        print(f'[INFO] Index MU: {imu} Date: {time_obj.strftime("%Y-%m-%d")}')
+        if dims is None:
+            lat_array_source, lon_array_source = get_latlon_arrays_from_source(source_folder, time_obj)
+            if lat_array_source is not None and lon_array_source is not None:
+                dims = get_dims(input_path,lat_array_source,lon_array_source)
+        if dims is not None:
+            print(f'[INFO] Dims have been defined as: {dims}')
+            rrs_new = get_rrs_new(source_folder, rrs, imu, time_obj, bands_str, dims)
+            rrs_final[imu, :, :, :] = rrs_new[:, :, :]
+
+    create_new_file_with_corrected_rrs(input_path,output_path,rrs_final)
+
 
 def correct_negative_values_from_extracts(input_path,output_path):
     source_folder = args.source_path
@@ -266,6 +297,8 @@ def correct_negative_values_from_extracts(input_path,output_path):
         print(f'[ERROR] Source folder: {source_folder} is not a valid directory')
     bands = None
     bands_str = None
+    lat_array_source = None
+    lon_array_source = None
     for name in os.listdir(input_path):
         if not name.endswith('.nc'):continue
         print(f'[INFO] Working with file: {name}')
@@ -278,10 +311,12 @@ def correct_negative_values_from_extracts(input_path,output_path):
         if bands is None:
             bands = dataset.variables['satellite_bands'][:]
             bands_str = [f'{b:.2f}'.replace('.', '_').replace('_00', '').replace('_50', '_5') for b in bands]
+        if lat_array_source is None and lon_array_source is None:
+            lat_array_source,lon_array_source = get_latlon_arrays_from_source(source_folder,time_obj)
         dataset.close()
-        dims = get_dims(input_file)
+        dims = get_dims(input_file,lat_array_source,lon_array_source)
         rrs_new = get_rrs_new(source_folder,rrs,0,time_obj,bands_str,dims)
-        rrs[0,::,:] = rrs_new[:,:,:]
+        rrs[0,:,:,:] = rrs_new[:,:,:]
         create_new_file_with_corrected_rrs(input_file,output_file,rrs)
 
 def create_new_file_with_corrected_rrs(input_file,output_file,rrs):
@@ -314,14 +349,38 @@ def create_new_file_with_corrected_rrs(input_file,output_file,rrs):
 
     ncout.close()
     input_dataset.close()
-def get_dims(file_extract):
-    y_point = int(file_extract[:-3].split('_')[-2])
-    x_point = int(file_extract[:-3].split('_')[-1])
+
+def get_dims(file_extract,lat_array_source,lon_array_source):
+    if lat_array_source is not None and lon_array_source is not None:
+        dataset = Dataset(file_extract)
+        lat_c = float(dataset.variables['satellite_latitude'][0,12,12])
+        lon_c = float(dataset.variables['satellite_longitude'][0,12,12])
+        dataset.close()
+        y_point = np.argmin(np.abs(lat_c-lat_array_source))
+        x_point = np.argmin(np.abs(lon_c-lon_array_source))
+    else:
+        y_point = int(file_extract[:-3].split('_')[-2])
+        x_point = int(file_extract[:-3].split('_')[-1])
     rmin = y_point - 12
     rmax = y_point + 13
     cmin = x_point - 12
     cmax = x_point + 13
     return [y_point,x_point,rmin,rmax,cmin,cmax]
+
+def get_latlon_arrays_from_source(source_folder,time_obj):
+    yyyy = time_obj.strftime('%Y')
+    jjj = time_obj.strftime('%j')
+    source_folder_date = os.path.join(source_folder, yyyy, jjj)
+    if not os.path.isdir(source_folder_date):
+        return None,None
+    file_ref = os.path.join(source_folder_date, f'O{yyyy}{jjj}-rrs400-bs-fr.nc')
+    if not os.path.exists(file_ref):
+        return None,None
+    dataset_ref = Dataset(file_ref)
+    lat_array = dataset_ref.variables['lat'][:]
+    lon_array = dataset_ref.variables['lon'][:]
+    dataset_ref.close()
+    return lat_array,lon_array
 
 def get_rrs_new(source_folder,rrs,index_rrs,time_obj,bands_str,dims):
     rmin = dims[2]
