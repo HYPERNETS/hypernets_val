@@ -169,18 +169,12 @@ def run_test(year):
 
 def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, fcsv):
 
-
-    dataset = Dataset(file_extract, 'r')
-    rrs = dataset.variables['satellite_Rrs'][:]
-    dataset.close()
-
     yyyy = time_obj.strftime('%Y')
     jjj = time_obj.strftime('%j')
     source_folder_date = os.path.join(source_folder, yyyy, jjj)
     if not os.path.isdir(source_folder_date):
         return fcsv
 
-    rrs_o = np.ma.masked_all(rrs.shape)
     y_point = int(file_extract[:-3].split('_')[-2])
     x_point = int(file_extract[:-3].split('_')[-1])
     rmin = y_point - 12
@@ -188,6 +182,13 @@ def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, 
     cmin = x_point - 12
     cmax = x_point + 13
 
+    ##CHL
+    file_chl_b = os.path.join(source_folder_date, f'Ob{yyyy}{jjj}-chl-bs-fr.nc')
+    if not os.path.isfile(file_chl_b):
+        return fcsv
+    dataset_chl_b = Dataset(file_chl_b)
+    chl_here_b = dataset_chl_b['CHL'][0, rmin:rmax, cmin:cmax]
+    dataset_chl_b.close()
     file_chl = os.path.join(source_folder_date, f'O{yyyy}{jjj}-chl-bs-fr.nc')
     dataset_chl = Dataset(file_chl)
     chl_here = dataset_chl['CHL'][0, rmin:rmax, cmin:cmax]
@@ -196,10 +197,13 @@ def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, 
     dataset_chl_a = Dataset(file_chl_a)
     chl_here_a = dataset_chl_a['CHL'][0, rmin:rmax, cmin:cmax]
     dataset_chl_a.close()
-    file_chl_b = os.path.join(source_folder_date, f'Ob{yyyy}{jjj}-chl-bs-fr.nc')
-    dataset_chl_b = Dataset(file_chl_b)
-    chl_here_b = dataset_chl_b['CHL'][0, rmin:rmax, cmin:cmax]
-    dataset_chl_b.close()
+
+
+    dataset = Dataset(file_extract, 'r')
+    rrs = dataset.variables['satellite_Rrs'][:]
+    dataset.close()
+
+    rrs_o = np.ma.masked_all(rrs.shape)
 
     for idx, b in enumerate(bands_str):
         rrs_here = np.ma.squeeze(rrs[0, idx, :, :])
