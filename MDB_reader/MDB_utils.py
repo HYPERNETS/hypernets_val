@@ -12,11 +12,13 @@ warnings.filterwarnings("ignore", category=UserWarning)
 parser = argparse.ArgumentParser(
     description="Obtaining information for running MDB_builder.")
 
-parser.add_argument('-m', "--mode", help='Mode option', choices=["add_instrument_id", "hypstar_check", "TEST"],
+parser.add_argument('-m', "--mode", help='Mode option',
+                    choices=["add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
                     required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file.")
-parser.add_argument('-p', "--param",help="Param for TEST")
+parser.add_argument('-s', "--source_path", help="Source path.",default="/dst04-data1/OC/OLCI/daily_v202311_bc")
+parser.add_argument('-p', "--param", help="Param for TEST")
 args = parser.parse_args()
 
 
@@ -30,6 +32,21 @@ def main():
             return
         output_path = args.output if args.output else None
         add_instrument_id(args.input_path, output_path)
+
+    if args.mode == 'correct_neg_values':
+        if not check_required_params(['input_path', 'output']):
+            return
+        if os.path.isdir(args.input_path) and os.path.isdir(args.output):
+            correct_negative_values_from_extracts(args.input_path,args.output)
+        else:
+            if not os.path.exists(args.input_path):
+                print(f'[ERROR]{args.input_path} does not exist. It should be a valid file or directory')
+                return
+            if not os.path.exists(args.output):
+                print(f'[ERROR]{args.output} does not exist. It should be a valid file or directory')
+                return
+
+
 
     if args.mode == 'hypstar_check':
         run_hypstar_check()
@@ -143,7 +160,6 @@ def run_test(year):
     source_folder = '/dst04-data1/OC/OLCI/daily_v202311_bc'
     file_out = f'/store3/DOORS/extracts/NegData_{year}.csv'
 
-
     fcsv = open(file_out, 'w')
     fcsv.write('Date;WL;RRS_O;RRS_Oa;RRS_Ob;CHL_O;CHL_Oa;CHL_Ob')
     bands = None
@@ -168,7 +184,6 @@ def run_test(year):
 
 
 def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, fcsv):
-
     yyyy = time_obj.strftime('%Y')
     jjj = time_obj.strftime('%j')
     source_folder_date = os.path.join(source_folder, yyyy, jjj)
@@ -197,7 +212,6 @@ def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, 
     dataset_chl_a = Dataset(file_chl_a)
     chl_here_a = dataset_chl_a['CHL'][0, rmin:rmax, cmin:cmax]
     dataset_chl_a.close()
-
 
     dataset = Dataset(file_extract, 'r')
     rrs = dataset.variables['satellite_Rrs'][:]
@@ -245,6 +259,111 @@ def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, 
 
     return fcsv
 
+
+def correct_negative_values_from_extracts(input_path,output_path):
+    source_folder = args.source_path
+    if not os.path.isdir(source_folder):
+        print(f'[ERROR] Source folder: {source_folder} is not a valid directory')
+    bands = None
+    bands_str = None
+    for name in os.listdir(input_path):
+        if not name.endswith('.nc'):continue
+        if not name=='extract_CMEMS_OLCI_300m_20240619_1404_635.nc':
+            continue
+        print(f'[INFO] Working with file: {name}')
+        input_file = os.path.join(input_path,name)
+        output_file = os.path.join(output_path,name)
+        dataset = Dataset(input_file, 'r')
+        rrs = dataset.variables['satellite_Rrs'][:]
+        time = float(dataset.variables['satellite_time'][0])
+        time_obj = dt.utcfromtimestamp(time)
+        if bands is None:
+            bands = dataset.variables['satellite_bands'][:]
+            bands_str = [f'{b:.2f}'.replace('.', '_').replace('_00', '').replace('_50', '_5') for b in bands]
+        dataset.close()
+        dims = get_dims(input_file)
+        rrs_new = get_rrs_new(source_folder,rrs,0,time_obj,bands_str,dims)
+        rrs[0,::,:] = rrs_new[:,:,:]
+        create_new_file_with_corrected_rrs(input_file,output_file,rrs)
+
+def create_new_file_with_corrected_rrs(input_file,output_file,rrs):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(input_dataset.__dict__)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+        if name=='satellite_Rrs':
+            ncout[name][:] = rrs[:]
+        else:
+            ncout[name][:] = input_dataset[name][:]
+
+
+    ncout.close()
+    input_dataset.close()
+def get_dims(file_extract):
+    y_point = int(file_extract[:-3].split('_')[-2])
+    x_point = int(file_extract[:-3].split('_')[-1])
+    rmin = y_point - 12
+    rmax = y_point + 13
+    cmin = x_point - 12
+    cmax = x_point + 13
+    return [y_point,x_point,rmin,rmax,cmin,cmax]
+
+def get_rrs_new(source_folder,rrs,index_rrs,time_obj,bands_str,dims):
+    rmin = dims[2]
+    rmax = dims[3]
+    cmin = dims[4]
+    cmax = dims[5]
+    rrs_new = rrs[index_rrs,:,:,:]
+
+    yyyy = time_obj.strftime('%Y')
+    jjj = time_obj.strftime('%j')
+    source_folder_date = os.path.join(source_folder,yyyy,jjj)
+    if not os.path.isdir(source_folder_date):
+        return rrs_new
+
+
+    for idx, b in enumerate(bands_str):
+        rrs_here = np.ma.squeeze(rrs[0, idx, :, :])
+        file_a = os.path.join(source_folder_date, f'Oa{yyyy}{jjj}-rrs{b}-bs-fr.nc')
+        file_b = os.path.join(source_folder_date, f'Ob{yyyy}{jjj}-rrs{b}-bs-fr.nc')
+        if os.path.exists(file_a) and os.path.exists(file_b):
+            dataset_a = Dataset(file_a)
+            rrs_a_here = dataset_a.variables[f'RRS{b}'][0, rmin:rmax, cmin:cmax]
+            dataset_a.close()
+            dataset_b = Dataset(file_b)
+            rrs_b_here = dataset_b.variables[f'RRS{b}'][0, rmin:rmax, cmin:cmax]
+            dataset_b.close()
+
+            indices_neg = np.logical_and(rrs_here.mask == False, rrs_here < (-10))
+            n_neg = np.count_nonzero(indices_neg)
+            if n_neg > 0:
+                indices_neg_a = np.logical_and(rrs_a_here.mask == False, rrs_here < (-10))
+                indices_neg_b = np.logical_and(rrs_b_here.mask == False, rrs_here < (-10))
+                #print('n_neg',n_neg,' a: ',np.count_nonzero(indices_neg_a), 'b:', np.count_nonzero(indices_neg_b))
+                if np.count_nonzero(indices_neg_a)>0:
+                    rrs_here[indices_neg_a] = rrs_a_here[indices_neg_a]
+                if np.count_nonzero(indices_neg_b)>0:
+                    rrs_here[indices_neg_b] = rrs_b_here[indices_neg_b]
+                rrs_new[idx, :, :] = rrs_here[:, :]
+
+    return rrs_new
 
 def add_instrument_id(input_path, output_path):
     rename_file = False
