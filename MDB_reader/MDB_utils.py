@@ -154,6 +154,30 @@ def run_hypstar_check():
 
 
 def run_test(year):
+
+    if year==-2:##test mdb files
+        old_dir = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC'
+        new_dir = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/'
+        names = ['MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20190827T000000_20240818T000000_AERONET_Section-7_Platform.nc',
+                 'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20231220T000000_AERONET_Galata_Platform.nc',
+                 'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20190808T000000_AERONET_Gloria.nc']
+
+        for name in names:
+            file_old =os.path.join(old_dir,name)
+            file_new = os.path.join(new_dir,name)
+            dataset_old = Dataset(file_old,'r')
+            dataset_new = Dataset(file_new,'r')
+            rrs_old =dataset_old.variables['satellite_Rrs'][:]
+            rrs_new = dataset_new.variables['satellite_Rrs'][:]
+            print('OLD: ',rrs_old.size,np.ma.count(rrs_old),np.ma.min(rrs_old),np.ma.max(rrs_old))
+            print('NEW: ', rrs_new.size, np.ma.count(rrs_new), np.ma.min(rrs_new), np.ma.max(rrs_new))
+
+            dataset_old.close()
+            dataset_new.close()
+
+        return
+
+
     # dir_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
     # source_folder = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
     # file_out = f'/mnt/c/DATA_LUIS/DOORS_WORK/NegData_{year}.csv'
@@ -283,8 +307,8 @@ def correct_negative_values_from_mdb(input_path,output_path):
             lat_array_source, lon_array_source = get_latlon_arrays_from_source(source_folder, time_obj)
             if lat_array_source is not None and lon_array_source is not None:
                 dims = get_dims(input_path,lat_array_source,lon_array_source)
+                print(f'[INFO] Dims have been defined as: {dims}')
         if dims is not None:
-            print(f'[INFO] Dims have been defined as: {dims}')
             rrs_new = get_rrs_new(source_folder, rrs, imu, time_obj, bands_str, dims)
             rrs_final[imu, :, :, :] = rrs_new[:, :, :]
 
@@ -337,8 +361,7 @@ def create_new_file_with_corrected_rrs(input_file,output_file,rrs):
         if '_FillValue' in list(variable.ncattrs()):
             fill_value = variable._FillValue
 
-        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
-                             shuffle=True, complevel=6)
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,complevel=6)
         # copy variable attributes all at once via dictionary
         ncout[name].setncatts(input_dataset[name].__dict__)
         if name=='satellite_Rrs':
@@ -387,7 +410,8 @@ def get_rrs_new(source_folder,rrs,index_rrs,time_obj,bands_str,dims):
     rmax = dims[3]
     cmin = dims[4]
     cmax = dims[5]
-    rrs_new = rrs[index_rrs,:,:,:]
+    rrs_new = np.ma.squeeze(rrs[index_rrs,:,:,:])
+
 
     yyyy = time_obj.strftime('%Y')
     jjj = time_obj.strftime('%j')
@@ -395,9 +419,10 @@ def get_rrs_new(source_folder,rrs,index_rrs,time_obj,bands_str,dims):
     if not os.path.isdir(source_folder_date):
         return rrs_new
 
+    print(f'[INFO][BEFORE] --> RRS for index {index_rrs} Shape (nbandsx25x25) {rrs_new.shape}. Min value: {np.ma.min(rrs_new)}')
 
     for idx, b in enumerate(bands_str):
-        rrs_here = np.ma.squeeze(rrs[0, idx, :, :])
+        rrs_here = np.ma.squeeze(rrs[index_rrs, idx, :, :])
         file_a = os.path.join(source_folder_date, f'Oa{yyyy}{jjj}-rrs{b}-bs-fr.nc')
         file_b = os.path.join(source_folder_date, f'Ob{yyyy}{jjj}-rrs{b}-bs-fr.nc')
         if os.path.exists(file_a) and os.path.exists(file_b):
@@ -420,6 +445,7 @@ def get_rrs_new(source_folder,rrs,index_rrs,time_obj,bands_str,dims):
                     rrs_here[indices_neg_b] = rrs_b_here[indices_neg_b]
                 rrs_new[idx, :, :] = rrs_here[:, :]
 
+    print(f'[INFO][AFTER] --> RRS for index {index_rrs} Shape (nbandsx25x25) {rrs_new.shape}. Min value: {np.ma.min(rrs_new)}')
     return rrs_new
 
 def add_instrument_id(input_path, output_path):
