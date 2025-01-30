@@ -440,8 +440,8 @@ class INSITUCOMPARISON:
         qc[qf > 0] = 0
         print('NValid after step 1', np.ma.sum(qc))
         # set as invalid values with epsion<-0.05 or epsilon>0.05
-        qc[epsilon < (-0.05)] = 0
-        qc[epsilon > 0.05] = 0
+        qc[epsilon < (-0.005)] = 0
+        qc[epsilon > 0.005] = 0
         print('NValid after step 2', np.ma.sum(qc))
         var_new[:] = qc[:]
         self.close_file_w()
@@ -1384,6 +1384,55 @@ class INSITUCOMPARISON:
 
         pspectra.set_tigth_layout()
         pspectra.save_plot(file_out)
+
+
+    def plot_epsilon_time_series(self,file_out):
+        dataset  = Dataset(self.path_nc,'r')
+        epsilon = dataset.variables['HYPSTAR_epsilon'][:]
+        mu_wl = dataset.variables['mu_wavelength'][:]
+        mu_day_id = dataset.variables['mu_day_id'][:]
+        mu_h_sequence = dataset.variables['mu_HYPSTAR_sequence_id'][:]
+        time = dataset.variables['HYPSTAR_time'][:]
+        dataset.close()
+        wl_ref = mu_wl[0]
+        day_id = mu_day_id[mu_wl==wl_ref]
+        h_id = mu_h_sequence[mu_wl==wl_ref]
+        n_data = day_id.shape[0]
+        epsilon_data = np.zeros((n_data,))
+        jday = np.zeros((n_data,))
+        for idx in range(n_data):
+            epsilon_data[idx] = epsilon[day_id[idx],h_id[idx]]
+            time_obj = dt.utcfromtimestamp(np.int64(time[day_id[idx],h_id[idx]]))
+            jday_here = int(time_obj.strftime('%j'))
+            jday[idx] = jday_here
+
+        max_jday = int(np.max(jday))
+        xlabel_data = []
+        xlabel = []
+        for jday_h in range(1, max_jday + 15):
+            time_s = f'2024{jday_h}'
+            time_obj = dt.strptime(time_s, '%Y%j')
+            if time_obj.day == 1 or time_obj.day == 15:  # or time_obj.day==10 or time_obj.day==20:
+                xlabel_data.append(jday_h)
+                xlabel.append(time_obj.strftime('%m-%d'))
+
+        from MDB_reader.PlotSpectra import PlotSpectra
+        pspectra = PlotSpectra()
+        pspectra.xdata = jday
+        style = {'color': 'blue', 'linestyle': '-', 'linewidth': 0, 'marker': 's', 'markersize': 2}
+        pspectra.plot_data(epsilon_data, style)
+        pspectra.set_yaxis_title('Epsilon(-)')
+        pspectra.set_xaxis_title('Date')
+        pspectra.set_xticks(xlabel_data, xlabel, 90, 10)
+
+        style_line = {'color': 'k', 'linestyle': '--', 'linewidth': 1, 'marker': 's', 'markersize': 0}
+        pspectra.plot_single_data([156, 156], pspectra.get_y_range(), style_line)
+
+        pspectra.set_grid()
+        pspectra.set_tigth_layout()
+        pspectra.save_plot(file_out)
+
+
 
     def plot_wind_time_series(self, file_out):
         dataset = Dataset(self.path_nc, 'r')

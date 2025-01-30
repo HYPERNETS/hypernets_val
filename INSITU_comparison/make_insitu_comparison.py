@@ -19,7 +19,7 @@ sys.path.append(code_aeronet)
 parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode", help="Mode.",
                     choices=["COMPARISON", "CONCAT", "GENERATEMU", "HYPSTAR_QC", "AERONET_ED", "T100","PLOT_MU",
-                             "TO_CSV", "TEST"])
+                             "TO_CSV", "PLOT","TEST"])
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-cf', "--comparison_file", help="Comparison file.")
 parser.add_argument('-max', "--max_time", help="Maximum time in minutes between observations.")
@@ -460,20 +460,21 @@ def create_csv(file_comparison, output_file):
     print(wl_list)
 
 
-def make_plots():
-    # path_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC'
-    # date_here = dt(2023, 9, 26)
-    # file_comparison = get_file_comparison_date(path_out, date_here, False)
+def make_plots(file_comparison,file_config):
 
-    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_2024.nc'
 
-    file_config = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/config_plot.ini'
+    #file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_2024.nc'
+    #file_config = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/config_plot.ini'
+
     import configparser
     options = configparser.ConfigParser()
     options.read(file_config)
     ic = INSITUCOMPARISON(file_comparison)
     iplots = INSITU_plots(ic)
-    iplots.plot_from_options(options)
+    #iplots.plot_from_options(options)
+
+
+
 
     # wl_all = [400,412,443,490,510,560,620,667,779,865]
     # for wl in wl_all:
@@ -484,34 +485,34 @@ def make_plots():
     #     variable_a = 'mu_AERONET_Li_mean'
     #     iplots.plot_time_series(variable_h,variable_a,wl_list,ytitle,name_out)
     # for wl in wl_all:
-    #     name_out = f'Ratio_Lt_HYPSTAR_AERONET_{wl}.tif'
+    #     name_out = f'Ratio_Lt_mean_HYPSTAR_AERONET_{wl}.tif'
     #     ytitle = f'Lt[HYSPTAR]/Lt[AERONET] {wl} nm'
     #     wl_list = [wl]
     #     variable_h = 'mu_HYPSTAR_TO_AERONET_Lt_mean'
     #     variable_a = 'mu_AERONET_Lt_mean'
     #     iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
-
-    # name_out = f'Ratio_Li_HYPSTAR_AERONET_400_560.tif'
+    #
+    # name_out = f'Ratio_Li_HYPSTAR_AERONET_400_865.tif'
     # ytitle = f'Li[HYSPTAR]/Li[AERONET]'
-    # wl_list = [400,560]
+    # wl_list = [400,865]
     # variable_h = 'mu_HYPSTAR_TO_AERONET_Li_mean'
     # variable_a = 'mu_AERONET_Li_mean'
     # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
-
-    # name_out = f'Ratio_Lt_HYPSTAR_AERONET_400_560.tif'
+    #
+    # name_out = f'Ratio_Lt_HYPSTAR_AERONET_400_865.tif'
     # ytitle = f'Lt[HYSPTAR]/Lt[AERONET]'
-    # wl_list = [400, 560]
+    # wl_list = [400, 865]
     # variable_h = 'mu_HYPSTAR_TO_AERONET_Lt_mean'
     # variable_a = 'mu_AERONET_Lt_mean'
     # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
-
+    #
     # ic.set_spectra_stats('mu_AERONET_Ed','mu_HYPSTAR_TO_AERONET_Ed', 'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Ed.tif'
     # legend = ['AERONET-OC - Ed','HYPSTAR - Ed']
     # ylabel = r'Ed [mW/(cm2·μm)]'
     # title = 'Downwelling irradiance'
     # ic.plot_spectra_stats(file_out, legend, ylabel, title)
-
+    #
     # ic.set_spectra_stats('mu_AERONET_Li_mean','mu_HYPSTAR_TO_AERONET_Li_mean', 'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Li.tif'
     # legend = ['AERONET-OC - Li','HYPSTAR - Li']
@@ -543,6 +544,9 @@ def make_plots():
     #
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/WindTimeSeries.tif'
     # ic.plot_wind_time_series(file_out)
+
+    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/EpsilonTimeSeries.tif'
+    ic.plot_epsilon_time_series(file_out)
 
 
 def get_file_comparison_date(path_out, date_here, to_create):
@@ -962,6 +966,22 @@ def main():
             output_file = file_c.replace('.nc', '.csv')
         create_csv(file_c, output_file)
 
+    if args.mode == 'PLOT':
+        if not args.comparison_file:
+            print(f'[ERROR] Comparison file (-cf,--comparison_file) is required for mode: {args.mode}')
+            return
+        if not args.config_file:
+            print(f'[ERROR] Configuration file (-c,--config_file) is required for mode: {args.mode}')
+            return
+        file_c = args.comparison_file
+        file_config = args.config_file
+        if not os.path.isfile(file_c):
+            print(f'[ERROR] Comparison file {file_c} does not exist or is not valid.')
+            return
+        if not os.path.isfile(file_config):
+            print(f'[ERROR] Config file {file_config} does not exist or is not valid.')
+            return
+        make_plots(file_c,file_config)
     if args.mode == 'TEST':
         # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT/2023/05/05/HYPERNETS_W_VEIT_L2A_REF_20230505T1540_20240118T1418_270_v2.0.nc'
         # file = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/2023/05/05/COMPARISON_20230505.nc'

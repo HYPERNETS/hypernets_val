@@ -4142,9 +4142,9 @@ def main():
             if name.endswith('.nc') and name.startswith('MDB'):
                 file_mdb = os.path.join(dir_mdb,name)
                 file_csv = file_mdb.replace('.nc','.csv')
-
-                mdb_r = MDB_READER(file_mdb,True)
-                mdb_r.create_csv_time_difference()
+                if not os.path.exists(file_csv):
+                    mdb_r = MDB_READER(file_mdb,True)
+                    mdb_r.create_csv_time_difference()
 
         # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import MDBFile

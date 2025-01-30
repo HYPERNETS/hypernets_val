@@ -98,6 +98,8 @@ def run_hypstar_check():
     file_zip_level2a = os.path.join(dir_out, 'level2a.zip')
     file_csv_level2a = os.path.join(dir_out, 'level2a.csv')
     fout = None
+    start_date_qc = None
+    end_date_qc = None
     for name in os.listdir(dir_out):
         if name.find('L2A_REF') > 0:
             file_h = os.path.join(dir_out, name)
@@ -115,6 +117,15 @@ def run_hypstar_check():
             n_total = n_total + 1
             if qf == 0:
                 n_valid = n_valid + 1
+                therevalid = dt.utcfromtimestamp(ts)
+                if start_date_qc is None:
+                    start_date_qc = therevalid
+                if end_date_qc is None:
+                    end_date_qc = therevalid
+                else:
+                    if therevalid>end_date_qc:
+                        end_date_qc = therevalid
+
             # if qf == 0 or qf == 268435456:
             #     if (-0.005) <= epsilon <= 0.005:
             #         n_valid = n_valid + 1
@@ -151,30 +162,71 @@ def run_hypstar_check():
     print(f'LEVEL 1C: {stats_1c.st_size} bytes ({stats_1c.st_size / (1024 * 1024)} Mb)')
     print(f'LEVEL 2A: {stats_2a.st_size} bytes ({stats_2a.st_size / (1024 * 1024)} Mb)')
     print(f'#VALID MEASURMENTS: {n_valid} / {n_total}')
-
+    print(f'START DATE QC: {start_date_qc.strftime("%Y-%m-%d")}')
+    print(f'END DATE QC: {end_date_qc.strftime("%Y-%m-%d")}')
 
 def run_test(year):
 
+
+
+
     if year==-2:##test mdb files
         old_dir = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC'
-        new_dir = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/'
+        #new_dir = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/'
         names = ['MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20190827T000000_20240818T000000_AERONET_Section-7_Platform.nc',
                  'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20231220T000000_AERONET_Galata_Platform.nc',
                  'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20190808T000000_AERONET_Gloria.nc']
 
         for name in names:
+            print('--------------------------------------------------------------------------------------------------')
+            print(name)
             file_old =os.path.join(old_dir,name)
-            file_new = os.path.join(new_dir,name)
+            #file_new = os.path.join(new_dir,name)
             dataset_old = Dataset(file_old,'r')
-            dataset_new = Dataset(file_new,'r')
-            rrs_old =dataset_old.variables['satellite_Rrs'][:]
-            rrs_new = dataset_new.variables['satellite_Rrs'][:]
-            print('OLD: ',rrs_old.size,np.ma.count(rrs_old),np.ma.min(rrs_old),np.ma.max(rrs_old))
-            print('NEW: ', rrs_new.size, np.ma.count(rrs_new), np.ma.min(rrs_new), np.ma.max(rrs_new))
+            #dataset_new = Dataset(file_new,'r')
+            rrs_old = dataset_old.variables['satellite_Rrs'][:]
+            #rrs_new = dataset_new.variables['satellite_Rrs'][:]
+            print('DATA: ',rrs_old.size,np.ma.count(rrs_old),np.ma.min(rrs_old),np.ma.max(rrs_old))
+            #print('NEW: ', rrs_new.size, np.ma.count(rrs_new), np.ma.min(rrs_new), np.ma.max(rrs_new))
+
+            # indices_neg = np.logical_and(rrs_old.mask == False, rrs_old < (-10))
+            # rrs_old_bad = rrs_old[indices_neg]
+            # rrs_new_bad = rrs_new[indices_neg]
+            # print('OLD BAD: ',np.ma.min(rrs_old_bad),'<->',np.ma.max(rrs_old_bad))
+            # print('NEW BAD: ', np.ma.min(rrs_new_bad), '<->', np.ma.max(rrs_new_bad))
+            #
+            # indices_pos = np.logical_and(rrs_old.mask==False,rrs_old>(-10))
+            # rrs_old_good = rrs_old[indices_pos]
+            # rrs_new_good = rrs_new[indices_pos]
+            # check_rrs = rrs_new_good/rrs_old_good
+            # print('CHECK RRS: ',np.ma.min(check_rrs),np.ma.max(check_rrs))
+            # for name_var in dataset_old.variables:
+            #     if name_var=='satellite_Rrs':
+            #         continue
+            #     var_old = dataset_old.variables[name_var][:]
+            #     var_new = dataset_new.variables[name_var][:]
+            #     check_var = var_old/var_new
+            #     print(f'CHECK  {name_var}', np.ma.min(check_var), np.ma.max(check_var))
 
             dataset_old.close()
-            dataset_new.close()
+            #dataset_new.close()
 
+        return
+
+    if year==-3:##basic test for extract file
+        dir_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
+
+        nvalid = 0
+        for name in os.listdir(dir_extracts):
+            file_extract = os.path.join(dir_extracts,name)
+            dataset = Dataset(file_extract,'r')
+            rrs = dataset.variables['satellite_Rrs'][:]
+            if np.ma.count(rrs)>0:
+                nvalid = nvalid + 1
+                if np.ma.min(rrs)<(-10):
+                    print(name,'->',np.ma.min(rrs),'<------------------>',np.ma.max(rrs))
+            dataset.close()
+        print('nvalid',nvalid)
         return
 
 
