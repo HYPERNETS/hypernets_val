@@ -253,6 +253,21 @@ def make_plots_mu(file_nc, options):
             print(f'[ERROR] Ouput path {dir_out} does not exist and could not be created. Review permissions.')
             return
 
+    start_date = None
+    end_date = None
+    if options['start_date'] is not None:
+        try:
+            start_date = dt.strptime(options['start_date'],'%Y-%m-%d')
+            print(f'[INFO] Setting start date to {options["start_date"]}')
+        except:
+            print(f'[WARNING] start_date option {options["start_date"]} is not in the correct format (YYYY-mm-dd). Start date will not be used.')
+    if options['end_date'] is not None:
+        try:
+            end_date = dt.strptime(options['end_date'],'%Y-%m-%d')
+            print(f'[INFO] Setting end date to {options["end_date"]}')
+        except:
+            print(f'[WARNING] end_date option {options["end_date"]} is not in the correct format (YYYY-mm-dd). End date will not be used.')
+
     print(f'[INFO] Creating plots for individual match-ups...')
     print(f'[INFO] Ouput path: {dir_out}')
     from netCDF4 import Dataset
@@ -272,15 +287,15 @@ def make_plots_mu(file_nc, options):
 
     mu_day_id = mu_day_id[mu_wavelength == wl_ref]
     if len(mu_day_id) != nmu:
-        print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
+        print(f'[ERROR] Discrepancy in the number of observed match-ups')
         return
     mu_a = mu_a[mu_wavelength == wl_ref]
     if len(mu_a) != nmu:
-        print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
+        print(f'[ERROR] Discrepancy in the number of observed match-ups')
         return
     mu_h = mu_h[mu_wavelength == wl_ref]
     if len(mu_h) != nmu:
-        print(f'[ERROR] Discrepancy in the number of observed mathc-ups')
+        print(f'[ERROR] Discrepancy in the number of observed match-ups')
         return
 
     ic = INSITUCOMPARISON(file_nc)
@@ -291,6 +306,10 @@ def make_plots_mu(file_nc, options):
         ia = mu_a[imu]
         time_here = h_time[iday,ih]
         time_here_obj = dt.utcfromtimestamp(float(h_time[iday,ih]))
+        if start_date is not None and time_here_obj<start_date:
+            continue
+        if end_date is not None and time_here_obj>end_date:
+            continue
         print(f'[INFO] Working for date: {time_here_obj.strftime("%Y-%m-%d")}')
 
         file_Ed = os.path.join(dir_out_tmp, f'Ed_{iday}_{ia}_{ih}.png')
@@ -483,28 +502,28 @@ def make_plots(file_comparison,file_config):
     #     wl_list = [wl]
     #     variable_h = 'mu_HYPSTAR_TO_AERONET_Li_mean'
     #     variable_a = 'mu_AERONET_Li_mean'
-    #     iplots.plot_time_series(variable_h,variable_a,wl_list,ytitle,name_out)
+    #     iplots.plot_time_series(variable_h,variable_a,wl_list,ytitle, None, None, name_out, None)
     # for wl in wl_all:
     #     name_out = f'Ratio_Lt_mean_HYPSTAR_AERONET_{wl}.tif'
     #     ytitle = f'Lt[HYSPTAR]/Lt[AERONET] {wl} nm'
     #     wl_list = [wl]
     #     variable_h = 'mu_HYPSTAR_TO_AERONET_Lt_mean'
     #     variable_a = 'mu_AERONET_Lt_mean'
-    #     iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
+    #     iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, None, None, name_out, None)
     #
     # name_out = f'Ratio_Li_HYPSTAR_AERONET_400_865.tif'
     # ytitle = f'Li[HYSPTAR]/Li[AERONET]'
     # wl_list = [400,865]
     # variable_h = 'mu_HYPSTAR_TO_AERONET_Li_mean'
     # variable_a = 'mu_AERONET_Li_mean'
-    # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
+    # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle,None, None, name_out, None)
     #
     # name_out = f'Ratio_Lt_HYPSTAR_AERONET_400_865.tif'
     # ytitle = f'Lt[HYSPTAR]/Lt[AERONET]'
     # wl_list = [400, 865]
     # variable_h = 'mu_HYPSTAR_TO_AERONET_Lt_mean'
     # variable_a = 'mu_AERONET_Lt_mean'
-    # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle, name_out)
+    # iplots.plot_time_series(variable_h, variable_a, wl_list, ytitle,None, None,name_out,None)
     #
     # ic.set_spectra_stats('mu_AERONET_Ed','mu_HYPSTAR_TO_AERONET_Ed', 'mu_wavelength')
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/SpectraComparison_Ed.tif'
@@ -545,8 +564,37 @@ def make_plots(file_comparison,file_config):
     # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/WindTimeSeries.tif'
     # ic.plot_wind_time_series(file_out)
 
-    file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/EpsilonTimeSeries.tif'
-    ic.plot_epsilon_time_series(file_out)
+
+    # file_out = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL/EpsilonTimeSeries.tif'
+    # ic.plot_epsilon_time_series(file_out)
+
+    # wl_all = [400, 412, 443, 490, 510, 560, 620, 667, 779, 865]
+    # y_max = [18,20,22,22,22,18,17,16,13,10]
+    # for iwl,wl in enumerate(wl_all):
+    #     yrange = [0,y_max[iwl]]
+    #     name_out = f'HYPSTARSkyRadianceVsSZA_{wl}.tif'
+    #     ylabel = r'Li [μW/(cm$^2$·sr·nm)]'
+    #     title = f'HYPSTAR Sky radiance - {wl} nm'
+    #     iplots.plot_sza_series('mu_HYPSTAR_TO_AERONET_Li_mean',[wl],ylabel,yrange,title,name_out,'Month')
+    #
+    #     name_out = f'AERONETSkyRadianceVsSZA_{wl}.tif'
+    #     ylabel = r'Li [μW/(cm$^2$·sr·nm)]'
+    #     title = f'AERONET-OC Sky radiance - {wl} nm'
+    #     iplots.plot_sza_series('mu_AERONET_Li_mean', [wl], ylabel, yrange,title,name_out, 'Month')
+
+    wl_all = [400, 412, 443, 490, 510, 560, 620, 667, 779, 865]
+    y_max = [18,20,22,22,22,18,17,16,13,10]
+    for iwl,wl in enumerate(wl_all):
+        yrange = [0,y_max[iwl]]
+        name_out = f'TimeSeries_HYPSTAR_SkyRadiance_{wl}.tif'
+        ylabel =  r'Li [μW/(cm$^2$·sr·nm)]'
+        title = f'HYPSTAR Sky radiance - {wl} nm'
+        iplots.plot_time_series('mu_HYPSTAR_TO_AERONET_Li_mean',None,[wl],ylabel,yrange,title,name_out,'sza')
+
+        name_out = f'TimeSeries_AERONET_SkyRadiance_{wl}.tif'
+        ylabel = r'Li [μW/(cm$^2$·sr·nm)]'
+        title = f'AERONET-OC Sky radiance - {wl} nm'
+        iplots.plot_time_series('mu_AERONET_Li_mean', None, [wl], ylabel, yrange, title, name_out, 'sza')
 
 
 def get_file_comparison_date(path_out, date_here, to_create):
@@ -867,7 +915,9 @@ def get_options_plot_mu(config_file):
     options_dict = {
         'qc_path': '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV_QC/VEIT',
         'img_path': '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV/VEIT',
-        'output_path': '/store3/HYPERNETS/COMPARISON_HYPSTAR_AERONET'
+        'output_path': '/store3/HYPERNETS/COMPARISON_HYPSTAR_AERONET',
+        'start_date': None,
+        'end_date': None
     }
     if config_file is None:
         print(f'[WARNING] Config file was not defined. Using default options')

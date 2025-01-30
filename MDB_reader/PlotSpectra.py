@@ -211,7 +211,7 @@ class PlotSpectra():
     def set_legend(self, str_legend):
         print(self.legend_options)
         plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'],
-                   framealpha=self.legend_options['framealpha'], ncol=self.legend_options['ncols'])
+                   framealpha=self.legend_options['framealpha'], ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'])
 
     def set_legend_h(self, handles, str_legend):
         plt.legend(handles, str_legend, loc=self.legend_options['loc'],

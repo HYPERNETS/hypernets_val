@@ -25,7 +25,6 @@ class INSITU_plots():
                 continue
             options_out = self.get_options(options, plot)
 
-
             if options_out['apply']:
                 print(f'[INFO] Starting plot: {plot}')
                 self.plot_from_options_impl(options_out)
@@ -35,7 +34,7 @@ class INSITU_plots():
         if options_out['type'] == 'scatterplot':
             self.plot_scatter_plot(options_out)
 
-        if options_out['type']== 'spectrastats':
+        if options_out['type'] == 'spectrastats':
             self.plot_spectra_stats(options_out)
 
     def plot_scatter_plot(self, options_out):
@@ -43,16 +42,16 @@ class INSITU_plots():
             self.ic.set_data_scatterplot_single(options_out['xvariable'], options_out['yvariable'],
                                                 options_out['wlvariableref'])
             self.ic.compute_stats(False, False)
-            self.plot_scatter_plot_impl(options_out,None)
+            self.plot_scatter_plot_impl(options_out, None)
 
         if options_out['type_scatterplot'] == 'spectral':
             if not options_out['selectByWavelength']:
 
-                self.ic.set_data_scatterplot_spectral(None,options_out['xvariable'], options_out['yvariable'],
-                                                options_out['wlvariablemu'])
+                self.ic.set_data_scatterplot_spectral(None, options_out['xvariable'], options_out['yvariable'],
+                                                      options_out['wlvariablemu'])
 
-                self.ic.compute_stats(False,False)
-                self.plot_scatter_plot_impl(options_out,None)
+                self.ic.compute_stats(False, False)
+                self.plot_scatter_plot_impl(options_out, None)
 
             elif options_out['selectByWavelength']:
 
@@ -67,10 +66,9 @@ class INSITU_plots():
 
                     self.ic.compute_stats(False, False)
                     options_out['file_out'] = f'{file_out_base}{wls}.{self.format_image}'
-                    self.plot_scatter_plot_impl(options_out,wl)
+                    self.plot_scatter_plot_impl(options_out, wl)
 
-
-    def plot_scatter_plot_impl(self, options_out,wl):
+    def plot_scatter_plot_impl(self, options_out, wl):
         file_out = options_out['file_out']
         marker = options_out['marker']
         markersize = options_out['markersize']
@@ -129,8 +127,7 @@ class INSITU_plots():
         plot.save_fig(file_out)
         plot.close_plot()
 
-
-    def plot_spectra_stats(self,options_out):
+    def plot_spectra_stats(self, options_out):
         all_stats = {}
         wl_values = self.ic.get_wl_list(options_out['wlvariablemu'])
         nseries = len(options_out['xvariable'])
@@ -141,32 +138,29 @@ class INSITU_plots():
             wl_stats = {}
             for wl in wl_values:
                 print(f'[INFO]->Wavelenght: {wl}')
-                self.ic.set_data_scatterplot_spectral(wl, xvariable, yvariable,options_out['wlvariablemu'])
+                self.ic.set_data_scatterplot_spectral(wl, xvariable, yvariable, options_out['wlvariablemu'])
                 self.ic.compute_stats(False, False)
 
-                wl_stats[wl]=self.ic.valid_stats.copy()
+                wl_stats[wl] = self.ic.valid_stats.copy()
             all_stats[iseries] = wl_stats
-
-
 
         stat_list = options_out['stat_list']
         for stat in stat_list:
-            self.plot_spectra_stats_impl(options_out,all_stats,wl_values,nseries,stat)
+            self.plot_spectra_stats_impl(options_out, all_stats, wl_values, nseries, stat)
 
-    def plot_spectra_stats_impl(self,options_out,all_stats,wl_values,nseries,stat):
+    def plot_spectra_stats_impl(self, options_out, all_stats, wl_values, nseries, stat):
         colors = options_out['color']
-        if colors is None or len(colors)!=nseries:
+        if colors is None or len(colors) != nseries:
             return
         from MDB_reader.PlotSpectra import PlotSpectra
         stat_ref = stat.upper()
         xlabel = stat
-        if stat.lower()=='r2':
+        if stat.lower() == 'r2':
             stat_ref = 'DETER(r2)'
         if stat_ref.endswith('PD'):
             xlabel = f'{stat_ref}(%)'
         ps = PlotSpectra()
         ps.xdata = wl_values
-
 
         for iseries in range(nseries):
             stats_series = all_stats[iseries]
@@ -175,23 +169,23 @@ class INSITU_plots():
                 stats_wl = stats_series[wl]
                 stat_value_here = stats_wl[stat_ref]
                 if stat.upper() == 'APD' or stat.upper() == 'RPD':
-                    if stat_value_here>=100: stat_value_here=100
-                    if stat_value_here<=(-100): stat_value_here=-100
+                    if stat_value_here >= 100: stat_value_here = 100
+                    if stat_value_here <= (-100): stat_value_here = -100
                 ydata.append(stat_value_here)
 
-            ps.plot_single_line(ydata,colors[iseries],'-',1,'o',6)
+            ps.plot_single_line(ydata, colors[iseries], '-', 1, 'o', 6)
 
-        ps.set_xticks(wl_values,wl_values,90,10)
+        ps.set_xticks(wl_values, wl_values, 90, 10)
         if stat.upper() == 'APD':
-            ps.set_y_range(0,100)
+            ps.set_y_range(0, 100)
         if stat.upper() == 'RPD':
-            ps.set_y_range(-100,100)
+            ps.set_y_range(-100, 100)
         ps.set_grid()
         ps.set_xaxis_title('Wavelength(nm)')
         ps.set_yaxis_title(xlabel)
         if options_out['legend']:
             legend_values = options_out['legend_values']
-            if legend_values is not None and len(legend_values)==nseries:
+            if legend_values is not None and len(legend_values) == nseries:
                 ps.set_legend(legend_values)
 
         ps.set_tigth_layout()
@@ -201,67 +195,216 @@ class INSITU_plots():
         ps.save_plot(file_out)
         ps.close_plot()
 
+    ##plot mu_data using sun zentih angle as x
+    def plot_sza_series(self, y_variable, wl_list, y_title, y_range, title, name_out, groupBy):
 
-    def plot_time_series(self,variable_h,variable_a,wl_list,ytitle,name_out):
+        dir_base = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL'
+        file_out = os.path.join(dir_base, name_out)
+        from netCDF4 import Dataset
+        from datetime import datetime as dt
+        from MDB_reader.PlotSpectra import PlotSpectra
+        import matplotlib as mpl
+
+        dataset = Dataset(self.ic.path_nc)
+        sza = dataset.variables['HYPSTAR_solar_zenith_angle'][:]
+        mu_wl = dataset.variables['mu_wavelength'][:]
+        mu_day_id = dataset.variables['mu_day_id'][:]
+        mu_hypstar_id = dataset.variables['mu_HYPSTAR_sequence_id'][:]
+        y_var = dataset.variables[y_variable][:]
+
+        if groupBy == 'Month':
+            time = dataset.variables['HYPSTAR_time'][:]
+
+        dataset.close()
+
+        ps = PlotSpectra()
+        wl_ref = wl_list[0]
+        iday_array = mu_day_id[mu_wl == wl_ref]
+        ih_arryay = mu_hypstar_id[mu_wl == wl_ref]
+        n_data = iday_array.shape[0]
+        x_data = np.zeros((n_data,))
+        if groupBy is not None:
+            group_array = np.zeros((n_data,))
+        for idx in range(n_data):
+            x_data[idx] = sza[iday_array[idx], ih_arryay[idx]]
+            time_obj = dt.utcfromtimestamp(float(time[iday_array[idx], ih_arryay[idx]]))
+            if groupBy == 'Month':
+                group_array[idx] = int(time_obj.month)
+        ps.xdata = x_data
+        style = {'color': 'blue', 'linestyle': '-', 'linewidth': 0, 'marker': 's', 'markersize': 3}
+
+        if groupBy is None:
+            colors = ['blue', 'red', 'magenta', 'cyan']
+            for iwl, wl in enumerate(wl_list):
+                y_data = y_var[mu_wl == wl]
+                style_here = style.copy()
+                style_here['color'] = colors[iwl]
+                ps.plot_data(y_data, style_here)
+
+        if groupBy is not None:
+            group_values = np.unique(group_array)
+            cmap = mpl.colormaps['tab10'].resampled(len(group_values))
+            n_groups = len(group_values)
+            y_data = y_var[mu_wl == wl_ref]
+            for i_group in range(n_groups):
+                color = cmap(i_group / n_groups)
+                style_here = style.copy()
+                style_here['color'] = color
+                x_data_here = x_data[group_array == group_values[i_group]]
+                y_data_here = y_data[group_array == group_values[i_group]]
+                ps.plot_single_data(x_data_here, y_data_here, style_here)
+
+        xlabel_data = [20, 30, 40, 50, 60, 70, 80, 90]
+        xlabel = [str(x) for x in xlabel_data]
+        ps.set_yaxis_title(y_title)
+        ps.set_xaxis_title('Sun Zenith Angle(°)')
+
+        ps.set_xticks(xlabel_data, xlabel, 0, 10)
+        if len(wl_list) > 1:
+            legend_values = [f'{wl} nm' for wl in wl_list]
+            ps.set_legend(legend_values)
+        if groupBy is not None:
+            if groupBy == 'Month':
+                legend_values = [f'0{x:.0f}' if x < 10 else f'{x:.0f}' for x in group_values]
+                ps.legend_options['markerscale'] = 2
+                ps.set_legend(legend_values)
+
+        if y_range is not None:
+            ps.set_y_range(y_range[0], y_range[1])
+        if title is not None:
+            ps.set_title(title)
+        ps.set_grid()
+        ps.set_tigth_layout()
+        ps.save_plot(file_out)
+
+    def plot_time_series(self, variable_h, variable_a, wl_list, ytitle, y_range, title, name_out, groupBy):
+
         dir_base = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL'
 
         file_out = os.path.join(dir_base, name_out)
         from netCDF4 import Dataset
         from datetime import datetime as dt
         from MDB_reader.PlotSpectra import PlotSpectra
+        import matplotlib as mpl
 
         dataset = Dataset(self.ic.path_nc)
         mu_wl = dataset.variables['mu_wavelength'][:]
         mu_day_id = dataset.variables['mu_day_id'][:]
 
-        data_h = dataset.variables[variable_h][:]
-        data_a = dataset.variables[variable_a][:]
+        data_h = None
+        data_a = None
+        if variable_h is not None:
+            data_h = dataset.variables[variable_h][:]
+        if variable_a is not None:
+            data_a = dataset.variables[variable_a][:]
         ps = PlotSpectra()
-
         jday = []
-        style = {'color':'blue','linestyle':'-','linewidth':0,'marker':'s','markersize':2}
-        colors = ['blue','red','magenta','cyan']
-        for iwl,wl in enumerate(wl_list):
-            ratio_wl = data_h[mu_wl==wl]/data_a[mu_wl==wl]
-            if len(jday)==0:
+
+        if groupBy is None:
+            style = {'color': 'blue', 'linestyle': '-', 'linewidth': 0, 'marker': 's', 'markersize': 2}
+            colors = ['blue', 'red', 'magenta', 'cyan']
+            for iwl, wl in enumerate(wl_list):
+                if data_a is not None and data_h is not None:
+                    y_data_wl = data_h[mu_wl == wl] / data_a[mu_wl == wl]
+                elif data_a is not None and data_h is None:
+                    y_data_wl = data_a[mu_wl == wl]
+                elif data_a is None and data_h is not None:
+                    y_data_wl = data_h[mu_wl == wl]
+                else:
+                    continue
+                if len(jday) == 0:
+                    day_id = mu_day_id[mu_wl == wl].astype(np.int32)
+                    time_array = dataset.variables['AERONET_time'][day_id, 0]
+                    for t in time_array:
+                        time_obj = dt.utcfromtimestamp(np.int64(t))
+                        jday_here = int(time_obj.strftime('%j'))
+                        jday.append(jday_here)
+                    ps.xdata = jday
+                style_here = style.copy()
+                style_here['color'] = colors[iwl]
+                ps.plot_data(y_data_wl, style_here)
+
+        if groupBy is not None:
+            style = {'color': 'blue', 'linestyle': '-', 'linewidth': 0, 'marker': 's', 'markersize': 3}
+            wl = wl_list[0]
+            y_data_wl = None
+            if data_a is not None and data_h is not None:
+                y_data_wl = data_h[mu_wl == wl] / data_a[mu_wl == wl]
+            elif data_a is not None and data_h is None:
+                y_data_wl = data_a[mu_wl == wl]
+            elif data_a is None and data_h is not None:
+                y_data_wl = data_h[mu_wl == wl]
+            if y_data_wl is not None:
                 day_id = mu_day_id[mu_wl == wl].astype(np.int32)
-                time_array = dataset.variables['AERONET_time'][day_id,0]
+                time_array = dataset.variables['AERONET_time'][day_id, 0]
                 for t in time_array:
                     time_obj = dt.utcfromtimestamp(np.int64(t))
                     jday_here = int(time_obj.strftime('%j'))
                     jday.append(jday_here)
-                ps.xdata = jday
-            style_here = style.copy()
-            style_here['color'] = colors[iwl]
-            ps.plot_data(ratio_wl,style_here)
 
+            if groupBy == 'sza' and y_data_wl is not None:
+                ranges_min = np.array([20, 30, 40, 50, 60, 70, 80])
+                ranges_max = ranges_min + 10
+                angle = dataset.variables['HYPSTAR_solar_zenith_angle'][:]
+                mu_sensor_id = dataset.variables['mu_HYPSTAR_sequence_id'][:]
+                sensor_id_wl = mu_sensor_id[mu_wl == wl]
+                day_id_wl = mu_day_id[mu_wl == wl]
+                group_array = np.zeros(sensor_id_wl.shape)
+                group_values = []
+                for idx in range(group_array.shape[0]):
+                    angle_here = angle[day_id_wl[idx], sensor_id_wl[idx]]
+                    irange = np.where((angle_here >= ranges_min) & (angle_here <= ranges_max))
+                    if len(irange[0]) == 1:
+                        gvalue = irange[0][0] + 1
+                        if gvalue not in group_values:
+                            group_values.append(gvalue)
+                        group_array[idx] = gvalue
+                cmap = mpl.colormaps['tab10'].resampled(len(group_values))
+                n_groups = len(group_values)
+                jday = np.array(jday)
+                for i_group in range(n_groups):
+                    color = cmap(i_group / n_groups)
+                    style_here = style.copy()
+                    style_here['color'] = color
+
+                    jday_here = jday[group_array == group_values[i_group]]
+                    y_data_here = y_data_wl[group_array == group_values[i_group]]
+                    ps.plot_single_data(jday_here, y_data_here, style_here)
 
 
         max_jday = max(np.array(jday))
         xlabel_data = []
         xlabel = []
-        for jday_h in range(1,max_jday+15):
+        for jday_h in range(1, max_jday + 15):
             time_s = f'2024{jday_h}'
-            time_obj = dt.strptime(time_s,'%Y%j')
-            if time_obj.day==1 or time_obj.day==15:# or time_obj.day==10 or time_obj.day==20:
+            time_obj = dt.strptime(time_s, '%Y%j')
+            if time_obj.day == 1 or time_obj.day == 15:  # or time_obj.day==10 or time_obj.day==20:
                 xlabel_data.append(jday_h)
                 xlabel.append(time_obj.strftime('%m-%d'))
         ps.set_yaxis_title(ytitle)
         ps.set_xaxis_title('Date')
-        ps.set_xticks(xlabel_data,xlabel,90,10)
-        if len(wl_list)>1:
+        ps.set_xticks(xlabel_data, xlabel, 90, 10)
+        if len(wl_list) > 1:
             legend_values = [f'{wl} nm' for wl in wl_list]
             ps.set_legend(legend_values)
+        if groupBy is not None:
+            if groupBy=='sza':
+                legend_values = [f'{rmin}°-{rmax}°' for rmin,rmax in zip(ranges_min,ranges_max)]
+                ps.legend_options['markescale'] =2
+                ps.set_legend(legend_values)
+
+
         style_line = {'color': 'k', 'linestyle': '--', 'linewidth': 1, 'marker': 's', 'markersize': 0}
         ps.plot_single_data([156, 156], ps.get_y_range(), style_line)
 
         ps.set_grid()
+        if title is not None:
+            ps.set_title(title)
+        if y_range is not None:
+            ps.set_y_range(y_range[0], y_range[1])
         ps.set_tigth_layout()
         ps.save_plot(file_out)
         dataset.close()
-
-
-
 
     ##OPTIONS
     def get_options(self, options, section):
@@ -410,7 +553,7 @@ class INSITU_plots():
                                                             'AERONET_nominal_wavelengths', 'str')
 
         options_out['wlvariablemu'] = self.get_value_param(options, section, 'wlvariablemu',
-                                                            'mu_wavelength', 'str')
+                                                           'mu_wavelength', 'str')
 
         options_out['legend'] = self.get_value_param(options, section, 'legend', True, 'boolean')
         options_out['legend_values'] = self.get_value_param(options, section, 'legend_values', None, 'strlist')
@@ -484,20 +627,21 @@ class INSITU_plots():
         return options_out
 
     def get_options_spectrastats(self, options, section, options_out):
-        options_out['xvariable'] = self.get_value_param(options, section, 'xvariable', None,'strlist')
-        options_out['yvariable'] = self.get_value_param(options, section, 'yvariable',None, 'strlist')
-        options_out['color'] = self.get_value_param(options,section,'color',None,'strlist')
-        options_out['stat_list'] = self.get_value_param(options,section,'stat_list',None,'strlist')
-        options_out['wlvariablemu'] = self.get_value_param(options, section, 'wlvariablemu','mu_wavelength', 'str')
+        options_out['xvariable'] = self.get_value_param(options, section, 'xvariable', None, 'strlist')
+        options_out['yvariable'] = self.get_value_param(options, section, 'yvariable', None, 'strlist')
+        options_out['color'] = self.get_value_param(options, section, 'color', None, 'strlist')
+        options_out['stat_list'] = self.get_value_param(options, section, 'stat_list', None, 'strlist')
+        options_out['wlvariablemu'] = self.get_value_param(options, section, 'wlvariablemu', 'mu_wavelength', 'str')
         file_out_default = None
         if self.output_path is not None:
             name_default = options_out['name'] + '.' + self.format_image
             file_out_default = os.path.join(self.output_path, name_default)
         options_out['file_out'] = self.get_value_param(options, section, 'file_out', file_out_default, 'str')
-        options_out['legend'] = self.get_value_param(options,section,'legend',False,'boolean')
+        options_out['legend'] = self.get_value_param(options, section, 'legend', False, 'boolean')
         options_out['legend_values'] = self.get_value_param(options, section, 'legend_values', None, 'strlist')
 
         return options_out
+
     def get_value(self, options, section, key):
         value = None
         if options.has_option(section, key):
