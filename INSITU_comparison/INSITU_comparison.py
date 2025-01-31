@@ -1343,6 +1343,7 @@ class INSITUCOMPARISON:
 
         pspectra.set_tigth_layout()
         pspectra.save_plot(file_out)
+        pspectra.close_plot()
 
     def plot_spectra_comparison_mu(self, file_out, h_variable, a_variable, iday, hsequence, asequence, y_label):
         dataset = Dataset(self.path_nc)
@@ -1384,6 +1385,7 @@ class INSITUCOMPARISON:
 
         pspectra.set_tigth_layout()
         pspectra.save_plot(file_out)
+        pspectra.close_plot()
 
 
     def plot_epsilon_time_series(self,file_out):

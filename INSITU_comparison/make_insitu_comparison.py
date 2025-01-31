@@ -342,6 +342,7 @@ def make_plots_mu(file_nc, options):
         pm.plot_image(fileRrs, 1, 1)
         pm.plot_image(file_HYPSTAR, 1, 2)
         pm.save_fig(file_spectra)
+        pm.close_plot()
 
         file_pictures = create_file_pictures(dir_out_tmp,options,time_here)
         #file_pictures = os.path.join(dir_out_tmp, 'CameraImages_SEQ_20240111T0840_all.png')
@@ -360,8 +361,8 @@ def make_plots_mu(file_nc, options):
         pmfinal.set_text(100, -200,str_lines[0])
         pmfinal.set_text(100, -100, str_lines[1])
         pmfinal.set_text(100, -0, str_lines[2])
-
         pmfinal.save_fig_with_resolution(file_final, 300)
+        pmfinal.close_plot()
 
 def get_info_match_ups(file_nc,iday,ia,ih):
     from netCDF4 import Dataset
