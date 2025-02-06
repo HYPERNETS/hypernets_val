@@ -1512,8 +1512,9 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
         first_line = f'Index;{first_line}'
     if options['sortbyldcsm']:
         wl_check = [400, 412, 443, 490, 510, 560, 620, 667, 779, 865]
-        extra = [f'RatioLd{x:.0f}' for x in wl_check]
-        first_line = f'Index;{first_line};AvgRatioLd;{";".join(extra)}'
+        extra_ld = [f'RatioLd{x:.0f}' for x in wl_check]
+        extra_ed = [f'RatioEd{x:.0f}' for x in wl_check]
+        first_line = f'Index;{first_line};AvgRatioLd;{";".join(extra_ld)};AvgRatioEd;{";".join(extra_ed)}'
     fcsv = open(file_csv_out, 'w')
     fcsv.write(first_line)
 
@@ -1534,9 +1535,12 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                 elif options['sortbyldcsm']:
                     ld_hypstar = dataset.variables['l2_downwelling_radiance'][:]
                     ld_model = dataset.variables['csm_ld'][:]
+                    ed_hypstar = dataset.variables['l2_irradiance'][:]
+                    ed_model = dataset.variables['csm_ed_tot'][:]
                     wl_array = dataset.variables['wavelength'][:]
                     indices_wl_array = [np.argmin(np.abs(wl_array - wl_val)) for wl_val in wl_check]
                     sorting_array = ld_hypstar / ld_model
+                    ratio_ed_array = ed_hypstar / ed_model
                 dataset.close()
             for isequence in range(nsequences):
                 print(f'[INFO] Working for sequence: {isequence}/{nsequences}')
@@ -1583,9 +1587,12 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                 line = sequences_ref[seq_here]['line']
                 line = f'{idx};{line}'
                 if options['sortbyldcsm']:
-                    values_wl = sorting_array[index, indices_wl_array]
-                    line_values_wl = [f'{x:.6f}' for x in values_wl]
-                    line = f'{line};{sorting_values[index]};{";".join(line_values_wl)}'
+                    values_ld = sorting_array[index, indices_wl_array]
+                    line_values_ld = [f'{x:.6f}' for x in values_ld]
+                    mean_ratio_ed = np.mean(ratio_ed_array[index,:])
+                    values_ed = ratio_ed_array[index, indices_wl_array]
+                    line_values_ed = [f'{x:.6f}' for x in values_ed]
+                    line = f'{line};{sorting_values[index]};{";".join(line_values_ld)};{mean_ratio_ed};{";".join(line_values_ed)}'
                 fcsv.write('\n')
                 fcsv.write(line)
                 name_new = f'{idx}_{os.path.basename(file_old)}'
