@@ -60,9 +60,9 @@ class HYPERNETS_DAY_FILE():
         if not ckm.check_model_validity():
             return
         # ['csm_ed_dir', 'csm_ed_dif', 'csm_ed_tot', 'csm_ld']
+
         ncout = self.creating_copy_with_csm_variables()
-        for var in ncout.variables:
-            print(var)
+
         for isza, sza in enumerate(sza_array):
             print(f'[INFO] Working for solar zenith angle: {sza}')
             # print(wl_array.shape)

@@ -14,7 +14,8 @@ class ClearSkyModel():
         self.output_suffix = ['00', '10', '20', '30', '40', '50', '60', '70', '80', '82', '84', '86', '88']
         self.min_values = np.array([float(x) for x in self.output_suffix])
         self.max_values = self.min_values + 10
-        self.max_values[9:] = self.min_values[9:] + 2
+        self.max_values[8:] = self.min_values[8:] + 2
+
 
     def check_model_validity(self):
         valid = True
