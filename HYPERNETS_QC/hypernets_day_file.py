@@ -76,6 +76,8 @@ class HYPERNETS_DAY_FILE():
             print(f'[INFO] Working for solar zenith angle: {sza}')
             ld_array, eddir_array, eddif_array, edtot_array = ckm.get_lrt_model_geometry_wl(sza, relative_oaa, wl_array)
             # print(ld_array.shape,eddir_array.shape,eddif_array.shape,edtot_array.shape)
+            if ld_array is  None:
+                continue
             ncout.variables['csm_ed_dir'][isza, :] = eddir_array[:]
             ncout.variables['csm_ed_dif'][isza, :] = eddif_array[:]
             ncout.variables['csm_ed_tot'][isza, :] = edtot_array[:]

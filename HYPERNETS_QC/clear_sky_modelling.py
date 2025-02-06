@@ -30,12 +30,12 @@ class ClearSkyModel():
         index_sza = np.where(np.logical_and(sza >= self.min_values, sza < self.max_values))
         if len(index_sza[0]) == 0:
             print(f'[ERROR] Solar zenith angle should be in the range 0 - 90°')
-            return None
+            return [None]*5
         oaa_array = np.arange(0, 315 + 1, 45)  # [0 45 90 135 180 225 270 315]
         index_oaa = np.where(oaa_array == oaa)
         if len(index_oaa[0]) == 0:
             print(f'[ERROR] Observation azimuth angle should have on the following values: {oaa_array}')
-            return None
+            return [None]*5
         index_file_ini = int(index_sza[0])
         file_lrt_ini = os.path.join(self.path_model, f'{self.prename}{self.output_suffix[index_file_ini]}.out')
         LRT_wave, LRT_eddir_ini, LRT_eddif_ini, LRT_edtot_ini, LRT_ld40_ini = self.get_lrt_model(file_lrt_ini)
@@ -134,6 +134,8 @@ class ClearSkyModel():
     ##get lrt model results interpolated for a new wavelenght array
     def get_lrt_model_geometry_wl(self,sza, ooa, wl_array):
         LRT_wave, eddir_array, eddif_array, edtot_array, ld_array = self.get_lrt_model_geometry(sza,ooa)
+        if LRT_wave is None:
+            return [None]*4
 
         ld_array_interp = np.interp(wl_array,LRT_wave,ld_array)
         eddir_array_interp = np.interp(wl_array, LRT_wave, eddir_array)
