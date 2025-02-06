@@ -41,16 +41,29 @@ class ClearSkyModel():
         LRT_wave, LRT_eddir_ini, LRT_eddif_ini, LRT_edtot_ini, LRT_ld40_ini = self.get_lrt_model(file_lrt_ini)
         nwl = LRT_wave.shape[0]
         index_file_end = index_file_ini + 1
+        last_point = False
         if index_file_end == len(self.min_values):
             index_file_end = len(self.min_values) - 1
+            file_lrt_end = file_lrt_ini
+            LRT_eddir_end = LRT_eddir_ini
+            LRT_eddif_end = LRT_eddif_ini
+            LRT_edtot_end  = LRT_edtot_ini
+            LRT_ld40_end = LRT_ld40_ini
+            index_file_ini = index_file_end-1
+            file_lrt_ini = os.path.join(self.path_model, f'{self.prename}{self.output_suffix[index_file_ini]}.out')
+            LRT_wave, LRT_eddir_ini, LRT_eddif_ini, LRT_edtot_ini, LRT_ld40_ini = self.get_lrt_model(file_lrt_ini)
+            last_point = True
 
-        file_lrt_end = os.path.join(self.path_model, f'{self.prename}{self.output_suffix[index_file_end]}.out')
-        LRT_wave, LRT_eddir_end, LRT_eddif_end, LRT_edtot_end, LRT_ld40_end = self.get_lrt_model(file_lrt_end)
+        if not last_point:
+            file_lrt_end = os.path.join(self.path_model, f'{self.prename}{self.output_suffix[index_file_end]}.out')
+            LRT_wave, LRT_eddir_end, LRT_eddif_end, LRT_edtot_end, LRT_ld40_end = self.get_lrt_model(file_lrt_end)
 
         x_interpolate = np.cos(np.deg2rad(sza))
         x_known = np.array(
             [np.cos(np.deg2rad(self.min_values[index_file_end])), np.cos(np.deg2rad(self.min_values[index_file_ini]))])
         x_known = x_known.repeat(nwl).reshape((2, nwl))
+
+
 
         ##Ld
         ld_ini = np.squeeze(LRT_ld40_ini[:, index_oaa])

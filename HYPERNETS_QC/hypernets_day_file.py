@@ -48,13 +48,20 @@ class HYPERNETS_DAY_FILE():
         from netCDF4 import Dataset
         from clear_sky_modelling import ClearSkyModel
         dataset = Dataset(self.file_nc)
-        paa = float(dataset.variables['l2_pointing_azimuth_angle'][0])
-        saa = float(dataset.variables['l2_solar_azimuth_angle'][0])
+
+
         wl_array = dataset.variables['wavelength'][:]
         sza_array = dataset.variables['l2_solar_zenith_angle'][:]
         nseries = sza_array.shape[0]
+        relative_oaa = 90 ##default
+        for iserie in range(nseries):
+            paa = dataset.variables['l2_pointing_azimuth_angle'][iserie]
+            saa = dataset.variables['l2_solar_azimuth_angle'][iserie]
+            if not np.ma.is_masked(paa) and not np.ma.is_masked(saa):
+                relative_oaa = np.int(np.round(abs(float(paa) - float(saa))))
         dataset.close()
-        relative_oaa = np.int(np.round(abs(paa - saa)))
+
+
         print(f'[INFO] Relative observation azimuth angle: {relative_oaa}')
         ckm = ClearSkyModel(None)
         if not ckm.check_model_validity():
@@ -64,8 +71,9 @@ class HYPERNETS_DAY_FILE():
         ncout = self.creating_copy_with_csm_variables()
 
         for isza, sza in enumerate(sza_array):
+            if np.ma.is_masked(sza):
+                continue
             print(f'[INFO] Working for solar zenith angle: {sza}')
-            # print(wl_array.shape)
             ld_array, eddir_array, eddif_array, edtot_array = ckm.get_lrt_model_geometry_wl(sza, relative_oaa, wl_array)
             # print(ld_array.shape,eddir_array.shape,eddif_array.shape,edtot_array.shape)
             ncout.variables['csm_ed_dir'][isza, :] = eddir_array[:]
