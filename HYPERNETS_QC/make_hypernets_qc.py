@@ -1258,11 +1258,11 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
         work_date = work_date + timedelta(hours=interval)
 
 
-def make_clear_sky_model_plots(input_path, site, start_date, end_date):
+def make_clear_sky_model_plots(input_path, output_path, site, start_date, end_date):
     if args.verbose:
         print(f'[INFO] Started making clear sky model plots...')
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    hday = HYPERNETS_DAY(input_path, input_path)
+    hday = HYPERNETS_DAY(input_path, output_path)
     interval = 24
     if args.ndays_interval:
         interval = 24 * int(args.ndays_interval)
@@ -1701,7 +1701,13 @@ def main():
         make_comparison_clear_sky_model(input_path, site, start_date, end_date)
 
     if args.mode == 'CLEARSKYMODELPLOTS':
-        make_clear_sky_model_plots(input_path, site, start_date, end_date)
+        if output_path is None:
+            print(f'[ERROR] Output path is required.')
+            return
+        if not os.path.isdir(output_path):
+            print(f'[ERROR] Output path is not available.')
+            return
+        make_clear_sky_model_plots(input_path, output_path, site, start_date, end_date)
 
 
 # %%
