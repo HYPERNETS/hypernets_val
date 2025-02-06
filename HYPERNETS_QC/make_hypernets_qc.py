@@ -1266,6 +1266,7 @@ def make_clear_sky_model_plots(input_path, output_path, site, start_date, end_da
     interval = 24
     if args.ndays_interval:
         interval = 24 * int(args.ndays_interval)
+    delete = False if args.nodelfiles else True
     while work_date <= end_date:
         if args.verbose:
             print(f'--------------------------------------------------------------------------------------------------')
@@ -1276,7 +1277,8 @@ def make_clear_sky_model_plots(input_path, output_path, site, start_date, end_da
             for isequence in range(nsequences):
                 print(f'[INFO] Plotting for sequence: {isequence}/{nsequences}')
                 hdayfile.isequence = isequence
-                hdayfile.save_report_clear_sky_modelling(site, False, args.overwrite)
+                hdayfile.set_path_images_date(site,work_date)
+                hdayfile.save_report_clear_sky_modelling(site, delete, args.overwrite)
 
         work_date = work_date + timedelta(hours=interval)
 
