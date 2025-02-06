@@ -80,6 +80,9 @@ class HYPERNETS_DAY_FILE_LAND():
         else:
             self.path_images_date = None
 
+
+
+
     def save_report_image(self, site, delete_images, overwrite):
         print(f'[INFO] Sequence {self.isequence}: SEQ{self.sequences[self.isequence]}')
         if self.sequences[self.isequence] is None:

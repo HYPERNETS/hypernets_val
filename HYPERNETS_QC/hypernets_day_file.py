@@ -42,7 +42,38 @@ class HYPERNETS_DAY_FILE():
         self.flag_builder = None
         self.sequences_no_data = None
 
-
+    def add_clear_sky_model(self):
+        if not self.VALID:
+            return
+        from netCDF4 import Dataset
+        from clear_sky_modelling import ClearSkyModel
+        dataset = Dataset(self.file_nc)
+        paa = float(dataset.variables['l2_pointing_azimuth_angle'][0])
+        saa = float(dataset.variables['l2_solar_azimuth_angle'][0])
+        wl_array = dataset.variables['wavelength'][:]
+        sza_array = dataset.variables['l2_solar_zenith_angle'][:]
+        nseries = sza_array.shape[0]
+        dataset.close()
+        relative_oaa = np.int(np.round(abs(paa - saa)))
+        print(f'[INFO] Relative observation azimuth angle: {relative_oaa}')
+        ckm = ClearSkyModel(None)
+        if not ckm.check_model_validity():
+            return
+        # ['csm_ed_dir', 'csm_ed_dif', 'csm_ed_tot', 'csm_ld']
+        ncout = self.creating_copy_with_csm_variables()
+        for var in ncout.variables:
+            print(var)
+        for isza, sza in enumerate(sza_array):
+            print(f'[INFO] Working for solar zenith angle: {sza}')
+            # print(wl_array.shape)
+            ld_array, eddir_array, eddif_array, edtot_array = ckm.get_lrt_model_geometry_wl(sza, relative_oaa, wl_array)
+            # print(ld_array.shape,eddir_array.shape,eddif_array.shape,edtot_array.shape)
+            ncout.variables['csm_ed_dir'][isza, :] = eddir_array[:]
+            ncout.variables['csm_ed_dif'][isza, :] = eddif_array[:]
+            ncout.variables['csm_ed_tot'][isza, :] = edtot_array[:]
+            ncout.variables['csm_ld'][isza, :] = ld_array[:]
+        ncout.close()
+        print(f'[INFO] Completed')
 
     def get_sequences(self):
         from netCDF4 import Dataset
@@ -332,10 +363,14 @@ class HYPERNETS_DAY_FILE():
         list, mask = cflags.Decode(flag_value)
         epsilon_here = dataset.variables['l2_epsilon'][self.isequence]
         if not np.ma.is_masked(epsilon_here):
-            if epsilon_here < (-0.05): list.append('ENEG')
-            if epsilon_here >= 0.05: list.append('EHIGH')
+            if epsilon_here < (-0.005): list.append('ENEG')
+            if epsilon_here >= 0.005: list.append('EHIGH')
         dataset.close()
         return list
+
+    def is_valid_sequence(self):
+        b = True if len(self.get_flags_sequence()) == 0 else 0
+        return b
 
     def get_info_l2(self):
         from netCDF4 import Dataset
@@ -349,6 +384,25 @@ class HYPERNETS_DAY_FILE():
         dataset.close()
         str = f'epsilon={epsilon:.4f};rho={rho:.4f}(raa={raa:.1f};sza={sza:.1f};vza={vza:.1f};ws={ws:.2f})'
         return str
+
+    def get_info_sequence_csv(self,site):
+        from netCDF4 import Dataset
+        dataset = Dataset(self.file_nc)
+        epsilon = dataset.variables['l2_epsilon'][self.isequence]
+        rho = dataset.variables['l2_rhof'][self.isequence]
+        raa = dataset.variables['l1_rhof_raa'][self.isequence, 0]
+        sza = dataset.variables['l1_rhof_sza'][self.isequence, 0]
+        vza = dataset.variables['l1_rhof_vza'][self.isequence, 0]
+        ws = dataset.variables['l1_rhof_wind'][self.isequence, 0]
+        dataset.close()
+        sequence = self.sequences[self.isequence]
+        date_time_here = dt.strptime(self.sequences[self.isequence], '%Y%m%dT%H%M')
+        date_str = date_time_here.strftime('%Y-%m-%d')
+        time_str = date_time_here.strftime('%H:%M')
+        line = f'{site};{sequence};{date_str};{time_str};{epsilon};{rho};{raa};{sza};{vza};{ws}'
+        return line
+
+
 
     def get_title(self, site):
         date_time_here = dt.strptime(self.sequences[self.isequence], '%Y%m%dT%H%M')
@@ -364,6 +418,51 @@ class HYPERNETS_DAY_FILE():
         array = np.array(dataset.variables[name_var][:])
         dataset.close()
         return array
+
+    def creating_copy_with_csm_variables(self):
+        from netCDF4 import Dataset
+        file_nc_old = self.file_nc[:-3] + '_nocsm.nc'
+        if os.path.exists(file_nc_old):
+            print('[WARNING] Clear sky modelling already done. Skipping...')
+            return
+        os.rename(self.file_nc, file_nc_old)
+        file_nc_new = self.file_nc
+        input_dataset = Dataset(file_nc_old)
+        ncout = Dataset(file_nc_new, 'w', format='NETCDF4')
+
+        # copy attribtues
+        ncout.setncatts(input_dataset.__dict__)
+
+        # copy dimensions
+        for name, dimension in input_dataset.dimensions.items():
+            ncout.createDimension(
+                name, (len(dimension) if not dimension.isunlimited() else None))
+
+        ## variables
+        new_var_dims = None
+        for name, variable in input_dataset.variables.items():
+            fill_value = None
+            if '_FillValue' in list(variable.ncattrs()):
+                fill_value = variable._FillValue
+            ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                                 complevel=6)
+            # copy variable attributes all at once via dictionary
+            ncout[name].setncatts(input_dataset[name].__dict__)
+            # copy data
+            ncout[name][:] = input_dataset[name][:]
+
+            if name.startswith('l2') and len(variable.dimensions) == 2 and new_var_dims is None:
+                new_var_dims = variable.dimensions
+
+        ##new variables
+        if new_var_dims is not None:
+            new_vars = ['csm_ed_dir', 'csm_ed_dif', 'csm_ed_tot', 'csm_ld']
+            for new_var in new_vars:
+                ncout.createVariable(new_var, 'f4', new_var_dims, fill_value=-999.0, zlib=True, complevel=6)
+        input_dataset.close()
+
+        # ncout.close()
+        return ncout
 
     def creating_copy_with_new_angles(self, array_angles):
         from netCDF4 import Dataset
@@ -557,14 +656,14 @@ class HYPERNETS_DAY_FILE():
             pm.save_fig(f'{file_out_base}_all{self.format_img}')
             pm.close_plot()
 
-    def save_img_files_general(self,dir_img,multiple_plot):
+    def save_img_files_general(self, dir_img, multiple_plot):
         flags = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
         if not os.path.exists(dir_img):
             os.mkdir(dir_img)
         ref = self.isequence
-        if len(self.sequences)==0:
+        if len(self.sequences) == 0:
             self.sequences = self.get_sequences()
-        if len(self.sequences)>0:
+        if len(self.sequences) > 0:
             ref = f'SEQ_{self.sequences[self.isequence]}'
         file_out_base = os.path.join(dir_img, f'CameraImages_{ref}')
         if multiple_plot:
@@ -594,6 +693,7 @@ class HYPERNETS_DAY_FILE():
             pm.save_fig(file_out)
             pm.close_plot()
         return file_out
+
     def save_spectra_files(self, multiple_plot):
         dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
         if not os.path.exists(dir_img):
@@ -618,6 +718,36 @@ class HYPERNETS_DAY_FILE():
                 index_col = index_col + 1
 
         if multiple_plot:
+            pm.save_fig(f'{file_out_base}_all{self.format_img}')
+            pm.close_plot()
+
+    def save_clear_sky_model_files(self, multiple_plot):
+        dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
+        if not os.path.exists(dir_img):
+            os.mkdir(dir_img)
+        file_out_base = os.path.join(dir_img, f'ClearSkyModel_{self.isequence}')
+        flags = ['Edtot', 'Ld', 'Ld_Ed', 'Edtot_ratio', 'Ld_ratio', 'Ld_Ed_ratio']
+        if multiple_plot:
+            pm = PlotMultiple()
+            nrow = 2
+            ncol = 3
+            pm.start_multiple_plot_advanced(nrow, ncol, 10, 5.5, 0.25, 0.30, True)
+        index_row = 0
+        index_col = 0
+        handles_legend = None
+        for flag in flags:
+            if multiple_plot:
+                if index_col == ncol:
+                    index_col = 0
+                    index_row = index_row + 1
+                ax_here = pm.get_axes(index_row, index_col)
+                handles = self.plot_clear_sky_model_spectra(flag, ax_here)
+                if handles is not None:
+                    handles_legend = handles
+                index_col = index_col + 1
+        if multiple_plot:
+            if handles_legend is not None:
+                pm.set_global_legend_2(handles_legend, ['HYPSTAR', 'Clear Sky Model'])
             pm.save_fig(f'{file_out_base}_all{self.format_img}')
             pm.close_plot()
 
@@ -647,9 +777,6 @@ class HYPERNETS_DAY_FILE():
             pm.save_fig(f'{file_out_base}_all{self.format_img}')
             pm.close_plot()
 
-
-
-
     def save_report_summary_image(self, site, date_here, dir_img_summary, daily_sequences_summary):
 
         file_out = os.path.join(os.path.dirname(self.file_nc),
@@ -678,10 +805,10 @@ class HYPERNETS_DAY_FILE():
         pmtop.set_text(-1250, 50, f'DAILY SUMMARY REPORT - {date_here.strftime("%Y-%m-%d")}')
         # daily_sequences_summary = self.get_sequence_info()
         line = f'Total sequences: {daily_sequences_summary["NTotal"]}/{daily_sequences_summary["expected_sequences"]}. Processed to L2: {daily_sequences_summary["NAvailable"]}.'
-        skip = ['NTotal','NAvailable','start_time','end_time','expected_sequences']
+        skip = ['NTotal', 'NAvailable', 'start_time', 'end_time', 'expected_sequences']
         for key in daily_sequences_summary.keys():
             if key in skip: continue
-            if daily_sequences_summary[key]==0: continue
+            if daily_sequences_summary[key] == 0: continue
             line = f'{line} {key}: {daily_sequences_summary[key]}. '
         # line = f'{line} QC Flagged: {daily_sequences_summary["QFlagged"]}.'
         # line = f'{line} Epsilon Flagged: {daily_sequences_summary["EFlagged"]}.'
@@ -746,11 +873,11 @@ class HYPERNETS_DAY_FILE():
 
         os.rmdir(dir_img_summary)
 
-    def save_report_image_only_pictures(self,site,delete_images,overwrite,seq,files_img):
+    def save_report_image_only_pictures(self, site, delete_images, overwrite, seq, files_img):
         print(f'[INFO] Sequence {seq} (No Level-2 data available)')
         seq_time_str = seq[3:]
-        seq_time = dt.strptime(seq_time_str,'%Y%m%dT%H%M')
-        file_out = os.path.join(os.path.dirname(self.file_nc),f'{site}_{seq_time_str}_Report{self.format_img}')
+        seq_time = dt.strptime(seq_time_str, '%Y%m%dT%H%M')
+        file_out = os.path.join(os.path.dirname(self.file_nc), f'{site}_{seq_time_str}_Report{self.format_img}')
         if os.path.exists(file_out) and not overwrite:
             return
         names_img = ['sky_irr_1', 'sky_rad_1', 'water_rad', 'sky_rad_2', 'sky_irr_2', 'sun']
@@ -764,12 +891,12 @@ class HYPERNETS_DAY_FILE():
         if not os.path.exists(dir_img):
             os.mkdir(dir_img)
 
-        #file_out_base = os.path.join(dir_img, f'CameraImages_{self.isequence}')
+        # file_out_base = os.path.join(dir_img, f'CameraImages_{self.isequence}')
 
         pm = PlotMultiple()
         nrow = 2
         ncol = 3
-        pm.start_multiple_plot_advanced(nrow, ncol, 10, 7.0, 0.02,0.15, True)
+        pm.start_multiple_plot_advanced(nrow, ncol, 10, 7.0, 0.02, 0.15, True)
         index_row = 0
         index_col = 0
         for name_img in names_img_files:
@@ -778,7 +905,6 @@ class HYPERNETS_DAY_FILE():
             if index_col == ncol:
                 index_col = 0
                 index_row = index_row + 1
-
 
             if file_img is not None:
                 pm.plot_image_hypernets(file_img, index_row, index_col, title)
@@ -792,11 +918,10 @@ class HYPERNETS_DAY_FILE():
         title = f'{site} {seq_time_str} - {date_str} {time_str} - No L2 Data'
         pm.fig.suptitle(title)
         line = f'ANOMALY: ?'
-        pm.fig.text(0.20,0.05,line)
-        #pm.get_axes(0,0).set_title(title)
+        pm.fig.text(0.20, 0.05, line)
+        # pm.get_axes(0,0).set_title(title)
         pm.save_fig(file_out)
         pm.close_plot()
-
 
         # dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
         # if not os.path.exists(dir_img):
@@ -853,6 +978,53 @@ class HYPERNETS_DAY_FILE():
             str_flag_list = f'FLAGS:{str_list}'
         pm.get_axes(1, 0).set_title(str_flag_list, fontsize=12)
         pm.plot_image(file_angle, 1, 0)
+        info_l2 = self.get_info_l2()
+        pm.get_axes(2, 0).set_title(info_l2, fontsize=12)
+        pm.plot_image(file_spectra, 2, 0)
+
+        pm.save_fig(file_out)
+        pm.close_plot()
+
+        if delete_images:
+            for name in os.listdir(dir_img):
+                file_here = os.path.join(dir_img, name)
+                os.remove(file_here)
+            os.rmdir(dir_img)
+
+    def save_report_clear_sky_modelling(self, site, delete_images, overwrite):
+        print(f'[INFO] Sequence {self.isequence}: SEQ{self.sequences[self.isequence]}')
+        if self.sequences[self.isequence] is None:
+            return
+        file_out = os.path.join(os.path.dirname(self.file_nc),
+                                f'{site}_{self.sequences[self.isequence]}_Report_CSM{self.format_img}')
+        if os.path.exists(file_out) and not overwrite:
+            return
+        dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
+        if not os.path.exists(dir_img):
+            os.mkdir(dir_img)
+        file_csm = os.path.join(dir_img, f'ClearSkyModel_{self.isequence}_all{self.format_img}')
+        if not os.path.isfile(file_csm) or (os.path.isfile(file_csm) and overwrite):
+            self.save_clear_sky_model_files(True)
+        file_img = os.path.join(dir_img, f'CameraImages_{self.isequence}_all{self.format_img}')
+        if not os.path.isfile(file_img) or (os.path.isfile(file_img) and overwrite):
+            self.save_img_files(True)
+        file_spectra = os.path.join(dir_img, f'Spectra_{self.isequence}_all{self.format_img}')
+        if not os.path.exists(file_spectra) or (os.path.isfile(file_spectra) and overwrite):
+            self.save_spectra_files(True)
+        pm = PlotMultiple()
+        nrow = 3
+        ncol = 1
+        pm.start_multiple_plot_advanced(nrow, ncol, 10, 18, 0.1, 0.1, True)
+        pm.get_axes(0, 0).set_title(self.get_title(site), fontsize=20)
+        pm.plot_image(file_img, 0, 0)
+        flag_list = self.get_flags_sequence()
+        if len(flag_list) == 0:
+            str_flag_list = 'NO FLAGGED'
+        else:
+            str_list = ','.join(flag_list)
+            str_flag_list = f'FLAGS:{str_list}'
+        pm.get_axes(1, 0).set_title(str_flag_list, fontsize=12)
+        pm.plot_image(file_csm, 1, 0)
         info_l2 = self.get_info_l2()
         pm.get_axes(2, 0).set_title(info_l2, fontsize=12)
         pm.plot_image(file_spectra, 2, 0)
@@ -925,6 +1097,85 @@ class HYPERNETS_DAY_FILE():
 
         ax_here.tick_params(axis='x', labelsize=10)
         ax_here.tick_params(axis='y', labelsize=10)
+
+    def plot_clear_sky_model_spectra(self, flag, ax_here):
+        # flags = ['Edtot', 'Ld', 'Ld_Ed', 'Edtot_ratio', 'Ld_ratio', 'Ld_Ed_ratio']
+        from netCDF4 import Dataset
+        import numpy as np
+        info = {
+            'Edtot': {
+                'HYSTAR_variable': 'l2_irradiance',
+                'csm_variable': 'csm_ed_tot',
+                'ylabel': "Edtot (mW m-2 nm-1)",
+                'title': "Downwelling Irradiance"
+            },
+            'Ld': {
+                'HYSTAR_variable': 'l2_downwelling_radiance',
+                'csm_variable': 'csm_ld',
+                'ylabel': "Ld (mW m-2 nm-1)",
+                'title': "Downwelling Radiance"
+            },
+            'Ld_Ed': {
+                'HYSTAR_variable': 'l2_downwelling_radiance/l2_irradiance',
+                'csm_variable': 'csm_ld/csm_ed_tot',
+                'ylabel': "Ld/Ed (sr-1)",
+                'title': "Ld/Ed"
+            },
+            'Edtot_ratio': {
+                'HYSTAR_variable': 'l2_irradiance',
+                'csm_variable': 'csm_ed_tot',
+                'ylabel': "Ed(HYPSTAR)/Ed(Model)",
+                'title': "Ratio Ed(HYPSTAR) / Ed(Model)"
+            },
+            'Ld_ratio': {
+                'HYSTAR_variable': 'l2_downwelling_radiance',
+                'csm_variable': 'csm_ld',
+                'ylabel': "Ld(HYPSTAR)/Ld(Model)",
+                'title': "Ratio Ld(HYPSTAR) / Ld(Model)"
+            },
+            'Ld_Ed_ratio': {
+                'HYSTAR_variable': 'l2_downwelling_radiance/l2_irradiance',
+                'csm_variable': 'csm_ld/csm_ed_tot',
+                'ylabel': "Ld/Ed(HYPSTAR) / Ld/Ed(Model)",
+                'title': "Ratio Ld/Ed(HYPSTAR) / Ld/Ed(Model)"
+            }
+        }
+        handles = None
+        dataset = Dataset(self.file_nc)
+        hvar = info[flag]['HYSTAR_variable'].split('/')
+        hypstar_array = dataset.variables[hvar[0]][self.isequence, :]
+        if len(hvar) == 2:
+            hypstar_array = hypstar_array / dataset.variables[hvar[1]][self.isequence, :]
+        mvar = info[flag]['csm_variable'].split('/')
+        model_array = dataset.variables[mvar[0]][self.isequence, :]
+        if len(mvar) == 2:
+            model_array = model_array / dataset.variables[mvar[1]][self.isequence, :]
+
+        wl_array = dataset.variables['wavelength'][:]
+        if flag.endswith('ratio'):
+            plot_array = hypstar_array / model_array
+            ax_here.plot(wl_array, plot_array, color='black', linewidth=1)
+            rmin = np.min(plot_array)
+            rmax = np.max(plot_array)
+            rmin_abs = (np.floor(rmin) + 0.5) if rmin > (np.floor(rmin) + 0.5) else np.floor(rmin)
+            rmax_abs = (np.ceil(rmax) - 0.5) if rmax < (np.ceil(rmax) - 0.5) else np.ceil(rmax)
+
+            ax_here.set_ylim(rmin_abs, rmax_abs)
+            ax_here.set_yticks(np.arange(rmin_abs, rmax_abs + 0.1, 0.5))
+        else:
+            hline1 = ax_here.plot(wl_array, hypstar_array, color='blue', linewidth=1)
+            hline2 = ax_here.plot(wl_array, model_array, color='red', linewidth=1)
+            handles = [hline1[0], hline2[0]]
+
+        ax_here.set_xlabel('Wavelength(nm)', fontsize=7)
+        ax_here.set_ylabel(info[flag]['ylabel'], fontsize=7)
+        ax_here.tick_params(axis='x', labelsize=7)
+        ax_here.tick_params(axis='y', labelsize=7)
+        ax_here.set_title(info[flag]['title'], fontsize=7)
+        ax_here.grid(which='major', color='lightgray', linestyle='--', axis='y')
+
+        dataset.close()
+        return handles
 
     def plot_spectra(self, flag, ax_here):
         from netCDF4 import Dataset
@@ -1217,11 +1468,6 @@ class HYPERNETS_DAY_FILE():
 
         dataset.close()
 
-
-
-
-
-
     def plot_sequence_plot_from_options(self, options_figure):
         from netCDF4 import Dataset
         import numpy as np
@@ -1229,7 +1475,6 @@ class HYPERNETS_DAY_FILE():
         import pandas as pd
         import seaborn as sns
         from matplotlib import pyplot as plt
-
 
         dataset = Dataset(self.file_nc)
         time_array = dataset.variables['l2_acquisition_time'][:]
@@ -1245,13 +1490,12 @@ class HYPERNETS_DAY_FILE():
         if options_figure['flagBy'] is not None:
             options_figure['flagType'] = 'flag'
             options_figure = self.check_gs_options_impl(options_figure, 'flagBy', 'flagType', 'flagValues')
-            #noptions = len(options_figure[options_figure['flagBy']]['flag_values'])
+            # noptions = len(options_figure[options_figure['flagBy']]['flag_values'])
             if options_figure['flagBy'] in options_figure.keys():
                 use_default_flag = False
                 flag_meanings = options_figure[options_figure['flagBy']]['flag_meanings']
                 flag_values = options_figure[options_figure['flagBy']]['flag_values']
                 flag_array = options_figure[options_figure['flagBy']]['flag_array']
-
 
         if use_default_flag:
             qf_array = dataset.variables['l2_quality_flag'][:]
@@ -1308,14 +1552,14 @@ class HYPERNETS_DAY_FILE():
                             daily_summary_sequences['EHIGH'] = daily_summary_sequences['EHIGH'] + 1
                             yarray[itime] = 4
                     else:
-                        daily_summary_sequences['FLAGGED'] = daily_summary_sequences['FLAGGED']+1
+                        daily_summary_sequences['FLAGGED'] = daily_summary_sequences['FLAGGED'] + 1
                         yarray[itime] = 1
                 else:
                     try:
                         fvalue = flag_array[time_valid]
                         index_flag = flag_values.index(int(fvalue))
                         flag_meaning = legend_values[index_flag]
-                        daily_summary_sequences[flag_meaning] = daily_summary_sequences[flag_meaning]+1
+                        daily_summary_sequences[flag_meaning] = daily_summary_sequences[flag_meaning] + 1
                         yarray[itime] = index_flag + 1
                     except:
                         pass
@@ -1334,8 +1578,9 @@ class HYPERNETS_DAY_FILE():
             daily_summary_sequences['NTotal'] = daily_summary_sequences['NAvailable'] + len(self.sequences_no_data)
             for seq in self.sequences_no_data:
                 time_stamp_seq = dt.strptime(seq[3:], '%Y%m%dT%H%M').replace(tzinfo=pytz.utc).timestamp()
-                iwhere = np.where(np.logical_and(time_stamp_seq>=time_fix_min_max[:,0],time_stamp_seq<time_fix_min_max[:,1]))
-                if len(iwhere[0])>0:
+                iwhere = np.where(
+                    np.logical_and(time_stamp_seq >= time_fix_min_max[:, 0], time_stamp_seq < time_fix_min_max[:, 1]))
+                if len(iwhere[0]) > 0:
                     index = iwhere[0][0]
                     date_seq = dt.utcfromtimestamp(time_fix_axis_ts[index])
                     data.loc[date_seq.strftime('%H')].at[date_seq.strftime('%M')] = 0
@@ -2095,17 +2340,18 @@ class HYPERNETS_DAY_FILE():
                 }
             else:  ##virtual flag
                 virtual_flags_options = self.flag_builder.get_virtual_flags_options()
-                if virtual_flags_options[var_group_name]['type']=='ranges':
-                    array, flag_meanings, flag_values = self.flag_builder.create_flag_array_ranges_v2(virtual_flags_options[var_group_name])
-                elif virtual_flags_options[var_group_name]['type']=='flag':
-                    array, dims, flag_meanings, flag_values = self.flag_builder.create_flag_array_flag(virtual_flags_options[var_group_name])
+                if virtual_flags_options[var_group_name]['type'] == 'ranges':
+                    array, flag_meanings, flag_values = self.flag_builder.create_flag_array_ranges_v2(
+                        virtual_flags_options[var_group_name])
+                elif virtual_flags_options[var_group_name]['type'] == 'flag':
+                    array, dims, flag_meanings, flag_values = self.flag_builder.create_flag_array_flag(
+                        virtual_flags_options[var_group_name])
 
                 options_figure[var_group_name] = {
                     'flag_values': flag_values,
                     'flag_meanings': flag_meanings,
                     'flag_array': array
                 }
-
 
             if options_figure[values] is None:
                 options_figure[values] = flag_values

@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
                              'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG',
-                             'LOGDOWNLOAD', 'COPYREPORTS'],
+                             'LOGDOWNLOAD', 'COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -27,6 +27,8 @@ parser.add_argument('-site', "--site_name", help="Site name")
 parser.add_argument('-key', "--key_image", help="Key for single images",
                     choices=['all', 'sun', 'water', 'skirad1', 'skiirrad1', 'skirad2', 'skiirrad2'])
 parser.add_argument('-sopt', "--summary_options", help="Summary options,separated by '_': csv,nc,copy")
+parser.add_argument('-copt', "--copy_plot_options",
+                    help="Copy plot options: use_basic,only_valid,sortbyespsilon,sortbyldcsm", default="FTFT")
 parser.add_argument('-ndays', "--ndays_interval", help="Interval days between start date and end date")
 parser.add_argument('-ndel', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-ndw", "--nodownload", help="No download (for launching without connection with RBINS).",
@@ -241,7 +243,7 @@ def test_aug_m(type_int):
     while work_date <= end_date:
         str_date = work_date.strftime('%Y-%m-%d')
         append = True
-        if str_date=='2024-03-14':append=False
+        if str_date == '2024-03-14': append = False
         if str_date == '2024-03-30': append = False
         if str_date == '2024-04-19': append = False
         if str_date == '2024-04-20': append = False
@@ -403,6 +405,25 @@ def test2():
     #     print(wd,wimages[wd])
     # hdayfile.plot_water_images(wimages)
     return True
+
+
+def make_comparison_clear_sky_model(input_path, site, start_date, end_date):
+    if args.verbose:
+        print(f'[INFO] Started making clear sky modelling...')
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, input_path)
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+        hdayfile = hday.get_hypernets_day_file(site, work_date)
+        if hdayfile is not None:
+            hdayfile.add_clear_sky_model()
+
+        work_date = work_date + timedelta(hours=interval)
 
 
 def make_report_files(input_path, output_path, site, start_date, end_date):
@@ -1237,6 +1258,29 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
         work_date = work_date + timedelta(hours=interval)
 
 
+def make_clear_sky_model_plots(input_path, site, start_date, end_date):
+    if args.verbose:
+        print(f'[INFO] Started making clear sky model plots...')
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, input_path)
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+        hdayfile = hday.get_hypernets_day_file(site, work_date)
+        if hdayfile is not None and hdayfile.VALID:
+            nsequences = len(hdayfile.sequences)
+            for isequence in range(nsequences):
+                print(f'[INFO] Plotting for sequence: {isequence}/{nsequences}')
+                hdayfile.isequence = isequence
+                hdayfile.save_report_clear_sky_modelling(site, False, args.overwrite)
+
+        work_date = work_date + timedelta(hours=interval)
+
+
 def get_start_and_end_dates():
     start_date = dt.now()
     if args.start_date:
@@ -1444,6 +1488,112 @@ def make_copy_reports(input_path, output_path, site, start_date, end_date):
         work_date = work_date + timedelta(hours=24)
 
 
+def make_copy_plots(input_path, output_path, site, start_date, end_date, options):
+    if args.verbose:
+        print(f'[INFO] Started making clear sky model plots...')
+    from netCDF4 import Dataset
+    import numpy as np
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, input_path)
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+
+    sequences_list = []
+    sorting_values = []
+    sequences_ref = {}
+
+    file_csv_out = os.path.join(output_path, 'SequenceList.csv')
+    # line = f'{site};{sequence};{date_str};{time_str};{epsilon};{rho};{raa};{sza};{vza};{ws}'
+    first_line = 'Site;Sequence;Date;Time;Epsilon;Rho;raa;sza;vza;wind_speed'
+    if options['sortbyepsilon']:
+        first_line = f'Index;{first_line}'
+    if options['sortbyldcsm']:
+        wl_check = [400, 412, 443, 490, 510, 560, 620, 667, 779, 865]
+        extra = [f'RatioLd{x:.0f}' for x in wl_check]
+        first_line = f'Index;{first_line};AvgRatioLd;{";".join(extra)}'
+    fcsv = open(file_csv_out, 'w')
+    fcsv.write(first_line)
+
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+        hdayfile = hday.get_hypernets_day_file(site, work_date)
+        if hdayfile is not None and hdayfile.VALID:
+            nsequences = len(hdayfile.sequences)
+            sorting_array = None
+
+            if options['sortbyepsilon'] or options['sortbyldcsm']:
+
+                dataset = Dataset(hdayfile.file_nc)
+                if options['sortbyepsilon']:
+                    sorting_array = dataset.variables['l2_epsilon'][:]
+                elif options['sortbyldcsm']:
+                    ld_hypstar = dataset.variables['l2_downwelling_radiance'][:]
+                    ld_model = dataset.variables['csm_ld'][:]
+                    wl_array = dataset.variables['wavelength'][:]
+                    indices_wl_array = [np.argmin(np.abs(wl_array - wl_val)) for wl_val in wl_check]
+                    sorting_array = ld_hypstar / ld_model
+                dataset.close()
+            for isequence in range(nsequences):
+                print(f'[INFO] Working for sequence: {isequence}/{nsequences}')
+                hdayfile.isequence = isequence
+                line = hdayfile.get_info_sequence_csv(site)
+                if options['only_valid']:
+                    if not hdayfile.is_valid_sequence():
+                        print(f'[WARNING] No valid sequence. Skipping...')
+                        continue
+                if options['use_basic']:
+                    file_out = os.path.join(os.path.dirname(hdayfile.file_nc),
+                                            f'{site}_{hdayfile.sequences[isequence]}_Report{hdayfile.format_img}')
+                else:
+                    file_out = os.path.join(os.path.dirname(hdayfile.file_nc),
+                                            f'{site}_{hdayfile.sequences[isequence]}_Report_CSM{hdayfile.format_img}')
+
+                if os.path.exists(file_out):
+                    sequence_ref = hdayfile.sequences[isequence]
+                    sequences_ref[sequence_ref] = {
+                        'file': file_out,
+                        'line': line
+                    }
+                    sequences_list.append(sequence_ref)
+                    if options['sortbyepsilon']:
+                        sorting_values.append(sorting_array[isequence])
+                    elif options['sortbyldcsm']:
+                        sorting_values.append(np.mean(sorting_array[isequence]))
+                # print(file_out,os.path.exists(file_out))
+                # hdayfile.save_report_clear_sky_modelling(site, False, args.overwrite)
+
+        work_date = work_date + timedelta(hours=interval)
+
+        if args.verbose:
+            print(f'[INFO] -----------------------------------------------------')
+            print(f'[INFO] Copying files and saving info to CSV...')
+        if options['sortbyepsilon'] or options['sortbyldcsm']:
+            sorted_indices = np.argsort(sorting_values)
+            for idx, index in enumerate(sorted_indices):
+                if args.verbose:
+                    if (idx%1000)==0 or idx==len(sorted_indices)-1:
+                        print(f'[INFO] --> {idx} / {len(sorted_indices)-1}')
+                seq_here = sequences_list[index]
+                file_old = sequences_ref[seq_here]['file']
+                line = sequences_ref[seq_here]['line']
+                line = f'{idx};{line}'
+                if options['sortbyldcsm']:
+                    values_wl = sorting_array[index, indices_wl_array]
+                    line_values_wl = [f'{x:.6f}' for x in values_wl]
+                    line = f'{line};{sorting_values[index]};{";".join(line_values_wl)}'
+                fcsv.write('\n')
+                fcsv.write(line)
+                name_new = f'{idx}_{os.path.basename(file_old)}'
+                file_new = os.path.join(output_path, name_new)
+                shutil.copy(file_old, file_new)
+
+    fcsv.close()
+    if args.verbose:
+        print(f'[INFO] Completed')
+
 def main():
     if args.verbose:
         print('[INFO] STARTED')
@@ -1527,6 +1677,31 @@ def main():
 
     if args.mode == 'COPYREPORTS':
         make_copy_reports(input_path, output_path, site, start_date, end_date)
+
+    if args.mode == 'COPYPLOTS':
+        options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm']
+        args_options = [True if x == 'T' else False for x in args.copy_plot_options]
+        dict_options = {}
+        for idx in range(len(options)):
+            dict_options[options[idx]] = args_options[idx]
+
+        if output_path is None:
+            print(f'[ERROR] Output path is required')
+            return
+        if not os.path.exists(output_path):
+            try:
+                os.mkdir(output_path)
+            except:
+                print(
+                    f'[ERROR] Output path {output_path} does not exist and could not be created, please review permissions')
+
+        make_copy_plots(input_path, output_path, site, start_date, end_date, dict_options)
+
+    if args.mode == 'CLEARSKYMODEL':
+        make_comparison_clear_sky_model(input_path, site, start_date, end_date)
+
+    if args.mode == 'CLEARSKYMODELPLOTS':
+        make_clear_sky_model_plots(input_path, site, start_date, end_date)
 
 
 # %%
