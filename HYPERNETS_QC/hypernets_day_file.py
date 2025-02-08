@@ -1009,6 +1009,8 @@ class HYPERNETS_DAY_FILE():
                                 f'{site}_{self.sequences[self.isequence]}_Report_CSM{self.format_img}')
         if os.path.exists(file_out) and not overwrite:
             return
+        if not self.check_l2_spectra_data():
+            return
         dir_img = os.path.join(os.path.dirname(self.file_nc), 'IMG')
         if not os.path.exists(dir_img):
             os.mkdir(dir_img)
@@ -2427,3 +2429,17 @@ class HYPERNETS_DAY_FILE():
         #     flag_values, flag_meanings, flag_array = fbuilder.create_flag_array(var_name, False)
         #
         #     return flag_values, flag_meanings, flag_array
+
+    ##check l2 spectra data
+    def check_l2_spectra_data(self):
+        variables = ['l2_irradiance','l2_downwelling_radiance','l2_upwelling_radiance']
+        from netCDF4 import Dataset
+        dataset = Dataset(self.file_nc)
+        for var in variables:
+            array = dataset.variables[var][self.isequence,:]
+            if np.ma.count(array)==0:
+                print(f'[WARNING] No {var} data available for sequence {self.isequence}. Skipping...')
+                dataset.close()
+                return False
+        dataset.close()
+        return True
