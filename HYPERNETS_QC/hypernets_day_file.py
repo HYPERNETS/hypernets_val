@@ -2432,7 +2432,7 @@ class HYPERNETS_DAY_FILE():
 
     ##check l2 spectra data
     def check_l2_spectra_data(self):
-        variables = ['l2_irradiance','l2_downwelling_radiance','l2_upwelling_radiance']
+        variables = ['l2_irradiance','l2_downwelling_radiance','l2_upwelling_radiance','csm_ld','csm_ed_tot']
         from netCDF4 import Dataset
         dataset = Dataset(self.file_nc)
         for var in variables:
