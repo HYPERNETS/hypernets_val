@@ -1573,32 +1573,31 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
 
         work_date = work_date + timedelta(hours=interval)
 
-        if args.verbose:
-            print(f'[INFO] -----------------------------------------------------')
-            print(f'[INFO] Copying files and saving info to CSV...')
-        if options['sortbyepsilon'] or options['sortbyldcsm']:
-            sorted_indices = np.argsort(sorting_values)
-            for idx, index in enumerate(sorted_indices):
-                if args.verbose:
-                    if (idx%1000)==0 or idx==len(sorted_indices)-1:
-                        print(f'[INFO] --> {idx} / {len(sorted_indices)-1}')
-                seq_here = sequences_list[index]
-                file_old = sequences_ref[seq_here]['file']
-                line = sequences_ref[seq_here]['line']
-                line = f'{idx};{line}'
-                if options['sortbyldcsm']:
-                    values_ld = sorting_array[index, indices_wl_array]
-                    line_values_ld = [f'{x:.6f}' for x in values_ld]
-                    mean_ratio_ed = np.mean(ratio_ed_array[index,:])
-                    values_ed = ratio_ed_array[index, indices_wl_array]
-                    line_values_ed = [f'{x:.6f}' for x in values_ed]
-                    line = f'{line};{sorting_values[index]};{";".join(line_values_ld)};{mean_ratio_ed};{";".join(line_values_ed)}'
-                fcsv.write('\n')
-                fcsv.write(line)
-                name_new = f'{idx}_{os.path.basename(file_old)}'
-                file_new = os.path.join(output_path, name_new)
-                shutil.copy(file_old, file_new)
-
+    if args.verbose:
+        print(f'[INFO] -----------------------------------------------------')
+        print(f'[INFO] Copying files and saving info to CSV...')
+    if options['sortbyepsilon'] or options['sortbyldcsm']:
+        sorted_indices = np.argsort(sorting_values)
+        for idx, index in enumerate(sorted_indices):
+            if args.verbose:
+                if (idx%1000)==0 or idx==len(sorted_indices)-1:
+                    print(f'[INFO] --> {idx} / {len(sorted_indices)-1}')
+            seq_here = sequences_list[index]
+            file_old = sequences_ref[seq_here]['file']
+            line = sequences_ref[seq_here]['line']
+            line = f'{idx};{line}'
+            if options['sortbyldcsm']:
+                values_ld = sorting_array[index, indices_wl_array]
+                line_values_ld = [f'{x:.6f}' for x in values_ld]
+                mean_ratio_ed = np.mean(ratio_ed_array[index,:])
+                values_ed = ratio_ed_array[index, indices_wl_array]
+                line_values_ed = [f'{x:.6f}' for x in values_ed]
+                line = f'{line};{sorting_values[index]};{";".join(line_values_ld)};{mean_ratio_ed};{";".join(line_values_ed)}'
+            fcsv.write('\n')
+            fcsv.write(line)
+            name_new = f'{idx}_{os.path.basename(file_old)}'
+            file_new = os.path.join(output_path, name_new)
+            shutil.copy(file_old, file_new)
     fcsv.close()
     if args.verbose:
         print(f'[INFO] Completed')
