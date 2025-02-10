@@ -1550,6 +1550,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                 print(f'[INFO]--->Working for sequence: {isequence}/{nsequences}')
                 hdayfile.isequence = isequence
                 line = hdayfile.get_info_sequence_csv(site)
+
                 if options['only_valid']:
                     if not hdayfile.is_valid_sequence():
                         print(f'[WARNING]No valid sequence. Skipping...')
@@ -1563,15 +1564,26 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
 
                 if os.path.exists(file_out):
                     sequence_ref = hdayfile.sequences[isequence]
+                    sequences_list.append(sequence_ref)
+                    if options['sortbyepsilon']:
+                        value_sort = sorting_array[isequence]
+                        sorting_values.append(value_sort)
+                        line = f'{line};{value_sort}'
+                    elif options['sortbyldcsm']:
+                        value_sort = np.mean(sorting_array[isequence])
+                        sorting_values.append(value_sort)
+                        values_ld = sorting_array[isequence, indices_wl_array]
+                        line_values_ld = [f'{x:.6f}' for x in values_ld]
+                        mean_ratio_ed = np.mean(ratio_ed_array[isequence, :])
+                        values_ed = ratio_ed_array[isequence, indices_wl_array]
+                        line_values_ed = [f'{x:.6f}' for x in values_ed]
+                        line = f'{line};{value_sort};{";".join(line_values_ld)};{mean_ratio_ed};{";".join(line_values_ed)}'
+
                     sequences_ref[sequence_ref] = {
                         'file': file_out,
                         'line': line
                     }
-                    sequences_list.append(sequence_ref)
-                    if options['sortbyepsilon']:
-                        sorting_values.append(sorting_array[isequence])
-                    elif options['sortbyldcsm']:
-                        sorting_values.append(np.mean(sorting_array[isequence]))
+
                 # print(file_out,os.path.exists(file_out))
                 # hdayfile.save_report_clear_sky_modelling(site, False, args.overwrite)
 
@@ -1587,20 +1599,13 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
 
         for idx, index in enumerate(sorted_indices):
             if args.verbose:
-                # if (idx%1000)==0 or idx==len(sorted_indices)-1:
-                #     print(f'[INFO] --> {idx} / {len(sorted_indices)-1}')
-                print(f'[INFO] --> {idx}:{index} / {len(sorted_indices) - 1}')
+                if (idx%100)==0 or idx==len(sorted_indices)-1:
+                    print(f'[INFO] --> {idx} / {len(sorted_indices)-1}')
+                #print(f'[INFO] --> {idx}:{index} / {len(sorted_indices) - 1}')
             seq_here = sequences_list[index]
             file_old = sequences_ref[seq_here]['file']
             line = sequences_ref[seq_here]['line']
             line = f'{idx};{line}'
-            if options['sortbyldcsm']:
-                values_ld = sorting_array[index, indices_wl_array]
-                line_values_ld = [f'{x:.6f}' for x in values_ld]
-                mean_ratio_ed = np.mean(ratio_ed_array[index,:])
-                values_ed = ratio_ed_array[index, indices_wl_array]
-                line_values_ed = [f'{x:.6f}' for x in values_ed]
-                line = f'{line};{sorting_values[index]};{";".join(line_values_ld)};{mean_ratio_ed};{";".join(line_values_ed)}'
             fcsv.write('\n')
             fcsv.write(line)
             name_new = f'{idx}_{os.path.basename(file_old)}'
