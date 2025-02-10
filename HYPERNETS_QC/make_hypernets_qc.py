@@ -1525,6 +1525,8 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
         hdayfile = hday.get_hypernets_day_file(site, work_date)
         if hdayfile is not None and hdayfile.VALID:
             nsequences = len(hdayfile.sequences)
+            if args.verbose:
+                print(f'[INFO] Number of sequences: {nsequences}')
             sorting_array = None
 
             if options['sortbyepsilon'] or options['sortbyldcsm']:
@@ -1541,14 +1543,16 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                     indices_wl_array = [np.argmin(np.abs(wl_array - wl_val)) for wl_val in wl_check]
                     sorting_array = ld_hypstar / ld_model
                     ratio_ed_array = ed_hypstar / ed_model
+
                 dataset.close()
+            print(sorting_array.shape)
             for isequence in range(nsequences):
-                print(f'[INFO] Working for sequence: {isequence}/{nsequences}')
+                print(f'[INFO]--->Working for sequence: {isequence}/{nsequences}')
                 hdayfile.isequence = isequence
                 line = hdayfile.get_info_sequence_csv(site)
                 if options['only_valid']:
                     if not hdayfile.is_valid_sequence():
-                        print(f'[WARNING] No valid sequence. Skipping...')
+                        print(f'[WARNING]No valid sequence. Skipping...')
                         continue
                 if options['use_basic']:
                     file_out = os.path.join(os.path.dirname(hdayfile.file_nc),
