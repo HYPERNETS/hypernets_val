@@ -1545,7 +1545,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                     ratio_ed_array = ed_hypstar / ed_model
 
                 dataset.close()
-            print(sorting_array.shape)
+
             for isequence in range(nsequences):
                 print(f'[INFO]--->Working for sequence: {isequence}/{nsequences}')
                 hdayfile.isequence = isequence
@@ -1580,12 +1580,16 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
     if args.verbose:
         print(f'[INFO] -----------------------------------------------------')
         print(f'[INFO] Copying files and saving info to CSV...')
+        print(f'[INFO] Number of selected sequences: {len(sorting_values)} {len(sequences_list)}')
     if options['sortbyepsilon'] or options['sortbyldcsm']:
+
         sorted_indices = np.argsort(sorting_values)
+
         for idx, index in enumerate(sorted_indices):
             if args.verbose:
-                if (idx%1000)==0 or idx==len(sorted_indices)-1:
-                    print(f'[INFO] --> {idx} / {len(sorted_indices)-1}')
+                # if (idx%1000)==0 or idx==len(sorted_indices)-1:
+                #     print(f'[INFO] --> {idx} / {len(sorted_indices)-1}')
+                print(f'[INFO] --> {idx}:{index} / {len(sorted_indices) - 1}')
             seq_here = sequences_list[index]
             file_old = sequences_ref[seq_here]['file']
             line = sequences_ref[seq_here]['line']
