@@ -17,7 +17,7 @@ parser.add_argument('-m', "--mode", help='Mode option',
                     required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file.")
-parser.add_argument('-s', "--source_path", help="Source path.",default="/dst04-data1/OC/OLCI/daily_v202311_bc")
+parser.add_argument('-s', "--source_path", help="Source path.", default="/dst04-data1/OC/OLCI/daily_v202311_bc")
 parser.add_argument('-p', "--param", help="Param for TEST")
 args = parser.parse_args()
 
@@ -37,9 +37,9 @@ def main():
         if not check_required_params(['input_path', 'output']):
             return
         if os.path.isdir(args.input_path) and os.path.isdir(args.output):
-            correct_negative_values_from_extracts(args.input_path,args.output)
+            correct_negative_values_from_extracts(args.input_path, args.output)
         if os.path.isfile(args.input_path):
-            correct_negative_values_from_mdb(args.input_path,args.output)
+            correct_negative_values_from_mdb(args.input_path, args.output)
         else:
             if not os.path.exists(args.input_path):
                 print(f'[ERROR]{args.input_path} does not exist. It should be a valid file or directory')
@@ -48,16 +48,193 @@ def main():
                 print(f'[ERROR]{args.output} does not exist. It should be a valid file or directory')
                 return
 
-
-
     if args.mode == 'hypstar_check':
         run_hypstar_check()
 
     if args.mode == 'TEST':
-        year = -1
-        if args.param:
-            year = int(args.param)
-        run_test(year)
+        # year = -1
+        # if args.param:
+        #     year = int(args.param)
+        # run_test(year)
+        make_test()
+
+
+def make_test():
+    print('STARTED')
+    import sys
+    sys.path.append('/home/lois/PycharmProjects/pyOWT')
+    from pyowt.OWT import OWT
+    from pyowt.OpticalVariables import OpticalVariables
+    from matplotlib import pyplot as plt
+    from matplotlib.colors import Normalize
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+
+    file_nc = '/mnt/c/DATA_LUIS/TARA_WORK/MDBs/EUMETSAT_L2/wide/MDBrc_S3AB_OLCI_WFR_STANDARD_20230101T000000_20231231T235959_HYPERBOOST_wide.nc'
+    dir_output = '/mnt/c/DATA_LUIS/TARA_WORK'
+    from netCDF4 import Dataset
+    dataset = Dataset(file_nc, 'r')
+    insitu_wl = dataset.variables['insitu_original_bands'][:]
+    insitu_rrs = np.ma.squeeze(dataset.variables['insitu_Rrs'][:])
+    insitu_latitude = np.ma.squeeze(dataset.variables['insitu_latitude'][:])
+    insitu_longitude = np.ma.squeeze(dataset.variables['insitu_longitude'][:])
+
+
+    ##SATELLITE
+    # satellite_wl = dataset.variables['satellite_bands'][0:14]
+    # satellite_Rrs = dataset.variables['satellite_Rrs'][:,0:14,:,:]
+    # satellite_Rrs = np.ma.transpose(satellite_Rrs,(0,2,3,1))
+    # satellite_lat = dataset.variables['satellite_latitude'][:]
+    # satellite_lon = dataset.variables['satellite_longitude'][:]
+    # n_all_data = satellite_Rrs.shape[0]*satellite_Rrs.shape[1]*satellite_Rrs.shape[2]
+    # n_days = satellite_Rrs.shape[0]
+    # satellite_Rrs = satellite_Rrs.reshape((n_all_data,14))
+
+    dataset.close()
+
+    ov_insitu = OpticalVariables(Rrs=insitu_rrs, band=insitu_wl, sensor=None)
+    ##feed data into classification
+    owt = OWT(AVW=ov_insitu.AVW, Area=ov_insitu.Area, NDI=ov_insitu.NDI)
+    owt_classes = {
+        -1: 'NaN',
+        0: '1',
+        1: '2',
+        2: '3a',
+        3: '3b',
+        4: '4a',
+        5: '4b',
+        6: '5a',
+        7: '5b',
+        8: '6',
+        9: '7'
+    }
+    owt_res = np.squeeze(np.array(list(owt.type_idx)))
+
+    print(owt_res.shape[0])
+
+
+    color_OWT = owt.classInfo.typeColHex
+
+
+    ##SPECTRA
+
+    from PlotSpectra import PlotSpectra
+
+    pspectra = PlotSpectra()
+    style = pspectra.line_style_default
+    pspectra.xdata = insitu_wl
+
+    owt_make = 'Mix'
+
+    for owt in owt_classes:
+        if owt==-1:
+            indices = np.where(owt_res == owt)
+            rrs_here = np.ma.squeeze(insitu_rrs[indices, :]).transpose()
+            print(owt, rrs_here.shape)
+            continue
+        # if owt!=owt_make:
+        #     continue
+
+        indices = np.where(owt_res == owt)
+        color = color_OWT[owt] if owt >= 0 else 'gray'
+        rrs_here = np.ma.squeeze(insitu_rrs[indices,:]).transpose()
+        print(owt,rrs_here.shape)
+
+        style_here =style.copy()
+        style_here['color'] = color
+        pspectra.plot_data(rrs_here,style_here)
+
+    pspectra.set_xaxis_title('Wavelength(nm)')
+    xlabel = r'R$_r$$_s$ (sr$^-$$^1$)'
+    pspectra.set_yaxis_title(xlabel)
+    pspectra.set_grid_horizontal()
+    #pspectra.set_y_range(-0.025,0.175)
+    pspectra.set_tigth_layout()
+
+    pspectra.save_fig(os.path.join(dir_output,f'All_Spectra_{owt_make}.tif'))
+
+    ###MAP
+    # geo_limits = [35, 65, -15, 30]
+    # extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+    # ax = plt.axes(projection=ccrs.PlateCarree(), extent=extent)
+    # ax.add_feature(cfeature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+    # gl = ax.gridlines(linewidth=0.5, linestyle='dotted', draw_labels=True)
+    # gl.xlabels_top = False
+    # gl.ylabels_right = False
+    # handles = []
+    # for owt in owt_classes:
+    #     indices = np.where(owt_res == owt)
+    #     color = color_OWT[owt] if owt >= 0 else 'gray'
+    #     lat_points = insitu_latitude[indices]
+    #     lon_points = insitu_longitude[indices]
+    #     h = plt.plot(lon_points.tolist(), lat_points.tolist(), color=color, marker='o',markersize=3, linestyle='-',linewidth=0, transform=ccrs.PlateCarree())
+    #     handles.append(h[0])
+    # str_legend = [f'OWT_{owt_classes[owt]}' for owt in owt_classes]
+    # plt.legend(handles, str_legend, framealpha=1, markerscale=1)
+    # plt.tight_layout()
+    # file_out = os.path.join(dir_output, 'OWT_Map_legend.tif')
+    # plt.savefig(file_out, dpi=300, bbox_inches='tight', pil_kwargs={"compression": "tiff_lzw"})
+
+    # for idx in range(owt_res):
+    #     lat_p = insitu_latitude[idx]
+    #     lon_p = insitu_longitude[idx]
+
+    # all_owt = []
+    # for idx,o_res in enumerate(owt_res):
+    #     all_owt.append(o_res[0])
+    #     print(ov_insitu.AVW[idx])
+    # all_owt = np.unique(np.array(all_owt))
+    # print(all_owt)
+
+    ##SATELLITE
+    # ov_sat = OpticalVariables(Rrs=satellite_Rrs,band=satellite_wl,sensor='olci-s3a')
+    # avw = np.squeeze(np.array(list(ov_sat.AVW)))
+    # avw_array = np.ma.array(avw.reshape((n_days,25,25)))
+    # avw_array[avw_array<400] = np.ma.masked
+    # avw_array[avw_array>700] = np.ma.masked
+    # print(avw_array.shape,type(avw_array))
+    # avw_array = np.ma.masked_where(avw_array,np.logical_or(avw_array<400,avw_array>700))
+
+    # land_10m = cfeature.NaturalEarthFeature('physical', 'land', '10m', edgecolor='face',
+    #                                         facecolor=cfeature.COLORS['land'])
+    # for iday in range(n_days):
+    #     data_array = np.ma.squeeze(avw_array[iday,:,:])
+    #     if np.ma.count(data_array)>0:
+    #         lat_array = satellite_lat[iday, :, :]
+    #         lon_array = satellite_lon[iday, :, :]
+    #         extent = (np.min(lon_array[:]),np.max(lon_array[:]), np.min(lat_array[:]),np.max(lat_array[:]))
+    #         projection = ccrs.Mercator()
+    #         ax = plt.axes(projection=projection, extent=extent)
+    #         print(iday,np.ma.min(data_array),np.ma.max(data_array))
+    #         plt.pcolormesh(lon_array, lat_array, data_array, transform=ccrs.PlateCarree(), cmap='jet',
+    #                        norm=Normalize(vmin=400, vmax=700))
+    #         plt.colorbar(shrink=0.6)
+    #         ax.add_feature(land_10m, zorder=0, edgecolor='black', linewidth=0.5)
+    #         plt.tight_layout()
+    #         file_out = os.path.join(dir_output,f'Image_{iday}.png')
+    #         plt.savefig(file_out)
+    #         plt.close()
+
+    # for idx in range(len(ov_sat.AVW)):
+    #     print(satellite_Rrs[idx,1],ov_sat.AVW[idx][0])
+
+    # show classification results
+    ##print(owt.type_str)
+
+    # file_original = '/mnt/c/DATA_LUIS/OCTAC_WORK/INC_NEG_OLCI_VALUES/original/2022/139/O2022139-rrs442_5-bs-fr.nc'
+    # file_corrected = '/mnt/c/DATA_LUIS/OCTAC_WORK/INC_NEG_OLCI_VALUES/slurm/2022/139/O2022139-rrs442_5-bs-fr.nc'
+    # from netCDF4 import Dataset
+    # dataset_o = Dataset(file_original,'r')
+    # dataset_c = Dataset(file_corrected,'r')
+    # array_o = dataset_o.variables['RRS442_5'][:]
+    # print(type(array_o))
+    # array_c = dataset_c.variables['RRS442_5'][:]
+    # print(f'ORIGINAL: {np.ma.min(array_o)} {np.ma.max(array_o)}')
+    # print(f'CORRECTED: {np.ma.min(array_c)} {np.ma.max(array_c)}' )
+    # indices_bad = np.where(array_o<(-400))
+    # print(f'NBAD: {len(indices_bad[0])}/{array_o.shape[1]*array_o.shape[2]}')
+    # dataset_o.close()
+    # dataset_c.close()
 
 
 def run_hypstar_check():
@@ -123,7 +300,7 @@ def run_hypstar_check():
                 if end_date_qc is None:
                     end_date_qc = therevalid
                 else:
-                    if therevalid>end_date_qc:
+                    if therevalid > end_date_qc:
                         end_date_qc = therevalid
 
             # if qf == 0 or qf == 268435456:
@@ -165,29 +342,27 @@ def run_hypstar_check():
     print(f'START DATE QC: {start_date_qc.strftime("%Y-%m-%d")}')
     print(f'END DATE QC: {end_date_qc.strftime("%Y-%m-%d")}')
 
+
 def run_test(year):
-
-
-
-
-    if year==-2:##test mdb files
+    if year == -2:  ##test mdb files
         old_dir = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC'
-        #new_dir = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/'
-        names = ['MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20190827T000000_20240818T000000_AERONET_Section-7_Platform.nc',
-                 'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20231220T000000_AERONET_Galata_Platform.nc',
-                 'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20190808T000000_AERONET_Gloria.nc']
+        # new_dir = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/'
+        names = [
+            'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20190827T000000_20240818T000000_AERONET_Section-7_Platform.nc',
+            'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20231220T000000_AERONET_Galata_Platform.nc',
+            'MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_BLK_BGC_20160401T000000_20190808T000000_AERONET_Gloria.nc']
 
         for name in names:
             print('--------------------------------------------------------------------------------------------------')
             print(name)
-            file_old =os.path.join(old_dir,name)
-            #file_new = os.path.join(new_dir,name)
-            dataset_old = Dataset(file_old,'r')
-            #dataset_new = Dataset(file_new,'r')
+            file_old = os.path.join(old_dir, name)
+            # file_new = os.path.join(new_dir,name)
+            dataset_old = Dataset(file_old, 'r')
+            # dataset_new = Dataset(file_new,'r')
             rrs_old = dataset_old.variables['satellite_Rrs'][:]
-            #rrs_new = dataset_new.variables['satellite_Rrs'][:]
-            print('DATA: ',rrs_old.size,np.ma.count(rrs_old),np.ma.min(rrs_old),np.ma.max(rrs_old))
-            #print('NEW: ', rrs_new.size, np.ma.count(rrs_new), np.ma.min(rrs_new), np.ma.max(rrs_new))
+            # rrs_new = dataset_new.variables['satellite_Rrs'][:]
+            print('DATA: ', rrs_old.size, np.ma.count(rrs_old), np.ma.min(rrs_old), np.ma.max(rrs_old))
+            # print('NEW: ', rrs_new.size, np.ma.count(rrs_new), np.ma.min(rrs_new), np.ma.max(rrs_new))
 
             # indices_neg = np.logical_and(rrs_old.mask == False, rrs_old < (-10))
             # rrs_old_bad = rrs_old[indices_neg]
@@ -209,26 +384,25 @@ def run_test(year):
             #     print(f'CHECK  {name_var}', np.ma.min(check_var), np.ma.max(check_var))
 
             dataset_old.close()
-            #dataset_new.close()
+            # dataset_new.close()
 
         return
 
-    if year==-3:##basic test for extract file
+    if year == -3:  ##basic test for extract file
         dir_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
 
         nvalid = 0
         for name in os.listdir(dir_extracts):
-            file_extract = os.path.join(dir_extracts,name)
-            dataset = Dataset(file_extract,'r')
+            file_extract = os.path.join(dir_extracts, name)
+            dataset = Dataset(file_extract, 'r')
             rrs = dataset.variables['satellite_Rrs'][:]
-            if np.ma.count(rrs)>0:
+            if np.ma.count(rrs) > 0:
                 nvalid = nvalid + 1
-                if np.ma.min(rrs)<(-10):
-                    print(name,'->',np.ma.min(rrs),'<------------------>',np.ma.max(rrs))
+                if np.ma.min(rrs) < (-10):
+                    print(name, '->', np.ma.min(rrs), '<------------------>', np.ma.max(rrs))
             dataset.close()
-        print('nvalid',nvalid)
+        print('nvalid', nvalid)
         return
-
 
     # dir_extracts = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
     # source_folder = '/mnt/c/DATA_LUIS/DOORS_WORK/SOURCES'
@@ -337,12 +511,13 @@ def check_file_extract(file_extract, source_folder, time_obj, bands, bands_str, 
 
     return fcsv
 
-def correct_negative_values_from_mdb(input_path,output_path):
+
+def correct_negative_values_from_mdb(input_path, output_path):
     source_folder = args.source_path
     if not os.path.isdir(source_folder):
         print(f'[ERROR] Source folder: {source_folder} is not a valid directory')
         return
-    dataset = Dataset(input_path,'r')
+    dataset = Dataset(input_path, 'r')
     bands = dataset.variables['satellite_bands'][:]
     bands_str = [f'{b:.2f}'.replace('.', '_').replace('_00', '').replace('_50', '_5') for b in bands]
     rrs = dataset.variables['satellite_Rrs'][:]
@@ -358,16 +533,16 @@ def correct_negative_values_from_mdb(input_path,output_path):
         if dims is None:
             lat_array_source, lon_array_source = get_latlon_arrays_from_source(source_folder, time_obj)
             if lat_array_source is not None and lon_array_source is not None:
-                dims = get_dims(input_path,lat_array_source,lon_array_source)
+                dims = get_dims(input_path, lat_array_source, lon_array_source)
                 print(f'[INFO] Dims have been defined as: {dims}')
         if dims is not None:
             rrs_new = get_rrs_new(source_folder, rrs, imu, time_obj, bands_str, dims)
             rrs_final[imu, :, :, :] = rrs_new[:, :, :]
 
-    create_new_file_with_corrected_rrs(input_path,output_path,rrs_final)
+    create_new_file_with_corrected_rrs(input_path, output_path, rrs_final)
 
 
-def correct_negative_values_from_extracts(input_path,output_path):
+def correct_negative_values_from_extracts(input_path, output_path):
     source_folder = args.source_path
     if not os.path.isdir(source_folder):
         print(f'[ERROR] Source folder: {source_folder} is not a valid directory')
@@ -376,10 +551,10 @@ def correct_negative_values_from_extracts(input_path,output_path):
     lat_array_source = None
     lon_array_source = None
     for name in os.listdir(input_path):
-        if not name.endswith('.nc'):continue
+        if not name.endswith('.nc'): continue
         print(f'[INFO] Working with file: {name}')
-        input_file = os.path.join(input_path,name)
-        output_file = os.path.join(output_path,name)
+        input_file = os.path.join(input_path, name)
+        output_file = os.path.join(output_path, name)
         dataset = Dataset(input_file, 'r')
         rrs = dataset.variables['satellite_Rrs'][:]
         time = float(dataset.variables['satellite_time'][0])
@@ -388,14 +563,15 @@ def correct_negative_values_from_extracts(input_path,output_path):
             bands = dataset.variables['satellite_bands'][:]
             bands_str = [f'{b:.2f}'.replace('.', '_').replace('_00', '').replace('_50', '_5') for b in bands]
         if lat_array_source is None and lon_array_source is None:
-            lat_array_source,lon_array_source = get_latlon_arrays_from_source(source_folder,time_obj)
+            lat_array_source, lon_array_source = get_latlon_arrays_from_source(source_folder, time_obj)
         dataset.close()
-        dims = get_dims(input_file,lat_array_source,lon_array_source)
-        rrs_new = get_rrs_new(source_folder,rrs,0,time_obj,bands_str,dims)
-        rrs[0,:,:,:] = rrs_new[:,:,:]
-        create_new_file_with_corrected_rrs(input_file,output_file,rrs)
+        dims = get_dims(input_file, lat_array_source, lon_array_source)
+        rrs_new = get_rrs_new(source_folder, rrs, 0, time_obj, bands_str, dims)
+        rrs[0, :, :, :] = rrs_new[:, :, :]
+        create_new_file_with_corrected_rrs(input_file, output_file, rrs)
 
-def create_new_file_with_corrected_rrs(input_file,output_file,rrs):
+
+def create_new_file_with_corrected_rrs(input_file, output_file, rrs):
     from netCDF4 import Dataset
     input_dataset = Dataset(input_file)
     ncout = Dataset(output_file, 'w', format='NETCDF4')
@@ -413,26 +589,27 @@ def create_new_file_with_corrected_rrs(input_file,output_file,rrs):
         if '_FillValue' in list(variable.ncattrs()):
             fill_value = variable._FillValue
 
-        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,complevel=6)
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             complevel=6)
         # copy variable attributes all at once via dictionary
         ncout[name].setncatts(input_dataset[name].__dict__)
-        if name=='satellite_Rrs':
+        if name == 'satellite_Rrs':
             ncout[name][:] = rrs[:]
         else:
             ncout[name][:] = input_dataset[name][:]
 
-
     ncout.close()
     input_dataset.close()
 
-def get_dims(file_extract,lat_array_source,lon_array_source):
+
+def get_dims(file_extract, lat_array_source, lon_array_source):
     if lat_array_source is not None and lon_array_source is not None:
         dataset = Dataset(file_extract)
-        lat_c = float(dataset.variables['satellite_latitude'][0,12,12])
-        lon_c = float(dataset.variables['satellite_longitude'][0,12,12])
+        lat_c = float(dataset.variables['satellite_latitude'][0, 12, 12])
+        lon_c = float(dataset.variables['satellite_longitude'][0, 12, 12])
         dataset.close()
-        y_point = np.argmin(np.abs(lat_c-lat_array_source))
-        x_point = np.argmin(np.abs(lon_c-lon_array_source))
+        y_point = np.argmin(np.abs(lat_c - lat_array_source))
+        x_point = np.argmin(np.abs(lon_c - lon_array_source))
     else:
         y_point = int(file_extract[:-3].split('_')[-2])
         x_point = int(file_extract[:-3].split('_')[-1])
@@ -440,38 +617,40 @@ def get_dims(file_extract,lat_array_source,lon_array_source):
     rmax = y_point + 13
     cmin = x_point - 12
     cmax = x_point + 13
-    return [y_point,x_point,rmin,rmax,cmin,cmax]
+    return [y_point, x_point, rmin, rmax, cmin, cmax]
 
-def get_latlon_arrays_from_source(source_folder,time_obj):
+
+def get_latlon_arrays_from_source(source_folder, time_obj):
     yyyy = time_obj.strftime('%Y')
     jjj = time_obj.strftime('%j')
     source_folder_date = os.path.join(source_folder, yyyy, jjj)
     if not os.path.isdir(source_folder_date):
-        return None,None
+        return None, None
     file_ref = os.path.join(source_folder_date, f'O{yyyy}{jjj}-rrs400-bs-fr.nc')
     if not os.path.exists(file_ref):
-        return None,None
+        return None, None
     dataset_ref = Dataset(file_ref)
     lat_array = dataset_ref.variables['lat'][:]
     lon_array = dataset_ref.variables['lon'][:]
     dataset_ref.close()
-    return lat_array,lon_array
+    return lat_array, lon_array
 
-def get_rrs_new(source_folder,rrs,index_rrs,time_obj,bands_str,dims):
+
+def get_rrs_new(source_folder, rrs, index_rrs, time_obj, bands_str, dims):
     rmin = dims[2]
     rmax = dims[3]
     cmin = dims[4]
     cmax = dims[5]
-    rrs_new = np.ma.squeeze(rrs[index_rrs,:,:,:])
-
+    rrs_new = np.ma.squeeze(rrs[index_rrs, :, :, :])
 
     yyyy = time_obj.strftime('%Y')
     jjj = time_obj.strftime('%j')
-    source_folder_date = os.path.join(source_folder,yyyy,jjj)
+    source_folder_date = os.path.join(source_folder, yyyy, jjj)
     if not os.path.isdir(source_folder_date):
         return rrs_new
 
-    print(f'[INFO][BEFORE] --> RRS for index {index_rrs} Shape (nbandsx25x25) {rrs_new.shape}. Min value: {np.ma.min(rrs_new)}')
+    print(
+        f'[INFO][BEFORE] --> RRS for index {index_rrs} Shape (nbandsx25x25) {rrs_new.shape}. Min value: {np.ma.min(rrs_new)}')
 
     for idx, b in enumerate(bands_str):
         rrs_here = np.ma.squeeze(rrs[index_rrs, idx, :, :])
@@ -490,15 +669,17 @@ def get_rrs_new(source_folder,rrs,index_rrs,time_obj,bands_str,dims):
             if n_neg > 0:
                 indices_neg_a = np.logical_and(rrs_a_here.mask == False, rrs_here < (-10))
                 indices_neg_b = np.logical_and(rrs_b_here.mask == False, rrs_here < (-10))
-                #print('n_neg',n_neg,' a: ',np.count_nonzero(indices_neg_a), 'b:', np.count_nonzero(indices_neg_b))
-                if np.count_nonzero(indices_neg_a)>0:
+                # print('n_neg',n_neg,' a: ',np.count_nonzero(indices_neg_a), 'b:', np.count_nonzero(indices_neg_b))
+                if np.count_nonzero(indices_neg_a) > 0:
                     rrs_here[indices_neg_a] = rrs_a_here[indices_neg_a]
-                if np.count_nonzero(indices_neg_b)>0:
+                if np.count_nonzero(indices_neg_b) > 0:
                     rrs_here[indices_neg_b] = rrs_b_here[indices_neg_b]
                 rrs_new[idx, :, :] = rrs_here[:, :]
 
-    print(f'[INFO][AFTER] --> RRS for index {index_rrs} Shape (nbandsx25x25) {rrs_new.shape}. Min value: {np.ma.min(rrs_new)}')
+    print(
+        f'[INFO][AFTER] --> RRS for index {index_rrs} Shape (nbandsx25x25) {rrs_new.shape}. Min value: {np.ma.min(rrs_new)}')
     return rrs_new
+
 
 def add_instrument_id(input_path, output_path):
     rename_file = False

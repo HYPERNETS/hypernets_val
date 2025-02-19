@@ -355,8 +355,9 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         month_str = date_here.strftime('%m')
         day_str = date_here.strftime('%d')
         cmd = f'{self.ssh_base} {self.url_base} {self.ls_base}{sitename}/{year_str}/{month_str}/{day_str}'
-        # print(cmd)
+
         sequence_list = self.get_list_sequence_folders(cmd)
+
         return sequence_list
 
     def get_sequences_day_ssh_land(self, sitename, date_here):
@@ -657,7 +658,6 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         self.find_ref = self.find_ref.replace('SITE', site)
 
         cmd = f'{self.ssh_base} {self.url_base} find {folder_date} -name {self.find_ref}'
-
         list_files = self.get_list_files(cmd)
 
         if len(list_files) == 0:
