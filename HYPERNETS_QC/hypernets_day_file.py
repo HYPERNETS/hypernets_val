@@ -357,8 +357,8 @@ class HYPERNETS_DAY_FILE():
         valid_sequences[valid_sequences > 0] = 1
         epsilon_array = dataset.variables['l2_epsilon'][:].astype(np.float64)
         epsilon_array = np.ma.filled(epsilon_array, -999.0)
-        valid_sequences[np.logical_and(valid_sequences == 0, epsilon_array < (-0.05))] = 2
-        valid_sequences[np.logical_and(valid_sequences == 0, epsilon_array >= 0.05)] = 3
+        valid_sequences[np.logical_and(valid_sequences == 0, epsilon_array < (-0.005))] = 2
+        valid_sequences[np.logical_and(valid_sequences == 0, epsilon_array >= 0.005)] = 3
         self.valid_sequences = valid_sequences
         dataset.close()
 
@@ -812,7 +812,7 @@ class HYPERNETS_DAY_FILE():
         pmtop.plot_image(os.path.join(dir_img_summary, 'sequence_info.tif'), 0, 0)
         pmtop.plot_image(os.path.join(dir_img_summary, 'flag_plot.tif'), 0, 1)
         pmtop.plot_image(file_out_ts, 0, 2)
-        pmtop.set_text(-1250, 50, f'DAILY SUMMARY REPORT - {date_here.strftime("%Y-%m-%d")}')
+        pmtop.set_text(-1250, 50, f'DAILY SUMMARY REPORT  - {site} -  {date_here.strftime("%Y-%m-%d")}')
         # daily_sequences_summary = self.get_sequence_info()
         line = f'Total sequences: {daily_sequences_summary["NTotal"]}/{daily_sequences_summary["expected_sequences"]}. Processed to L2: {daily_sequences_summary["NAvailable"]}.'
         skip = ['NTotal', 'NAvailable', 'start_time', 'end_time', 'expected_sequences']
@@ -1109,6 +1109,21 @@ class HYPERNETS_DAY_FILE():
 
         ax_here.tick_params(axis='x', labelsize=10)
         ax_here.tick_params(axis='y', labelsize=10)
+
+
+    def get_csm_data_at_wl(self,isequence,wl):
+        from netCDF4 import Dataset
+        dataset = Dataset(self.file_nc)
+        wl_array = dataset.variables['wavelength'][:]
+        iwl = np.argmin(np.abs(wl_array-wl))
+        hypstar_ed = float(dataset.variables['l2_irradiance'][isequence,iwl])
+        model_ed = float(dataset.variables['csm_ed_tot'][isequence,iwl])
+        hypstar_ld = float(dataset.variables['l2_downwelling_radiance'][isequence, iwl])
+        model_ld = float(dataset.variables['csm_ld'][isequence, iwl])
+        hypstar_ld_ed = hypstar_ld/hypstar_ed
+        model_ld_ed = model_ld/hypstar_ld
+        dataset.close()
+        return  hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed
 
     def plot_clear_sky_model_spectra(self, flag, ax_here):
         # flags = ['Edtot', 'Ld', 'Ld_Ed', 'Edtot_ratio', 'Ld_ratio', 'Ld_Ed_ratio']

@@ -17,21 +17,25 @@ class CSVPLOT:
 
 
     def plot_from_options(self,options):
+        print('here')
         plot_list = list(options.sections())
         from PlotOptions import PlotOptions
         poptions = PlotOptions(options,None)
         poptions.set_global_options()
+        print(plot_list)
         for plot in plot_list:
             if plot == 'GLOBAL_OPTIONS':
                 continue
-
+            print(plot)
             options_out = poptions.get_options(plot)
+            print(options_out)
 
             if options_out is not None:
                 self.plot_from_options_impl(options_out)
 
     def plot_from_options_impl(self,options_out):
         if options_out['type'] == 'scatterplot':
+            print('[INFO] Start scatterplot...')
             self.plot_scatter_plot(options_out)
         if options_out['type'] == 'statstable':
             self.create_table_stats(options_out)

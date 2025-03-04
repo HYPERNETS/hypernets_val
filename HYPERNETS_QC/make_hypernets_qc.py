@@ -1258,6 +1258,50 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
         work_date = work_date + timedelta(hours=interval)
 
 
+def make_clear_sky_model_test(input_path, output_path, site, start_date, end_date):
+    if args.verbose:
+        print(f'[INFO] Started making clear sky model test...')
+
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, output_path)
+    interval = 24
+    from MDB_reader.PlotSpectra import PlotSpectra
+    ps = PlotSpectra()
+    data_to_plot = {}
+    jday_array = []
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+        hdayfile = hday.get_hypernets_day_file(site, work_date)
+        if hdayfile is not None and hdayfile.VALID:
+            jday = int(work_date.strftime('%j'))
+            jday_array.append(jday)
+            hypstar_ed_array = []
+            hypstar_ld_array = []
+            hypstar_ld_ed_array = []
+            model_ed_array = []
+            model_ld_array = []
+            model_ld_ed_array = []
+            nsequences = len(hdayfile.sequences)
+            for isequence in range(nsequences):
+                hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed = hdayfile.get_csm_data_at_wl(isequence,750)
+                hypstar_ed_array.append(hypstar_ed)
+                hypstar_ld_array.append(hypstar_ld)
+                hypstar_ld_ed_array.append(hypstar_ld_ed)
+                model_ed_array.append(model_ed)
+                model_ld_array.append(model_ld)
+                model_ld_ed_array.append(model_ld_ed)
+            data_to_plot[jday] = {
+                'hypstar_ed': hypstar_ed_array,
+                'hypstar_ld': hypstar_ld_array,
+                'hypstar_ld_ed': hypstar_ld_ed_array,
+                'model_ed': model_ed_array,
+                'model_ld': model_ld_array,
+                'model_ld_ed': model_ld_ed_array
+            }
+
+
 def make_clear_sky_model_plots(input_path, output_path, site, start_date, end_date):
     if args.verbose:
         print(f'[INFO] Started making clear sky model plots...')
@@ -1756,6 +1800,15 @@ def main():
             print(f'[ERROR] Output path is not available.')
             return
         make_clear_sky_model_plots(input_path, output_path, site, start_date, end_date)
+
+    if args.mode == 'CLEARSKYMODELTEST':
+        if output_path is None:
+            print(f'[ERROR] Output path is required.')
+            return
+        if not os.path.isdir(output_path):
+            print(f'[ERROR] Output path is not available.')
+            return
+        make_clear_sky_model_test(input_path,output_path,site,start_date,end_date)
 
 
 # %%
