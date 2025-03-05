@@ -7,6 +7,7 @@ from SATEXTRACTS_list import SAT_EXTRACTS_LIST
 from INSITU_hypernets import INSITU_HYPERNETS_DAY
 from datetime import datetime as dt
 
+
 parser = argparse.ArgumentParser(
     description="Create Match-up DataBase files (MDB) files from satellite extracts and in situ L2 HYPERNETS files.")
 
@@ -816,10 +817,10 @@ def create_mdb_single_csv_var(mo, insitu_file):
         elif max_time_diff <= 0:
             ##redundant check to be sure, satellite and in situ time on the same day
             max_time_diff = 0
-            sat_time = dt.utcfromtimestamp(float(dataset_w.variables['satellite_time'][0])).strftime('%Y%m%d')
+            sat_time = dt.fromtimestamp(float(dataset_w.variables['satellite_time'][0]),pytz.utc).strftime('%Y%m%d')
             time_diff = np.zeros(time_array.shape)
             for idx in range(len(time_array)):
-                ins_time = dt.utcfromtimestamp(time_array[idx]).strftime('%Y%m%d')
+                ins_time = dt.fromtimestamp(time_array[idx],pytz.utc).strftime('%Y%m%d')
                 if sat_time != ins_time:
                     time_diff[idx] = 1
 

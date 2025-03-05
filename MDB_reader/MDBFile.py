@@ -696,6 +696,15 @@ class MDBFile:
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
+        if valid_insitu:
+            from datetime import datetime as dt
+            date_ref = dt(2023,11,11)
+            if self.mu_insitu_time>date_ref:
+                valid_insitu = False
+
+        if rrs_ins_values is not None and len(rrs_ins_values)==1:
+            rrs_ins_values = rrs_ins_values[0]
+
         if valid_insitu and self.ins_time_index >= 0 and self.qc_insitu.insitu_rrs_unc is not None:
             rrs_ins_values_unc, indices_unc, valid_bands_unc = self.qc_insitu.get_spectrum_for_mu_and_index_insitu_unc(
                 index_mu, self.ins_time_index)
@@ -753,6 +762,8 @@ class MDBFile:
         self.mu_curr_sat_rrs_unc = []
 
         for iref in range(len(self.wlref_sat_indices)):
+
+
             if not np.ma.is_masked(rrs_ins_values[iref]):
                 iband = self.wlref_sat_indices[iref]
                 sat_value_here = sat_values[iref]

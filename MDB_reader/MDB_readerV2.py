@@ -10,6 +10,7 @@ import sys
 import argparse
 import warnings
 
+
 import pandas as pd
 
 warnings.simplefilter('ignore', UserWarning)
@@ -4676,6 +4677,7 @@ def main():
             if check_sat_bands==0 or reduced_sat_bands==1:
                 copy_with_wllist = qco.get_create_copy_with_band_list()
 
+            print(f'[INFO] Set wavelength list to: {wllist}')
 
             reader.mfile.set_wl_ref(wllist)
             reader.mfile.qc_sat.ncdataset = reader.mfile.nc
@@ -4686,6 +4688,7 @@ def main():
 
             reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
             reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu,wllist)
+
 
             if 'insitu_Rrs_unc' in reader.mfile.variables:
                 reader.mfile.qc_insitu.insitu_rrs_unc = reader.mfile.variables['insitu_Rrs_unc']

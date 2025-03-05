@@ -10,13 +10,14 @@ from netCDF4 import Dataset
 
 from MDBFile import MDBFile
 from MDB_builder.INSITU_base import INSITUBASE
+import __init__
 
 warnings.simplefilter('ignore', UserWarning)
 warnings.simplefilter('ignore', RuntimeWarning)
 
 parser = argparse.ArgumentParser(description="Algorithms implementations from MDB files.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-parser.add_argument("-m", "--mode", help="Mode", choices=["CONFIGFILE", "CYANOFLAG"])
+parser.add_argument("-m", "--mode", help="Mode", choices=["CONFIGFILE", "CYANOFLAG","BALMLP202411"])
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path", required=True)
 parser.add_argument('-o', "--output", help="Path to output")
@@ -171,10 +172,10 @@ def create_mdb_from_csv():
 
 
 def main():
-    if create_mdb_from_csv():
-        return
-    if do_test():
-        return
+    # if create_mdb_from_csv():
+    #     return
+    # if do_test():
+    #     return
     print('Started MDBAlgorithm')
     input_path = args.input_path
     if not os.path.exists(input_path):
@@ -203,6 +204,14 @@ def main():
     if args.mode == 'CYANOFLAG':
         create_cyano_flag(input_path, output_path)
 
+    if args.mode == 'BALMLP202411':
+        try:
+            from  baltic_202411 import BALTIC_202411_PROCESSOR
+        except:
+            print(f'[ERROR] baltic_202411 code is not available')
+        bprocessor = BALTIC_202411_PROCESSOR(None, False)
+        bprocessor.run_from_mdb_file(args.input_path)
+        return
 
 def create_cyano_flag(input_path, output_path):
     if output_path is None:
