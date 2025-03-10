@@ -1344,10 +1344,16 @@ def plot_all_sequences(data_to_plot,file_out):
     y2array = y2array[valid_array == True]
     ndata = len(xarray)
     xdata = np.arange(ndata)
-    xticks = [''] * ndata
+    xticks = ['']*ndata
+
     increm = int(round(ndata / 12))
+    vertical_lines = []
     for idx in range(0, ndata, increm):
-        xticks[idx] = dt.utcfromtimestamp(xarray[idx]).strftime('%m%d')
+        xticks[idx]=dt.utcfromtimestamp(xarray[idx]).strftime('%m%d')
+        vertical_lines.append(xdata[idx])
+    for line in vertical_lines:
+        ps.set_vertical_line_impl(line,0,10,'lightgray', '--')
+
     ps.xdata = xdata
     style = ps.line_style_default.copy()
     style['linewidth']=0
@@ -1362,14 +1368,18 @@ def plot_all_sequences(data_to_plot,file_out):
     legend_str = ['HYPSTAR', 'Clear Sky Model']
     ps.set_xaxis_title('Time')
     ps.set_yaxis_title('Ld/Ed')
-    print(ps.legend_options)
+    ps.remove_major_x_ticks()
     ps.legend_options['bbox_to_anchor'] = (0.5,-0.3)
     ps.set_legend_h(handles,legend_str)
+
     ps.set_xticks(xdata,xticks,90,10)
+
+
     ps.set_y_range(0,0.5)
     ps.set_yticks([0,0.05,0.1,0.2,0.3,0.4,0.5],[0,0.05,0.1,0.2,0.3,0.4,0.5],0,10)
-    ps.set_grid()
+    ps.set_grid_horizontal()
     ps.set_horizontal_line_impl(0.05,xdata[0],xdata[-1],None,None)
+
     ps.set_tigth_layout()
     ps.save_plot(file_out)
 

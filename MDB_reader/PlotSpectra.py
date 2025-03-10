@@ -260,6 +260,13 @@ class PlotSpectra():
             linestyle = '-'
         plt.axhline(yval,xmin,xmax,color=color,linestyle=linestyle)
 
+    def set_vertical_line_impl(self,xval,ymin,ymax,color,linestyle):
+        if color is None:
+            color = 'black'
+        if linestyle is None:
+            linestyle = '-'
+        plt.axvline(xval,ymin,ymax,color=color,linestyle=linestyle,linewidth=0.75)
+
 
     def set_xticks_minor(self, xticks, xtickvalues, rotation, fontsize):
         if rotation is None:
@@ -328,6 +335,9 @@ class PlotSpectra():
 
     def set_grid_horizontal(self):
         plt.grid(which='major',color='lightgray',linestyle='--',axis='y')
+
+    def set_grid_vertical_minor(self):
+        plt.grid(which='minor', color='lightgray', linestyle='--', axis='y')
 
     def set_tigth_layout(self):
         plt.gcf().tight_layout()
