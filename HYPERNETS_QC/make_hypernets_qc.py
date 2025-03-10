@@ -1418,8 +1418,8 @@ def plot_all_sequences(data_to_plot,file_out):
     ps.set_yaxis_title('Ld/Ed')
     ps.remove_major_x_ticks()
     ps.set_xticks(xdata, xticks, 90, 10)
-    ps.set_y_range(0, 0.5)
-    ps.set_yticks([0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5], [0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5], 0, 10)
+    ps.set_y_range(0, 0.1)
+    ps.set_yticks([0, 0.025,0.05,0.075, 0.1], [0, 0.025,0.05, 0.075,0.1], 0, 10)
     ps.set_grid_horizontal()
     ps.set_horizontal_line_impl(0.05, xdata[0], xdata[-1], None, None)
 
