@@ -1264,10 +1264,22 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
     if args.verbose:
         print(f'[INFO] Started making clear sky model test...')
     import numpy as np
+    from netCDF4 import Dataset
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
     hday = HYPERNETS_DAY(input_path, output_path)
     interval = 24
-    wl_ref = 750
+    wl_ref = 779.0
+
+    file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_2024.nc'
+    if not os.path.exists(file_comparison):
+        file_comparison = '/store3/HYPERNETS/COMPARISON_HYPSTAR_AERONET/Comparison_Valid_2024.nc'
+    dataset_c = Dataset(file_comparison)
+    htime = dataset_c.variables['HYPSTAR_time'][:]
+    wl_aeronet = dataset_c.variables['AERONET_nominal_wavelengths'][:]
+    index_wl_aeronet = int(np.argmin(np.abs(wl_aeronet-wl_ref)))
+
+
+
 
     data_to_plot = {}
     jday_array = []
@@ -1287,17 +1299,32 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
             model_ld_array = np.ma.masked_all((nsequences,))
             model_ld_ed_array = np.ma.masked_all((nsequences,))
             insitu_time_array = np.ma.masked_all((nsequences,))
+            aeronet_ed_array = np.ma.masked_all((nsequences,))
+            aeronet_ld_array = np.ma.masked_all((nsequences,))
+            aeronet_ld_ed_array = np.ma.masked_all((nsequences,))
+
 
             for isequence in range(nsequences):
-                hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed = hdayfile.get_csm_data_at_wl(isequence,wl_ref)
-                hypstar_ed_array[isequence]=hypstar_ed
-                hypstar_ld_array[isequence]=hypstar_ld
-                hypstar_ld_ed_array[isequence]=hypstar_ld_ed
-                model_ed_array[isequence]=model_ed
-                model_ld_array[isequence]=model_ld
-                model_ld_ed_array[isequence]=model_ld_ed
                 time_seq = hdayfile.get_sequence_time(isequence)
-                insitu_time_array[isequence] = time_seq.astimezone(pytz.utc).timestamp() if time_seq is not None else np.ma.masked
+                time_seq_ts_ini = time_seq.astimezone(pytz.utc).timestamp() - 300
+                time_seq_ts_end = time_seq.astimezone(pytz.utc).timestamp() + 300
+                indices = np.ma.where(np.ma.logical_and(htime >= time_seq_ts_ini, htime <= time_seq_ts_end))
+                if len(indices[0])!=1:
+                    print('[WARNING] No AERONET-OC data. Skipping...')
+                    continue
+
+                hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed = hdayfile.get_csm_data_at_wl(isequence,wl_ref)
+                if hypstar_ed is not None:
+                    hypstar_ed_array[isequence]=hypstar_ed
+                    hypstar_ld_array[isequence]=hypstar_ld
+                    hypstar_ld_ed_array[isequence]=hypstar_ld_ed
+                    model_ed_array[isequence]=model_ed
+                    model_ld_array[isequence]=model_ld
+                    model_ld_ed_array[isequence]=model_ld_ed
+                    insitu_time_array[isequence] = time_seq.astimezone(pytz.utc).timestamp() if time_seq is not None else np.ma.masked
+                    aeronet_ed_array[isequence] = dataset_c.variables['AERONET_Ed'][indices[0][0],indices[1][0],index_wl_aeronet]
+                    aeronet_ld_array[isequence] = dataset_c.variables['AERONET_Li_mean'][indices[0][0], indices[1][0], index_wl_aeronet]
+                    aeronet_ld_ed_array[isequence] = aeronet_ld_array[isequence]/aeronet_ed_array[isequence]
 
             data_to_plot[jday] = {
                 'hypstar_ed': hypstar_ed_array,
@@ -1306,24 +1333,30 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
                 'model_ed': model_ed_array,
                 'model_ld': model_ld_array,
                 'model_ld_ed': model_ld_ed_array,
-                'time':insitu_time_array
+                'time':insitu_time_array,
+                'aeronet_ed': aeronet_ed_array,
+                'aeronet_ld': aeronet_ld_array,
+                'aeronet_ld_ed': aeronet_ld_ed_array,
             }
         work_date = work_date + timedelta(hours=interval)
 
+    dataset_c.close()
     #print(data_to_plot[jday_array[0]])
     file_out = os.path.join(output_path,site,f'TimeSeries_LdEd_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.tif')
     plot_all_sequences(data_to_plot,file_out)
+
 
 def plot_all_sequences(data_to_plot,file_out):
     import numpy as np
     from MDB_reader.PlotSpectra import PlotSpectra
     ps = PlotSpectra()
-    ps.legend_options = ps.legend_options_bottom.copy()
-    ps.legend_options['ncols'] = 2
+
     yvar1 = 'hypstar_ld_ed'
     yvar2 = 'model_ld_ed'
+    yvar3 = 'aeronet_ld_ed'
     y1_arrays = []
     y2_arrays = []
+    y3_arrays = []
     x_arrays = []
     for jday in data_to_plot:
         time = data_to_plot[jday]['time']
@@ -1332,16 +1365,22 @@ def plot_all_sequences(data_to_plot,file_out):
         valid[y1.mask]=False
         y2 = data_to_plot[jday][yvar2]
         valid[y2.mask]=False
+        y3 = data_to_plot[jday][yvar3]
+        valid[y3.mask] = False
         x_arrays.append(time[valid])
         y1_arrays.append(y1[valid])
         y2_arrays.append(y2[valid])
+        y3_arrays.append(y3[valid])
     xarray = np.concatenate(x_arrays)
     y1array = np.concatenate(y1_arrays)
     y2array = np.concatenate(y2_arrays)
+    y3array = np.concatenate(y3_arrays)
     valid_array = np.logical_and(np.isnan(y1array)==False,np.isnan(y2array)==False)
+    valid_array[np.isnan(y3array)]=False
     xarray = xarray[valid_array==True]
     y1array = y1array[valid_array == True]
     y2array = y2array[valid_array == True]
+    y3array = y3array[valid_array == True]
     ndata = len(xarray)
     xdata = np.arange(ndata)
     xticks = ['']*ndata
@@ -1355,32 +1394,47 @@ def plot_all_sequences(data_to_plot,file_out):
         ps.set_vertical_line_impl(line,0,10,'lightgray', '--')
 
     ps.xdata = xdata
+
     style = ps.line_style_default.copy()
+
+    #hypstar
     style['linewidth']=0
     style['marker'] = 'o'
     style['markersize']=4
     style['color'] = 'b'
     h1=ps.plot_data(y1array,style)
+
+    #aeronet
+    style['color'] = 'cyan'
+    h3 = ps.plot_data(y3array, style)
+
+    ##model
     style['color'] = 'red'
+    style['linewidth'] = 1
+    style['marker'] = None
     h2 =ps.plot_data(y2array, style)
-    print(f'[INFO] Saving plot to: {file_out}')
-    handles = [h1[0], h2[0]]
-    legend_str = ['HYPSTAR', 'Clear Sky Model']
+
     ps.set_xaxis_title('Time')
     ps.set_yaxis_title('Ld/Ed')
     ps.remove_major_x_ticks()
-    ps.legend_options['bbox_to_anchor'] = (0.5,-0.3)
+    ps.set_xticks(xdata, xticks, 90, 10)
+    ps.set_y_range(0, 0.5)
+    ps.set_yticks([0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5], [0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5], 0, 10)
+    ps.set_grid_horizontal()
+    ps.set_horizontal_line_impl(0.05, xdata[0], xdata[-1], None, None)
+
+    #legend
+    ps.legend_options = ps.legend_options_bottom.copy()
+    ps.legend_options['ncols'] = 3
+    ps.legend_options['bbox_to_anchor'] = (0.5, -0.3)
+    handles = [h1[0], h3[0], h2[0]]
+    legend_str = ['HYPSTAR', 'AERONET','Clear Sky Model']
     ps.set_legend_h(handles,legend_str)
 
-    ps.set_xticks(xdata,xticks,90,10)
 
-
-    ps.set_y_range(0,0.5)
-    ps.set_yticks([0,0.05,0.1,0.2,0.3,0.4,0.5],[0,0.05,0.1,0.2,0.3,0.4,0.5],0,10)
-    ps.set_grid_horizontal()
-    ps.set_horizontal_line_impl(0.05,xdata[0],xdata[-1],None,None)
 
     ps.set_tigth_layout()
+    print(f'[INFO] Saving plot to: {file_out}')
     ps.save_plot(file_out)
 
 
