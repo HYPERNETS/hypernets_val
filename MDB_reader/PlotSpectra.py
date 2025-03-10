@@ -253,6 +253,13 @@ class PlotSpectra():
     def set_horizontal_line(self,yval,xmin,xmax):
         plt.axhline(yval,xmin,xmax,color='blue',linestyle='-')
 
+    def set_horizontal_line_impl(self,yval,xmin,xmax,color,linestyle):
+        if color is None:
+            color = 'black'
+        if linestyle is None:
+            linestyle = '-'
+        plt.axhline(yval,xmin,xmax,color=color,linestyle=linestyle)
+
 
     def set_xticks_minor(self, xticks, xtickvalues, rotation, fontsize):
         if rotation is None:

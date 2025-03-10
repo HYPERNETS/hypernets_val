@@ -1342,11 +1342,13 @@ def plot_all_sequences(data_to_plot,file_out):
     xarray = xarray[valid_array==True]
     y1array = y1array[valid_array == True]
     y2array = y2array[valid_array == True]
-    xticks = [''] * len(xarray)
-    increm = int(round(len(xarray) / 12))
-    for idx in range(0, len(xarray), increm):
+    ndata = len(xarray)
+    xdata = np.arange(ndata)
+    xticks = [''] * ndata
+    increm = int(round(ndata / 12))
+    for idx in range(0, ndata, increm):
         xticks[idx] = dt.utcfromtimestamp(xarray[idx]).strftime('%m%d')
-    ps.xdata = xarray
+    ps.xdata = xdata
     style = ps.line_style_default.copy()
     style['linewidth']=0
     style['marker'] = 'o'
@@ -1363,9 +1365,11 @@ def plot_all_sequences(data_to_plot,file_out):
     print(ps.legend_options)
     ps.legend_options['bbox_to_anchor'] = (0.5,-0.3)
     ps.set_legend_h(handles,legend_str)
-    ps.set_xticks(xarray,xticks,90,10)
+    ps.set_xticks(xdata,xticks,90,10)
+    ps.set_y_range(0,0.5)
+    ps.set_yticks([0,0.05,0.1,0.2,0.3,0.4,0.5],[0,0.05,0.1,0.2,0.3,0.4,0.5],0,10)
     ps.set_grid()
-    ps.set_horizontal_line(0.05,xarray[0],xarray[-1])
+    ps.set_horizontal_line_impl(0.05,xdata[0],xdata[-1],None,None)
     ps.set_tigth_layout()
     ps.save_plot(file_out)
 
