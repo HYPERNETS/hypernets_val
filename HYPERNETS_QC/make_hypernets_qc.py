@@ -16,7 +16,8 @@ parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
                              'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG',
-                             'LOGDOWNLOAD', 'COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS','CLEARSKYMODELTEST'],
+                             'LOGDOWNLOAD', 'COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS',
+                             'CLEARSKYMODELTEST'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -30,7 +31,8 @@ parser.add_argument('-key', "--key_image", help="Key for single images",
                     choices=['all', 'sun', 'water', 'skirad1', 'skiirrad1', 'skirad2', 'skiirrad2'])
 parser.add_argument('-sopt', "--summary_options", help="Summary options,separated by '_': csv,nc,copy")
 parser.add_argument('-copt', "--copy_plot_options",
-                    help="Copy plot options: use_basic,only_valid,sortbyespsilon,sortbyldcsm,sortbyedcsm,csm", default="FTFFFT")
+                    help="Copy plot options: use_basic,only_valid,sortbyespsilon,sortbyldcsm,sortbyedcsm,csm",
+                    default="FTFFFT")
 parser.add_argument('-ndays', "--ndays_interval", help="Interval days between start date and end date")
 parser.add_argument('-ndel', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-ndw", "--nodownload", help="No download (for launching without connection with RBINS).",
@@ -1269,6 +1271,8 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
     hday = HYPERNETS_DAY(input_path, output_path)
     interval = 24
     wl_ref = 779.0
+    ndays = (end_date - start_date).days + 1
+    print(f'[INFO] Number of days: {ndays}')
 
     file_comparison = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/Comparison_Valid_2024.nc'
     if not os.path.exists(file_comparison):
@@ -1276,10 +1280,7 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
     dataset_c = Dataset(file_comparison)
     htime = dataset_c.variables['HYPSTAR_time'][:]
     wl_aeronet = dataset_c.variables['AERONET_nominal_wavelengths'][:]
-    index_wl_aeronet = int(np.argmin(np.abs(wl_aeronet-wl_ref)))
-
-
-
+    index_wl_aeronet = int(np.argmin(np.abs(wl_aeronet - wl_ref)))
 
     data_to_plot = {}
     jday_array = []
@@ -1303,28 +1304,31 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
             aeronet_ld_array = np.ma.masked_all((nsequences,))
             aeronet_ld_ed_array = np.ma.masked_all((nsequences,))
 
-
             for isequence in range(nsequences):
                 time_seq = hdayfile.get_sequence_time(isequence)
                 time_seq_ts_ini = time_seq.astimezone(pytz.utc).timestamp() - 300
                 time_seq_ts_end = time_seq.astimezone(pytz.utc).timestamp() + 300
                 indices = np.ma.where(np.ma.logical_and(htime >= time_seq_ts_ini, htime <= time_seq_ts_end))
-                if len(indices[0])!=1:
+                if len(indices[0]) != 1:
                     print('[WARNING] No AERONET-OC data. Skipping...')
                     continue
 
-                hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed = hdayfile.get_csm_data_at_wl(isequence,wl_ref)
+                hypstar_ed, hypstar_ld, hypstar_ld_ed, model_ed, model_ld, model_ld_ed = hdayfile.get_csm_data_at_wl(
+                    isequence, wl_ref)
                 if hypstar_ed is not None:
-                    hypstar_ed_array[isequence]=hypstar_ed
-                    hypstar_ld_array[isequence]=hypstar_ld
-                    hypstar_ld_ed_array[isequence]=hypstar_ld_ed
-                    model_ed_array[isequence]=model_ed
-                    model_ld_array[isequence]=model_ld
-                    model_ld_ed_array[isequence]=model_ld_ed
-                    insitu_time_array[isequence] = time_seq.astimezone(pytz.utc).timestamp() if time_seq is not None else np.ma.masked
-                    aeronet_ed_array[isequence] = dataset_c.variables['AERONET_Ed'][indices[0][0],indices[1][0],index_wl_aeronet]
-                    aeronet_ld_array[isequence] = dataset_c.variables['AERONET_Li_mean'][indices[0][0], indices[1][0], index_wl_aeronet]
-                    aeronet_ld_ed_array[isequence] = aeronet_ld_array[isequence]/aeronet_ed_array[isequence]
+                    hypstar_ed_array[isequence] = hypstar_ed
+                    hypstar_ld_array[isequence] = hypstar_ld
+                    hypstar_ld_ed_array[isequence] = hypstar_ld_ed
+                    model_ed_array[isequence] = model_ed
+                    model_ld_array[isequence] = model_ld
+                    model_ld_ed_array[isequence] = model_ld_ed
+                    insitu_time_array[isequence] = time_seq.astimezone(
+                        pytz.utc).timestamp() if time_seq is not None else np.ma.masked
+                    aeronet_ed_array[isequence] = dataset_c.variables['AERONET_Ed'][
+                        indices[0][0], indices[1][0], index_wl_aeronet]
+                    aeronet_ld_array[isequence] = dataset_c.variables['AERONET_Li_mean'][
+                        indices[0][0], indices[1][0], index_wl_aeronet]
+                    aeronet_ld_ed_array[isequence] = aeronet_ld_array[isequence] / aeronet_ed_array[isequence]
 
             data_to_plot[jday] = {
                 'hypstar_ed': hypstar_ed_array,
@@ -1333,7 +1337,7 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
                 'model_ed': model_ed_array,
                 'model_ld': model_ld_array,
                 'model_ld_ed': model_ld_ed_array,
-                'time':insitu_time_array,
+                'time': insitu_time_array,
                 'aeronet_ed': aeronet_ed_array,
                 'aeronet_ld': aeronet_ld_array,
                 'aeronet_ld_ed': aeronet_ld_ed_array,
@@ -1341,12 +1345,14 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
         work_date = work_date + timedelta(hours=interval)
 
     dataset_c.close()
-    #print(data_to_plot[jday_array[0]])
-    file_out = os.path.join(output_path,site,f'TimeSeries_LdEd_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.tif')
-    plot_all_sequences(data_to_plot,file_out)
+    # print(data_to_plot[jday_array[0]])
+    file_out = os.path.join(output_path, site,
+                            f'TimeSeries_LdEd_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.tif')
+    timeformat = '%m-%d' if ndays > 1 else '%H:%M'
+    plot_all_sequences(data_to_plot, file_out, timeformat)
 
 
-def plot_all_sequences(data_to_plot,file_out):
+def plot_all_sequences(data_to_plot, file_out, timeformat):
     import numpy as np
     from MDB_reader.PlotSpectra import PlotSpectra
     ps = PlotSpectra()
@@ -1360,11 +1366,11 @@ def plot_all_sequences(data_to_plot,file_out):
     x_arrays = []
     for jday in data_to_plot:
         time = data_to_plot[jday]['time']
-        valid = time.mask==False
+        valid = time.mask == False
         y1 = data_to_plot[jday][yvar1]
-        valid[y1.mask]=False
+        valid[y1.mask] = False
         y2 = data_to_plot[jday][yvar2]
-        valid[y2.mask]=False
+        valid[y2.mask] = False
         y3 = data_to_plot[jday][yvar3]
         valid[y3.mask] = False
         x_arrays.append(time[valid])
@@ -1375,36 +1381,52 @@ def plot_all_sequences(data_to_plot,file_out):
     y1array = np.concatenate(y1_arrays)
     y2array = np.concatenate(y2_arrays)
     y3array = np.concatenate(y3_arrays)
-    valid_array = np.logical_and(np.isnan(y1array)==False,np.isnan(y2array)==False)
-    valid_array[np.isnan(y3array)]=False
-    xarray = xarray[valid_array==True]
+    valid_array = np.logical_and(np.isnan(y1array) == False, np.isnan(y2array) == False)
+    valid_array[np.isnan(y3array)] = False
+    xarray = xarray[valid_array == True]
     y1array = y1array[valid_array == True]
     y2array = y2array[valid_array == True]
     y3array = y3array[valid_array == True]
     ndata = len(xarray)
     xdata = np.arange(ndata)
-    xticks = ['']*ndata
+    xticks = []
+    xticksdata = []
 
-    increm = int(round(ndata / 12))
     vertical_lines = []
-    for idx in range(0, ndata, increm):
-        xticks[idx]=dt.utcfromtimestamp(xarray[idx]).strftime('%m%d')
-        vertical_lines.append(xdata[idx])
+    if timeformat == '%H:%M':
+        increm = int(round(ndata / 12))
+        for idx in range(0, ndata, increm):
+            xticks.append(dt.utcfromtimestamp(xarray[idx]).strftime(timeformat))
+            xticksdata.append(idx)
+            vertical_lines.append(xdata[idx])
+    else:
+        time_ref = 'NaN'
+        for idx in range(ndata):
+            time_here = dt.utcfromtimestamp(xarray[idx]).strftime(timeformat)
+            if time_here != time_ref:
+                vertical_lines.append(xdata[idx])
+                time_ref = time_here
+                if len(vertical_lines) >= 2:
+                    xpos = (vertical_lines[-2] + vertical_lines[-1]) / 2
+                    timepos = dt.utcfromtimestamp(xarray[vertical_lines[-2]]).strftime(timeformat)
+                    xticksdata.append(xpos)
+                    xticks.append(timepos)
+
     for line in vertical_lines:
-        ps.set_vertical_line_impl(line,0,10,'lightgray', '--')
+        ps.set_vertical_line_impl(line, 0, 10, 'lightgray', '--')
 
     ps.xdata = xdata
 
     style = ps.line_style_default.copy()
 
-    #hypstar
-    style['linewidth']=0
+    # hypstar
+    style['linewidth'] = 0
     style['marker'] = 'o'
-    style['markersize']=4
+    style['markersize'] = 4
     style['color'] = 'b'
-    h1=ps.plot_data(y1array,style)
+    h1 = ps.plot_data(y1array, style)
 
-    #aeronet
+    # aeronet
     style['color'] = 'cyan'
     h3 = ps.plot_data(y3array, style)
 
@@ -1412,33 +1434,28 @@ def plot_all_sequences(data_to_plot,file_out):
     style['color'] = 'red'
     style['linewidth'] = 1
     style['marker'] = None
-    h2 =ps.plot_data(y2array, style)
+    h2 = ps.plot_data(y2array, style)
 
     ps.set_xaxis_title('Time')
     ps.set_yaxis_title('Ld/Ed')
     ps.remove_major_x_ticks()
-    ps.set_xticks(xdata, xticks, 90, 10)
+    ps.set_xticks(xticksdata, xticks, 90, 10)
     ps.set_y_range(0, 0.1)
-    ps.set_yticks([0, 0.025,0.05,0.075, 0.1], [0, 0.025,0.05, 0.075,0.1], 0, 10)
+    ps.set_yticks([0, 0.025, 0.05, 0.075, 0.1], [0, 0.025, 0.05, 0.075, 0.1], 0, 10)
     ps.set_grid_horizontal()
     ps.set_horizontal_line_impl(0.05, xdata[0], xdata[-1], None, None)
 
-    #legend
+    # legend
     ps.legend_options = ps.legend_options_bottom.copy()
     ps.legend_options['ncols'] = 3
     ps.legend_options['bbox_to_anchor'] = (0.5, -0.3)
     handles = [h1[0], h3[0], h2[0]]
-    legend_str = ['HYPSTAR', 'AERONET','Clear Sky Model']
-    ps.set_legend_h(handles,legend_str)
-
-
+    legend_str = ['HYPSTAR', 'AERONET', 'Clear Sky Model']
+    ps.set_legend_h(handles, legend_str)
 
     ps.set_tigth_layout()
     print(f'[INFO] Saving plot to: {file_out}')
     ps.save_plot(file_out)
-
-
-
 
 
 def make_clear_sky_model_plots(input_path, output_path, site, start_date, end_date):
@@ -1459,9 +1476,9 @@ def make_clear_sky_model_plots(input_path, output_path, site, start_date, end_da
             nsequences = len(hdayfile.sequences)
             print(f'Number of sequences: {nsequences}')
             for isequence in range(nsequences):
-                print(f'[INFO] Plotting for sequence: {isequence+1}/{nsequences}')
+                print(f'[INFO] Plotting for sequence: {isequence + 1}/{nsequences}')
                 hdayfile.isequence = isequence
-                hdayfile.set_path_images_date(site,work_date)
+                hdayfile.set_path_images_date(site, work_date)
                 hdayfile.save_report_clear_sky_modelling(site, delete, args.overwrite)
 
         work_date = work_date + timedelta(hours=interval)
@@ -1734,10 +1751,8 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                     ratio_ld_ed_model = ld_model / ed_model
                     if options['csm']:
                         iwl = np.argmin(np.abs(wl_array - 750.0))
-                        icsm_min = iwl-1
-                        icsm_max = iwl+2
-
-
+                        icsm_min = iwl - 1
+                        icsm_max = iwl + 2
 
                 dataset.close()
 
@@ -1770,7 +1785,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                         elif options['sortbyedcsm']:
                             value_sort = np.mean(ratio_ed_array[isequence])
                         elif options['csm']:
-                            value_sort = np.mean(ratio_ld_ed_hypstar[isequence,icsm_min:icsm_max])
+                            value_sort = np.mean(ratio_ld_ed_hypstar[isequence, icsm_min:icsm_max])
 
                         sorting_values.append(value_sort)
 
@@ -1782,8 +1797,8 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                         values_ed = ratio_ed_array[isequence, indices_wl_array]
                         line_values_ed = [f'{x:.6f}' for x in values_ed]
 
-                        ratio_ld_ed_hypstar_750 = np.mean(ratio_ld_ed_hypstar[isequence,icsm_min:icsm_max])
-                        ratio_ld_ed_model_750 = np.mean(ratio_ld_ed_model[isequence,icsm_min:icsm_max])
+                        ratio_ld_ed_hypstar_750 = np.mean(ratio_ld_ed_hypstar[isequence, icsm_min:icsm_max])
+                        ratio_ld_ed_model_750 = np.mean(ratio_ld_ed_model[isequence, icsm_min:icsm_max])
 
                         line = f'{line};{mean_ratio_ld};{";".join(line_values_ld)};{mean_ratio_ed};{";".join(line_values_ed)};{ratio_ld_ed_hypstar_750};{ratio_ld_ed_model_750}'
 
@@ -1807,16 +1822,16 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
 
         for idx, index in enumerate(sorted_indices):
             if args.verbose:
-                if (idx%100)==0 or idx==len(sorted_indices)-1:
-                    print(f'[INFO] --> {idx} / {len(sorted_indices)-1}')
-                #print(f'[INFO] --> {idx}:{index} / {len(sorted_indices) - 1}')
+                if (idx % 100) == 0 or idx == len(sorted_indices) - 1:
+                    print(f'[INFO] --> {idx} / {len(sorted_indices) - 1}')
+                # print(f'[INFO] --> {idx}:{index} / {len(sorted_indices) - 1}')
             seq_here = sequences_list[index]
             file_old = sequences_ref[seq_here]['file']
             line = sequences_ref[seq_here]['line']
             line = f'{idx};{line}'
             fcsv.write('\n')
             fcsv.write(line)
-            if options['csm'] and sorting_values[index]>0.05:
+            if options['csm'] and sorting_values[index] > 0.05:
                 name_new = f'{idx}_CSM_INVALID_{os.path.basename(file_old)}'
             else:
                 name_new = f'{idx}_{os.path.basename(file_old)}'
@@ -1825,6 +1840,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
     fcsv.close()
     if args.verbose:
         print(f'[INFO] Completed')
+
 
 def main():
     if args.verbose:
@@ -1911,7 +1927,7 @@ def main():
         make_copy_reports(input_path, output_path, site, start_date, end_date)
 
     if args.mode == 'COPYPLOTS':
-        options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm','sortbyedcsm','csm']
+        options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm']
         args_options = [True if x == 'T' else False for x in args.copy_plot_options]
         dict_options = {}
         for idx in range(len(options)):
@@ -1949,7 +1965,7 @@ def main():
             print(f'[ERROR] Output path is not available.')
             return
         print(f'[INFO] Started CLEARSKYMODELTEST...')
-        make_clear_sky_model_test(input_path,output_path,site,start_date,end_date)
+        make_clear_sky_model_test(input_path, output_path, site, start_date, end_date)
 
 
 # %%
