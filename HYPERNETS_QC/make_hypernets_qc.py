@@ -1407,10 +1407,15 @@ def plot_all_sequences(data_to_plot, file_out, timeformat):
                 vertical_lines.append(xdata[idx])
                 time_ref = time_here
                 if len(vertical_lines) >= 2:
-                    xpos = (vertical_lines[-2] + vertical_lines[-1]) / 2
+                    xpos = np.floor((vertical_lines[-2] + vertical_lines[-1]) / 2)
                     timepos = dt.utcfromtimestamp(xarray[vertical_lines[-2]]).strftime(timeformat)
                     xticksdata.append(xpos)
                     xticks.append(timepos)
+        if len(vertical_lines)>=2:
+            xpos = np.floor((vertical_lines[-2] + vertical_lines[-1]) / 2)
+            timepos = dt.utcfromtimestamp(xarray[vertical_lines[-2]]).strftime(timeformat)
+            xticksdata.append(xpos)
+            xticks.append(timepos)
 
     for line in vertical_lines:
         ps.set_vertical_line_impl(line, 0, 10, 'lightgray', '--')
