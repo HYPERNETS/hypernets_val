@@ -226,6 +226,9 @@ class QC_INSITU:
         if rrs_values is None:
             return False
 
+        if len(rrs_values)==1:
+            rrs_values = rrs_values[0]
+
         # if np.sum(np.isnan(rrs_values)) > 0:
         #     return False
 
@@ -280,10 +283,12 @@ class QC_INSITU:
 
         # checking thresholds
         if self.thersholds is not None:
+
             for idx in range(len(self.wl_list)):
                 wl = self.wl_list[idx]
                 val = rrs_values[idx]
                 wls = str(wl)
+
 
                 if self.thersholds[wls]['min_th']['apply'] and val < self.thersholds[wls]['min_th']['value']:
                     check = False

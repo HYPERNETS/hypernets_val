@@ -190,6 +190,14 @@ class HYPERNETS_DAY_FILE():
 
         return res
 
+    def get_sequence_time(self,iseq):
+        time_seq = None
+        if iseq<len(self.sequences):
+            seq = self.sequences[iseq]
+            if seq is not None:
+                time_seq = dt.strptime(seq, '%Y%m%dT%H%M')
+        return time_seq
+
     ##methods for multiple dates. start_date and end_date are dt objects, start_time and end_time with format %H:%M
     ##these parameters are retrieved from options_figures using check_dates_times
     def get_sequences_range(self, start_date, end_date, start_time, end_time):
@@ -1114,14 +1122,24 @@ class HYPERNETS_DAY_FILE():
     def get_csm_data_at_wl(self,isequence,wl):
         from netCDF4 import Dataset
         dataset = Dataset(self.file_nc)
+
+
+        qf = dataset.variables['l2_quality_flag'][isequence]
+        epsilon = dataset.variables['l2_epsilon'][isequence]
+        valid = True if (qf==0 and (-0.005 <= epsilon <= 0.005)) else False
+        if not valid:
+            return [None]*6
+
         wl_array = dataset.variables['wavelength'][:]
         iwl = np.argmin(np.abs(wl_array-wl))
-        hypstar_ed = float(dataset.variables['l2_irradiance'][isequence,iwl])
-        model_ed = float(dataset.variables['csm_ed_tot'][isequence,iwl])
-        hypstar_ld = float(dataset.variables['l2_downwelling_radiance'][isequence, iwl])
-        model_ld = float(dataset.variables['csm_ld'][isequence, iwl])
+
+        hypstar_ed = float(dataset.variables['l2_irradiance'][isequence,iwl]) if not np.ma.is_masked(dataset.variables['l2_irradiance'][isequence,iwl]) else np.ma.masked
+        model_ed = float(dataset.variables['csm_ed_tot'][isequence,iwl]) if not np.ma.is_masked(dataset.variables['csm_ed_tot'][isequence, iwl]) else np.ma.masked
+        hypstar_ld = float(dataset.variables['l2_downwelling_radiance'][isequence, iwl]) if not np.ma.is_masked(dataset.variables['l2_downwelling_radiance'][isequence, iwl]) else np.ma.masked
+        model_ld = float(dataset.variables['csm_ld'][isequence, iwl]) if not np.ma.is_masked(dataset.variables['csm_ld'][isequence, iwl]) else np.ma.masked
         hypstar_ld_ed = hypstar_ld/hypstar_ed
-        model_ld_ed = model_ld/hypstar_ld
+        model_ld_ed = model_ld/model_ed
+
         dataset.close()
         return  hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed
 

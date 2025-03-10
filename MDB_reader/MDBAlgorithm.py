@@ -65,20 +65,37 @@ def do_test():
     return True
 
 
-def create_mdb_from_csv():
-    file_csv = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/CSV_MATCH-UPS/MULTI/Baltic_CHLA_Valid_AllSources_1997-2023_FINAL_TIMEFILTERED_complete.csv'
+def create_mdb_from_csv(sensor):
+    sensor = sensor.upper()
     dir_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/MDBs'
-    file_out = os.path.join(dir_out, 'MDBr__MULTI_CCI_1KM_OC-CCI-BALCHL202411_19970909T000000_20231219T000000.nc')
+    file_out = None
+    if sensor=='MULTI':
+        file_csv = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/CSV_MATCH-UPS/MULTI/Baltic_CHLA_Valid_AllSources_1997-2023_FINAL_TIMEFILTERED_complete.csv'
+        file_out = os.path.join(dir_out, 'MDBr__MULTI_CCI_1KM_OC-CCI-BALCHL202411_19970909T000000_20231219T000000.nc')
+
+    if sensor=='OLCI':
+        file_csv = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/CSV_MATCH-UPS/OLCI/Baltic_CHLA_Valid_AllSources_2016-2023_FINAL_OLCI_rrs_chl_3x3_filtered_match-ups_complete.csv'
+        file_out = os.path.join(dir_out, 'MDBr__S3_OLCI_300M_CMEMS-OLCI_20160501T000000_20240415T000000_BAL202411.nc')
+
+    if file_out is None:
+        return
+
     nc_out = Dataset(file_out, 'w')
     nc_out.createDimension('mu_id', size=None)
     nc_out.createDimension('satellite_id', size=None)
     df = pd.read_csv(file_csv, sep=';')
     col_names =df.columns.tolist()
 
-    mu_variables = ['LATITUDE', 'LONGITUDE', 'INSITU_CHL','FLAG_CYANO_PORC_MODE','DISTANCE']
+    if sensor=='MULTI':
+        mu_variables = ['LATITUDE', 'LONGITUDE', 'INSITU_CHL','FLAG_CYANO_PORC_MODE','DISTANCE']
+        flag_variables_str = ['SOURCE_ORIG', 'SOURCE', 'FlagPrec', 'FlagBrando', 'FlagOldNew', 'FLAG_DISTANCE']
+
+    if sensor=='OLCI':
+        mu_variables = ['LATITUDE', 'LONGITUDE', 'INSITU_CHL','FLAG_CYANO_PORC_MODE']
+        flag_variables_str = ['SOURCE_ORIG', 'SOURCE', 'FlagPrec', 'FlagBrando', 'FlagOldNew']
 
     flag_variables_num = ['satellite_CHL_NVALID','FLAG_CDF','BLOOM','SUB_SURFACE','SURFACE']
-    flag_variables_str = ['SOURCE_ORIG','SOURCE','FlagPrec','FlagBrando','FlagOldNew','FLAG_DISTANCE']
+
 
     for col in col_names:
         if col.startswith('satellite_RRS'):
@@ -172,8 +189,8 @@ def create_mdb_from_csv():
 
 
 def main():
-    # if create_mdb_from_csv():
-    #     return
+    if create_mdb_from_csv('OLCI'):
+        return
     # if do_test():
     #     return
     print('Started MDBAlgorithm')
@@ -209,8 +226,13 @@ def main():
             from  baltic_202411 import BALTIC_202411_PROCESSOR
         except:
             print(f'[ERROR] baltic_202411 code is not available')
+        if output_path is None:
+            input_dir = os.path.dirname(args.input_path)
+            name = os.path.basename(args.input_path)[:-3]+'_BAL202411.nc'
+            output_path = os.path.join(input_dir,name)
+            print(f'[INFO] Ouput path set to: {output_path}')
         bprocessor = BALTIC_202411_PROCESSOR(None, False)
-        bprocessor.run_from_mdb_file(args.input_path)
+        bprocessor.run_from_mdb_file(args.input_path,output_path)
         return
 
 def create_cyano_flag(input_path, output_path):

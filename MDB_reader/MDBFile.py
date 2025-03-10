@@ -696,11 +696,11 @@ class MDBFile:
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
 
-        if valid_insitu:
-            from datetime import datetime as dt
-            date_ref = dt(2023,11,11)
-            if self.mu_insitu_time>date_ref:
-                valid_insitu = False
+        # if valid_insitu:
+            # from datetime import datetime as dt
+            # date_ref = dt(2023,11,10)
+            # if self.mu_insitu_time>date_ref:
+            #     valid_insitu = False
 
         if rrs_ins_values is not None and len(rrs_ins_values)==1:
             rrs_ins_values = rrs_ins_values[0]

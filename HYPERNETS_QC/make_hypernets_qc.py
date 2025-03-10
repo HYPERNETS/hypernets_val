@@ -4,6 +4,8 @@ from datetime import datetime as dt
 from datetime import timedelta
 import argparse
 
+import pytz
+
 from hypernets_day import HYPERNETS_DAY
 
 # import __init__
@@ -14,7 +16,7 @@ parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
                              'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG',
-                             'LOGDOWNLOAD', 'COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS'],
+                             'LOGDOWNLOAD', 'COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS','CLEARSKYMODELTEST'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -1261,12 +1263,12 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
 def make_clear_sky_model_test(input_path, output_path, site, start_date, end_date):
     if args.verbose:
         print(f'[INFO] Started making clear sky model test...')
-
+    import numpy as np
     work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
     hday = HYPERNETS_DAY(input_path, output_path)
     interval = 24
-    from MDB_reader.PlotSpectra import PlotSpectra
-    ps = PlotSpectra()
+    wl_ref = 750
+
     data_to_plot = {}
     jday_array = []
     while work_date <= end_date:
@@ -1277,29 +1279,98 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
         if hdayfile is not None and hdayfile.VALID:
             jday = int(work_date.strftime('%j'))
             jday_array.append(jday)
-            hypstar_ed_array = []
-            hypstar_ld_array = []
-            hypstar_ld_ed_array = []
-            model_ed_array = []
-            model_ld_array = []
-            model_ld_ed_array = []
             nsequences = len(hdayfile.sequences)
+            hypstar_ed_array = np.ma.masked_all((nsequences,))
+            hypstar_ld_array = np.ma.masked_all((nsequences,))
+            hypstar_ld_ed_array = np.ma.masked_all((nsequences,))
+            model_ed_array = np.ma.masked_all((nsequences,))
+            model_ld_array = np.ma.masked_all((nsequences,))
+            model_ld_ed_array = np.ma.masked_all((nsequences,))
+            insitu_time_array = np.ma.masked_all((nsequences,))
+
             for isequence in range(nsequences):
-                hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed = hdayfile.get_csm_data_at_wl(isequence,750)
-                hypstar_ed_array.append(hypstar_ed)
-                hypstar_ld_array.append(hypstar_ld)
-                hypstar_ld_ed_array.append(hypstar_ld_ed)
-                model_ed_array.append(model_ed)
-                model_ld_array.append(model_ld)
-                model_ld_ed_array.append(model_ld_ed)
+                hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed = hdayfile.get_csm_data_at_wl(isequence,wl_ref)
+                hypstar_ed_array[isequence]=hypstar_ed
+                hypstar_ld_array[isequence]=hypstar_ld
+                hypstar_ld_ed_array[isequence]=hypstar_ld_ed
+                model_ed_array[isequence]=model_ed
+                model_ld_array[isequence]=model_ld
+                model_ld_ed_array[isequence]=model_ld_ed
+                time_seq = hdayfile.get_sequence_time(isequence)
+                insitu_time_array[isequence] = time_seq.astimezone(pytz.utc).timestamp() if time_seq is not None else np.ma.masked
+
             data_to_plot[jday] = {
                 'hypstar_ed': hypstar_ed_array,
                 'hypstar_ld': hypstar_ld_array,
                 'hypstar_ld_ed': hypstar_ld_ed_array,
                 'model_ed': model_ed_array,
                 'model_ld': model_ld_array,
-                'model_ld_ed': model_ld_ed_array
+                'model_ld_ed': model_ld_ed_array,
+                'time':insitu_time_array
             }
+        work_date = work_date + timedelta(hours=interval)
+
+    #print(data_to_plot[jday_array[0]])
+    file_out = os.path.join(output_path,site,f'TimeSeries_LdEd_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.tif')
+    plot_all_sequences(data_to_plot,file_out)
+
+def plot_all_sequences(data_to_plot,file_out):
+    import numpy as np
+    from MDB_reader.PlotSpectra import PlotSpectra
+    ps = PlotSpectra()
+    ps.legend_options = ps.legend_options_bottom.copy()
+    ps.legend_options['ncols'] = 2
+    yvar1 = 'hypstar_ld_ed'
+    yvar2 = 'model_ld_ed'
+    y1_arrays = []
+    y2_arrays = []
+    x_arrays = []
+    for jday in data_to_plot:
+        time = data_to_plot[jday]['time']
+        valid = time.mask==False
+        y1 = data_to_plot[jday][yvar1]
+        valid[y1.mask]=False
+        y2 = data_to_plot[jday][yvar2]
+        valid[y2.mask]=False
+        x_arrays.append(time[valid])
+        y1_arrays.append(y1[valid])
+        y2_arrays.append(y2[valid])
+    xarray = np.concatenate(x_arrays)
+    y1array = np.concatenate(y1_arrays)
+    y2array = np.concatenate(y2_arrays)
+    valid_array = np.logical_and(np.isnan(y1array)==False,np.isnan(y2array)==False)
+    xarray = xarray[valid_array==True]
+    y1array = y1array[valid_array == True]
+    y2array = y2array[valid_array == True]
+    xticks = [''] * len(xarray)
+    increm = int(round(len(xarray) / 12))
+    for idx in range(0, len(xarray), increm):
+        xticks[idx] = dt.utcfromtimestamp(xarray[idx]).strftime('%m%d')
+    ps.xdata = xarray
+    style = ps.line_style_default.copy()
+    style['linewidth']=0
+    style['marker'] = 'o'
+    style['markersize']=4
+    style['color'] = 'b'
+    h1=ps.plot_data(y1array,style)
+    style['color'] = 'red'
+    h2 =ps.plot_data(y2array, style)
+    print(f'[INFO] Saving plot to: {file_out}')
+    handles = [h1[0], h2[0]]
+    legend_str = ['HYPSTAR', 'Clear Sky Model']
+    ps.set_xaxis_title('Time')
+    ps.set_yaxis_title('Ld/Ed')
+    print(ps.legend_options)
+    ps.legend_options['bbox_to_anchor'] = (0.5,-0.3)
+    ps.set_legend_h(handles,legend_str)
+    ps.set_xticks(xarray,xticks,90,10)
+    ps.set_grid()
+    ps.set_horizontal_line(0.05,xarray[0],xarray[-1])
+    ps.set_tigth_layout()
+    ps.save_plot(file_out)
+
+
+
 
 
 def make_clear_sky_model_plots(input_path, output_path, site, start_date, end_date):
@@ -1318,8 +1389,9 @@ def make_clear_sky_model_plots(input_path, output_path, site, start_date, end_da
         hdayfile = hday.get_hypernets_day_file(site, work_date)
         if hdayfile is not None and hdayfile.VALID:
             nsequences = len(hdayfile.sequences)
+            print(f'Number of sequences: {nsequences}')
             for isequence in range(nsequences):
-                print(f'[INFO] Plotting for sequence: {isequence}/{nsequences}')
+                print(f'[INFO] Plotting for sequence: {isequence+1}/{nsequences}')
                 hdayfile.isequence = isequence
                 hdayfile.set_path_images_date(site,work_date)
                 hdayfile.save_report_clear_sky_modelling(site, delete, args.overwrite)
@@ -1808,6 +1880,7 @@ def main():
         if not os.path.isdir(output_path):
             print(f'[ERROR] Output path is not available.')
             return
+        print(f'[INFO] Started CLEARSKYMODELTEST...')
         make_clear_sky_model_test(input_path,output_path,site,start_date,end_date)
 
 
