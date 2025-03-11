@@ -1127,8 +1127,17 @@ class HYPERNETS_DAY_FILE():
         qf = dataset.variables['l2_quality_flag'][isequence]
         epsilon = dataset.variables['l2_epsilon'][isequence]
         valid = True if (qf==0 and (-0.005 <= epsilon <= 0.005)) else False
+
+        wl_array = dataset.variables['wavelength'][:]
+        index_ref = int(np.argmin(np.abs(wl_array-750.0)))
+        ld_ref = dataset.variables['l2_downwelling_radiance'][isequence,index_ref]
+        ed_ref = dataset.variables['l2_irradiance'][isequence,index_ref]
+        ratio = ld_ref/ed_ref
+        if ratio>=0.05:
+            valid = False
+
         if not valid:
-            return [None]*6
+            return [None]*7
 
         wl_array = dataset.variables['wavelength'][:]
         iwl = np.argmin(np.abs(wl_array-wl))
@@ -1139,9 +1148,10 @@ class HYPERNETS_DAY_FILE():
         model_ld = float(dataset.variables['csm_ld'][isequence, iwl]) if not np.ma.is_masked(dataset.variables['csm_ld'][isequence, iwl]) else np.ma.masked
         hypstar_ld_ed = hypstar_ld/hypstar_ed
         model_ld_ed = model_ld/model_ed
+        hypstar_lu = float(dataset.variables['l2_upwelling_radiance'][isequence, iwl]) if not np.ma.is_masked(dataset.variables['l2_upwelling_radiance'][isequence, iwl]) else np.ma.masked
 
         dataset.close()
-        return  hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed
+        return  hypstar_ed,hypstar_ld,hypstar_ld_ed,model_ed,model_ld,model_ld_ed,hypstar_lu
 
     def plot_clear_sky_model_spectra(self, flag, ax_here):
         # flags = ['Edtot', 'Ld', 'Ld_Ed', 'Edtot_ratio', 'Ld_ratio', 'Ld_Ed_ratio']
