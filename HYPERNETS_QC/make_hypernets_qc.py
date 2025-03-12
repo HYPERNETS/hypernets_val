@@ -2058,6 +2058,7 @@ def main():
         dict_options = {}
         for idx in range(len(options)):
             dict_options[options[idx]] = args_options[idx]
+            print(f'[INFO] Copy plot option {options[idx]} set to {args_options[idx]}')
 
         if output_path is None:
             print(f'[ERROR] Output path is required')
