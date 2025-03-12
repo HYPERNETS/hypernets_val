@@ -31,8 +31,8 @@ parser.add_argument('-key', "--key_image", help="Key for single images",
                     choices=['all', 'sun', 'water', 'skirad1', 'skiirrad1', 'skirad2', 'skiirrad2'])
 parser.add_argument('-sopt', "--summary_options", help="Summary options,separated by '_': csv,nc,copy")
 parser.add_argument('-copt', "--copy_plot_options",
-                    help="Copy plot options: use_basic,only_valid,sortbyespsilon,sortbyldcsm,sortbyedcsm,csm",
-                    default="FTFFFT")
+                    help="Copy plot options: use_basic,only_valid,sortbyespsilon,sortbyldcsm,sortbyedcsm,csm,ratiolded750,ratiolded400",
+                    default="FTFFFTFF")
 parser.add_argument('-ndays', "--ndays_interval", help="Interval days between start date and end date")
 parser.add_argument('-ndel', "--nodelfiles", help="Do not delete temp files.", action="store_true")
 parser.add_argument("-ndw", "--nodownload", help="No download (for launching without connection with RBINS).",
@@ -1771,6 +1771,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
     sorting_values = []
     sequences_ref = {}
 
+    #options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm', 'ratiolded750','ratiolded400']
     file_csv_out = os.path.join(output_path, 'SequenceList.csv')
     # line = f'{site};{sequence};{date_str};{time_str};{epsilon};{rho};{raa};{sza};{vza};{ws}'
     first_line = 'Site;Sequence;Date;Time;Epsilon;Rho;raa;sza;vza;wind_speed'
@@ -1783,6 +1784,9 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
         first_line = f'Index;{first_line};AvgRatioLd;{";".join(extra_ld)};AvgRatioEd;{";".join(extra_ed)}'
     if options['csm']:
         first_line = f'{first_line};Insitu_Ld_Ed_750;Model_Ld_Ed_750'
+
+    if options['ratiolded750'] or options['ratiolded400']:
+        first_line = f'{first_line};Insitu_Ld_Ed_750;Model_Ld_Ed_750;Insitu_Ld_Ed_400;Model_Ld_Ed_400'
 
     fcsv = open(file_csv_out, 'w')
     fcsv.write(first_line)
@@ -1818,6 +1822,20 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                         iwl = np.argmin(np.abs(wl_array - 750.0))
                         icsm_min = iwl - 1
                         icsm_max = iwl + 2
+                elif options['ratiolded750'] or options['ratiolded400']:
+                    wl_array = dataset.variables['wavelength'][:]
+                    ld_hypstar = dataset.variables['l2_downwelling_radiance'][:]
+                    ld_model = dataset.variables['csm_ld'][:]
+                    ed_hypstar = dataset.variables['l2_irradiance'][:]
+                    ed_model = dataset.variables['csm_ed_tot'][:]
+                    ratio_ld_ed_hypstar = ld_hypstar / ed_hypstar
+                    ratio_ld_ed_model = ld_model / ed_model
+                    iwl_750 = np.argmin(np.abs(wl_array - 750.0))
+                    icsm_min_750 = iwl - 1
+                    icsm_max_750 = iwl + 2
+                    iwl_400 = np.argmin(np.abs(wl_array - 400.0))
+                    icsm_min_400 = iwl - 1
+                    icsm_max_400 = iwl + 2
 
                 dataset.close()
 
@@ -1866,6 +1884,16 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                         ratio_ld_ed_model_750 = np.mean(ratio_ld_ed_model[isequence, icsm_min:icsm_max])
 
                         line = f'{line};{mean_ratio_ld};{";".join(line_values_ld)};{mean_ratio_ed};{";".join(line_values_ed)};{ratio_ld_ed_hypstar_750};{ratio_ld_ed_model_750}'
+                    elif options['ratiolded750'] or options['ratiolded400']:
+                        ratio_ld_ed_hypstar_750 = np.mean(ratio_ld_ed_hypstar[isequence, icsm_min_750:icsm_max_750])
+                        ratio_ld_ed_model_750 = np.mean(ratio_ld_ed_model[isequence, icsm_min_750:icsm_max_750])
+                        ratio_ld_ed_hypstar_400 = np.mean(ratio_ld_ed_hypstar[isequence, icsm_min_400:icsm_max_400])
+                        ratio_ld_ed_model_400 = np.mean(ratio_ld_ed_model[isequence, icsm_min_400:icsm_max_400])
+                        line = f'{line};{ratio_ld_ed_hypstar_750};{ratio_ld_ed_model_750};{ratio_ld_ed_hypstar_400};{ratio_ld_ed_model_400}'
+                        if options['ratiolded750']:
+                            sorting_values.append(ratio_ld_ed_hypstar_750)
+                        if options['ratiolded400']:
+                            sorting_values.append(ratio_ld_ed_hypstar_400)
 
                     sequences_ref[sequence_ref] = {
                         'file': file_out,
@@ -1881,9 +1909,18 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
         print(f'[INFO] -----------------------------------------------------')
         print(f'[INFO] Copying files and saving info to CSV...')
         print(f'[INFO] Number of selected sequences: {len(sorting_values)} {len(sequences_list)}')
-    if options['sortbyepsilon'] or options['sortbyldcsm'] or options['sortbyedcsm'] or options['csm']:
+    make_sort = False
+    sorting_options = ['sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm', 'ratiolded750', 'ratiolded400']
+    for sopt in sorting_options:
+        if options[sopt]:
+            make_sort = True
+            break
+
+    if make_sort:
 
         sorted_indices = np.argsort(sorting_values)
+        if options['ratiolded750']:
+            sorted_indices = np.flip(sorted_indices)
 
         for idx, index in enumerate(sorted_indices):
             if args.verbose:
@@ -2016,7 +2053,7 @@ def main():
         make_copy_reports(input_path, output_path, site, start_date, end_date)
 
     if args.mode == 'COPYPLOTS':
-        options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm']
+        options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm','ratiolded750','ratiolded400']
         args_options = [True if x == 'T' else False for x in args.copy_plot_options]
         dict_options = {}
         for idx in range(len(options)):
