@@ -17,7 +17,7 @@ parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
                              'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG',
                              'LOGDOWNLOAD', 'COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS',
-                             'CLEARSKYMODELTEST'],
+                             'CLEARSKYMODELTEST','QUALITYCONTROL'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -409,6 +409,30 @@ def test2():
     #     print(wd,wimages[wd])
     # hdayfile.plot_water_images(wimages)
     return True
+
+def make_quality_control_var(input_path, site, start_date, end_date):
+    if args.verbose:
+        print(f'[INFO] Started making quality control var...')
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    hday = HYPERNETS_DAY(input_path, input_path)
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+        hdayfile = hday.get_hypernets_day_file(site, work_date)
+        if hdayfile is not None:
+            hdayfile.add_quality_control_var()
+        
+        file_out = hdayfile.file_nc
+        if file_out.find('HYPERNETES_W_DAY')>0:
+            file_new = file_out.replace('HYPERNETES_W_DAY','HYPERNETS_W_DAY')
+            os.rename(file_out,file_new)
+
+        work_date = work_date + timedelta(hours=interval)
+
 
 
 def make_comparison_clear_sky_model(input_path, site, start_date, end_date):
@@ -2012,6 +2036,9 @@ def main():
 
     if args.mode == 'CLEARSKYMODEL':
         make_comparison_clear_sky_model(input_path, site, start_date, end_date)
+
+    if args.mode == 'QUALITYCONTROL':
+        make_quality_control_var(input_path, site, start_date, end_date)
 
     if args.mode == 'CLEARSKYMODELPLOTS':
         if output_path is None:

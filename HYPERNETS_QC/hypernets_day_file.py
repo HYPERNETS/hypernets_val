@@ -42,6 +42,36 @@ class HYPERNETS_DAY_FILE():
         self.flag_builder = None
         self.sequences_no_data = None
 
+    def add_quality_control_var(self):
+        if not self.VALID:
+            return
+        from netCDF4 import Dataset
+        dataset_w = Dataset(self.file_nc,'w')
+        quality_flag = dataset_w.variables['l2_quality_flag'][:]
+        epsilon = dataset_w.variables['l2_epsilon'][:]
+        wl_array = dataset_w.variables['wavelength'][:]
+        index_ref = int(np.argmin(np.abs(wl_array - 750.0)))
+        ld_ref = dataset_w.variables['l2_downwelling_radiance'][:, index_ref]
+        ed_ref = dataset_w.variables['l2_irradiance'][:, index_ref]
+        ratio_750 = ld_ref / ed_ref
+        nseries = len(quality_flag)
+        quality_control_array = np.zeros((nseries,))
+        for idx in range(nseries):
+            if quality_flag[idx] == 0 and ((-0.005) <= epsilon[idx] <= 0.005) and ratio_750[idx]<0.05:
+                quality_control_array[idx] = 1
+        nvalid = np.sum(quality_control_array)
+        ninvalid = nseries - nvalid
+        print(
+            f'[INFO] {os.path.basename(self.file_nc)} -> NTotal:{len(quality_control_array)} NValid: {nvalid} NInvalid: {ninvalid}')
+        if 'quality_control' not in dataset_w.variables:
+            var = dataset_w.createVariable('quality_control', 'i2', ('series',), complevel=6, zlib=True)
+        else:
+            var = dataset_w.variables['quality_control']
+        var[:] = quality_control_array
+        var.description = 'Valid sequence after passing quality control protocols: l2_quality_flag=0, (-0.005)<=l2_epsilon<=0.005, ld/ed(750 nm)<0.05'
+
+        dataset_w.close()
+
     def add_clear_sky_model(self):
         if not self.VALID:
             return
