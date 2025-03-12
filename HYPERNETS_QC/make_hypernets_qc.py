@@ -1788,7 +1788,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
     if options['csm']:
         first_line = f'{first_line};Insitu_Ld_Ed_750;Model_Ld_Ed_750'
     if options['ratiolded750'] or options['ratiolded400']:
-        first_line = f'{first_line};Insitu_Ld_Ed_750;Model_Ld_Ed_750;Insitu_Ld_Ed_400;Model_Ld_Ed_400'
+        first_line = f'Index;{first_line};Insitu_Ld_Ed_750;Model_Ld_Ed_750;Insitu_Ld_Ed_400;Model_Ld_Ed_400'
     fcsv = open(file_csv_out, 'w')
     fcsv.write(first_line)
 
@@ -1929,13 +1929,13 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
             seq_here = sequences_list[index]
             file_old = sequences_ref[seq_here]['file']
             line = sequences_ref[seq_here]['line']
-            line = f'{idx};{line}'
+            line = f'{idx:04};{line}'
             fcsv.write('\n')
             fcsv.write(line)
             if options['csm'] and sorting_values[index] > 0.05:
-                name_new = f'{idx}_CSM_INVALID_{os.path.basename(file_old)}'
+                name_new = f'{idx:04}_CSM_INVALID_{os.path.basename(file_old)}'
             else:
-                name_new = f'{idx}_{os.path.basename(file_old)}'
+                name_new = f'{idx:04}_{os.path.basename(file_old)}'
             file_new = os.path.join(output_path, name_new)
             shutil.copy(file_old, file_new)
     fcsv.close()
