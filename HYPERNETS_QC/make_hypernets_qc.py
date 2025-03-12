@@ -1831,11 +1831,11 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                     ratio_ld_ed_hypstar = ld_hypstar / ed_hypstar
                     ratio_ld_ed_model = ld_model / ed_model
                     iwl_750 = np.argmin(np.abs(wl_array - 750.0))
-                    icsm_min_750 = iwl - 1
-                    icsm_max_750 = iwl + 2
+                    icsm_min_750 = iwl_750 - 1
+                    icsm_max_750 = iwl_750 + 2
                     iwl_400 = np.argmin(np.abs(wl_array - 400.0))
-                    icsm_min_400 = iwl - 1
-                    icsm_max_400 = iwl + 2
+                    icsm_min_400 = iwl_400 - 1
+                    icsm_max_400 = iwl_400 + 2
 
                 dataset.close()
 
@@ -1885,6 +1885,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
 
                         line = f'{line};{mean_ratio_ld};{";".join(line_values_ld)};{mean_ratio_ed};{";".join(line_values_ed)};{ratio_ld_ed_hypstar_750};{ratio_ld_ed_model_750}'
                     elif options['ratiolded750'] or options['ratiolded400']:
+                        print(f'[INFO] Defining Ld/Ed ratios...')
                         ratio_ld_ed_hypstar_750 = np.mean(ratio_ld_ed_hypstar[isequence, icsm_min_750:icsm_max_750])
                         ratio_ld_ed_model_750 = np.mean(ratio_ld_ed_model[isequence, icsm_min_750:icsm_max_750])
                         ratio_ld_ed_hypstar_400 = np.mean(ratio_ld_ed_hypstar[isequence, icsm_min_400:icsm_max_400])
