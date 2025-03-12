@@ -17,7 +17,7 @@ parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
                              'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG',
                              'LOGDOWNLOAD', 'COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS',
-                             'CLEARSKYMODELTEST','QUALITYCONTROL'],
+                             'CLEARSKYMODELTEST', 'QUALITYCONTROL'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -410,6 +410,7 @@ def test2():
     # hdayfile.plot_water_images(wimages)
     return True
 
+
 def make_quality_control_var(input_path, site, start_date, end_date):
     if args.verbose:
         print(f'[INFO] Started making quality control var...')
@@ -425,14 +426,13 @@ def make_quality_control_var(input_path, site, start_date, end_date):
         hdayfile = hday.get_hypernets_day_file(site, work_date)
         if hdayfile is not None:
             hdayfile.add_quality_control_var()
-        
+
         file_out = hdayfile.file_nc
-        if file_out.find('HYPERNETES_W_DAY')>0:
-            file_new = file_out.replace('HYPERNETES_W_DAY','HYPERNETS_W_DAY')
-            os.rename(file_out,file_new)
+        if file_out.find('HYPERNETES_W_DAY') > 0:
+            file_new = file_out.replace('HYPERNETES_W_DAY', 'HYPERNETS_W_DAY')
+            os.rename(file_out, file_new)
 
         work_date = work_date + timedelta(hours=interval)
-
 
 
 def make_comparison_clear_sky_model(input_path, site, start_date, end_date):
@@ -1286,7 +1286,7 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
         work_date = work_date + timedelta(hours=interval)
 
 
-def make_clear_sky_model_test(input_path, output_path, site, start_date, end_date,options_test):
+def make_clear_sky_model_test(input_path, output_path, site, start_date, end_date, options_test):
     if args.verbose:
         print(f'[INFO] Started making clear sky model test...')
     import numpy as np
@@ -1355,12 +1355,12 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
                     insitu_time_array[isequence] = time_seq.astimezone(
                         pytz.utc).timestamp() if time_seq is not None else np.ma.masked
                     aeronet_ed_array[isequence] = dataset_c.variables['AERONET_Ed'][
-                        indices[0][0], indices[1][0], index_wl_aeronet]*10
+                                                      indices[0][0], indices[1][0], index_wl_aeronet] * 10
                     aeronet_ld_array[isequence] = dataset_c.variables['AERONET_Li_mean'][
-                        indices[0][0], indices[1][0], index_wl_aeronet]*10
+                                                      indices[0][0], indices[1][0], index_wl_aeronet] * 10
                     aeronet_ld_ed_array[isequence] = aeronet_ld_array[isequence] / aeronet_ed_array[isequence]
                     aeronet_lu_array[isequence] = dataset_c.variables['AERONET_Lt_mean'][
-                        indices[0][0], indices[1][0], index_wl_aeronet]*10
+                                                      indices[0][0], indices[1][0], index_wl_aeronet] * 10
 
             data_to_plot[jday] = {
                 'hypstar_ed': hypstar_ed_array,
@@ -1383,7 +1383,7 @@ def make_clear_sky_model_test(input_path, output_path, site, start_date, end_dat
     file_out = os.path.join(output_path, site,
                             f'TimeSeries_{param}_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.tif')
     timeformat = '%m-%d' if ndays > 1 else '%H:%M'
-    plot_all_sequences(data_to_plot, file_out, timeformat,param)
+    plot_all_sequences(data_to_plot, file_out, timeformat, param)
 
 
 def plot_all_sequences(data_to_plot, file_out, timeformat, param):
@@ -1391,19 +1391,19 @@ def plot_all_sequences(data_to_plot, file_out, timeformat, param):
     from MDB_reader.PlotSpectra import PlotSpectra
     ps = PlotSpectra()
 
-    if param=='Ld_Ed':
+    if param == 'Ld_Ed':
         yvar1 = 'hypstar_ld_ed'
         yvar2 = 'model_ld_ed'
         yvar3 = 'aeronet_ld_ed'
-    elif param=='Ld':
+    elif param == 'Ld':
         yvar1 = 'hypstar_ld'
         yvar2 = 'model_ld'
         yvar3 = 'aeronet_ld'
-    elif param=='Ed':
+    elif param == 'Ed':
         yvar1 = 'hypstar_ed'
         yvar2 = 'model_ed'
         yvar3 = 'aeronet_ed'
-    elif param=='Lu':
+    elif param == 'Lu':
         yvar1 = 'hypstar_lu'
         yvar2 = None
         yvar3 = 'aeronet_lu'
@@ -1449,22 +1449,21 @@ def plot_all_sequences(data_to_plot, file_out, timeformat, param):
     if timeformat == '%H:%M':
         increm = int(round(ndata / 12))
         for idx in range(0, ndata, increm):
-            xticks.append(dt.fromtimestamp(xarray[idx],pytz.utc).strftime(timeformat))
+            xticks.append(dt.fromtimestamp(xarray[idx], pytz.utc).strftime(timeformat))
             xticksdata.append(idx)
             vertical_lines.append(xdata[idx])
     else:
         time_ref = 'NaN'
         for idx in range(ndata):
-            time_here = dt.fromtimestamp(xarray[idx],pytz.utc).strftime(timeformat)
-            if time_here != time_ref or idx==(ndata-1):
+            time_here = dt.fromtimestamp(xarray[idx], pytz.utc).strftime(timeformat)
+            if time_here != time_ref or idx == (ndata - 1):
                 vertical_lines.append(xdata[idx])
                 time_ref = time_here
                 if len(vertical_lines) >= 2:
                     xpos = np.floor((vertical_lines[-2] + vertical_lines[-1]) / 2)
-                    timepos = dt.fromtimestamp(xarray[vertical_lines[-2]],pytz.utc).strftime(timeformat)
+                    timepos = dt.fromtimestamp(xarray[vertical_lines[-2]], pytz.utc).strftime(timeformat)
                     xticksdata.append(xpos)
                     xticks.append(timepos)
-
 
     for line in vertical_lines:
         ps.set_vertical_line_impl(line, 0, 10, 'lightgray', '--')
@@ -1492,7 +1491,7 @@ def plot_all_sequences(data_to_plot, file_out, timeformat, param):
         h2 = ps.plot_data(y2array, style)
 
     ps.set_xaxis_title('Time')
-    ytitle = param.replace('_','/')
+    ytitle = param.replace('_', '/')
     ps.set_yaxis_title(ytitle)
     ps.remove_major_x_ticks()
     ps.set_xticks(xticksdata, xticks, 90, 10)
@@ -1501,9 +1500,6 @@ def plot_all_sequences(data_to_plot, file_out, timeformat, param):
         ps.set_yticks([0, 0.025, 0.05, 0.075, 0.1], [0, 0.025, 0.05, 0.075, 0.1], 0, 10)
         ps.set_horizontal_line_impl(0.05, xdata[0], xdata[-1], None, None)
     ps.set_grid_horizontal()
-
-
-
 
     # legend
     ps.legend_options = ps.legend_options_bottom.copy()
@@ -1771,9 +1767,16 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
     sorting_values = []
     sequences_ref = {}
 
-    #options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm', 'ratiolded750','ratiolded400']
+    make_sort = False
+    sorting_options = ['sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm', 'ratiolded750', 'ratiolded400']
+    for sopt in sorting_options:
+        if options[sopt]:
+            make_sort = True
+            break
+
+    ##Starting csv out
     file_csv_out = os.path.join(output_path, 'SequenceList.csv')
-    # line = f'{site};{sequence};{date_str};{time_str};{epsilon};{rho};{raa};{sza};{vza};{ws}'
+    print(f'[INFO] Starting CSV output with sequence list {file_csv_out}')
     first_line = 'Site;Sequence;Date;Time;Epsilon;Rho;raa;sza;vza;wind_speed'
     if options['sortbyepsilon']:
         first_line = f'Index;{first_line}'
@@ -1784,10 +1787,8 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
         first_line = f'Index;{first_line};AvgRatioLd;{";".join(extra_ld)};AvgRatioEd;{";".join(extra_ed)}'
     if options['csm']:
         first_line = f'{first_line};Insitu_Ld_Ed_750;Model_Ld_Ed_750'
-
     if options['ratiolded750'] or options['ratiolded400']:
         first_line = f'{first_line};Insitu_Ld_Ed_750;Model_Ld_Ed_750;Insitu_Ld_Ed_400;Model_Ld_Ed_400'
-
     fcsv = open(file_csv_out, 'w')
     fcsv.write(first_line)
 
@@ -1802,8 +1803,9 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
                 print(f'[INFO] Number of sequences: {nsequences}')
             sorting_array = None
 
-            if options['sortbyepsilon'] or options['sortbyldcsm'] or options['sortbyedcsm'] or options['csm']:
-
+            ##GETTING VARIABLES FOR SORTING
+            if make_sort:
+                print(f'[INFO] Getting variables for sorting...')
                 dataset = Dataset(hdayfile.file_nc)
                 if options['sortbyepsilon']:
                     sorting_array = dataset.variables['l2_epsilon'][:]
@@ -1840,6 +1842,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
 
                 dataset.close()
 
+            ##WORKING FOR SEQUENCE
             for isequence in range(nsequences):
                 print(f'[INFO]--->Working for sequence: {isequence}/{nsequences}')
                 hdayfile.isequence = isequence
@@ -1911,12 +1914,6 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
         print(f'[INFO] -----------------------------------------------------')
         print(f'[INFO] Copying files and saving info to CSV...')
         print(f'[INFO] Number of selected sequences: {len(sorting_values)} {len(sequences_list)}')
-    make_sort = False
-    sorting_options = ['sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm', 'ratiolded750', 'ratiolded400']
-    for sopt in sorting_options:
-        if options[sopt]:
-            make_sort = True
-            break
 
     if make_sort:
 
@@ -1945,6 +1942,7 @@ def make_copy_plots(input_path, output_path, site, start_date, end_date, options
     if args.verbose:
         print(f'[INFO] Completed')
 
+
 def get_options_test(config_path):
     import configparser
     options_test = {
@@ -1957,18 +1955,19 @@ def get_options_test(config_path):
     if not options.has_section(section):
         return options_test
 
-    if options.has_option(section,'param'):
+    if options.has_option(section, 'param'):
         val = options[section]['param'].strip()
-        vals = ['Ld_Ed','Ld','Ed','Lu']
+        vals = ['Ld_Ed', 'Ld', 'Ed', 'Lu']
         if val in vals:
             options_test['param'] = val
 
-    if options.has_option(section,'wl_ref'):
+    if options.has_option(section, 'wl_ref'):
         try:
             options_test['wl_ref'] = float(options[section]['wl_ref'].strip())
         except:
             pass
     return options_test
+
 
 def main():
     if args.verbose:
@@ -2055,7 +2054,8 @@ def main():
         make_copy_reports(input_path, output_path, site, start_date, end_date)
 
     if args.mode == 'COPYPLOTS':
-        options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm','ratiolded750','ratiolded400']
+        options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm', 'ratiolded750',
+                   'ratiolded400']
         args_options = [True if x == 'T' else False for x in args.copy_plot_options]
         dict_options = {}
         for idx in range(len(options)):
@@ -2097,14 +2097,14 @@ def main():
             print(f'[ERROR] Output path is not available.')
             return
         print(f'[INFO] Started CLEARSKYMODELTEST...')
-        options_test ={
+        options_test = {
             'param': 'Ld_Ed',
             'wl_ref': 779.0
         }
 
-        if args.config_path and  os.path.exists(args.config_path):
+        if args.config_path and os.path.exists(args.config_path):
             options_test = get_options_test(args.config_path)
-        make_clear_sky_model_test(input_path, output_path, site, start_date, end_date,options_test)
+        make_clear_sky_model_test(input_path, output_path, site, start_date, end_date, options_test)
 
 
 # %%
