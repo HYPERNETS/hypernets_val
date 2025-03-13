@@ -63,12 +63,10 @@ class HYPERNETS_DAY_FILE():
         nseries = len(quality_flag)
         quality_control_array = np.zeros((nseries,))
         for idx in range(nseries):
-            
             if quality_flag[idx] == 0 and ((-0.005) <= epsilon[idx] <= 0.005) and (ratio_750[idx] < 0.05 < ratio_400[idx]):
                 quality_control_array[idx] = 1
-            # print(
-            #     f'[INFO] QF: {quality_flag[idx]} Epsilon {epsilon[idx]} Ratio 750 {ratio_750[idx]} Ratio 400 {ratio_400[idx]} -> {quality_control_array[idx]}')
-        
+            print(f'[INFO] QF: {quality_flag[idx]} Epsilon {epsilon[idx]} Ratio 750 {ratio_750[idx]} Ratio 400 {ratio_400[idx]} -> {quality_control_array[idx]}')
+            
         nvalid = np.sum(quality_control_array)
         ninvalid = nseries - nvalid
         print(
