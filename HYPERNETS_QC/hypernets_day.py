@@ -348,8 +348,12 @@ class HYPERNETS_DAY():
         if folder_date is None:
             return None
         date_here_str = date_here.strftime('%Y%m%d')
-        file_date = os.path.join(folder_date, f'HYPERNETES_W_DAY_{date_here_str}.nc')
+        file_date = os.path.join(folder_date, f'HYPERNETS_W_DAY_{date_here_str}.nc')
+        file_date_alt = os.path.join(folder_date, f'HYPERNETES_W_DAY_{date_here_str}.nc')
+        if not os.path.exists(file_date_alt) and os.path.exists(file_date_alt):
+            file_date = file_date_alt
 
+        
         return file_date
 
     def get_file_date_land_complete(self, site, date_here):
@@ -425,6 +429,7 @@ class HYPERNETS_DAY():
         if file_date is None:
             return None
         if os.path.exists(file_date):
+            print(f'[INFO] Starting HYPERNETS_DAY_FILE object with file: {file_date}')
             if site == 'JSIT':
                 return HYPERNETS_DAY_FILE_LAND(file_date, self.path_data)
             else:

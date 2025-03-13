@@ -46,19 +46,29 @@ class HYPERNETS_DAY_FILE():
         if not self.VALID:
             return
         from netCDF4 import Dataset
-        dataset_w = Dataset(self.file_nc,'w')
+        dataset_w = Dataset(self.file_nc,'a')
         quality_flag = dataset_w.variables['l2_quality_flag'][:]
         epsilon = dataset_w.variables['l2_epsilon'][:]
         wl_array = dataset_w.variables['wavelength'][:]
-        index_ref = int(np.argmin(np.abs(wl_array - 750.0)))
-        ld_ref = dataset_w.variables['l2_downwelling_radiance'][:, index_ref]
-        ed_ref = dataset_w.variables['l2_irradiance'][:, index_ref]
-        ratio_750 = ld_ref / ed_ref
+        index_ref_750 = int(np.argmin(np.abs(wl_array - 750.0)))
+        ld_ref_750 = dataset_w.variables['l2_downwelling_radiance'][:, index_ref_750]
+        ed_ref_750 = dataset_w.variables['l2_irradiance'][:, index_ref_750]
+        ratio_750 = ld_ref_750 / ed_ref_750
+
+        index_ref_400 = int(np.argmin(np.abs(wl_array - 400.0)))
+        ld_ref_400 = dataset_w.variables['l2_downwelling_radiance'][:, index_ref_400]
+        ed_ref_400 = dataset_w.variables['l2_irradiance'][:, index_ref_400]
+        ratio_400 = ld_ref_400 / ed_ref_400
+        
         nseries = len(quality_flag)
         quality_control_array = np.zeros((nseries,))
         for idx in range(nseries):
-            if quality_flag[idx] == 0 and ((-0.005) <= epsilon[idx] <= 0.005) and ratio_750[idx]<0.05:
+            
+            if quality_flag[idx] == 0 and ((-0.005) <= epsilon[idx] <= 0.005) and (ratio_750[idx] < 0.05 < ratio_400[idx]):
                 quality_control_array[idx] = 1
+            # print(
+            #     f'[INFO] QF: {quality_flag[idx]} Epsilon {epsilon[idx]} Ratio 750 {ratio_750[idx]} Ratio 400 {ratio_400[idx]} -> {quality_control_array[idx]}')
+        
         nvalid = np.sum(quality_control_array)
         ninvalid = nseries - nvalid
         print(
@@ -68,7 +78,7 @@ class HYPERNETS_DAY_FILE():
         else:
             var = dataset_w.variables['quality_control']
         var[:] = quality_control_array
-        var.description = 'Valid sequence after passing quality control protocols: l2_quality_flag=0, (-0.005)<=l2_epsilon<=0.005, ld/ed(750 nm)<0.05'
+        var.description = 'Valid sequence after passing quality control protocols: l2_quality_flag=0, (-0.005)<=l2_epsilon<=0.005, ld/ed(750 nm)<0.05, ld/ed(400 nm)>0.05'
 
         dataset_w.close()
 

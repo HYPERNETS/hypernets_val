@@ -410,7 +410,6 @@ def test2():
     # hdayfile.plot_water_images(wimages)
     return True
 
-
 def make_quality_control_var(input_path, site, start_date, end_date):
     if args.verbose:
         print(f'[INFO] Started making quality control var...')
@@ -426,13 +425,13 @@ def make_quality_control_var(input_path, site, start_date, end_date):
         hdayfile = hday.get_hypernets_day_file(site, work_date)
         if hdayfile is not None:
             hdayfile.add_quality_control_var()
-
-        file_out = hdayfile.file_nc
-        if file_out.find('HYPERNETES_W_DAY') > 0:
-            file_new = file_out.replace('HYPERNETES_W_DAY', 'HYPERNETS_W_DAY')
-            os.rename(file_out, file_new)
+            file_out = hdayfile.file_nc
+            if file_out.find('HYPERNETES_W_DAY')>0:
+                file_new = file_out.replace('HYPERNETES_W_DAY','HYPERNETS_W_DAY')
+                os.rename(file_out,file_new)
 
         work_date = work_date + timedelta(hours=interval)
+
 
 
 def make_comparison_clear_sky_model(input_path, site, start_date, end_date):
@@ -1465,6 +1464,7 @@ def plot_all_sequences(data_to_plot, file_out, timeformat, param):
                     xticksdata.append(xpos)
                     xticks.append(timepos)
 
+    
     for line in vertical_lines:
         ps.set_vertical_line_impl(line, 0, 10, 'lightgray', '--')
 
@@ -1501,6 +1501,9 @@ def plot_all_sequences(data_to_plot, file_out, timeformat, param):
         ps.set_horizontal_line_impl(0.05, xdata[0], xdata[-1], None, None)
     ps.set_grid_horizontal()
 
+    
+    
+    
     # legend
     ps.legend_options = ps.legend_options_bottom.copy()
     ps.legend_options['ncols'] = 3
