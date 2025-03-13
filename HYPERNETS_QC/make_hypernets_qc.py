@@ -55,6 +55,7 @@ def test_bis():
         work_date = work_date + timedelta(hours=240)
     list_dates_to_delete = []
     file_list = '/mnt/c/DATA_LUIS/OCTACWORK/DateListPrev.csv'
+
     import pandas as pd
     df = pd.read_csv(file_list, sep=';')
     for index, row in df.iterrows():

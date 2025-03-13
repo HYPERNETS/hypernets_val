@@ -350,7 +350,7 @@ class HYPERNETS_DAY():
         date_here_str = date_here.strftime('%Y%m%d')
         file_date = os.path.join(folder_date, f'HYPERNETS_W_DAY_{date_here_str}.nc')
         file_date_alt = os.path.join(folder_date, f'HYPERNETES_W_DAY_{date_here_str}.nc')
-        if not os.path.exists(file_date_alt) and os.path.exists(file_date_alt):
+        if not os.path.exists(file_date) and os.path.exists(file_date_alt):
             file_date = file_date_alt
 
         
