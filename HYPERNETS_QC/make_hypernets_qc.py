@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(description="Creation of insitu nc files")
 parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
                              'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG',
-                             'LOGDOWNLOAD', 'COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS',
+                             'LOGDOWNLOAD', 'COPYNC','COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS',
                              'CLEARSKYMODELTEST', 'QUALITYCONTROL'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
@@ -1740,19 +1740,27 @@ def make_single_image_impl(site, sequence, key, output_path):
     return file_out
 
 
-def make_copy_reports(input_path, output_path, site, start_date, end_date):
+def make_copy_files_impl(input_path, output_path, site, start_date, end_date,copy_reports,copy_nc):
     if input_path.split('/')[-1] != site:
         input_path = os.path.join(input_path, site)
     work_date = start_date
     while work_date <= end_date:
         input_path_date = os.path.join(input_path, work_date.strftime('%Y'), work_date.strftime('%m'),
                                        work_date.strftime('%d'))
-        name_report = f'Report_{site}_{work_date.strftime("%Y%m%d")}.pdf'
-        report_file = os.path.join(input_path_date, name_report)
-        print(f'[INFO] {work_date} --> {report_file} : {os.path.exists(report_file)}')
-        if os.path.exists(report_file):
-            file_out = os.path.join(output_path, name_report)
-            shutil.copy(report_file, file_out)
+        if copy_reports:
+            name_report = f'Report_{site}_{work_date.strftime("%Y%m%d")}.pdf'
+            report_file = os.path.join(input_path_date, name_report)
+            print(f'[INFO] {work_date} --> {report_file} : {os.path.exists(report_file)}')
+            if os.path.exists(report_file):
+                file_out = os.path.join(output_path, name_report)
+                shutil.copy(report_file, file_out)
+        if copy_nc:
+            name_nc = f'HYPERNETS_W_DAY_{work_date.strftime("%Y%m%d")}.nc'
+            nc_file = os.path.join(input_path_date, name_nc)
+            print(f'[INFO] {work_date} --> {nc_file} : {os.path.exists(nc_file)}')
+            if os.path.exists(nc_file):
+                file_out = os.path.join(output_path, name_nc)
+                shutil.copy(nc_file, file_out)
         work_date = work_date + timedelta(hours=24)
 
 
@@ -2055,7 +2063,11 @@ def main():
         make_single_image(site, sequence, key, output_path)
 
     if args.mode == 'COPYREPORTS':
-        make_copy_reports(input_path, output_path, site, start_date, end_date)
+        make_copy_files_impl(input_path, output_path, site, start_date, end_date,True,False)
+
+    if args.mode == 'COPYNC':
+        make_copy_files_impl(input_path, output_path, site, start_date, end_date, False, True)
+
 
     if args.mode == 'COPYPLOTS':
         options = ['use_basic', 'only_valid', 'sortbyepsilon', 'sortbyldcsm', 'sortbyedcsm', 'csm', 'ratiolded750',
