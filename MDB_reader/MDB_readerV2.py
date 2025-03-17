@@ -4033,7 +4033,7 @@ def main():
         file_missing = f'/store3/SAT_EXTRACTS/OCI/MissingV2_{site}.csv'
         fw = open(file_missing,'w')
         fw.write('File')
-        for name in v3folder:
+        for name in os.listdir(v3folder):
             # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V2_0_NRT_VEIT.nc'
             # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V3_0_VEIT.nc'
             namev2 = name.replace(f'V3_0_{site}.nc',f'V2_0_NRT_{site}.nc')
