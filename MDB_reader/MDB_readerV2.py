@@ -29,7 +29,7 @@ parser.add_argument("-m", "--mode", help="Mode",
                     choices=["GENERATEMU", "GENERATEMU_S", "CONCATENATE", "REMOVEREP", "PLOT", "PLOT_CSV", "COMMONMU",
                              "COMMONMU_NOSAT",
                              "COMMONMU_INS", "CHECK_WL", "UPDATE_SAT_WL", "UPDATE_INSITU_WL", "CHECK_SAT_TIME",
-                             "CHECK_PROTOCOLS", "TEST", "ADDFLAGBAND","COMBINE_MATCH_UPS_PLOT","BASIC_METADATA"],
+                             "CHECK_PROTOCOLS", "TEST", "ADDFLAGBAND","COMBINE_MATCH_UPS_PLOT","BASIC_METADATA","CHECK_MISSING_PACE_V2"],
                     required=True)
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path")
@@ -4023,6 +4023,30 @@ def plot_test_time_series():
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
+
+    if args.mode == 'CHECK_MISSING_PACE_V2':
+        site = 'VEIT'
+        if args.site_name:
+            site = args.site_name
+        v3folder = os.path.join('/store3/SAT_EXTRACTS/OCI/V3',site)
+        v2fodler = os.path.join('/store3/SAT_EXTRACTS/OCI/V2',site)
+        file_missing = f'/store3/SAT_EXTRACTS/OCI/MissingV2_{site}.csv'
+        fw = open(file_missing,'w')
+        fw.write('File')
+        for name in v3folder:
+            # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V2_0_NRT_VEIT.nc'
+            # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V3_0_VEIT.nc'
+            namev2 = name.replace(f'V3_0_{site}.nc',f'V2_0_NRT_{site}.nc')
+            filev2 = os.path.join(v2fodler,namev2)
+            if not os.path.exists(filev2):
+                name_granule = namev2.replace('extract_','')
+                name_granule = name_granule.replace(f'_{site}','')
+                fw.write('\n')
+                fw.write(name_granule)
+        fw.close()
+        return
+
+
 
     if args.mode == 'TEST':
 
