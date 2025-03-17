@@ -443,6 +443,12 @@ def get_basic_options_from_file_config(args,options):
         str_val = options['satellite_options']['extra_bands']
         extra_bands = [x.strip() for x in str_val.split(',')]
 
+    wce = None
+    if options.has_option('satellite_options','wce'):
+        wce = options['satellite_options']['wce'].strip()
+        wce = f'"{wce}' if not wce.startswith(f'"') else f'{wce}'
+        wce = f'{wce}"' if not wce.endswith(f'"') else f'{wce}'
+
     basic_options = {
         'satellite_path_source': satellite_path_source,
         'path_out': path_out,
@@ -451,7 +457,8 @@ def get_basic_options_from_file_config(args,options):
         'make_brdf': make_brdf,
         'org': org,
         'resolution': res,
-        'extra_bands': extra_bands
+        'extra_bands': extra_bands,
+        'wce': wce
     }
     return basic_options
 
@@ -497,6 +504,13 @@ def get_basic_options_from_arguments(args):
 
     tmp_path = satellite_path_source
 
+    wce = None
+    if args.wce_expression:
+        wce = args.wce_expression
+        wce = f'"{wce}' if not wce.startswith(f'"') else f'{wce}'
+        wce = f'{wce}"' if not wce.endswith(f'"') else f'{wce}'
+
+
     basic_options = {
         'satellite_path_source': satellite_path_source,
         'path_out': path_out,
@@ -504,8 +518,12 @@ def get_basic_options_from_arguments(args):
         'size_box': size_box,
         'make_brdf': make_brdf,
         'org': org,
-        'resolution': res
+        'resolution': res,
+        'wce': wce
     }
+
+    wce = f'"PACE_OCI*.L2.OC_AOP.V2_0.NRT.nc"'  # wild card expression
+
     return basic_options
 
 def get_insitu_site(args,options, path_out):

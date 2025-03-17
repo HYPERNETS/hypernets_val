@@ -1701,8 +1701,8 @@ class MDBPlot:
             plot_here.close_plot()
             return
         print(f'[INFO] Number of total axis {plot_here.nrow}x{plot_here.ncol} Blank plots: {nblank}')
-        if nblank > 0:
-            index_col_adjust = plot_here.ncol - nblank
+
+        index_col_adjust = plot_here.ncol - nblank if nblank > 0 else -1
         for wl in wl_values:
             selectBy = None
             selectValue = None
@@ -1887,11 +1887,12 @@ class MDBPlot:
                     print(f'[INFO]Sorting density...')
                     idx = z.argsort()
                     xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
-                    print(f'[INFO] Density values were sorted')
+                    print(f'[INFO] Density values were sorted.')
                     plot.set_cmap('jet')
 
+                    print('aqui',len(xhere))
                     hscatter = plot.plot_data(xhere, yhere, marker, markersize, z, None, 0)
-
+                    print('alli')
                     # file_kk = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS/stal.csv'
                     # fw = open(file_kk,'w')
                     # fw.write('x;y')
@@ -1906,6 +1907,7 @@ class MDBPlot:
 
             else:
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
+
 
         # plot.colorbar(hscatter)
 
@@ -1929,6 +1931,10 @@ class MDBPlot:
             min_xy = options['min_xy']
         if options['max_xy'] is not None:
             max_xy = options['max_xy']
+
+        if wl==665:
+            #max_xy = 0.008
+            max_xy = 0.010
 
         min_x = min_xy
         max_x = max_xy
@@ -1954,6 +1960,7 @@ class MDBPlot:
                 # ticks = self.get_ticks_from_min_max_xy(min_xy, max_xy)
                 x_ticks = self.get_ticks_from_min_max_xy(min_x, max_x)
                 y_ticks = self.get_ticks_from_min_max_xy(min_y, max_y)
+
             else:
                 min_tx = int(np.log10(min_x))
                 max_tx = int(np.log10(max_x))
@@ -1969,6 +1976,13 @@ class MDBPlot:
                 x_ticks = options['x_ticks']
                 y_ticks = options['y_ticks']
 
+
+        if wl==665:
+            # x_ticks = [0,0.002,0.004,0.006,0.008]
+            # y_ticks = [0, 0.002, 0.004, 0.006, 0.008]
+            x_ticks = [0, 0.002, 0.004, 0.006, 0.008,0.010]
+            y_ticks = [0, 0.002, 0.004, 0.006, 0.008, 0.010]
+
         if x_ticks is not None and y_ticks is not None:
             if options['log_scale']:
                 txlabels = self.get_labels_for_log_ticks(x_ticks)
@@ -1978,6 +1992,7 @@ class MDBPlot:
             else:
                 plot.set_ticks_x(x_ticks, options['fontsizeaxis'])
                 plot.set_ticks_y(y_ticks, options['fontsizeaxis'])
+
 
         ##x-y labels
         if options['individual_axis'] or index == -1:
@@ -2013,6 +2028,7 @@ class MDBPlot:
             str0 = self.get_str_stats(options, wl)
             xpos = options['stats_xpos']
             ypos = options['stats_ypos']
+            plot.plot_text_options['fontsize'] = options['fontsizestats']
             plot.plot_text(xpos, ypos, str0)
 
         # regression lines
@@ -2664,6 +2680,8 @@ class MDBPlot:
         wl_sat_value_str = f'{wl_sat_value:.2f}'
         if wl_sat_value_str.endswith('.00'):
             return wl_sat_value_str[:-3]
+        elif wl_sat_value_str.endswith('0') and wl_sat_value_str.find('.')>0:
+            return wl_sat_value_str[:-1]
         else:
             return wl_sat_value_str
 
@@ -2807,6 +2825,8 @@ class MDBPlot:
         increm = 1
         if dif >= 8:
             increm = 2
+
+
 
         for v in range(int(min_xy), int(max_xy) + 1, increm):
             if v <= max_xy:

@@ -22,6 +22,7 @@ parser.add_argument('-site', "--sitename", help="Site name.", choices=['VEIT', '
 parser.add_argument('-date_file',"--date_list_file",help="Date list file")
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
+parser.add_argument('-wce', "--wce_expression", help="Wild card expression.")
 parser.add_argument('-o', "--output", help="Path to output")
 # parser.add_argument('-nl', "--nolist",help="Do not create initial satellite lists, checking day by day allowing download",action="store_true")
 # parser.add_argument('-adownload', "--allow_download", help="Allow download", action="store_true")
@@ -415,14 +416,11 @@ def main():
         for option in basic_options:
             print(f'[INFO] {option}:{basic_options[option]}')
 
-    # size_box = basic_options['size_box']
-    # res = basic_options['resolution']
-    # path_out = basic_options['path_out']
-    # make_brdf = basic_options['make_brdf']
-    # satellite_path_source = basic_options['satellite_path_source']
-    # tmp_path = basic_options['tmp_path']
-    # org = basic_options['org']
-    wce = f'"PACE_OCI*.L2.OC_AOP.V2_0.NRT.nc"'  # wild card expression
+    wce = basic_options['wce']
+    if wce is None:
+        wce = f'"PACE_OCI*.L2.OC_AOP.V3_0.nc"'
+        #wce = f'"PACE_OCI*.L2.OC_AOP.V2_0.NRT.nc"'  # wild card expression
+
 
     in_situ_site = sextract.get_insitu_site(args, options, basic_options['path_out'])
     if args.verbose:

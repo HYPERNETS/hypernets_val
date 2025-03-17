@@ -148,6 +148,13 @@ class QC_SAT:
             if idx >= 0 and type == 2:
                 self.pi_divided[idx] = True
 
+    def set_apply_invalid_mask_wl(self,wl,bvalue):
+        for sat_index in range(self.nbands):
+            wlhere = self.sat_bands[sat_index]
+            sat_index_str = str(sat_index)
+            if wlhere==wl:
+                self.invalid_mask[sat_index_str]['apply_mask']=bvalue
+
     def update_invalid_mask(self):
         if self.wl_ref is None:
             return
@@ -322,6 +329,7 @@ class QC_SAT:
 
         cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
 
+
         cond_stats = False
         valid_mu = False
 
@@ -372,24 +380,25 @@ class QC_SAT:
         land = self.compute_flag_masks(index_mu)
 
         nv = self.NTP - np.sum(self.flag_mask)
-        # print(index_mu,np.sum(land))
-        # if index_mu==0:
+        #
+        # if index_mu==6:
         #     print('After flag mask: ',nv)
         self.compute_invalid_masks(index_mu)
         nv = self.NTP - np.sum(self.flag_mask)
-        # print(index_mu,'After invalid: ',nv)
-        # if index_mu == 0:
+
+        # if index_mu == 6:
         #     print('After Invalid: ', nv)
+
         self.compute_th_masks(index_mu)
         self.NVP = self.NTP - np.sum(self.flag_mask)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
-        # if index_mu == 0:
+        # if index_mu == 6:
         #     print('After th: ',self.NVP)
-        # print(index_mu,'After th: ', self.NVP)
-        # print(f'[INFO] Index mu: {index_mu}')
-        # print(f'[INFO] Number total of pixels: {self.NTP}')
-        # print(f'[INFO] Water pixels: {self.NTPW}')
-        # print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
+        #     print(index_mu,'After th: ', self.NVP)
+        #     print(f'[INFO] Index mu: {index_mu}')
+        #     print(f'[INFO] Number total of pixels: {self.NTP}')
+        #     print(f'[INFO] Water pixels: {self.NTPW}')
+        #     print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
 
         min_valid_pixels = self.min_valid_pixels
         if self.use_Bailey_Werdell:
@@ -476,9 +485,14 @@ class QC_SAT:
                 rrshere = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
                 mask_invalid_here = np.zeros(rrshere.shape, dtype=np.uint64)
                 mask_invalid_here[rrshere.mask] = 1
+
+
+
                 # if np.sum(mask_invalid_here)>0:
                 #     print(index_mu, '->Index with invalid values: ',sat_index)
                 n_masked = np.sum(mask_invalid_here)
+                # if index_mu==6:
+                #     print(sat_index,n_masked )
                 self.invalid_mask[sat_index_str]['n_masked'] = n_masked
                 mask_invalid = mask_invalid + mask_invalid_here
 

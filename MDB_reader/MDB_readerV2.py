@@ -12,6 +12,7 @@ import warnings
 
 
 import pandas as pd
+from statsmodels.datasets.utils import Dataset
 
 warnings.simplefilter('ignore', UserWarning)
 warnings.simplefilter('ignore', RuntimeWarning)
@@ -4025,6 +4026,25 @@ def main():
 
     if args.mode == 'TEST':
 
+        file_mdb = '/mnt/c/DATA/OCTAC_WORK/MED_MATCH-UPS/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_MED_BGC_20160401T000000_20230313T000000_AERONET_Venise.nc'
+        from netCDF4 import Dataset
+        dataset = Dataset(file_mdb)
+        rrs = dataset.variables['satellite_Rrs'][:]
+        nmu = rrs.shape[0]
+
+        for iband in range(16):
+            nwithvalid = 0
+            for imu in range(nmu):
+                rrs_here = np.ma.squeeze(rrs[imu,iband,11:14,11:14])
+                #print(f'{imu} {np.ma.count(rrs_here)} {np.ma.min(rrs_here)} {np.ma.max(rrs_here)}')
+                if np.ma.count(rrs_here)>=9:
+                    nwithvalid = nwithvalid + 1
+
+            print(f'NMu with counting>0 {iband} {nwithvalid}/{nmu} ')
+        dataset.close()
+        # for iband in range(16):
+        #     rrs_band =rrs[:,iband,:,:].flatten()
+        #     print(f'{iband}->{np.ma.min(rrs_band)} {np.ma.max(rrs_band)} {np.ma.mean(rrs_band)}')
         # file_mdb = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/LAIT/MDB_PACE_OCI_1KM_L2GEN_20220701T000000_20240831T235959_MEDA_LAIT.nc'
         # from netCDF4 import Dataset
         # from datetime import datetime as dt
@@ -4138,14 +4158,14 @@ def main():
         # get_certo_dates_olci()
         # check_dates()
         # set_certo_dates_extracts()
-        dir_mdb = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC'
-        for name in os.listdir(dir_mdb):
-            if name.endswith('.nc') and name.startswith('MDB'):
-                file_mdb = os.path.join(dir_mdb,name)
-                file_csv = file_mdb.replace('.nc','.csv')
-                if not os.path.exists(file_csv):
-                    mdb_r = MDB_READER(file_mdb,True)
-                    mdb_r.create_csv_time_difference()
+        # dir_mdb = '/mnt/c/DATA_LUIS/DOORS_WORK/Extracts_2024/AERONET_OC'
+        # for name in os.listdir(dir_mdb):
+        #     if name.endswith('.nc') and name.startswith('MDB'):
+        #         file_mdb = os.path.join(dir_mdb,name)
+        #         file_csv = file_mdb.replace('.nc','.csv')
+        #         if not os.path.exists(file_csv):
+        #             mdb_r = MDB_READER(file_mdb,True)
+        #             mdb_r.create_csv_time_difference()
 
         # from BSC_QAA import bsc_qaa_EUMETSAT as qaa
         # import MDBFile
@@ -4492,7 +4512,7 @@ def main():
         # flag_band = 'satellite_WQSF'
         # flag_ac_value = 8
 
-        plot_test_time_series()
+        #plot_test_time_series()
 
         return
 
@@ -4708,6 +4728,12 @@ def main():
 
 
         ##calling main function to create MDBr file
+        reader.mfile.qc_sat.set_apply_invalid_mask_wl(753.75,False)
+        reader.mfile.qc_sat.set_apply_invalid_mask_wl(778.75, False)
+        reader.mfile.qc_sat.set_apply_invalid_mask_wl(865.0, False)
+        reader.mfile.qc_sat.set_apply_invalid_mask_wl(885.0, False)
+        reader.mfile.qc_sat.set_apply_invalid_mask_wl(1020.0, False)
+
         reader.create_mdb_results_file(output_path, reduce_mdbr)
 
         if copy_with_wllist and wllist is not None:

@@ -347,6 +347,8 @@ def main():
     aeronet_file = mo.get_insitu_file(None)
     if aeronet_file is None:
         print(f'[ERROR] Aeronet NC file is not avaialable for the site in path: {mo.insitu_path_source}')
+        return
+
     from base.anet_nc_reader import AERONETReader
     areader = AERONETReader(aeronet_file)
     if args.verbose:
