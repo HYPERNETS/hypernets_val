@@ -4049,6 +4049,19 @@ def main():
                 filev3_dest = os.path.join(v3v2folder,name)
                 shutil.copy(filev3_orig,filev3_dest)
         fw.close()
+
+        ##check not used v2
+        for name in os.listdir(v2folder):
+            namev3 = name.replace(f'V2_0_NRT_{site}.nc',f'V3_0_{site}.nc')
+            filev2v3 = os.path.join(v3v2folder,namev3)
+            if not os.path.exists(filev2v3):
+                folder_not_used = os.path.join('/store3/SAT_EXTRACTS/OCI/V2',f'{site}_NOTUSED')
+                if not os.path.isdir(folder_not_used):
+                    os.mkdir(folder_not_used)
+                file_orig = os.path.join(v2folder,name)
+                file_dest = os.path.join(folder_not_used,name)
+                os.rename(file_orig,file_dest)
+
         return
 
 
