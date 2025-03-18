@@ -4029,7 +4029,8 @@ def main():
         if args.site_name:
             site = args.site_name
         v3folder = os.path.join('/store3/SAT_EXTRACTS/OCI/V3',site)
-        v2fodler = os.path.join('/store3/SAT_EXTRACTS/OCI/V2',site)
+        v2folder = os.path.join('/store3/SAT_EXTRACTS/OCI/V2',site)
+        v3v2folder =  os.path.join('/store3/SAT_EXTRACTS/OCI/V3WITHV2',site)
         file_missing = f'/store3/SAT_EXTRACTS/OCI/MissingV2_{site}.csv'
         fw = open(file_missing,'w')
         fw.write('File')
@@ -4037,12 +4038,16 @@ def main():
             # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V2_0_NRT_VEIT.nc'
             # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V3_0_VEIT.nc'
             namev2 = name.replace(f'V3_0_{site}.nc',f'V2_0_NRT_{site}.nc')
-            filev2 = os.path.join(v2fodler,namev2)
+            filev2 = os.path.join(v2folder,namev2)
             if not os.path.exists(filev2):
                 name_granule = namev2.replace('extract_','')
                 name_granule = name_granule.replace(f'_{site}','')
                 fw.write('\n')
                 fw.write(name_granule)
+            else:##copy file v3 equivalent
+                filev3_orig = os.path.join(v3folder,name)
+                filev3_dest = os.path.join(v3v2folder,name)
+                shutil.copy(filev3_orig,filev3_dest)
         fw.close()
         return
 
