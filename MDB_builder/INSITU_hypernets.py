@@ -197,6 +197,30 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         if self.verbose:
             print('[INFO] Added new variables')
 
+    def set_quality_control_site(self,inputpath,insitu_idx):
+        #site = self.mdb_options.param_insitu['station_name']
+        from netCDF4 import Dataset
+        import numpy as np
+        nc_ins = Dataset(inputpath)
+        quality_flag = int(nc_ins.variables['quality_flag'][0])
+        epsilon = float(nc_ins.variables['epsilon'][0])
+        wl_array = nc_ins.variables['wavelength'][:]
+        index_ref_750 = int(np.argmin(np.abs(wl_array - 750.0)))
+        ld_ref_750 = nc_ins.variables['downwelling_radiance'][index_ref_750,0]
+        ed_ref_750 = nc_ins.variables['irradiance'][index_ref_750,0]
+        ratio_750 = ld_ref_750 / ed_ref_750
+        index_ref_400 = int(np.argmin(np.abs(wl_array - 400.0)))
+        ld_ref_400 = nc_ins.variables['downwelling_radiance'][index_ref_400,0]
+        ed_ref_400 = nc_ins.variables['irradiance'][index_ref_400,0]
+        ratio_400 = ld_ref_400 / ed_ref_400
+        nc_ins.close
+
+        if quality_flag == 0 and ((-0.005) <= epsilon <= 0.005) and (ratio_750 < 0.05 < ratio_400):
+            self.new_MDB.variables['insitu_site_flag'][0, insitu_idx] = 0##VALID
+        else:
+            self.new_MDB.variables['insitu_site_flag'][0, insitu_idx] = 1##INVALID
+
+
     def set_data(self, inputpath, insitu_idx, sat_time, extract_info):
         from netCDF4 import Dataset
         import numpy as np
