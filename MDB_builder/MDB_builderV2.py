@@ -460,8 +460,7 @@ def create_mdb_wisp_file(mo, extract_list, insitu_file):
     iw = INSITU_WISP3(mo, insitu_file, args.verbose)
     if args.verbose:
         print(f'[INFO] Started insitu_file {insitu_file} with {len(iw.wavelenghs)} wavelengths: ')
-        for wl in iw.wavelenghs:
-            print(f'[INFO]-> {wl}')
+
 
     for extract in extract_list:
         if args.verbose:

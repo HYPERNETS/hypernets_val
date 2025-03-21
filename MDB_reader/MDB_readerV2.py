@@ -525,6 +525,38 @@ def update_mdb_file_version(input_file):
 
     os.rename(output_file, input_file)
 
+def creating_copy_correcting_variable(input_file,output_file,variable_to_correct,array_new):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(input_dataset.__dict__)
+
+    # copy dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        ncout.createDimension(
+            name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        if name==variable_to_correct:
+            ncout[name][:] = array_new[:]
+        else:
+            ncout[name][:] = input_dataset[name][:]
+
+    ncout.close()
+    input_dataset.close()
+
 def creating_copy_limiting_variables(input_file,output_file,variables_keep,variables_remove):
     from netCDF4 import Dataset
     input_dataset = Dataset(input_file)
@@ -4148,22 +4180,33 @@ def main():
 
     if args.mode == 'TEST':
 
-        file_mdb = '/mnt/c/DATA/OCTAC_WORK/MED_MATCH-UPS/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_MED_BGC_20160401T000000_20230313T000000_AERONET_Venise.nc'
+        ##correctins resto files
+        dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/TRIT'
+        file_good =os.path.join(dir_base,'RESTO_TRIT_20240930_20250315.nc')
         from netCDF4 import Dataset
-        dataset = Dataset(file_mdb)
-        rrs = dataset.variables['satellite_Rrs'][:]
-        nmu = rrs.shape[0]
-
-        for iband in range(16):
-            nwithvalid = 0
-            for imu in range(nmu):
-                rrs_here = np.ma.squeeze(rrs[imu,iband,11:14,11:14])
-                #print(f'{imu} {np.ma.count(rrs_here)} {np.ma.min(rrs_here)} {np.ma.max(rrs_here)}')
-                if np.ma.count(rrs_here)>=9:
-                    nwithvalid = nwithvalid + 1
-
-            print(f'NMu with counting>0 {iband} {nwithvalid}/{nmu} ')
+        dataset = Dataset(file_good)
+        wl_array = dataset.variables['Nominal_Wavelenghts'][:]
         dataset.close()
+        file_bad = os.path.join(dir_base,'RESTO_TRIT_20180425_20241208_COMPLETE.nc')
+        file_out = os.path.join(dir_base, 'RESTO_TRIT_20180425_20241208_COMPLETE_CORRECTED.nc')
+        creating_copy_correcting_variable(file_bad,file_out,'Nominal_Wavelenghts',wl_array)
+
+        # file_mdb = '/mnt/c/DATA/OCTAC_WORK/MED_MATCH-UPS/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_MED_BGC_20160401T000000_20230313T000000_AERONET_Venise.nc'
+        # from netCDF4 import Dataset
+        # dataset = Dataset(file_mdb)
+        # rrs = dataset.variables['satellite_Rrs'][:]
+        # nmu = rrs.shape[0]
+        #
+        # for iband in range(16):
+        #     nwithvalid = 0
+        #     for imu in range(nmu):
+        #         rrs_here = np.ma.squeeze(rrs[imu,iband,11:14,11:14])
+        #         #print(f'{imu} {np.ma.count(rrs_here)} {np.ma.min(rrs_here)} {np.ma.max(rrs_here)}')
+        #         if np.ma.count(rrs_here)>=9:
+        #             nwithvalid = nwithvalid + 1
+        #
+        #     print(f'NMu with counting>0 {iband} {nwithvalid}/{nmu} ')
+        # dataset.close()
         # for iband in range(16):
         #     rrs_band =rrs[:,iband,:,:].flatten()
         #     print(f'{iband}->{np.ma.min(rrs_band)} {np.ma.max(rrs_band)} {np.ma.mean(rrs_band)}')
