@@ -20,7 +20,7 @@ class INSITU_WISP3(INSITUBASE):
     def start_date_indices_and_wavelengths(self):
         dataset = Dataset(self.insitu_file)
         time_array = np.array(dataset.variables['Time'])
-        self.wavelenghs = np.array(dataset.variables['Nominal_Wavelenghts'])
+        self.wavelenghs = np.array(dataset.variables['Nominal_Wavelenghts'][:])
         self.mdb_options.insitu_options['n_insitu_bands'] = len(self.wavelenghs)
         for itime in range(len(time_array)):
             time = time_array[itime]
@@ -69,6 +69,11 @@ class INSITU_WISP3(INSITUBASE):
         dataset = Dataset(self.insitu_file)
         time_array = np.array(dataset.variables['Time'])
         rrs_array = np.array(dataset.variables['RRS'])
+        print('------------------------------------------------------------------------------------------>')
+        print(len(self.wavelenghs))
+        print(self.new_MDB.variables['insitu_original_bands'][:].shape)
+        print(self.wavelenghs)
+        print('*************************************************************')
         self.new_MDB.variables['insitu_original_bands'][0,:] = self.wavelenghs[:]
         ihere = 0
         for index in range(index_min,index_max+1):
