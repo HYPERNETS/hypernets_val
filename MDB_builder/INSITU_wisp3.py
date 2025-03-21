@@ -43,7 +43,7 @@ class INSITU_WISP3(INSITUBASE):
     def add_new_variables(self):
         for var_name in self.insitu_spectral_variables:
             type = self.insitu_spectral_variables[var_name]['type']
-            var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_original_bands', 'insitu_id'),
+            var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_bands', 'insitu_id'),
                                               zlib=True, complevel=6)
             for at in self.insitu_spectral_variables[var_name]:
                 if at == 'type' or at == 'name_orig':

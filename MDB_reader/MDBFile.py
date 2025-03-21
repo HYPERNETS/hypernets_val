@@ -1370,6 +1370,7 @@ class MDBFile:
         minwlinsitu = np.ma.min(self.insitu_bands)
         maxwlinsitu = np.ma.max(self.insitu_bands)
 
+
         for wl in wllist:
             if wl<minwlinsitu or wl>maxwlinsitu:
                 no_insitu = True
@@ -1489,9 +1490,10 @@ class MDBFile:
 
         instrument_idx = -1
         if 'insitu_instrument_id' in self.nc.variables:
-            instrument_idx_min = int(np.ma.min(self.nc.variables['insitu_instrument_id'][index_mu,:]))
-            instrument_idx_max = int(np.ma.min(self.nc.variables['insitu_instrument_id'][index_mu, :]))
-            instrument_idx = instrument_idx_min if instrument_idx_min==instrument_idx_max else -1
+            if np.ma.count(self.nc.variables['insitu_instrument_id'][index_mu,:])>0:
+                instrument_idx_min = int(np.ma.min(self.nc.variables['insitu_instrument_id'][index_mu,:]))
+                instrument_idx_max = int(np.ma.min(self.nc.variables['insitu_instrument_id'][index_mu, :]))
+                instrument_idx = instrument_idx_min if instrument_idx_min==instrument_idx_max else -1
 
         return spectra_selected, spectra_valid, spectra_invalid, instrument_idx
 

@@ -181,13 +181,17 @@ class MDB_READER():
         if self.mfile.df_mu is None:
             self.mfile.prepare_df_mu()
 
+
+
         foutcsv = fout.replace('.nc', '.csv')
         foutcsv = foutcsv.replace('MDBr', 'CSVr')
-        index_band_array = np.array(self.mfile.df_validation['Index_Band'][:])
-        index_band_min = np.min(index_band_array)
-        status = self.mfile.df_validation[self.mfile.df_validation['Index_Band'] == index_band_min]['status']
-        status_array = np.array(status)
-        self.mfile.df_mu['status'][:] = status_array
+
+        if nmu_valid>0:
+            index_band_array = np.array(self.mfile.df_validation['Index_Band'][:])
+            index_band_min = np.min(index_band_array)
+            status = self.mfile.df_validation[self.mfile.df_validation['Index_Band'] == index_band_min]['status']
+            status_array = np.array(status)
+            self.mfile.df_mu['status'][:] = status_array
 
         self.mfile.df_mu.to_csv(foutcsv, sep=';')
 
@@ -4804,6 +4808,7 @@ def main():
                 check_sat_bands = reader.mfile.check_bands(wllist, 5)
                 if check_sat_bands == -1:
                     return
+
 
             wllist_r = reader.mfile.check_bands_insitu(wllist, 2.5)
             if wllist_r is not None:

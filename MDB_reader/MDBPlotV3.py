@@ -2191,7 +2191,7 @@ class MDBPlot:
         if options['title'] is not None:
             title_here = options['title']
             plot.set_title(title_here)
-            plot.axhere.title.set_size(options['fontsizetitle'])
+            plot.ax.title.set_size(options['fontsizetitle'])
 
         ##saving to file
         if not options['file_out'] is None:

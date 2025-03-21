@@ -15,7 +15,7 @@ parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-o', "--output",
                     help="Output file. Required with --listdates or single concatenation")
 parser.add_argument('-edir', "--sat_extract_dir",
-                    help="Input sat. extract dir. Optional for --listdates, required for single concatenation")
+                    help="Input sat. extract dir. Optional for --listdates, required for single concatenation or metadata")
 parser.add_argument('-ifolder',"--insitu_folder",help="In situ data folder. Optional with --listdates")
 parser.add_argument('-site', "--sitename", help="Site name. Only required with --listdates")
 parser.add_argument('-ld', "--listdates",
@@ -145,6 +145,8 @@ def main():
     # b = test()
     # if b:
     #     return
+
+
 
     # Option to create a date list (HYPSTAR)
     if args.sitename and args.output and args.listdates:
