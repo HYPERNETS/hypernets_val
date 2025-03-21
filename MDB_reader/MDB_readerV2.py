@@ -4089,7 +4089,7 @@ def main():
             jjj = work_date.strftime('%j')
             folder_date = os.path.join(source_folder,yyyy,jjj)
             if not os.path.isdir(folder_date):
-                work_date = work_date * timedelta(hours=24)
+                work_date = work_date + timedelta(hours=24)
                 continue
             print(f'WORKING WITH DATE: {work_date.strftime("%Y-%m-%d")}')
             for name in os.listdir(folder_date):
@@ -4132,7 +4132,7 @@ def main():
                                 print(f'[WARNING] V3 wavelength is differente from before')
 
                 dataset.close()
-            work_date = work_date * timedelta(hours=24)
+            work_date = work_date + timedelta(hours=24)
         fw_wl_v2.close()
         fw_wl_v3.close()
         fw_v2.close()
