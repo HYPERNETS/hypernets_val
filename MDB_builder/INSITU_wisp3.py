@@ -69,7 +69,7 @@ class INSITU_WISP3(INSITUBASE):
         dataset = Dataset(self.insitu_file)
         time_array = np.array(dataset.variables['Time'])
         rrs_array = np.array(dataset.variables['RRS'])
-        self.new_MDB.variables['insitu_original_bands'][:] = self.wavelenghs[:]
+        self.new_MDB.variables['insitu_original_bands'][0,:] = self.wavelenghs[:]
         ihere = 0
         for index in range(index_min,index_max+1):
             ins_time = dt.utcfromtimestamp(float(time_array[index]))
