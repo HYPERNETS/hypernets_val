@@ -162,6 +162,12 @@ class PlotOptions:
             doptions = defaults.get_options_image_plot()
         if type == 'singlestatstable':
             doptions = defaults.get_options_single_stats_table()
+        if type == 'spectralstatstable':
+            doptions = defaults.get_options_spectral_stats_table()
+        if type == 'matchupsstatstable':
+            doptions = defaults.get_options_matchups_stats_table()
+        if type == 'multiplestatsplot':
+            doptions = defaults.get_options_multiple_stats_plot()
         if type == 'multipleboundingbox':
             doptions = defaults.get_options_multiple_bounding_box()
         if type == 'spectraparam':

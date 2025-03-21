@@ -36,6 +36,9 @@ class MDBPlot:
 
         self.virtual_flags = {}
 
+    def close_mdb_file(self):
+        self.mrfile.close()
+
     def compute_statistics(self, use_log_scale, use_rhow, type_regression):
 
         self.valid_stats['N'] = len(self.xdata)
@@ -127,6 +130,13 @@ class MDBPlot:
         #  the mean of absolute (unsigned) percent differences
         self.valid_stats['APD'] = np.mean(np.abs(rel_diff))
 
+        # the median of relative (signed) percent differences
+        rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)
+        self.valid_stats['MdRPD'] = np.median(rel_diff)
+        #  the median of absolute (unsigned) percent differences
+        self.valid_stats['MdAPD'] = np.median(np.abs(rel_diff))
+
+
         self.valid_stats['MIN_Y'] = np.ma.min(sat_obs)
         self.valid_stats['MAX_Y'] = np.ma.max(sat_obs)
         self.valid_stats['MIN_X'] = np.ma.min(ref_obs)
@@ -148,18 +158,43 @@ class MDBPlot:
         ydiff = sat_obs - sat_mean
         cprmse = cfs.rmse(ydiff, xdiff)
         self.valid_stats['CRMSE'] = cprmse
-        # bias
+        # bias (average)
         bias = np.mean(sat_obs - ref_obs)
         self.valid_stats['BIAS'] = bias
-        # mae
-        mae = np.mean(np.abs(sat_obs - ref_obs))
-        self.valid_stats['MAE'] = mae
+        # bias (median)
+        meBias = np.median(sat_obs - ref_obs)
+        self.valid_stats['MdBIAS'] = meBias
+
+        # mad
+        mad = np.mean(np.abs(sat_obs - ref_obs))
+        self.valid_stats['MAD'] = mad
+
+        # mdad
+        mdad = np.median(np.abs(sat_obs - ref_obs))
+        self.valid_stats['MdAD'] = mdad
+
         # deter(r2)
         self.valid_stats['DETER(r2)'] = r_value * r_value
 
+        #joliff statistics
+        std_x = np.std(ref_obs)
+        std_y = np.std(sat_obs)
+        sig_std = -1 if (std_y - std_x) > 0 else 1
+        norm_std = std_y / std_x
+        nuRMSD = np.ma.sqrt(1 + norm_std ** 2 - (2 * norm_std * r_value))
+        nBias = np.ma.mean(sat_obs - ref_obs) / std_x
+        suRMSD = sig_std * nuRMSD
+        self.valid_stats['XSTD'] = std_x
+        self.valid_stats['YSTD'] = std_y
+        self.valid_stats['NORMSTD'] = norm_std
+        self.valid_stats['nBIAS'] = nBias
+        self.valid_stats['nuRMSD'] = nuRMSD
+        self.valid_stats['suRMSD'] = suRMSD
+
+
         if use_log_scale:
             ##convert statistict to linear scale again
-            stats_to_convert = ['RMSD', 'XAVG', 'YAVG', 'CRMSE', 'MAE']
+            stats_to_convert = ['RMSD', 'XAVG', 'YAVG', 'CRMSE', 'MAD']
             for stat in stats_to_convert:
                 self.valid_stats[stat] = np.power(10, self.valid_stats[stat])
             bias_neg = self.valid_stats['BIAS'] < 0
@@ -168,6 +203,68 @@ class MDBPlot:
                 self.valid_stats['BIAS'] = self.valid_stats['BIAS'] * (-1)
 
         # print(self.valid_stats)
+
+    def compute_statistics_spectra(self,index_mu,options_figure):
+        if not 'scale_factor' in options_figure:
+            options_figure['scale_factor'] = 1000
+        wl, insitu_spectra, sat_spectra, insitu_spectra_unc, sat_spectra_unc = self.mrfile.get_mu_spectra_insitu_and_sat(
+            index_mu, options_figure['scale_factor'])
+        if wl is None:
+            return None
+
+        indices_vis = np.logical_and(wl>=400.0,wl<=800.0)
+        wl = wl[indices_vis]
+        insitu_spectra = insitu_spectra[indices_vis]
+        sat_spectra = sat_spectra[indices_vis]
+        i560 = np.argmin(np.abs(wl-560.0))
+
+        self.xdata = insitu_spectra
+        self.ydata = sat_spectra
+        self.compute_statistics(False,False,'II')
+        self.valid_stats['INDEX_MU'] = index_mu
+        self.valid_stats['SAM'] = np.rad2deg(np.acos(np.dot(insitu_spectra,sat_spectra)/(np.linalg.norm(insitu_spectra)*np.linalg.norm(sat_spectra))))
+        Yinsitu = insitu_spectra/insitu_spectra[i560]
+        Ysat = sat_spectra/sat_spectra[i560]
+        self.valid_stats['CHI-SQUARE'] = np.sum(Yinsitu-Ysat/Yinsitu)
+
+        return self.valid_stats
+
+    def get_table_spectral_statistics(self,options_figure):
+        wlvalues = options_figure['wlvalues']
+        if wlvalues is None:
+            wlvalues = list(np.unique(np.array(self.mrfile.nc.variables['mu_wavelength'])))
+
+        col_names = ['GLOBAL']
+        for wl in wlvalues:
+            col_names.append(self.get_wl_str_from_wl(wl))
+        df = pd.DataFrame(index=list(self.valid_stats.keys()), columns=col_names)
+
+        #global
+        self.set_data_scatterplot(None,None,None,None,options_figure)
+        self.compute_statistics(False,False,'II')
+        self.valid_stats['NMU'] = int(self.valid_stats['N'] / len(wlvalues))
+        df = self.assign_stats_to_table(df, 'GLOBAL')
+
+        for iwl,wl_value in enumerate(wlvalues):
+            self.set_data_scatterplot(None,None,-1,wl_value,options_figure)
+            self.compute_statistics(False, False, 'II')
+            df = self.assign_stats_to_table(df, col_names[iwl+1])
+        return df
+
+    def get_table_match_up_statistics(self,options_figure):
+        stat_list = list(self.valid_stats.keys())
+        col_names = ['INDEX_MU']+stat_list+['SAM','CHI-SQUARE']
+        df = pd.DataFrame(index=np.arange(self.mrfile.n_mu_total),columns=col_names)
+        df['INDEX_MU'][:]=-1
+
+        for index_mu in range(self.mrfile.n_mu_total):
+            stats = self.compute_statistics_spectra(index_mu,options_figure)
+            if stats is not None:
+                #print(stats['INDEX_MU'],stats['N'],stats['SAM'],stats['RMSD'],stats['BIAS'],stats['CHI-SQUARE'])
+                df = self.assign_stats_row_to_table(df,index_mu,stats)
+
+        df = df[df['INDEX_MU']>=0][:]
+        return df
 
     def get_regression_line(self, xdatal, ydatal, slope, intercept, minxy, maxxy):
         if maxxy is None:
@@ -251,6 +348,12 @@ class MDBPlot:
             self.plot_flag_plot_from_options(options_figure)
         if options_figure['type'] == 'singlestatstable':
             self.plot_single_stats_table(options_figure)
+        if options_figure['type'] == 'spectralstatstable':
+            self.plot_spectral_stats_table(options_figure)
+        if options_figure['type'] == 'matchupsstatstable':
+            self.plot_matchups_stats_table(options_figure)
+        if options_figure['type'] == 'multiplestatsplot':
+            self.plot_multiple_stats_plot(options_figure)
         if options_figure['type'] == 'multipleboundingbox':
             self.plot_multiple_bounding_box(options_figure)
         if options_figure['type'] == 'spectraparam':
@@ -510,6 +613,23 @@ class MDBPlot:
             plt.savefig(file_out, dpi=300)
         plt.close()
 
+    def plot_spectral_stats_table(self,options_figure):
+        df = self.get_table_spectral_statistics(options_figure)
+        if options_figure['file_out'] is not None:
+            file_out = options_figure['file_out']
+            ext = file_out[file_out.rfind('.'):]
+            file_out = file_out.replace(ext,'.csv')
+            df.to_csv(file_out,sep=';')
+
+
+    def plot_matchups_stats_table(self,options_figure):
+        df = self.get_table_match_up_statistics(options_figure)
+        if options_figure['file_out'] is not None:
+            file_out = options_figure['file_out']
+            ext = file_out[file_out.rfind('.'):]
+            file_out = file_out.replace(ext,'.csv')
+            df.to_csv(file_out,sep=';',index=None)
+
     def plot_single_stats_table(self, options_figure):
         yvar = options_figure['yvar']
         xvar = options_figure['xvar']
@@ -536,8 +656,8 @@ class MDBPlot:
             flagValues = self.get_flag_list(selectValues, options_figure[selectBy]['flag_values'],
                                             options_figure[selectBy]['flag_meanings'])
             col_names = ['GLOBAL'] + flagValues
-            print('aqui')
-            print(self.valid_stats)
+
+            #print(self.valid_stats)
             df = pd.DataFrame(index=list(self.valid_stats.keys()), columns=col_names)
 
             self.set_data_scatterplot_general(None, None, None, options_figure)
@@ -555,6 +675,11 @@ class MDBPlot:
     def assign_stats_to_table(self, df, col_name):
         for key in list(self.valid_stats.keys()):
             df.loc[key].at[col_name] = self.valid_stats[key]
+        return df
+
+    def assign_stats_row_to_table(self,df,index_mu,stats):
+        for key in list(stats.keys()):
+            df.loc[index_mu,key] = stats[key]
         return df
 
     def plot_flag_plot_from_options(self, options_figure):
@@ -1932,9 +2057,10 @@ class MDBPlot:
         if options['max_xy'] is not None:
             max_xy = options['max_xy']
 
-        if wl==665:
-            #max_xy = 0.008
-            max_xy = 0.010
+        # TEST FOR A PLOT
+        # if wl==665:
+        #     #max_xy = 0.008
+        #     max_xy = 0.010
 
         min_x = min_xy
         max_x = max_xy
@@ -1976,12 +2102,12 @@ class MDBPlot:
                 x_ticks = options['x_ticks']
                 y_ticks = options['y_ticks']
 
-
-        if wl==665:
-            # x_ticks = [0,0.002,0.004,0.006,0.008]
-            # y_ticks = [0, 0.002, 0.004, 0.006, 0.008]
-            x_ticks = [0, 0.002, 0.004, 0.006, 0.008,0.010]
-            y_ticks = [0, 0.002, 0.004, 0.006, 0.008, 0.010]
+        ##TEST FOR A PLOT
+        # if wl==665:
+        #     # x_ticks = [0,0.002,0.004,0.006,0.008]
+        #     # y_ticks = [0, 0.002, 0.004, 0.006, 0.008]
+        #     x_ticks = [0, 0.002, 0.004, 0.006, 0.008,0.010]
+        #     y_ticks = [0, 0.002, 0.004, 0.006, 0.008, 0.010]
 
         if x_ticks is not None and y_ticks is not None:
             if options['log_scale']:
@@ -2288,11 +2414,18 @@ class MDBPlot:
 
     def plot_insmu_spectraplot(self, options_figure, index_mu):
         ##GETTING DATA
-        spectra_selected, spectra_valid, spectra_invalid = self.mrfile.get_mu_insitu_spectra(index_mu, options_figure[
+        spectra_selected, spectra_valid, spectra_invalid, instrument_idx = self.mrfile.get_mu_insitu_spectra(index_mu, options_figure[
             'scale_factor'])
         n_selected = spectra_selected.shape[0]
         n_valid = spectra_valid.shape[0]
         wl = self.mrfile.insitu_bands
+        if len(wl.shape)==2:
+            if instrument_idx>=0:
+                wl = np.squeeze(wl[instrument_idx,:])
+            else:
+                print(f'[ERROR] In situ spectra plot can not be plotted, ambigous identification of the wavelengths array')
+                return
+
         from PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
 
@@ -2377,9 +2510,249 @@ class MDBPlot:
         if options_figure['ylabel'] is not None: pspectra.set_yaxis_title(options_figure['ylabel'])
         pspectra.set_tigth_layout()
         if options_figure['file_out'] is not None: pspectra.save_plot(options_figure['file_out'])
-
+        pspectra.close_plot()
         # if not options_out['plot_stats']:
         #     stats = None
+
+    def plot_multiple_stats_plot(self, options_figure):
+        if options_figure['type_point']=='wavelength':
+            df = self.get_table_spectral_statistics(options_figure)
+        elif options_figure['type_point']=='matchup':
+            df = self.get_table_match_up_statistics(options_figure)
+
+        if options_figure['type_plot']=='joliff':
+            col_list = df.columns.tolist()
+            ini = 1 if col_list[0]=='GLOBAL' else 0
+            wldata = np.array([float(col_list[idx]) for idx in range(ini,len(col_list))])
+            nBias = np.array(df.loc['nBIAS'][ini:]).astype(np.float64)
+            suRMSD = np.array(df.loc['suRMSD'][ini:]).astype(np.float64)
+            stat_array = None
+            if options_figure['colorby'] == 'stat':
+                stat_str = options_figure['stat_to_color']
+                stat_list = df.index.tolist()
+                if stat_str not in stat_str:
+                    print(f'[ERROR] stat_to_color option: {stat_str} is not in the stat list ({stat_list})')
+                    return
+                stat_array = np.array(df.loc[stat_str][ini:]).astype(np.float64)
+
+            self.plot_joliff_type(options_figure,suRMSD,nBias,wldata,stat_array)
+
+        if options_figure['type_plot']=='nbias-sam':
+            nBias = np.array(df['nBIAS']).astype(np.float64)
+            sam = np.array(df['SAM']).astype(np.float64)
+            stat_array = None
+            if options_figure['colorby'] == 'stat':
+                stat_str = options_figure['stat_to_color']
+                stat_list = df.index.tolist()
+                if stat_str not in stat_str:
+                    print(f'[ERROR] stat_to_color option: {stat_str} is not in the stat list ({stat_list})')
+                    return
+                stat_array = np.array(df[stat_str]).astype(np.float64)
+            nBiasAbs = np.abs(nBias)
+            sam_signed = sam.copy()
+            sam_signed[nBias<0] = sam_signed[nBias<0]*-1
+            options_figure['theta_min']=-90
+            options_figure['theta_max']=90
+            options_figure['scale']='linear'
+            self.plot_taylor_type(options_figure,nBiasAbs,sam_signed,stat_array)
+
+
+    def plot_taylor_type(self,options_figure,rdata,angledata,stat_array):
+        print(options_figure)
+        from PlotScatter import PlotScatter
+        ps = PlotScatter()
+        ps.start_plot_polar()
+
+        ps.set_theta_zero_location(options_figure['theta_zero_location'])
+        ps.set_theta_direction(options_figure['theta_direction'])
+
+        ps.set_rscale(options_figure['scale'])
+        colors = options_figure['color']
+        markersizes = options_figure['markersize']
+        markers = options_figure['marker']
+        edgecolors = options_figure['edgecolor']
+        linewidths = options_figure['linewidth']
+        print(f'[INFO] Angle data: {np.min(angledata)} - {np.max(angledata)}')
+        print(f'[INFO] Radius data: {np.min(rdata)} - {np.max(rdata)}')
+
+        if options_figure['colorby']=='density':
+            from scipy.stats import gaussian_kde
+            ps.set_cmap('jet')
+            xy = np.vstack([angledata, rdata])
+            z = gaussian_kde(xy)(xy)
+            idx = z.argsort()
+            angledata, rdata, z = angledata[idx], rdata[idx], z[idx]
+            hscatter = ps.plot_polar(angledata,rdata,True,markers[0],markersizes[0],z,edgecolors[0],linewidths[0])
+
+        if options_figure['colorby'] == 'stat':
+            ps.set_cmap('jet')
+            hscatter = ps.plot_polar(angledata, rdata, True,markers[0], markersizes[0],stat_array, edgecolors[0], linewidths[0])
+
+        if options_figure['colorby'] == 'none':
+            ps.plot_polar(angledata, rdata, True,markers[0],markersizes[0],colors[0],edgecolors[0],linewidths[0])
+
+        if options_figure['rlim'] is not None:
+            ps.set_rlim(options_figure['rlim'])
+
+
+        #rticks_pos = [0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2]
+
+        rticks_pos = np.array(ps.ax.get_yticks())
+        rlabels_empty = [f'' for x in rticks_pos]
+        ps.set_rticks_and_labels(rticks_pos, rlabels_empty, False)
+
+        if options_figure['rlim'] is not None:
+            rmin = options_figure['rlim'][1]*-1
+            rmax = options_figure['rlim'][1]
+            all_rticks = np.linspace(rmin,rmax,13)
+            all_rticks_labels = ['{:g}'.format(x) for x in all_rticks]
+            all_pos = np.linspace(0,1,13)
+            ps.plot_text_options['fontsize'] = 10
+            ps.plot_text_options['horizontalalignment'] = 'center'
+            for label,pos in zip(all_rticks_labels,all_pos):
+                ps.plot_text(pos, 0.21, label)
+
+
+        ps.set_theta_range(options_figure['theta_min'], options_figure['theta_max'])
+        if options_figure['colorbar']:
+            ps.colorbar(hscatter)
+            options_figure['legend']=False
+        ps.set_equal_apect()
+        ps.tight_layout()
+        if options_figure['file_out'] is not None:
+            ps.save_fig(options_figure['file_out'])
+        ps.close_plot()
+
+
+    def plot_joliff_type(self,options_figure,xdata,ydata,wldata,stat_array):
+        print(options_figure)
+        #from matplotlib import pyplot as plt
+        from PlotScatter import PlotScatter
+        ps = PlotScatter()
+        ps.start_plot()
+        min_x_abs = np.min(xdata)
+        min_y_abs = np.min(ydata)
+        max_x_abs = np.max(xdata)
+        max_y_abs = np.max(ydata)
+        min_xy_abs = np.min([min_x_abs,min_y_abs])
+        max_xy_abs = np.max([min_y_abs,max_y_abs])
+        colors = options_figure['color']
+        markersizes = options_figure['markersize']
+        markers = options_figure['marker']
+        edgecolors = options_figure['edgecolor']
+        linewidths = options_figure['linewidth']
+        handles = []
+
+        if options_figure['colorby']=='density':
+            from scipy.stats import gaussian_kde
+            ps.set_cmap('jet')
+            xy = np.vstack([xdata, ydata])
+            z = gaussian_kde(xy)(xy)
+            idx = z.argsort()
+            xdata, ydata, z = xdata[idx], ydata[idx], z[idx]
+            hscatter = ps.plot_data(xdata,ydata,markers[0],markersizes[0],z,edgecolors[0],linewidths[0])
+
+        if options_figure['colorby']=='wavelength':
+            ps.set_cmap('jet')
+            hscatter = ps.plot_data(xdata, ydata, markers[0], markersizes[0], wldata, edgecolors[0], linewidths[0])
+
+        if options_figure['colorby']=='wavelength_ranges':
+            if options_figure['wlranges_min'] is None or options_figure['wlranges_max'] is None:
+                ps.close_plot()
+                print(f'[ERROR] wlranges_min and wlranges_max should be defined for colorby: wavelenth_ranges')
+                return
+            nranges,garray = self.get_basic_wl_ranges_info(options_figure,wldata)
+            colors = options_figure['color']
+            for irange in range(nranges):
+                xdata_here = xdata[garray==irange]
+                ydata_here = ydata[garray==irange]
+                hscatter = ps.plot_data(xdata_here,ydata_here,markers[0],markersizes[0],colors[irange],edgecolors[0],linewidths[0])
+                handles.append(hscatter)
+
+        if options_figure['colorby'] == 'stat':
+            ps.set_cmap('jet')
+            hscatter = ps.plot_data(xdata, ydata, markers[0], markersizes[0],stat_array, edgecolors[0], linewidths[0])
+
+
+        if options_figure['min_xy'] is not None or options_figure['max_xy'] is not None:
+            min_xy = options_figure['min_xy'] if options_figure['min_xy'] is not None else min_xy_abs
+            max_xy = options_figure['max_xy'] if options_figure['max_xy'] is not None else max_xy_abs
+            ps.set_limits(min_xy,max_xy)
+
+        if options_figure['x_min'] is not None or options_figure['x_max'] is not None:
+            min_x = options_figure['x_min'] if options_figure['x_max'] is not None else min_x_abs
+            max_x = options_figure['x_max'] if options_figure['x_max'] is not None else max_x_abs
+            ps.set_limits_X(min_x,max_x)
+
+        if options_figure['y_min'] is not None or options_figure['y_max'] is not None:
+            min_y = options_figure['y_min'] if options_figure['y_min'] is not None else min_y_abs
+            max_y = options_figure['y_max'] if options_figure['y_max'] is not None else max_y_abs
+            ps.set_limits_Y(min_y,max_y)
+
+        if options_figure['ticks'] is not None:
+            x_ticks = options_figure['ticks']
+            y_ticks = options_figure['ticks']
+        else:
+            if options_figure['x_ticks'] is None:
+                x_ticks = self.get_ticks_from_min_max_xy(min_x_abs, max_x_abs)
+            else:
+                x_ticks = options_figure['x_ticks']
+            if options_figure['y_ticks'] is None:
+                y_ticks = self.get_ticks_from_min_max_xy(min_y_abs, max_y_abs)
+            else:
+                y_ticks = options_figure['y_ticks']
+
+        ps.set_ticks_x(x_ticks, options_figure['fontsizeaxis'])
+        ps.set_ticks_y(y_ticks, options_figure['fontsizeaxis'])
+
+        # plt.grid(which='major', color='gray', linestyle=':', axis='both')
+        # if extra_lines[0]:
+        #     plt.plot([0, 0], [0, y_ranges[1]], color='k', marker=None, linewidth=1, linestyle='-')
+        # if extra_lines[1]:
+        #     plt.plot([x_ranges[0], x_ranges[1]], [1, 1], color='k', marker=None, linewidth=1, linestyle='-')
+
+        if options_figure['xlabel'] is not None:
+            xtitle = options_figure['xlabel']
+        else:
+            xtitle = 'suRMSD'
+        if xtitle is not None:
+            if options_figure['colorbar']:
+                ps.plot_text(0.85, 0.45, xtitle)
+            else:
+                ps.plot_text(1.02,0.49,xtitle)
+
+        if options_figure['ylabel'] is not None:
+            ytitle = options_figure['ylabel']
+        else:
+            ytitle = 'nBIAS'
+        if ytitle is not None:
+            ps.plot_text(0.44, 1.02, 'nBIAS')
+
+
+        # if xstat == 'DETER(r2)' or ystat == 'DETER(r2)':
+        #     plt.legend(handles, col_names, ncol=3, frameon=True, framealpha=1,
+        #                loc='upper center')  # ,bbox_to_anchor=(0.5,-0.4))
+        # else:
+        #     plt.legend(handles, col_names, loc='lower right', bbox_to_anchor=(1.9, 0))
+        # if legend_info is not None:
+        #     plt.legend(handles, col_names, loc=legend_info['loc'], bbox_to_anchor=legend_info['bbox_to_anchor'])
+
+        c_ticks = x_ticks if options_figure['circular_spines'] else None
+        ps.set_as_joliff(c_ticks)
+        if options_figure['colorbar']:
+            ps.colorbar(hscatter)
+            options_figure['legend']=False
+        if options_figure['legend']:
+            ps.set_legend_h(handles,options_figure['legend_values'])
+
+
+        ps.set_equal_apect()
+        ps.tight_layout()
+        if options_figure['file_out'] is not None:
+            ps.save_fig(options_figure['file_out'])
+        ps.close_plot()
+
+
 
     def check_select_group_options(self, options_figure):
         if options_figure['selectByWavelength'] or options_figure['apply_wavelength_color']:
@@ -2592,6 +2965,32 @@ class MDBPlot:
             if len(group_array) == len(mu_valid_satelliteid):
                 group_array = self.get_array_muid_from_array_satelliteid(id_mu, group_array)
             self.groupdata = group_array[valid_all == 1]
+
+
+    def get_basic_wl_ranges_info(self,options_figure,wldata):
+        wlmin_values = options_figure['wlranges_min']
+        wlmax_values = options_figure['wlranges_max']
+        nranges = len(wlmin_values)
+        ndata = len(wldata)
+        garray = np.zeros((ndata,))
+        colors_wl = []
+        flag_meanings = []
+        for idx in range(nranges):
+            min_wl = wlmin_values[idx]
+            max_wl = wlmax_values[idx]
+            center_wl = min_wl + ((max_wl - min_wl) / 2)
+            color_wl = defaults.get_color_wavelength(center_wl)
+            colors_wl.append(color_wl)
+            garray[np.logical_and(wldata >= min_wl, wldata < max_wl)] = idx
+            flag_meaning = f'{min_wl}-{max_wl}'
+            flag_meanings.append(flag_meaning)
+
+        options_figure['legend_values'] = flag_meanings
+        color_prev = options_figure['color']
+        if len(color_prev) != len(wlmin_values):
+            options_figure['color'] = colors_wl
+
+        return nranges,garray
 
     def create_flag_array_wl_ranges(self, options_figure, name_fv):
 

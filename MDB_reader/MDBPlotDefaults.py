@@ -231,7 +231,8 @@ global_options = {
 }
 
 type_list = ['scatterplot', 'statswlplot', 'spectraplot', 'multipleplot', 'flagplot', 'histogram', 'timeseries',
-             'sequence', 'angleplot', 'mapplot', 'imageplot', 'singlestatstable','multipleboundingbox','spectraparam']
+             'sequence', 'angleplot', 'mapplot', 'imageplot', 'singlestatstable','multipleboundingbox','spectraparam',
+             'spectralstatstable','matchupsstatstable','multiplestatsplot']
 
 valid_stats = {
     'N': {
@@ -312,17 +313,33 @@ valid_stats = {
     'BIAS': {
         'name': 'BIAS',
         'name_plot': 'bias',
-        'desc': 'Bias value',
+        'desc': 'Average bias value',
+        'format': 'f3+units'
+    },
+    'MdBIAS': {
+        'name': 'MdBIAS',
+        'name_plot': 'bias',
+        'desc': 'Median bias value',
         'format': 'f3+units'
     },
     'APD': {
         'name': 'APD',
-        'desc': 'Absolute percent difference',
+        'desc': 'Mean absolute percent difference',
         'format': 'i'
     },
     'RPD': {
         'name': 'RPD',
-        'desc': 'Relative percent difference',
+        'desc': 'Mean relative percent difference',
+        'format': 'i'
+    },
+    'MdAPD': {
+        'name': 'MdAPD',
+        'desc': 'Median absolute percent difference',
+        'format': 'i'
+    },
+    'MdRPD': {
+        'name': 'MdRPD',
+        'desc': 'Median relative percent difference',
         'format': 'i'
     },
     'XAVG': {
@@ -335,14 +352,49 @@ valid_stats = {
         'desc': 'Y average value',
         'format': 'f3+units'
     },
+    'XSTD': {
+        'name': 'XSTD',
+        'desc': 'X standard deviation value',
+        'format': 'f3+units'
+    },
+    'YSTD': {
+        'name': 'YSTD',
+        'desc': 'Y standard deviation value',
+        'format': 'f3+units'
+    },
+    'NORMSTD': {
+        'name': 'NORMSTD',
+        'desc': 'Normalized stardard deviation',
+        'format': 'f3'
+    },
+    'nBIAS': {
+        'name': 'nBIAS',
+        'desc': 'Normalized bias',
+        'format': 'f3'
+    },
+    'nuRMSD':{
+        'name': 'nuRMSD',
+        'desc': 'Unsigned Unbiased RMSD',
+        'format': 'f3'
+    },
+    'suRMSD':{
+        'name': 'suRMSD',
+        'desc': 'Signed Unbiased RMSD',
+        'format': 'f3'
+    },
     'CRMSE': {
         'name': 'CRMSE',
         'desc': 'Centered Root Mean Square Deviation',
         'format': 'f3+units'
     },
-    'MAE': {
-        'name': 'MAE',
-        'desc': 'Mean absolute error',
+    'MAD': {
+        'name': 'MAD',
+        'desc': 'Mean absolute deviation',
+        'format': 'f3+units'
+    },
+    'MdAD': {
+        'name': 'MdAD',
+        'desc': 'Median absolute deviation',
         'format': 'f3+units'
     },
     'MIN_Y':{
@@ -567,6 +619,7 @@ options_axis = {
     }
 
 }
+
 
 
 options_scatterplots = {
@@ -1287,6 +1340,85 @@ options_single_stats_table = {
         'type': 'str'
     }
 }
+options_spectral_stats_table = {
+    'formatted':{
+        'default': False,
+        'type': 'boolean'
+    },
+    'invert':{
+        'default': False,
+        'type': 'boolean'
+    }
+}
+options_matchups_stats_table = {
+    'formatted':{
+        'default': False,
+        'type': 'boolean'
+    },
+    'invert':{
+        'default': False,
+        'type': 'boolean'
+    }
+}
+
+options_multiple_stats_plot = {
+    'type_point':{
+        'default': 'wavelength',
+        'type': 'str',
+        'values': ['wavelength','matchup']
+    },
+    'type_plot':{
+        'default': 'joliff',
+        'type': 'str',
+        'values': ['joliff','taylor','rpd-apd','nbias-sam']
+    },
+    'colorby':{
+        'default': 'density',
+        'type': 'str',
+        'values': ['none','density','wavelength','wavelength_ranges','stat','group']
+    },
+    'marker': {
+        'default': [marker_default],
+        'type': 'strlist'
+    },
+    'markersize': {
+        'default': [10],
+        'type': 'intlist'
+    },
+    'color': {
+        'default': [marker_color_default],
+        'type': 'strlist'
+    },
+    'edgecolor': {
+        'default': [None],
+        'type': 'strlist'
+    },
+    'linewidth': {
+        'default': [None],
+        'type': 'floatlist'
+    },
+    'circular_spines':{
+        'default': True,
+        'type': 'boolean'
+    },
+    'colorbar':{
+        'default': False,
+        'type': 'boolean'
+    },
+    'wlranges_min':{
+        'default': None,
+        'type': 'floatlist'
+    },
+    'wlranges_max':{
+        'default': None,
+        'type': 'floatlist'
+    },
+    'stat_to_color':{
+        'default': 'RMSD',
+        'type': 'str'
+    }
+
+}
 
 def get_options_spectraplots():
     options = options_spectraplots
@@ -1414,6 +1546,40 @@ def get_options_single_stats_table():
     options = options_single_stats_table
     for op in options_select:
         options[op] = options_select[op]
+    return options
+
+def get_options_spectral_stats_table():
+    options = options_spectral_stats_table
+    for op in options_select:
+        options[op] = options_select[op]
+    return options
+
+def get_options_matchups_stats_table():
+    options = options_matchups_stats_table
+    for op in options_select:
+        options[op] = options_select[op]
+    return options
+
+def get_options_multiple_stats_plot():
+    options = options_multiple_stats_plot
+    for op in options_select:
+        if op not in options:
+            options[op] = options_select[op]
+    for op in options_axis:
+        if op not in options:
+            options[op] = options_axis[op]
+    for op in options_title:
+        if op not in options:
+            options[op] = options_title[op]
+    for op in options_legend:
+        if op not in options:
+            options[op] = options_legend[op]
+    for op in options_size:
+        if op not in options:
+            options[op] = options_size[op]
+    for op in options_angleplot:
+        if op not in options:
+            options[op] = options_angleplot[op]
     return options
 
 def get_options_multiple_bounding_box():

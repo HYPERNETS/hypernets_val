@@ -124,6 +124,7 @@ class QC_INSITU:
         self.wl_indices = list(range(iwl_min, iwl_max))
 
     def set_wllist_using_wlref(self, wlreflist):
+
         self.wl_list = wlreflist
         nwl_max = len(wlreflist)
         n_check = 1 if self.n_instrument == -1 else self.n_instrument
@@ -500,7 +501,9 @@ class QC_INSITU:
                     iins = self.instrument_id_array[index_insitu]
                 if np.ma.is_masked(iins):
                     return None,None,None
-                indices = self.wl_indices[iins]
+                indices = self.wl_indices[iins,:]
+
+
 
             rrs_values = spectra[indices]
             valid_bands = np.invert(ma.getmaskarray(rrs_values)).tolist()

@@ -12,6 +12,7 @@ import warnings
 
 
 import pandas as pd
+from fontTools.misc.plistlib import end_date
 from statsmodels.datasets.utils import Dataset
 
 warnings.simplefilter('ignore', UserWarning)
@@ -3884,7 +3885,9 @@ def make_plots_match_ups(site,dir_base,file_mdbr):
     mdbR = MDB_READER(file_mdbr,True)
     info_match_ups = {}
     n_match_ups = 0
-    for name in os.listdir(dir_base):
+    dir_flag_maps = os.path.join(dir_base,'flag_maps')
+    dir_avw_maps = os.path.join(dir_base,'avw_maps')
+    for name in os.listdir(dir_flag_maps):
         if name.startswith('flag_map_'):
             date_str = name[:-4].split('_')[2]
             index_str = name[:-4].split('_')[3]
@@ -3902,8 +3905,8 @@ def make_plots_match_ups(site,dir_base,file_mdbr):
         title = f'Match-up {index} - {site} - {str_time}'
         index_str = str(index)
         date_str = info_match_ups[index_str]
-        file_avw = os.path.join(dir_base,f'avw_map_{date_str}_{index_str}.tif')
-        file_flag_map = os.path.join(dir_base,f'flag_map_{date_str}_{index_str}.tif')
+        file_avw = os.path.join(dir_avw_maps,f'avw_map_{date_str}_{index_str}.tif')
+        file_flag_map = os.path.join(dir_flag_maps,f'flag_map_{date_str}_{index_str}.tif')
         file_flag_plot = os.path.join(dir_base,f'flag_plot_mu_{date_str}_{index_str}.tif')
         file_ins = os.path.join(dir_base,f'ins_spectra_mu_{date_str}_{index_str}.tif')
         file_comp = os.path.join(dir_base,f'comparison_spectra_mu_{date_str}_{index_str}.tif')
@@ -4025,42 +4028,115 @@ def main():
     print(f'Started MDBReader with mode: {mode}')
 
     if args.mode == 'CHECK_MISSING_PACE_V2':
-        site = 'VEIT'
-        if args.site_name:
-            site = args.site_name
-        v3folder = os.path.join('/store3/SAT_EXTRACTS/OCI/V3',site)
-        v2folder = os.path.join('/store3/SAT_EXTRACTS/OCI/V2',site)
-        v3v2folder =  os.path.join('/store3/SAT_EXTRACTS/OCI/V3WITHV2',site)
-        file_missing = f'/store3/SAT_EXTRACTS/OCI/MissingV2_{site}.csv'
-        fw = open(file_missing,'w')
-        fw.write('File')
-        for name in os.listdir(v3folder):
-            # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V2_0_NRT_VEIT.nc'
-            # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V3_0_VEIT.nc'
-            namev2 = name.replace(f'V3_0_{site}.nc',f'V2_0_NRT_{site}.nc')
-            filev2 = os.path.join(v2folder,namev2)
-            if not os.path.exists(filev2):
-                name_granule = namev2.replace('extract_','')
-                name_granule = name_granule.replace(f'_{site}','')
-                fw.write('\n')
-                fw.write(name_granule)
-            else:##copy file v3 equivalent
-                filev3_orig = os.path.join(v3folder,name)
-                filev3_dest = os.path.join(v3v2folder,name)
-                shutil.copy(filev3_orig,filev3_dest)
-        fw.close()
+        # site = 'VEIT'
+        # if args.site_name:
+        #     site = args.site_name
+        # v3folder = os.path.join('/store3/SAT_EXTRACTS/OCI/V3',site)
+        # v2folder = os.path.join('/store3/SAT_EXTRACTS/OCI/V2',site)
+        # v3v2folder =  os.path.join('/store3/SAT_EXTRACTS/OCI/V3WITHV2',site)
+        # file_missing = f'/store3/SAT_EXTRACTS/OCI/MissingV2_{site}.csv'
+        # fw = open(file_missing,'w')
+        # fw.write('File')
+        # for name in os.listdir(v3folder):
+        #     # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V2_0_NRT_VEIT.nc'
+        #     # 'extract_PACE_OCI_20240316T113013_L2_OC_AOP_V3_0_VEIT.nc'
+        #     namev2 = name.replace(f'V3_0_{site}.nc',f'V2_0_NRT_{site}.nc')
+        #     filev2 = os.path.join(v2folder,namev2)
+        #     if not os.path.exists(filev2):
+        #         name_granule = namev2.replace('extract_','')
+        #         name_granule = name_granule.replace(f'_{site}','')
+        #         fw.write('\n')
+        #         fw.write(name_granule)
+        #     else:##copy file v3 equivalent
+        #         filev3_orig = os.path.join(v3folder,name)
+        #         filev3_dest = os.path.join(v3v2folder,name)
+        #         shutil.copy(filev3_orig,filev3_dest)
+        # fw.close()
+        #
+        # ##check not used v2
+        # for name in os.listdir(v2folder):
+        #     namev3 = name.replace(f'V2_0_NRT_{site}.nc',f'V3_0_{site}.nc')
+        #     filev2v3 = os.path.join(v3v2folder,namev3)
+        #     if not os.path.exists(filev2v3):
+        #         folder_not_used = os.path.join('/store3/SAT_EXTRACTS/OCI/V2',f'{site}_NOTUSED')
+        #         if not os.path.isdir(folder_not_used):
+        #             os.mkdir(folder_not_used)
+        #         file_orig = os.path.join(v2folder,name)
+        #         file_dest = os.path.join(folder_not_used,name)
+        #         os.rename(file_orig,file_dest)
+        from datetime import datetime as dt
+        from datetime import timedelta
+        from netCDF4 import Dataset
+        source_folder = '/store3/OC/OCI'
+        files_v2 = os.path.join(source_folder,'filesv2.csv')
+        files_v3 = os.path.join(source_folder,'filesv3.csv')
+        file_wl_v2 = os.path.join(source_folder,'wlv2.csv')
+        file_wl_v3 = os.path.join(source_folder, 'wlv3.csv')
+        fw_v2 = open(files_v2)
+        fw_v3 = open(files_v3)
+        fw_wl_v2 = open(file_wl_v2)
+        fw_wl_v3 = open(file_wl_v3)
+        fw_v2.write('File;NWl')
+        fw_v3.write('File;NWl')
+        fw_wl_v2.write('Wl')
+        fw_wl_v3.write('Wl')
+        wl_array_v2 = None
+        wl_array_v3 = None
+        work_date = dt(2024,3,15)
+        end_date = dt(2024,12,31)
+        while work_date<=end_date:
+            yyyy = work_date.strftime('%Y')
+            jjj = work_date.strftime('%j')
+            folder_date = os.path.join(source_folder,yyyy,jjj)
+            if not os.path.isdir(folder_date):
+                work_date = work_date * timedelta(hours=24)
+                continue
+            print(f'WORKING WITH DATE: {work_date.strftime("%Y-%m-%d")}')
+            for name in os.listdir(folder_date):
+                if not name.endswith('.nc'):
+                    continue
+                file_nc = os.path.join(folder_date,name)
+                dataset = Dataset(file_nc)
+                sbp = dataset['sensor_band_parameters']
+                wavelength = sbp.variables['wavelength_3d'][:]
+                if name.find('V2')>0:
+                    fw_v2.write('\n')
+                    fw_v2.write(f'{name};{len(wavelength)}')
+                    if wl_array_v2 is None:
+                        wl_array_v2 = wavelength
+                        for wl_h in wl_array_v2:
+                            fw_wl_v2.write('\n')
+                            fw_wl_v2.write(f'{wl_h}')
+                    else:
+                        if len(wavelength)!=len(wl_array_v2):
+                            print(f'[WARNING] V2 len {len(wavelength)} different from before {len(wl_array_v2)}')
+                        else:
+                            ratio = wavelength/wl_array_v2
+                            if np.min(ratio)!=1 or np.max(ratio)!=1:
+                                print(f'[WARNING] V2 wavelength is differente from before')
+                ######################################
+                if name.find('V3')>0:
+                    fw_v3.write('\n')
+                    fw_v3.write(f'{name};{len(wavelength)}')
+                    if wl_array_v3 is None:
+                        wl_array_v3 = wavelength
+                        for wl_h in wl_array_v3:
+                            fw_wl_v3.write('\n')
+                            fw_wl_v3.write(f'{wl_h}')
+                    else:
+                        if len(wavelength)!=len(wl_array_v3):
+                            print(f'[WARNING] V3 len {len(wavelength)} different from before {len(wl_array_v3)}')
+                        else:
+                            ratio = wavelength/wl_array_v3
+                            if np.min(ratio)!=1 or np.max(ratio)!=1:
+                                print(f'[WARNING] V3 wavelength is differente from before')
 
-        ##check not used v2
-        for name in os.listdir(v2folder):
-            namev3 = name.replace(f'V2_0_NRT_{site}.nc',f'V3_0_{site}.nc')
-            filev2v3 = os.path.join(v3v2folder,namev3)
-            if not os.path.exists(filev2v3):
-                folder_not_used = os.path.join('/store3/SAT_EXTRACTS/OCI/V2',f'{site}_NOTUSED')
-                if not os.path.isdir(folder_not_used):
-                    os.mkdir(folder_not_used)
-                file_orig = os.path.join(v2folder,name)
-                file_dest = os.path.join(folder_not_used,name)
-                os.rename(file_orig,file_dest)
+                dataset.close()
+            work_date = work_date * timedelta(hours=24)
+        fw_wl_v2.close()
+        fw_wl_v3.close()
+        fw_v2.close()
+        fw_v3.close()
 
         return
 
@@ -4739,7 +4815,8 @@ def main():
             if check_sat_bands==0 or reduced_sat_bands==1:
                 copy_with_wllist = qco.get_create_copy_with_band_list()
 
-            print(f'[INFO] Set wavelength list to: {wllist}')
+            if len(wllist)<20:
+                print(f'[INFO] Set wavelength list to: {wllist}')
 
             reader.mfile.set_wl_ref(wllist)
             reader.mfile.qc_sat.ncdataset = reader.mfile.nc
@@ -4946,8 +5023,10 @@ def main():
             from MDBPlotV3 import MDBPlot
             mplot = MDBPlot(input_path)
             mplot.plot_from_options_file(config_file)
+            #mplot.output_path = output_path
+            mplot.close_mdb_file()
 
-            mplot.output_path = output_path
+
 
         ##WITH MDBPlotV2
         if args.version_plot=='V2':
