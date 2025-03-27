@@ -1996,7 +1996,7 @@ class MDBFile:
                 info_common_mu[satsensor][site][datehere][ac] = 1
 
         print(f'[INFO] Obtaining valid common match-ups...')
-        mu_valid_common = np.zeros(self.n_mu_total, dtype=np.int)
+        mu_valid_common = np.zeros(self.n_mu_total, dtype=np.int8)
         n_mu_valid_common = 0
         for index_mu in range(self.n_mu_total):
             if mu_valid[index_mu] == 1:

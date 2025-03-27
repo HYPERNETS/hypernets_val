@@ -64,6 +64,7 @@ class PlotOptions:
         list_figures = []
         for s in sections:
             apply = self.get_value_param(s, 'apply', False, 'boolean', None)
+            print(f'[INFO] Figure: {s} -> {apply}')
             if apply:
                 list_figures.append(s)
         return list_figures

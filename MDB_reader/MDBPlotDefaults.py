@@ -732,6 +732,14 @@ options_scatterplots = {
     'index_mu':{
         'default': -1,
         'type': 'int'
+    },
+    'wl_min': {
+        'default': None,
+        'type': 'float'
+    },
+    'wl_max': {
+        'default': None,
+        'type': 'float'
     }
 
 }
@@ -1348,6 +1356,14 @@ options_spectral_stats_table = {
     'invert':{
         'default': False,
         'type': 'boolean'
+    },
+    'wl_min': {
+        'default': None,
+        'type': 'float'
+    },
+    'wl_max': {
+        'default': None,
+        'type': 'float'
     }
 }
 options_matchups_stats_table = {

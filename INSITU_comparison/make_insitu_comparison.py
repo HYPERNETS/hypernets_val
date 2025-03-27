@@ -827,7 +827,7 @@ def get_options_comparison(config_file):
         if sval in strue:
             options_dict['overwrite'] = True
 
-    resampling_methods = ['NEAREST', 'RUNNING_AVG']
+    resampling_methods = ['NEAREST', 'RUNNING_AVG','GAUSSIAN']
     options_dict['spectral_resampling'] = 'NEAREST'
     options_dict['spectral_resampling_params'] = None
     if options.has_option(section, 'spectral_resampling'):

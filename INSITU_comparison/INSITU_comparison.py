@@ -207,7 +207,8 @@ class INSITUCOMPARISON:
         var_wl_alt.long_name = 'Alternative HYPSTAR Nominal Wavelengths(1536 values)'
         var_wl_alt.units = 'nm'
         if nominal_wavelengths_alt is None:
-            nominal_wavelengths_alt = np.ma.masked_all((nwl,))
+            #nominal_wavelengths_alt = np.ma.masked_all((nwl,))
+            nominal_wavelengths_alt =  np.ma.ones((nwl,))* (-999.0)
         var_wl_alt[:] = nominal_wavelengths_alt[:]
 
         time_list.sort()
@@ -307,6 +308,14 @@ class INSITUCOMPARISON:
 
             idx = idx + 1
 
+    def get_gaussian_array(self,nhere):
+        min_v = int(np.floor(nhere/2))*(-1)
+        max_v = int(np.ceil(nhere/2))
+        x_data = np.linspace(min_v,max_v,nhere)
+        from scipy import stats
+        y_data = stats.norm.pdf(x_data)
+        return y_data
+
     def create_hypstar_to_aeronet_variables(self, sr_method, sr_params):
         aeronet_exact_wavelenghts = self.dataset_w.variables['AERONET_Exact_Wavelengths'][0, 0, :]
         hypstar_wavelengths = self.dataset_w.variables['HYPSTAR_Nominal_Wavelengths'][:]
@@ -327,7 +336,7 @@ class INSITUCOMPARISON:
                     indices_nearest_alt.append(index)
 
         ##RUNNING AVERAGE METHOD
-        if sr_method == 'RUNNING_AVG':
+        if sr_method == 'RUNNING_AVG' or sr_method == 'GAUSSIAN':
             width = 10.0
             if sr_params is not None:
                 try:
@@ -339,6 +348,7 @@ class INSITUCOMPARISON:
             nwl_aeronet = len(aeronet_exact_wavelenghts)
 
             indices_nearest_list = []
+            weigth_list = []
             nindices = 0
             if np.ma.count(hypstar_wavelengths) > 0:
                 for wl in aeronet_exact_wavelenghts:
@@ -346,15 +356,27 @@ class INSITUCOMPARISON:
                     wl_max = wl + (width / 2)
                     indices = np.where(np.logical_and(hypstar_wavelengths >= wl_min, hypstar_wavelengths <= wl_max))
                     nhere = len(indices[0])
+                    weigth_here = self.get_gaussian_array(nhere)
+                    # index_central = np.argmin(np.abs(hypstar_wavelengths - wl))
+                    # print('->', nhere,'?',index_central,'(:',indices)
+                    # iindex_central = int(np.where(indices[0]==index_central)[0][0])
+                    # weigth_here = np.ones((nhere,))
+                    # print(iindex_central)
                     if nhere > nindices:
                         nindices = nhere
                     indices_nearest_list.append(indices[0])
+                    weigth_list.append(weigth_here)
+
                 indices_nearest = np.ma.masked_all((nwl_aeronet, nindices))
+                weigth_nearest = np.ma.masked_all((nwl_aeronet,nindices))
                 for iwl in range(nwl_aeronet):
                     indices_here = np.ma.array(indices_nearest_list[iwl])
+                    weigth_here = weigth_list[iwl]
                     indices_nearest[iwl, 0:len(indices_here)] = indices_here[:]
+                    weigth_nearest[iwl, 0:len(indices_here)] = weigth_here[:]
 
             indices_nearest_alt_list = []
+            weigth_list_alt = []
             nindices = 0
             if np.ma.count(hypstar_wavelengths_alt) > 0:
                 for wl in aeronet_exact_wavelenghts:
@@ -363,13 +385,25 @@ class INSITUCOMPARISON:
                     indices = np.where(
                         np.logical_and(hypstar_wavelengths_alt >= wl_min, hypstar_wavelengths_alt <= wl_max))
                     nhere = len(indices[0])
+                    weigth_here = self.get_gaussian_array(nhere)
+                    # index_central = np.argmin(np.abs(hypstar_wavelengths - wl))
+                    # iindex_central = int(np.where(indices[0] == index_central)[0][0])
+                    # print(nhere,iindex_central)
+                    # weigth_here = np.ones((nhere,))
                     if nhere > nindices:
                         nindices = nhere
                     indices_nearest_alt_list.append(indices[0])
+                    weigth_list_alt.append(weigth_here)
+
                 indices_nearest_alt = np.ma.masked_all((nwl_aeronet, nindices))
+                weigth_nearest_alt = np.ma.masked_all((nwl_aeronet, nindices))
                 for iwl in range(nwl_aeronet):
+                    weigth_here = weigth_list_alt[iwl]
                     indices_here = np.ma.array(indices_nearest_alt_list[iwl])
                     indices_nearest_alt[iwl, 0:len(indices_here)] = indices_here[:]
+                    weigth_nearest_alt[iwl, 0:len(indices_here)] = weigth_here[:]
+
+
 
         ##reference time to use alternative nominal wavelengths
         time_ref_alt = dt(2024, 6, 4, 9, 30, 0).replace(tzinfo=pytz.utc).timestamp()
@@ -401,21 +435,27 @@ class INSITUCOMPARISON:
                     continue
                 array_hypstar = var_hypstar[0, idx, :]
                 indices_nearest_touse = indices_nearest
+                weigth_nearest_touse = weigth_nearest
                 if time_idx >= time_ref_alt:
                     indices_nearest_touse = indices_nearest_alt
+                    weigth_nearest_touse = weigth_nearest_alt
 
                 array_hypstar_to_aeronet = None
                 if sr_method == 'NEAREST':
                     array_hypstar_to_aeronet = array_hypstar[indices_nearest_touse]
 
-                if sr_method == 'RUNNING_AVG':
+                if sr_method == 'RUNNING_AVG' or sr_method == 'GAUSSIAN':
                     indices_f = indices_nearest_touse.flatten().astype(np.int32)
                     mask_f = indices_f.mask
                     indices_f = np.ma.filled(indices_f,0)
                     values_f = array_hypstar[indices_f]
                     values_f[mask_f]=np.ma.masked
                     values = values_f.reshape(indices_nearest_touse.shape)
-                    array_hypstar_to_aeronet = np.ma.mean(values,axis=1)
+                    if sr_method=='RUNNING_AVG':
+                        array_hypstar_to_aeronet = np.ma.mean(values,axis=1)
+                    elif sr_method=='GAUSSIAN':
+                        array_hypstar_to_aeronet = np.ma.sum(values * weigth_nearest_touse, axis=1) / np.ma.sum(weigth_nearest_touse,axis=1)
+
 
                 if array_hypstar_to_aeronet is not None:
                     array_hypstar_to_aeronet[array_hypstar_to_aeronet.mask == False] = array_hypstar_to_aeronet[

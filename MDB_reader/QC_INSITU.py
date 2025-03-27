@@ -417,7 +417,6 @@ class QC_INSITU:
             if time_condition:
                 spectra_with_time_condition = True
                 rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
-
                 valid_bands_array = np.array(valid_bands, dtype=bool)
                 rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
                 valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
@@ -495,6 +494,8 @@ class QC_INSITU:
         else:
             if self.n_instrument==-1:
                 indices = self.wl_indices
+            elif self.n_instrument==1:
+                indices = self.wl_indices[0, :]
             else:
                 iins = 0
                 if self.instrument_id_array is not None:

@@ -420,7 +420,8 @@ class PlotSpectra():
             plt.fill_between(self.xdata, y1, y2, facecolor=self.stats_style['fill']['color'],alpha=self.stats_style['fill']['alpha'])
 
         return h
-
+    def kk(self):
+        plt.fill_between([590, 610], [-1, -1], [4.2, 4.2], facecolor='gray', alpha=0.5)
     def plot_iqr_basic(self, y1, y2, color):
 
         plt.fill_between(self.xdata, y1, y2, facecolor=color, alpha=0.5)

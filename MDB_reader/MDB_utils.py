@@ -56,8 +56,57 @@ def main():
         # if args.param:
         #     year = int(args.param)
         # run_test(year)
-        make_test()
+        #make_test()
+        site = 'TRIT'
+        path_base = f'/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/{site}'
+        file_in = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU.nc')
+        file_out  = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU_V3WL.nc')
+        wl_list = [591,593,596,598,601,603,605,608,610]
+        remove_wl_from_mu_variables(file_in,file_out,wl_list)
 
+def remove_wl_from_mu_variables(input_file,output_file,wl_list):
+    from netCDF4 import Dataset
+    input_dataset = Dataset(input_file)
+    ncout = Dataset(output_file, 'w', format='NETCDF4')
+    wl_array = input_dataset.variables['mu_wavelength'][:]
+    data_include = np.ones(wl_array.shape)
+    for wl in wl_list:
+        data_include[wl_array==wl]=0
+    nmu_new = np.sum(data_include)
+    print('New number of mu: ',nmu_new)
+    variables_to_modify = ['mu_ins_rrs','mu_ins_rrs_unc','mu_sat_rrs','mu_sat_rrs_unc','mu_satellite_id','mu_wavelength']
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(input_dataset.__dict__)
+
+    #dimensions
+    for name, dimension in input_dataset.dimensions.items():
+        if name=='mu_id':
+            ncout.createDimension(name,nmu_new)
+        else:
+            ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+    for name, variable in input_dataset.variables.items():
+        print('======================>', name)
+        fill_value = None
+        if '_FillValue' in list(variable.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(input_dataset[name].__dict__)
+
+        if name in variables_to_modify:
+            array_old = input_dataset[name][:]
+            array_new = array_old[data_include==1]
+            ncout[name][:] = array_new[:]
+        else:
+            ncout[name][:] = input_dataset[name][:]
+
+    input_dataset.close()
+    ncout.close()
+print('COMPLETED')
 
 def make_test():
     print('STARTED')

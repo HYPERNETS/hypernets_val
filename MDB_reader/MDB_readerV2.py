@@ -1148,8 +1148,9 @@ def creating_copy_with_new_bands(reader, file_out, wl_new):
 
         if name == 'satellite_bands':
             ncout[name][:] = [wl_new[:]]
-        elif name == 'satellite_Rrs':
+        elif name == 'satellite_Rrs' or name== 'satellite_Rrs_unc':
             for idx in range(nwl):
+                print(f'[INFO] -> {idx+1}/{nwl}')
                 index = indices[idx]
                 if index >= 0:
                     ncout[name][:, idx, :, :] = reader.mfile.nc[name][:, index, :, :]
@@ -1800,14 +1801,14 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
         cmd = [f"ncrcat -O -h"] + list_files
         cmd = " ".join(cmd)
 
-        # print(f'CMD="{cmd}"')
+        print(f'CMD="{cmd}"')
         # os.system(cmd)
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:
             print(f'[ERROR]{err}')
 
-        [os.remove(f) for f in list_files[:-1]]
+        [os.remove(f.replace(f'"','')) for f in list_files[:-1]]
     if args.verbose:
         print(f'[INFO] Concatenated MDB file created: {ncout_file}')
 
@@ -4719,7 +4720,17 @@ def main():
         if not os.path.exists(fwl):
             print(f'[ERROR] Configuration file {fwl} with wl list does not exist')
             return
-        wl_list = get_wl_list_from_file(fwl)
+        wl_list = None
+        if fwl.endswith('.nc'):##wl list for NC dataset file
+            from netCDF4 import Dataset
+            dataset = Dataset(fwl)
+            if mode=='UPDATE_SAT_WL':
+                wl_list = dataset.variables['satellite_bands'][:]
+            elif mode=='UPDATE_INSITU_WL':
+                wl_list = dataset.variables['insitu_original_bands'][:]
+            dataset.close()
+        else:
+            wl_list = get_wl_list_from_file(fwl)
         if wl_list is None:
             print(f'[ERROR] Error in the wavelenght list defined in file: {fwl}')
             return
@@ -4970,7 +4981,7 @@ def main():
 
         flag_lists = get_flag_lists(input_path, ats_in, flag_bands)
 
-        print(flag_lists)
+        #print(flag_lists)
 
         all_bands = get_band_list(input_path)
 
@@ -4999,9 +5010,9 @@ def main():
             file_out = os.path.join(input_path, f'Temp_{idfile}.nc')
             creating_copy_with_flag_bands(reader, file_out, flag_lists, satellite_id_ref, bands_excluded)
             satellite_id_ref = satellite_id_ref + reader.mfile.n_mu_total
-            list_files.append(file_out)
+            list_files.append(f'"{file_out}"')
             idfile = idfile + 1
-        concatenate_nc_impl(list_files, input_path, ncout_file)
+        concatenate_nc_impl(list_files, input_path, f'"{ncout_file}"')
         if len(csv_list_df) > 0:
             dfend = pd.concat(csv_list_df, ignore_index=True)
             namef = os.path.basename(ncout_file)
@@ -5044,6 +5055,7 @@ def main():
 
     ##PLOTTING
     if args.input_path and args.config_file and mode == 'PLOT':
+
         input_path = args.input_path
         if not os.path.exists(input_path):
             print(f'[ERROR] {input_path} does not exist')
