@@ -123,7 +123,7 @@ def plot_doors():
     from datetime import datetime as dt
     from MDBPlotV3 import MDBPlot
     mplot = MDBPlot(None)
-    key = 'CMEMS'
+    key = 'CERTO_TOP3'
     if os.path.isdir('/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/'):
         dir_extracts = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
         dir_sources = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/SOURCES'
@@ -132,7 +132,7 @@ def plot_doors():
         dir_extracts = '/store3/DOORS/Extracts_2024/extracts_cmems_olci'
         if key=='CMEMS':
             dir_sources = '/dst04-data1/OC/OLCI/daily_v202311_bc'
-        elif key=='CERTO':
+        elif key.startswith('CERTO'):
             dir_sources = '/store/DOORS/CERTO_SOURCES'
         dir_out = '/store3/DOORS/quicklooks'
 
@@ -141,8 +141,6 @@ def plot_doors():
     extract_list = dict()
     for name in os.listdir(dir_extracts):
         date_here = dt.strptime(name.split('_')[4], '%Y%m%d')
-        if date_here.year<2024:
-            continue
         date_here_key = date_here.strftime('%Y%m%d')
         yyyy = date_here.strftime('%Y')
         jjj = date_here.strftime('%j')
@@ -150,7 +148,7 @@ def plot_doors():
         dd = date_here.strftime('%d')
         if key=='CMEMS':
             file_source = os.path.join(dir_sources,yyyy,jjj,f'O{yyyy}{jjj}-chl-bs-fr.nc')
-        elif key=='CERTO':
+        elif key.startswith('CERTO'):
             file_source = os.path.join(dir_sources,yyyy,jjj,f'CERTO_blk_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
         if not os.path.exists(file_source):
             continue
@@ -204,7 +202,7 @@ def plot_doors_impl(info,key):
     lon = dataset.variables['lon'][:]
     if key=='CMEMS':
         chl = np.ma.squeeze(dataset.variables['CHL'][:])
-    elif key=='CERTO':
+    elif key=='CERTO_TOP3':
         chl = np.ma.squeeze(dataset.variables['blended_chla_top_3_weighted'][:])
     dataset.close()
     lat_center = np.mean(info['lat_centers'])
