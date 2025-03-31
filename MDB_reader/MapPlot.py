@@ -136,7 +136,6 @@ def plot_doors():
 
     extract_list = dict()
     for name in os.listdir(dir_extracts):
-        print(name)
         date_here = dt.strptime(name.split('_')[4], '%Y%m%d')
         date_here_key = date_here.strftime('%Y%m%d')
         yyyy = date_here.strftime('%Y')
@@ -144,7 +143,7 @@ def plot_doors():
         file_cmems = os.path.join(dir_sources,yyyy,jjj,f'O{yyyy}{jjj}-chl-bs-fr.nc')
         if not os.path.exists(file_cmems):
             continue
-        print(f'[INFO] {name} --> {name.split('_')[4]}')
+        print(f'[INFO] {name} --> {name.split("_")[4]}')
         file_extract = os.path.join(dir_extracts,name)
         dataset = Dataset(file_extract)
         lat_array = np.squeeze(dataset.variables['satellite_latitude'][:])
