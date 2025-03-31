@@ -134,13 +134,14 @@ def plot_doors():
             dir_sources = '/dst04-data1/OC/OLCI/daily_v202311_bc'
         elif key.startswith('CERTO'):
             #dir_sources = '/store/DOORS/CERTO_SOURCES'
-            dir_sources = '/store2/DOORS/CERTO_SOURCES'
+            dir_sources = '/store3/DOORS/CERTO_SOURCES'
         dir_out = '/store3/DOORS/quicklooks'
 
 
 
     extract_list = dict()
     for name in os.listdir(dir_extracts):
+        print(f'[INFO] {name} --> {name.split("_")[4]}')
         date_here = dt.strptime(name.split('_')[4], '%Y%m%d')
         date_here_key = date_here.strftime('%Y%m%d')
         yyyy = date_here.strftime('%Y')
@@ -165,7 +166,7 @@ def plot_doors():
         except:
             continue
 
-        print(f'[INFO] {name} --> {name.split("_")[4]}')
+        print(f'[INFO] Working...')
         file_extract = os.path.join(dir_extracts,name)
         dataset = Dataset(file_extract)
         lat_array = np.squeeze(dataset.variables['satellite_latitude'][:])
