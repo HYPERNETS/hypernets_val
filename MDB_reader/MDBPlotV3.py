@@ -952,6 +952,8 @@ class MDBPlot:
         if ini < 0: ini = 0
         if end >= size: end = size - 1
 
+
+
         lat_0_0 = array_lat[ini, ini]
         increm_lat_0_0 = abs((array_lat[ini + 1, ini + 1] - array_lat[ini, ini]) / 2)
         lat_0_n = array_lat[ini, end]

@@ -85,8 +85,8 @@ class INSITU_plots():
         plot.close_plot()
         plot.start_plot()
 
-        xhere = np.asarray(self.ic.xdata, dtype=np.float)
-        yhere = np.asarray(self.ic.ydata, dtype=np.float)
+        xhere = np.asarray(self.ic.xdata, dtype=np.float64)
+        yhere = np.asarray(self.ic.ydata, dtype=np.float64)
         # print('-----------------------------------')
         # print(xhere.shape)
         # print(yhere.shape)
@@ -195,10 +195,65 @@ class INSITU_plots():
         ps.save_plot(file_out)
         ps.close_plot()
 
+
+    def plot_sza_series_HYPTAR_VS_AERONET(self,hypstar_v,aeronet_v,wl_ref,y_title,y_range,title,name_out):
+        dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PRELIMINAR_COMPARISON/2024_WITHOUT_BAD_PERIOD/PLOTS'
+        file_out = os.path.join(dir_base, name_out)
+        from netCDF4 import Dataset
+        from datetime import datetime as dt
+        from MDB_reader.PlotSpectra import PlotSpectra
+        import matplotlib as mpl
+
+        dataset = Dataset(self.ic.path_nc)
+        sza = dataset.variables['HYPSTAR_solar_zenith_angle'][:]
+        mu_wl = dataset.variables['mu_wavelength'][:]
+        mu_day_id = dataset.variables['mu_day_id'][:]
+        mu_hypstar_id = dataset.variables['mu_HYPSTAR_sequence_id'][:]
+        h_var = dataset.variables[hypstar_v][:]
+        a_var = dataset.variables[aeronet_v][:]
+        dataset.close()
+
+        ps = PlotSpectra()
+        iday_array = mu_day_id[mu_wl == wl_ref]
+        ih_arryay = mu_hypstar_id[mu_wl == wl_ref]
+        n_data = iday_array.shape[0]
+        x_data = np.zeros((n_data,))
+        for idx in range(n_data):
+            x_data[idx] = sza[iday_array[idx], ih_arryay[idx]]
+        ps.xdata = x_data
+        style = {'color': 'blue', 'linestyle': '-', 'linewidth': 0, 'marker': 's', 'markersize': 2}
+        a_data = a_var[mu_wl == wl_ref]
+        ps.plot_single_data(x_data, a_data, style)
+        style_here = style.copy()
+        style_here['color'] = 'red'
+        h_data = h_var[mu_wl == wl_ref]
+        ps.plot_single_data(x_data, h_data, style_here)
+
+        xlabel_data = [20, 30, 40, 50, 60, 70, 80, 90]
+        xlabel = [str(x) for x in xlabel_data]
+        ps.set_yaxis_title(y_title)
+        ps.set_xaxis_title('Sun Zenith Angle(°)')
+
+        ps.set_xticks(xlabel_data, xlabel, 0, 10)
+        ps.legend_options['markerscale'] = 2
+        ps.legend_options['ncols'] = 2
+        ps.legend_options['loc'] = 'lower center'
+        ps.legend_options['bbox_to_anchor'] = (0.5,-0.3)
+        legend_values = ['AERONET-OC','HYPSTAR']
+        ps.set_legend(legend_values)
+        if y_range is not None:
+            ps.set_y_range(y_range[0], y_range[1])
+        if title is not None:
+            ps.set_title(title)
+        ps.set_grid()
+        ps.set_tigth_layout()
+        ps.save_plot(file_out)
+
     ##plot mu_data using sun zentih angle as x
     def plot_sza_series(self, y_variable, wl_list, y_title, y_range, title, name_out, groupBy):
 
-        dir_base = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL'
+        #dir_base = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL'
+        dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PRELIMINAR_COMPARISON/2024_WITHOUT_BAD_PERIOD/PLOTS'
         file_out = os.path.join(dir_base, name_out)
         from netCDF4 import Dataset
         from datetime import datetime as dt
@@ -279,7 +334,8 @@ class INSITU_plots():
 
     def plot_time_series(self, variable_h, variable_a, wl_list, ytitle, y_range, title, name_out, groupBy):
 
-        dir_base = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL'
+        #dir_base = '/mnt/c/DATA_LUIS/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PLOTS_GLOBAL'
+        dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/PRELIMINAR_COMPARISON/2024_WITHOUT_BAD_PERIOD/PLOTS'
 
         file_out = os.path.join(dir_base, name_out)
         from netCDF4 import Dataset

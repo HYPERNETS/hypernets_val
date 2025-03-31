@@ -1469,6 +1469,7 @@ class MDBFile:
             noriginal_bands = len(self.dimensions['insitu_original_bands'])
         else:
             noriginal_bands = len(self.dimensions['insitu_bands'])
+
         spectra_all = ma.zeros((self.n_insitu_day, noriginal_bands))
         var_insitu = self.nc.variables['insitu_Rrs']
         # insitu_valid = np.array(self.nc.variables['insitu_valid'][index_mu])
@@ -1494,6 +1495,8 @@ class MDBFile:
                 instrument_idx_min = int(np.ma.min(self.nc.variables['insitu_instrument_id'][index_mu,:]))
                 instrument_idx_max = int(np.ma.min(self.nc.variables['insitu_instrument_id'][index_mu, :]))
                 instrument_idx = instrument_idx_min if instrument_idx_min==instrument_idx_max else -1
+            else:
+                instrument_idx = 0
 
         return spectra_selected, spectra_valid, spectra_invalid, instrument_idx
 

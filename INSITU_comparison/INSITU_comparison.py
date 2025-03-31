@@ -483,6 +483,37 @@ class INSITUCOMPARISON:
         qc[epsilon < (-0.005)] = 0
         qc[epsilon > 0.005] = 0
         print('NValid after step 2', np.ma.sum(qc))
+
+        htime = self.dataset_w.variables['HYPSTAR_time'][:]
+        bad_period_ini = dt(2024,4,2,0,0,0).astimezone(pytz.utc).timestamp()
+        bad_period_fin = dt(2024, 5, 17, 0, 0, 0).astimezone(pytz.utc).timestamp()
+        qc[np.logical_and(htime>bad_period_ini,htime<bad_period_fin)] = 0
+        print('NValid after step 3', np.ma.sum(qc))
+
+        ##reference time to use alternative nominal wavelengths
+        time_ref_alt = dt(2024, 6, 4, 9, 30, 0).replace(tzinfo=pytz.utc).timestamp()
+        for wl_var in ['HYPSTAR_Nominal_Wavelengths','HYPSTAR_Nominal_Wavelengths_Alt']:
+            wl_array = self.dataset_w.variables[wl_var][:]
+            if np.ma.count(wl_array)==0:
+                file_alt = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/INSITU_HYPSTAR/VEIT_HYPSTAR_AERONET_OC/file_wl_alt.nc'
+                dataset_alt = Dataset(file_alt)
+                wl_array = dataset_alt.variables['wavelength'][:]
+                dataset_alt.close()
+            index_ref_750 = int(np.argmin(np.abs(wl_array - 750.0)))
+            ld_ref_750 = np.ma.squeeze(self.dataset_w.variables['HYPSTAR_downwelling_radiance'][:, :,index_ref_750])
+            ed_ref_750 = np.ma.squeeze(self.dataset_w.variables['HYPSTAR_irradiance'][:, :,index_ref_750])
+            ratio_750 = ld_ref_750 / ed_ref_750
+            index_ref_400 = int(np.argmin(np.abs(wl_array - 400.0)))
+            ld_ref_400 = np.ma.squeeze(self.dataset_w.variables['HYPSTAR_downwelling_radiance'][:,:, index_ref_400])
+            ed_ref_400 = np.ma.squeeze(self.dataset_w.variables['HYPSTAR_irradiance'][:,:, index_ref_400])
+            ratio_400 = ld_ref_400 / ed_ref_400
+            if wl_var=='HYPSTAR_Nominal_Wavelengths':
+                qc[np.logical_and(htime<time_ref_alt,ratio_750 > 0.05)] = 0
+                qc[np.logical_and(htime < time_ref_alt, ratio_400 < 0.05)] = 0
+            else:
+                qc[np.logical_and(htime > time_ref_alt, ratio_750 >= 0.05)] = 0
+                qc[np.logical_and(htime > time_ref_alt, ratio_400 < 0.05)] = 0
+        print('NValid after step 4', np.ma.sum(qc))
         var_new[:] = qc[:]
         self.close_file_w()
         os.rename(path_copy, self.path_nc)
