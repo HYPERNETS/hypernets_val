@@ -154,10 +154,13 @@ def plot_doors():
             continue
         print(f'[INFO] {name} --> {name.split("_")[4]}')
         file_extract = os.path.join(dir_extracts,name)
-        dataset = Dataset(file_extract)
-        lat_array = np.squeeze(dataset.variables['satellite_latitude'][:])
-        lon_array = np.squeeze(dataset.variables['satellite_longitude'][:])
-        dataset.close()
+        try:
+            dataset = Dataset(file_extract)
+            lat_array = np.squeeze(dataset.variables['satellite_latitude'][:])
+            lon_array = np.squeeze(dataset.variables['satellite_longitude'][:])
+            dataset.close()
+        except:
+            continue
         lat_min = np.min(lat_array)
         lat_max = np.max(lat_array)
         lon_min = np.min(lon_array)
