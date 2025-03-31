@@ -231,7 +231,7 @@ def plot_doors_impl(info,key):
     array_map = chl[ilat_min:ilat_max,ilon_min:ilon_max]
     lat_map = lat[ilat_min:ilat_max]
     lon_map = lon[ilon_min:ilon_max]
-    geo_limits = [lat[ilat_min],lat[ilat_max],lon[ilon_min],lon[ilon_max]]
+    geo_limits = [lat[ilat_min],lat[ilat_max-1],lon[ilon_min],lon[ilon_max-1]]
 
     geo_limits_extracts = info['geo_limits']
     lat_bbox_extracts = [geo_limits_extracts[0],geo_limits_extracts[1],geo_limits_extracts[1],geo_limits_extracts[0],geo_limits_extracts[0]]
