@@ -152,15 +152,19 @@ def plot_doors():
             file_source = os.path.join(dir_sources,yyyy,jjj,f'CERTO_blk_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
         if not os.path.exists(file_source):
             continue
-        print(f'[INFO] {name} --> {name.split("_")[4]}')
-        file_extract = os.path.join(dir_extracts,name)
         try:
-            dataset = Dataset(file_extract)
-            lat_array = np.squeeze(dataset.variables['satellite_latitude'][:])
-            lon_array = np.squeeze(dataset.variables['satellite_longitude'][:])
-            dataset.close()
+            dataset_s = Dataset(file_source)
+            dataset_s.close()
         except:
             continue
+
+        print(f'[INFO] {name} --> {name.split("_")[4]}')
+        file_extract = os.path.join(dir_extracts,name)
+        dataset = Dataset(file_extract)
+        lat_array = np.squeeze(dataset.variables['satellite_latitude'][:])
+        lon_array = np.squeeze(dataset.variables['satellite_longitude'][:])
+        dataset.close()
+
         lat_min = np.min(lat_array)
         lat_max = np.max(lat_array)
         lon_min = np.min(lon_array)
