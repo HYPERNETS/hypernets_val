@@ -123,13 +123,17 @@ def plot_doors():
     from datetime import datetime as dt
     from MDBPlotV3 import MDBPlot
     mplot = MDBPlot(None)
+    key = 'CMEMS'
     if os.path.isdir('/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/'):
         dir_extracts = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
         dir_sources = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/SOURCES'
         dir_out = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/QL'
     else:
         dir_extracts = '/store3/DOORS/Extracts_2024/extracts_cmems_olci'
-        dir_sources = '/dst04-data1/OC/OLCI/daily_v202311_bc'
+        if key=='CMEMS':
+            dir_sources = '/dst04-data1/OC/OLCI/daily_v202311_bc'
+        elif key=='CERTO':
+            dir_sources = '/store/DOORS/CERTO_SOURCES'
         dir_out = '/store3/DOORS/quicklooks'
 
 
@@ -137,11 +141,18 @@ def plot_doors():
     extract_list = dict()
     for name in os.listdir(dir_extracts):
         date_here = dt.strptime(name.split('_')[4], '%Y%m%d')
+        if date_here.year<2024:
+            continue
         date_here_key = date_here.strftime('%Y%m%d')
         yyyy = date_here.strftime('%Y')
         jjj = date_here.strftime('%j')
-        file_cmems = os.path.join(dir_sources,yyyy,jjj,f'O{yyyy}{jjj}-chl-bs-fr.nc')
-        if not os.path.exists(file_cmems):
+        mm = date_here.strftime('%m')
+        dd = date_here.strftime('%d')
+        if key=='CMEMS':
+            file_source = os.path.join(dir_sources,yyyy,jjj,f'O{yyyy}{jjj}-chl-bs-fr.nc')
+        elif key=='CERTO':
+            file_source = os.path.join(dir_sources,yyyy,jjj,f'CERTO_blk_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
+        if not os.path.exists(file_source):
             continue
         print(f'[INFO] {name} --> {name.split("_")[4]}')
         file_extract = os.path.join(dir_extracts,name)
@@ -162,9 +173,9 @@ def plot_doors():
                 'lon_centers':[lon_array[12,12]],
                 'lat_boxes': [lat_box],
                 'lon_boxes': [lon_box],
-                'file_source': file_cmems,
-                'title': f'CMEMS CHL-A {date_here.strftime("%Y-%m-%d")}',
-                'file_out': os.path.join(dir_out,f'CMEMS_CHLA_{date_here_key}.png')
+                'file_source': file_source,
+                'title': f'{key} CHL-A {date_here.strftime("%Y-%m-%d")}',
+                'file_out': os.path.join(dir_out,f'{key}_CHLA_{date_here_key}.png')
             }
         else:
             geo_limits = extract_list[date_here_key]['geo_limits']
@@ -183,15 +194,18 @@ def plot_doors():
 
     for name in extract_list:
         print(f'{name} ---> {extract_list[name]["geo_limits"]}, {len(extract_list[name]["lat_boxes"])}')
-        plot_doors_impl(extract_list[name])
+        plot_doors_impl(extract_list[name],key)
 
-def plot_doors_impl(info):
+def plot_doors_impl(info,key):
     from netCDF4 import Dataset
     file_nc = info['file_source']
     dataset = Dataset(file_nc)
     lat = dataset.variables['lat'][:]
     lon = dataset.variables['lon'][:]
-    chl = np.squeeze(dataset.variables['CHL'][:])
+    if key=='CMEMS':
+        chl = np.ma.squeeze(dataset.variables['CHL'][:])
+    elif key=='CERTO':
+        chl = np.ma.squeeze(dataset.variables['blended_chla_top_3_weighted'][:])
     dataset.close()
     lat_center = np.mean(info['lat_centers'])
     lon_center = np.mean(info['lon_centers'])
@@ -203,9 +217,16 @@ def plot_doors_impl(info):
     ilat_min = int(ilat-(nlat_map/2))
     if ilat_min<0: ilat_min=0
     ilat_max = ilat_min+nlat_map
+    if ilat_max>len(lat):
+        ilat_max = len(lat)
+        ilat_min = ilat_max-nlat_map
     ilon_min = int(ilon - (nlon_map / 2))
     if ilon_min < 0: ilon_min = 0
     ilon_max = ilon_min + nlon_map
+    if ilon_max>len(lon):
+        ilon_max = len(lon)
+        ilon_min = ilon_max-nlon_map
+
 
     array_map = chl[ilat_min:ilat_max,ilon_min:ilon_max]
     lat_map = lat[ilat_min:ilat_max]
