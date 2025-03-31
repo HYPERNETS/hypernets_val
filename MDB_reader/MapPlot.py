@@ -133,7 +133,8 @@ def plot_doors():
         if key=='CMEMS':
             dir_sources = '/dst04-data1/OC/OLCI/daily_v202311_bc'
         elif key.startswith('CERTO'):
-            dir_sources = '/store/DOORS/CERTO_SOURCES'
+            #dir_sources = '/store/DOORS/CERTO_SOURCES'
+            dir_sources = '/store2/DOORS/CERTO_SOURCES'
         dir_out = '/store3/DOORS/quicklooks'
 
 
@@ -149,7 +150,13 @@ def plot_doors():
         if key=='CMEMS':
             file_source = os.path.join(dir_sources,yyyy,jjj,f'O{yyyy}{jjj}-chl-bs-fr.nc')
         elif key.startswith('CERTO'):
-            file_source = os.path.join(dir_sources,yyyy,jjj,f'CERTO_blk_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
+            #file_source = os.path.join(dir_sources,yyyy,jjj,f'CERTO_blk_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
+            if date_here.year==2024:
+                file_source = os.path.join(dir_sources, yyyy, jjj,
+                                           f'CERTO_doors_cr3_olci_v4.16.1_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
+            else:
+                file_source = os.path.join(dir_sources, yyyy, jjj,
+                                       f'CERTO_blacksea_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
         if not os.path.exists(file_source):
             continue
         try:
