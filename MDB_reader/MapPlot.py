@@ -136,7 +136,7 @@ def plot_doors():
 
     extract_list = dict()
     for name in os.listdir(dir_extracts):
-
+        print(name)
         date_here = dt.strptime(name.split('_')[4], '%Y%m%d')
         date_here_key = date_here.strftime('%Y%m%d')
         yyyy = date_here.strftime('%Y')
