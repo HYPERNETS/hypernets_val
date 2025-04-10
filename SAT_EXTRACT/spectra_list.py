@@ -42,6 +42,7 @@ def run_multiple_csv(options,output_file):
     cmems_download_options = get_cmems_download_options(options)
     line_list = {}
     first_line = None
+    all_rrs_data = {}
 
     for name in os.listdir(path_csv):
         if not name.endswith('csv'):
@@ -82,6 +83,7 @@ def run_multiple_csv(options,output_file):
                 continue
 
         product_list = {}
+
         lat_map = None
         lon_map = None
         for date_str in only_date_array_unique:
@@ -168,7 +170,7 @@ def run_multiple_csv(options,output_file):
             line_list[key]= [datehere_str,f'{sat_lat}',f'{sat_long}',datehere,datehere,1,f'{key}']#+[f'{x}' for x in rrs_data]
 
 
-        all_rrs_data = {}
+
         for date_str in product_list:
             print(f'[INFO] Extracting {len(product_list[date_str]["key_list"])} data points for date {date_str}...')
             if extract_options['use_single_file']:
@@ -185,50 +187,7 @@ def run_multiple_csv(options,output_file):
                     all_rrs_data[key_date_list[idx]]=rrs_data[idx,:]
 
 
-        # ##CHECKING EXTRACT FOR EACH ROW
-        # for idx, row in df.iterrows():
-        #     print(f'[INFO] Row: {idx}')
-        #     datehere, lathere, lonhere = get_info_from_row(row, col_date, col_time, format_date, format_time,col_lat, col_lon)
-        #     if datehere is None or lathere is None or lonhere is None:
-        #         print(f'[WARNING] Row {idx} is not valid. Date ({datehere}), latitude ({lathere}) and/or longitude({lonhere}) could not be parsed')
-        #         continue
-        #     datehere_str = datehere.strftime('%Y-%m-%d')
-        #     if  datehere_str not in product_list.keys():
-        #         continue
-        #     fproduct = product_list[datehere_str]['fproduct']
-        #     rc = get_rc(options, fproduct, lathere, lonhere, lat_array, lon_array)
-        #     if rc is None:
-        #         print(f'[WARNING] In situ location out of the limits of the satellite product. Skipping...')
-        #         continue
-        #     rint = int(rc[0])
-        #     cint = int(rc[1])
-        #     key = f'{datehere.strftime("%Y%m%d")}_{rint}_{cint}'
-        #     if key in line_list.keys():
-        #         line = line_list[key]
-        #         if datehere<line[3]:
-        #             line[3] = datehere
-        #         if datehere>line[4]:
-        #             line[4] = datehere
-        #         line[5] = line[5]+1
-        #         continue
-        #
-        #     if extract_options['use_single_file']:
-        #         rrs_var_list = extract_options['rrs_var_list']
-        #     else:
-        #         rrs_list = extract_options['rrs_list']
-        #         rrs_var_list = [f'RRS{get_wls(wl)}' for wl in rrs_list]
-        #         list_files = product_list[datehere_str]['list_files']
-        #
-        #     if first_line is None:
-        #         first_line = 'Date;SatLat;SatLong;InSituFirst;InSituLast;NInSitu;' + ";".join(rrs_var_list)
-        #
-        #
-        #     sat_lat, sat_long = get_lat_long_values(lat_array,lon_array,rint,cint)
-        #     if extract_options['use_single_file']:
-        #         rrs_data = get_spectral_data(fproduct,rrs_var_list,rint,cint)
-        #     else:
-        #         rrs_data = get_spectral_data_from_list_files(list_files,rrs_list,rint,cint)
-        #     line_list[key]= [datehere_str,f'{sat_lat}',f'{sat_long}',datehere,datehere,1]+[f'{x}' for x in rrs_data]
+
 
     if first_line is None or len(line_list)==0:
         return
