@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser(description="Create a spectra list in csv forma
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-c', "--config_file", help="Config File.",required=True)
 parser.add_argument('-o', "--output_file", help="Output CSV File.",required=True)
+parser.add_argument('-wce',"--wce_expression",help="Wild card expression to limit input metadata files",default=None)
 
 args = parser.parse_args()
 
@@ -23,6 +24,9 @@ def run_multiple_csv(options,output_file):
     if not os.path.isdir(path_csv):
         print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
         return
+    arg_wce = args.wce_expression
+
+
     col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = get_csv_options_from_file_config(
         options, 'MULTIPLE_CSV_SELECTION')
     extract_options = get_cmems_extract_options(options, 'MULTIPLE_CSV_SELECTION')
@@ -41,6 +45,9 @@ def run_multiple_csv(options,output_file):
 
     for name in os.listdir(path_csv):
         if not name.endswith('csv'):
+            continue
+
+        if arg_wce is not None and not name.find(arg_wce)>=0:
             continue
         namefile = name[:-4]
 
@@ -70,13 +77,14 @@ def run_multiple_csv(options,output_file):
         lon_array = None
         for date_str in only_date_array_unique:
             if args.verbose:
-                print(f'[INFO] Checking available products for day: {date_str}')
+                print(f'[INFO] Checking available products for day {date_str} with single file option set to {extract_options["use_single_file"]}')
             list_files = None
             if extract_options['use_single_file']:
                 fproduct = get_cmems_product_day_strict(path_source, org, dt.strptime(date_str, '%Y-%m-%d'),extract_options['dataset_name_file'],extract_options['dataset_name_format_date'],cmems_download_options)
             else:
                 list_files = get_cmems_multiple_product_day(path_source, org, dt.strptime(date_str, '%Y-%m-%d'),extract_options['dataset_name_file'],extract_options['dataset_name_format_date'],extract_options['dataset_var_list'])
-                fproduct = list_files[0]
+                fproduct = list_files[0] if list_files is not None else None
+
 
             if fproduct is None:
                 print(f'[WARNING] No product(s) is(are) available for date: {date_str}')
@@ -94,6 +102,7 @@ def run_multiple_csv(options,output_file):
 
         ##CHECKING EXTRACT FOR EACH ROW
         for idx, row in df.iterrows():
+            print(f'[INFO] Row: {idx}')
             datehere, lathere, lonhere = get_info_from_row(row, col_date, col_time, format_date, format_time,col_lat, col_lon)
             if datehere is None or lathere is None or lonhere is None:
                 print(f'[WARNING] Row {idx} is not valid. Date ({datehere}), latitude ({lathere}) and/or longitude({lonhere}) could not be parsed')
@@ -117,23 +126,29 @@ def run_multiple_csv(options,output_file):
                     line[4] = datehere
                 line[5] = line[5]+1
                 continue
-            rrs_var_list = None
+
             if extract_options['use_single_file']:
                 rrs_var_list = extract_options['rrs_var_list']
-
-
-            if rrs_var_list is None:
-                continue
+            else:
+                rrs_list = extract_options['rrs_list']
+                rrs_var_list = [f'RRS{get_wls(wl)}' for wl in rrs_list]
+                list_files = product_list[datehere_str]['list_files']
 
             if first_line is None:
                 first_line = 'Date;SatLat;SatLong;InSituFirst;InSituLast;NInSitu;' + ";".join(rrs_var_list)
 
+
             sat_lat, sat_long = get_lat_long_values(lat_array,lon_array,rint,cint)
-            rrs_data = get_spectral_data(fproduct,rrs_var_list,rint,cint)
+            if extract_options['use_single_file']:
+                rrs_data = get_spectral_data(fproduct,rrs_var_list,rint,cint)
+            else:
+                rrs_data = get_spectral_data_from_list_files(list_files,rrs_list,rint,cint)
             line_list[key]= [datehere_str,f'{sat_lat}',f'{sat_long}',datehere,datehere,1]+[f'{x}' for x in rrs_data]
 
+    if first_line is None or len(line_list)==0:
+        return
 
-    fw = open(output_file,'w')
+    fw = open(output_file, 'w')
     fw.write(first_line)
     for line in line_list:
         line_list_here = line_list[line]
@@ -294,6 +309,8 @@ def get_cmems_extract_options(options, section):
         usf = options[section]['use_single_file']
         if usf.strip().lower() == 'true' or usf.strip() == '1':
             use_single_file = True
+        else:
+            use_single_file = False
 
     dataset_name_file = None
     dataset_name_format_date = '%Y%m%d'
@@ -442,6 +459,33 @@ def get_spectral_data(fproduct,rrs_var_list,rint,cint):
         data.append(val)
     nc_sat.close()
     return data
+
+def get_spectral_data_from_list_files(list_files,rrs_list,rint,cint):
+    data = []
+    for wl,file_in in zip(rrs_list,list_files):
+        nc_sat = Dataset(file_in)
+        wls = get_wls(wl)
+        var = f'RRS{wls}'
+        if not var in nc_sat.variables:
+            var = None
+            for name in nc_sat.variables:
+                if name.find(wls)>0:
+                    var = name
+                    break
+        array = np.ma.squeeze(nc_sat.variables[var][:])
+        val = array[rint,cint] if not np.ma.is_masked(array[rint,cint]) else -999.0
+        data.append(val)
+        nc_sat.close()
+    return data
+
+def get_wls(wl):
+    wls = f'{wl:.2f}'
+    wls = wls.replace('.', '_')
+    if wls.endswith('_00'):
+        wls = wls[:-3]
+    if wls.find('_') > 0 and wls.endswith('0'):
+        wls = wls[:-1]
+    return wls
 
 def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
                                    dataset_var_list):
