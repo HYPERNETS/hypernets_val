@@ -170,7 +170,7 @@ def run_multiple_csv(options,output_file):
 
         all_rrs_data = {}
         for date_str in product_list:
-            print(f'[INFO] Extracting {len(product_list[date_str]['key_list'])} data points for date {date_str}...')
+            print(f'[INFO] Extracting {len(product_list[date_str]["key_list"])} data points for date {date_str}...')
             if extract_options['use_single_file']:
                 rrs_var_list = extract_options['rrs_var_list']
                 rrs_data = get_spectral_data(fproduct, rrs_var_list, rint, cint)
