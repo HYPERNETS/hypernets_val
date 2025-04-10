@@ -16,7 +16,7 @@ from datetime import datetime as dt
 import seaborn as sns
 from scipy.stats import gaussian_kde
 # from pylr2 import regress2
-from sklearn.metrics import r2_score
+#from sklearn.metrics import r2_score
 
 
 class MDBPlot:

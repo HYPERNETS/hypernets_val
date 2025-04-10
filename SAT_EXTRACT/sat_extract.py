@@ -42,6 +42,14 @@ class SatExtract:
             }
         }
 
+    def set_variable_attributes(self,name_var,attrs):
+        if not name_var in self.EXTRACT.variables:
+            print(f'[WARNING] Variable {name_var} was not found. Attributed can not be set')
+            return
+        if '_FillValue' in attrs:
+            del attrs['_FillValue']
+        self.EXTRACT.variables[name_var].setncatts(attrs)
+
     def set_global_attributes(self, at):
         # Atributes
         self.EXTRACT.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")

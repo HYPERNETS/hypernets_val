@@ -211,9 +211,7 @@ def get_sites_from_list(list_sites, path_out):
     for site in list_sites:
         lat, long = get_lat_lon_ins(site)
         if lat is not None and long is not None:
-            path_out_site = path_out
-            if path_out.find(site) == -1:
-                path_out_site = os.path.join(path_out, site)
+            path_out_site = path_out if os.path.basename(path_out)==site else os.path.join(path_out, site)
             in_situ_sites[site] = {
                 'latitude': lat,
                 'longitude': long,

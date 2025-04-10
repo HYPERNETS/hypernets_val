@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import cartopy
 import cartopy.crs as ccrs
@@ -8,6 +9,8 @@ import numpy as np
 from matplotlib.colors import LogNorm
 from matplotlib.colors import Normalize
 import cartopy.feature as cfeature
+
+
 
 
 class MapPlot:
@@ -209,7 +212,7 @@ def plot_doors():
         print(f'{name} ---> {extract_list[name]["geo_limits"]}, {len(extract_list[name]["lat_boxes"])}')
         plot_doors_impl(extract_list[name],key)
 
-def plot_doors_impl(info,key):
+def plot_doors_impl(info: object, key: object) -> None:
     from netCDF4 import Dataset
     file_nc = info['file_source']
     dataset = Dataset(file_nc)
@@ -220,25 +223,54 @@ def plot_doors_impl(info,key):
     elif key=='CERTO_TOP3':
         chl = np.ma.squeeze(dataset.variables['blended_chla_top_3_weighted'][:])
     dataset.close()
-    lat_center = np.mean(info['lat_centers'])
-    lon_center = np.mean(info['lon_centers'])
-    ilat = np.argmin(np.abs(lat-lat_center))
-    ilon = np.argmin(np.abs(lon-lon_center))
 
-    nlat_map = int(len(lat)/4)
-    nlon_map = int(len(lon)/4)
-    ilat_min = int(ilat-(nlat_map/2))
-    if ilat_min<0: ilat_min=0
-    ilat_max = ilat_min+nlat_map
-    if ilat_max>len(lat):
-        ilat_max = len(lat)
-        ilat_min = ilat_max-nlat_map
-    ilon_min = int(ilon - (nlon_map / 2))
-    if ilon_min < 0: ilon_min = 0
-    ilon_max = ilon_min + nlon_map
-    if ilon_max>len(lon):
-        ilon_max = len(lon)
-        ilon_min = ilon_max-nlon_map
+    if 'geo_limits_image' in info:
+        geo_limits_image = info['geo_limits_image']
+        ilat1 = np.argmin(np.abs(geo_limits_image[0] - lat))
+        ilat2 = np.argmin(np.abs(geo_limits_image[1] - lat))
+        ilon1 = np.argmin(np.abs(geo_limits_image[2] - lon))
+        ilon2 = np.argmin(np.abs(geo_limits_image[3] - lon))
+        ilat_min = ilat1 if ilat1 < ilat2 else ilat2
+        ilat_max = ilat2 if ilat2 > ilat1 else ilat1
+        ilon_min = ilon1 if ilon1 < ilon2 else ilon2
+        ilon_max = ilon2 if ilon2 > ilon1 else ilon1
+        nlat_map = ilat_max - ilat_min
+        nlon_map = ilon_max - ilon_min
+        if ilat_min<0:
+            ilat_min=0
+            ilat_max = ilat_min+nlat_map
+        if ilat_max>len(lat):
+            ilat_max = len(lat)
+            ilat_min = ilat_max-nlat_map
+        if ilon_min < 0:
+            ilon_min = 0
+            ilon_max = ilon_min + nlon_map
+        if ilon_max>len(lon):
+            ilon_max = len(lon)
+            ilon_min = ilon_max-nlon_map
+    else:
+        lat_center = np.mean(info['lat_centers'])
+        lon_center = np.mean(info['lon_centers'])
+        ilat = np.argmin(np.abs(lat-lat_center))
+        ilon = np.argmin(np.abs(lon-lon_center))
+        nlat_map = int(len(lat)/4)
+        nlon_map = int(len(lon)/4)
+        ilat_min = int(ilat-(nlat_map/2))
+        if ilat_min<0:
+            ilat_min=0
+            ilat_max = ilat_min+nlat_map
+        if ilat_max>len(lat):
+            ilat_max = len(lat)
+            ilat_min = ilat_max-nlat_map
+        ilon_min = int(ilon - (nlon_map / 2))
+        if ilon_min < 0:
+            ilon_min = 0
+            ilon_max = ilon_min + nlon_map
+        if ilon_max>len(lon):
+            ilon_max = len(lon)
+            ilon_min = ilon_max-nlon_map
+
+
 
 
     array_map = chl[ilat_min:ilat_max,ilon_min:ilon_max]
@@ -270,10 +302,127 @@ def plot_doors_impl(info,key):
     mplot.close_map()
 
 
+def plot_multiple():
+    from datetime import datetime as dt
+    dir_plots = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/QL'
+    dir_out = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/QL/MULTIPLE'
+    for name in os.listdir(dir_plots):
+        if name.startswith('CMEMS'):
+            print(name)
+            date_here = dt.strptime(name.split('_')[2][:-4], '%Y%m%d')
+            if date_here.year<2023:
+                continue
+            file_cmems = os.path.join(dir_plots,name)
+            name_certo = name.replace('CMEMS','CERTO_TOP3')
+            file_certo = os.path.join(dir_plots,name_certo) if os.path.exists(os.path.join(dir_plots,name_certo)) else None
+            file_out = os.path.join(dir_out,name.replace('CMEMS','CMEMS_CERTO_TOP3'))
+            if file_certo is not None:
+                from PlotMultiple import PlotMultiple
+                pm = PlotMultiple()
+                pm.start_multiple_plot(2,1)
+                pm.plot_image(file_cmems,0,0)
+                pm.plot_image(file_certo,1,0)
+                pm.save_fig(file_out)
+                pm.close_plot()
+            else:
+                shutil.copy(file_cmems,file_out)
+
+def plot_figure_20190523():
+    from netCDF4 import Dataset
+    from datetime import datetime as dt
+    dir_out = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/QL/20190523'
+    dir_sources = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/SOURCES'
+    dir_extracts = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/DOORS_WORK/Extracts_2024/extracts_cmems_olci'
+    date_here = dt(2019,5,23)
+    yyyy = date_here.strftime('%Y')
+    jjj = date_here.strftime('%j')
+    mm = date_here.strftime('%m')
+    dd = date_here.strftime('%d')
+
+    ##Getting extract info
+    geo_extracts_limits = None
+    lat_points = []
+    lon_points = []
+    for name in os.listdir(dir_extracts):
+        if not name.find('20190523')>0:
+            continue
+        print(f'[INFO] Working with extract: {name}')
+        file_extract = os.path.join(dir_extracts, name)
+        dataset = Dataset(file_extract)
+        lat_array = np.squeeze(dataset.variables['satellite_latitude'][:])
+        lon_array = np.squeeze(dataset.variables['satellite_longitude'][:])
+        dataset.close()
+        geo_limits_here = [np.min(lat_array),np.max(lat_array),np.min(lon_array),np.max(lon_array)]
+        if geo_extracts_limits is None:
+            geo_extracts_limits = geo_limits_here
+        else:
+            if geo_limits_here[0] < geo_extracts_limits[0]: geo_extracts_limits[0] = geo_limits_here[0]
+            if geo_limits_here[1] > geo_extracts_limits[1]: geo_extracts_limits[1] = geo_limits_here[1]
+            if geo_limits_here[2] < geo_extracts_limits[2]: geo_extracts_limits[2] = geo_limits_here[2]
+            if geo_limits_here[3] > geo_extracts_limits[3]: geo_extracts_limits[3] = geo_limits_here[3]
+        lat_points.append(lat_array[12,12])
+        lon_points.append(lon_array[12,12])
+
+    ##cmems olci
+    info = {
+        'geo_limits': geo_extracts_limits,
+        'lat_centers': lat_points,
+        'lon_centers': lon_points,
+        'file_source': os.path.join(dir_sources, yyyy, jjj, f'O{yyyy}{jjj}-chl-bs-fr.nc'),
+        'title': f'CMEMS-OLCI CHL-A {date_here.strftime("%Y-%m-%d")}',
+        'file_out': os.path.join(dir_out,f'CMEMS_OLCI_CHLA_{date_here.strftime("%Y%m%d")}.png'),
+        'geo_limits_image': [43.6,45.6,28.6,32.6]
+    }
+    file_cmems_olci = info['file_out']
+    #plot_doors_impl(info,'CMEMS')
+
+    info['file_source']=os.path.join(dir_sources, yyyy, jjj, f'X{yyyy}{jjj}-chl-bs-hr.nc')
+    info['title']=f'CMEMS-MULTI CHL-A {date_here.strftime("%Y-%m-%d")}'
+    info['file_out'] = os.path.join(dir_out,f'CMEMS_MULTI_CHLA_{date_here.strftime("%Y%m%d")}.png')
+    file_cmems_multi = info['file_out']
+    # plot_doors_impl(info,'CMEMS')
+
+    info['file_source'] =  os.path.join(dir_sources,yyyy,jjj,f'CERTO_blk_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
+    info['title'] = f'CERTO CHL-A {date_here.strftime("%Y-%m-%d")}'
+    info['file_out'] = os.path.join(dir_out, f'CERTO_CHLA_{date_here.strftime("%Y%m%d")}.png')
+    file_certo = info['file_out']
+    # plot_doors_impl(info, 'CERTO_TOP3')
+
+    file_out = os.path.join(dir_out,f'CHLA_{date_here.strftime("%Y%m%d")}.png')
+    from PlotMultiple import PlotMultiple
+    pm = PlotMultiple()
+    pm.start_multiple_plot(3,1)
+    pm.plot_image(file_cmems_olci,0,0)
+    pm.plot_image(file_certo, 1, 0)
+    pm.plot_image(file_cmems_multi, 2, 0)
+    pm.save_fig(file_out)
+    pm.close_plot()
+
+def test():
+    print('zona utm para coordenadas')
+    from pyproj import CRS
+    longitude = -8.85
+    latitude = 42.59
+    # Determine the UTM zone number
+    zone_number = int((longitude + 180) / 6) + 1
+
+    ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
+    zone_letter = ZONE_LETTERS[int(latitude + 80) >> 3]
+
+    # Determine the hemisphere
+    hemisphere = 'north' if latitude >= 0 else 'south'
+
+    # Create the UTM CRS
+    utm_crs = CRS.from_dict({'proj': 'utm', 'zone': zone_number, 'south': hemisphere == 'south'})
+
+    print(f'{zone_number}{zone_letter}')
 
 def main():
     print('[INFO] Started map plot')
-    plot_doors()
+    #plot_doors()
+    #plot_multiple()
+    #plot_figure_20190523()
+    test()
 
 if __name__ == '__main__':
     main()
