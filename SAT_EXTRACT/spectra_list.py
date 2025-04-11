@@ -113,14 +113,14 @@ def run_multiple_csv(options,output_file):
         if len(product_list)==0:
             print(f'[WARNING] No satellite products were available for the csv file {name}. Skipping...')
             continue
+        elif args.verbose:
+            print(f'[INFO] {len(product_list)} were obtained for csv file {name}')
 
-        # key_array = [None]*ndata
-        # key_array_unique = []
-        # row_array = np.zeros((ndata,))
-        # col_array = np.zeros((ndata,))
-
+        if args.verbose:
+            print(f'[INFO] Getting row/col for each lat/long location to idenfity unique sites...')
         for idx in range(ndata):
-            print(f'[INFO] Row: {idx}')
+            if args.verbose and (idx%100)==0:
+                print(f'[INFO] Row: {idx}')
             datehere_str = date_array_str[idx]
             datehere  = date_array[idx]
             if datehere_str not in product_list.keys():
@@ -146,16 +146,13 @@ def run_multiple_csv(options,output_file):
                 line[5] = line[5]+1
                 continue
 
-
             if first_line is None:
                 if extract_options['use_single_file']:
                     rrs_var_list = extract_options['rrs_var_list']
                 else:
                     rrs_list = extract_options['rrs_list']
                     rrs_var_list = [f'RRS{get_wls(wl)}' for wl in rrs_list]
-                    #list_files = product_list[datehere_str]['list_files']
                 first_line = 'Date;SatLat;SatLong;InSituFirst;InSituLast;NInSitu;Ref;' + ";".join(rrs_var_list)
-
 
             sat_lat, sat_long = get_lat_long_values(lat_map,lon_map,rint,cint)
             key_date_list = product_list[datehere_str]['key_list']
@@ -164,27 +161,24 @@ def run_multiple_csv(options,output_file):
                 product_list[datehere_str]['row_list'].append(rint)
                 product_list[datehere_str]['col_list'].append(cint)
             # if extract_options['use_single_file']:
-            #     rrs_data = get_spectral_data(fproduct,rrs_var_list,rint,cint)
-            # else:
-            #     rrs_data = get_spectral_data_from_list_files(list_files,rrs_list,rint,cint)
+
             line_list[key]= [datehere_str,f'{sat_lat}',f'{sat_long}',datehere,datehere,1,f'{key}']#+[f'{x}' for x in rrs_data]
 
 
 
         for date_str in product_list:
-            print(f'[INFO] Extracting {len(product_list[date_str]["key_list"])} data points for date {date_str}...')
+            print(f'[INFO] Extracting {len(product_list[date_str]["key_list"])} sites (pixels) for date {date_str}...')
             if extract_options['use_single_file']:
                 rrs_var_list = extract_options['rrs_var_list']
-                rrs_data = get_spectral_data(fproduct, rrs_var_list, rint, cint)
+                rrs_data = get_spectral_data_from_product(fproduct, rrs_var_list, product_list[date_str]['row_list'],product_list[date_str]['col_list'])
             else:
                 rrs_list = extract_options['rrs_list']
-                #rrs_var_list = [f'RRS{get_wls(wl)}' for wl in rrs_list]
                 list_files = product_list[datehere_str]['list_files']
                 rrs_data = get_spectral_data_from_list_files(list_files, rrs_list, product_list[date_str]['row_list'],product_list[date_str]['col_list'])
-                rrs_data = np.ma.filled(rrs_data,-999.0)
-                key_date_list = product_list[datehere_str]['key_list']
-                for idx in range(rrs_data.shape[0]):
-                    all_rrs_data[key_date_list[idx]]=rrs_data[idx,:]
+            rrs_data = np.ma.filled(rrs_data,-999.0)
+            key_date_list = product_list[datehere_str]['key_list']
+            for idx in range(rrs_data.shape[0]):
+                all_rrs_data[key_date_list[idx]]=rrs_data[idx,:]
 
 
 
@@ -497,13 +491,19 @@ def get_lat_long_values(lat_array,lon_array,row,col):
         lon_v = lon_array[row,col]
     return lat_v,lon_v
 
-def get_spectral_data(fproduct,rrs_var_list,rint,cint):
+def get_spectral_data_from_product(fproduct,rrs_var_list,rint,cint):
+    if np.isscalar(rint) and np.isscalar(cint):
+        rint = [rint]
+        cint = [cint]
+    ndata = len(rint)
+    nbands = len(rrs_var_list)
+    data = np.zeros((ndata,nbands))
     nc_sat = Dataset(fproduct)
-    data = []
-    for var in rrs_var_list:
+    for iband in range(nbands):
+        var =  rrs_var_list[iband]
         array = np.ma.squeeze(nc_sat.variables[var][:])
-        val = array[rint,cint] if not np.ma.is_masked(array[rint,cint]) else -999.0
-        data.append(val)
+        vals = array[rint,cint]
+        data[:, iband] = vals
     nc_sat.close()
     return data
 

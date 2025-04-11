@@ -65,9 +65,7 @@ class SatExtract:
         self.EXTRACT.satellite_proc_version = at['proc_version']  # proc_version_str
 
         self.EXTRACT.site = at['site']
-        # self.EXTRACT.insitu_site_name = at['station_name']
-        # self.EXTRACT.insitu_lat = at['in_situ_lat']
-        # self.EXTRACT.insitu_lon = at['in_situ_lon']
+
 
     def create_dimensions_basic(self, size_box):
         self.EXTRACT.createDimension('satellite_id', None)
@@ -128,7 +126,7 @@ class SatExtract:
     def create_satellite_time_variable(self, satellite_start_time):
         satellite_time = self.EXTRACT.createVariable('satellite_time', 'f8', ('satellite_id'), fill_value=-999,
                                                      zlib=True, complevel=6)
-        # print('Satellite start time es: ',satellite_start_time)
+
         satellite_time[0] = float(satellite_start_time.replace(tzinfo=pytz.utc).timestamp())
         satellite_time.units = "Seconds since 1970-1-1"
 
@@ -230,9 +228,7 @@ class SatExtract:
         stop_idx_y = window[1]
         start_idx_x = window[2]
         stop_idx_x = window[3]
-        # dtype = var_array.datatype.str
-        # if dtype.startswith('<'):
-        #     dtype = dtype[1:]
+
         satellite_2d_band = self.EXTRACT.createVariable(var_name, 'f4', ('satellite_id', 'rows', 'columns'),
                                                         fill_value=-999.0, zlib=True, complevel=6)
 
@@ -240,12 +236,7 @@ class SatExtract:
             satellite_2d_band[0, :, :] = var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
         elif len(var_array.shape) == 3:
             satellite_2d_band[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
-        # array = var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
-        # print(array.shape)
-        # array = array.filled(-999.0)
-        # print(array.shape)
-        # satellite_2d_band[:] = array[:]
-        # satellite_2d_band[0, :, :] = [array]
+
 
         return satellite_2d_band
 
@@ -372,6 +363,16 @@ class SatExtract:
     def close_file(self):
         self.EXTRACT.close()
 
+
+class SatExtractOptions:
+    def  __init__(self,config_file):
+        self.options = None
+        if config_file is not None:
+            try:
+                self.options = configparser.ConfigParser()
+                self.options.read(config_file)
+            except:
+                self.options = None
 
 def config_reader(FILEconfig):
     options = configparser.ConfigParser()
