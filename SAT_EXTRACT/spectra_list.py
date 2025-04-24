@@ -16,6 +16,7 @@ parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true"
 parser.add_argument('-c', "--config_file", help="Config File.",required=True)
 parser.add_argument('-o', "--output_file", help="Output CSV File.",required=True)
 parser.add_argument('-wce',"--wce_expression",help="Wild card expression to limit input metadata files",default=None)
+parser.add_argument('-stm',"--single_to_multiple",help="Mode to create multiple csv metadata file (one for day) starting from a single csv. Output should be a directory",action="store_true")
 
 args = parser.parse_args()
 
@@ -181,8 +182,6 @@ def run_multiple_csv(options,output_file):
                 all_rrs_data[key_date_list[idx]]=rrs_data[idx,:]
 
 
-
-
     if first_line is None or len(line_list)==0:
         return
 
@@ -200,6 +199,64 @@ def run_multiple_csv(options,output_file):
         fw.write('\n')
         fw.write(line_str)
     fw.close()
+
+
+def run_single_to_multiple(options,output_dir):
+    section = 'SINGLE_TO_MULTIPLE'
+    if not options.has_option(section,'path_csv'):
+        print(f'[ERROR] path_csv option in required is section {section} for {section} mode.')
+        return
+    path_csv = options[section]['path_csv']
+    if not os.path.isfile(path_csv):
+        print(f'[ERROR] Path to csv file {path_csv} was not found or is not a valid file')
+        return
+
+    if args.verbose:
+        print(f'[INFO] Reading file: {path_csv}')
+    col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = get_csv_options_from_file_config(
+        options, section)
+    format_date_out = '%Y-%m-%d %H:%M:%S.%f'
+    df = pd.read_csv(path_csv,sep=col_sep)
+    dateobj_array = df[col_date]
+    lat_array = df[col_lat]
+    lon_array = df[col_lon]
+    date_in_array = np.empty(dateobj_array.shape).astype(str)
+    date_out_array = np.empty(dateobj_array.shape).astype(str)
+    for idx,x in enumerate(dateobj_array):
+        dobj = dt.strptime(x,format_date)
+        date_in_array[idx] = dobj.strftime('%Y-%m-%d')
+        date_out_array[idx] = dobj.strftime(format_date_out)
+
+    date_list = np.unique(date_in_array)
+    for date in date_list:
+        if args.verbose:
+            print(f'[INFO] Preparing metadata file for date {date}')
+
+        date_here = date_out_array[date_in_array==date]
+        lat_here = lat_array[date_in_array==date]
+        lon_here = lon_array[date_in_array==date]
+        nhere = date_here.shape[0]
+        df_out = pd.DataFrame(index=np.arange(nhere),columns=['timestamp','lat','lon'])
+        df_out['timestamp'] = np.array(date_here)
+        df_out['lat'] = np.array(lat_here)
+        df_out['lon'] = np.array(lon_here)
+
+
+        # if date=='2023-04-04':
+        #     print(df_out)
+        #     print(lat_here)
+        #     # valid = np.logical_and(np.isnan(lat_here) == False, np.isnan(lon_here) == False)
+        #     # nvalid = np.sum(valid)
+        #     # valid_lat = pd.isna(lat_here)
+        #     # print(valid_lat.loc[0])
+        #     # print(lat_here.loc[0])
+        #     # lat_valid = np.isnan(np.array(lat_here))
+        #     # print(date, nhere, nvalid,type(lat_here))
+        #     # print(lat_valid,lat_here[0])
+        #     break
+        file_out = os.path.join(output_dir,f'{date}_metadata.csv')
+        df_out.to_csv(file_out,sep=",",index=False)
+        del df_out
 
 
 def get_cmems_product_day_strict(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
@@ -288,11 +345,14 @@ def main():
     options = configparser.ConfigParser()
     options.read(args.config_file)
 
-    output_file = args.output_file
-    if not output_file.endswith('.csv'):
-        print(f'[ERROR] Output file {output_file} should be a csv file')
-        return
-    output_dir = os.path.dirname(output_file)
+    if args.single_to_multiple:
+        output_dir = args.output_file
+    else:
+        output_file = args.output_file
+        if not output_file.endswith('.csv'):
+            print(f'[ERROR] Output file {output_file} should be a csv file')
+            return
+        output_dir = os.path.dirname(output_file)
     if not os.path.isdir(output_dir):
         try:
             os.mkdir(output_dir)
@@ -302,6 +362,9 @@ def main():
     if not os.access(output_dir,os.W_OK):
         print(f'[ERROR] You do not have write permissions in {output_dir} . Please review.')
         return
+
+    if args.single_to_multiple and options.has_section('SINGLE_TO_MULTIPLE'):
+        run_single_to_multiple(options,output_dir)
 
     if options.has_section('MULTIPLE_CSV_SELECTION') and options.has_option('MULTIPLE_CSV_SELECTION', 'path_csv'):
         run_multiple_csv(options,output_file)
@@ -316,11 +379,17 @@ def get_csv_options_from_file_config(options, section):
         col_lon = 'lon'
         col_sep = ';'
         format_date = '%Y-%m-%dT%H:%M'
-    if section == 'MULTIPLE_CSV_SELECTION':
+    elif section == 'MULTIPLE_CSV_SELECTION':
         col_date = 'timestamp'
         col_lat = 'lat'
         col_lon = 'lon'
         format_date = '%Y-%m-%d %H:%M:%S.%f'
+        col_sep = ','
+    else:
+        col_date = 'dt'
+        col_lat = 'lat'
+        col_lon = 'lon'
+        format_date = '%d-%b-%Y %H:%M:%S'
         col_sep = ','
 
     if options.has_option(section, 'col_date'):

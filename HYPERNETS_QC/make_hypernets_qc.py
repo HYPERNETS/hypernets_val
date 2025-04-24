@@ -1235,7 +1235,7 @@ def make_sun_plots(input_path, output_path, site, start_date, end_date, ndw):
                     sun_hours.append(x.strip())
                 except:
                     print(f'[WARNING] {x.strip()} is not a valid sun time in format HH:MM. Using default values')
-            if len(sun_hours) == 6:
+            if len(sun_hours) == 5:
                 print(f'[INFO] Sun time hours set to: {sun_hours}')
                 hours = sun_hours
 
