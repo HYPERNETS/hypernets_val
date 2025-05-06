@@ -104,6 +104,9 @@ class MDBPlot:
         except:
             reg_2_valid = False
 
+        if not reg_2_valid:
+            type_regression = 'I'
+
         if type_regression == 'I':
             self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
         elif type_regression == 'II':
