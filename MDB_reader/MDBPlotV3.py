@@ -107,14 +107,17 @@ class MDBPlot:
         if not reg_2_valid:
             type_regression = 'I'
 
+        print('we are here...',reg_2_valid)
         if type_regression == 'I':
+            print('fa questo')
             self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
         elif type_regression == 'II':
             if reg_2_valid:
                 self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope_II, intercept_II, minxy,
                                                                         maxxy)
 
-
+        print(type(self.xregress))
+        print(type(self.yregress))
 
         ref_obs = np.asarray(self.xdata, dtype=np.float64)
         sat_obs = np.asarray(self.ydata, dtype=np.float64)
