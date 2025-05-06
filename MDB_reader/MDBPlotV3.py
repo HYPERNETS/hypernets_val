@@ -89,9 +89,10 @@ class MDBPlot:
         self.valid_stats['std_err_I'] = std_err
 
         ##REGRESSION II
-        from pylr2 import regress2
+
         reg_2_valid = True
         try:
+            from pylr2 import regress2
             results = regress2(np.array(xdatal, dtype=np.float64), np.array(ydatal, dtype=np.float64),
                                _method_type_2="reduced major axis")
             slope_II = results['slope']
