@@ -352,6 +352,16 @@ valid_stats = {
         'desc': 'Y average value',
         'format': 'f3+units'
     },
+    'XMEDIAN': {
+        'name': 'XMEDIAN',
+        'desc': 'X median value',
+        'format': 'f3+units'
+    },
+    'YMEDIAN': {
+        'name': 'YMEDIAN',
+        'desc': 'Y median value',
+        'format': 'f3+units'
+    },
     'XSTD': {
         'name': 'XSTD',
         'desc': 'X standard deviation value',

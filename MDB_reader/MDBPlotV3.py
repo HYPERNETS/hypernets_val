@@ -110,6 +110,8 @@ class MDBPlot:
                 self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope_II, intercept_II, minxy,
                                                                         maxxy)
 
+
+
         ref_obs = np.asarray(self.xdata, dtype=np.float64)
         sat_obs = np.asarray(self.ydata, dtype=np.float64)
         if use_rhow:
@@ -124,6 +126,8 @@ class MDBPlot:
             self.valid_stats['NGROUP'] = nvalid
             sat_obs = sat_obs[valid_array]
             ref_obs = ref_obs[valid_array]
+            self.xregress = np.pow(10,self.xregress)
+            self.yregress = np.pow(10,self.yregress)
 
         # the mean of relative (signed) percent differences
         rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)
@@ -154,6 +158,8 @@ class MDBPlot:
         sat_mean = np.mean(sat_obs)
         self.valid_stats['XAVG'] = ref_mean
         self.valid_stats['YAVG'] = sat_mean
+        self.valid_stats['XMEDIAN'] = np.median(ref_obs)
+        self.valid_stats['YMEDIAN'] = np.median(sat_obs)
         # CPRMSE
         xdiff = ref_obs - ref_mean
         ydiff = sat_obs - sat_mean
@@ -195,9 +201,10 @@ class MDBPlot:
 
         if use_log_scale:
             ##convert statistict to linear scale again
-            stats_to_convert = ['RMSD', 'XAVG', 'YAVG', 'CRMSE', 'MAD']
+            stats_to_convert = ['RMSD', 'XAVG', 'YAVG', 'XMEDIAN','YMEDIAN','CRMSE', 'MAD','MdAD']
             for stat in stats_to_convert:
                 self.valid_stats[stat] = np.power(10, self.valid_stats[stat])
+            sign_stats_to_convert = ['BIAS']
             bias_neg = self.valid_stats['BIAS'] < 0
             self.valid_stats['BIAS'] = np.power(10, np.abs(self.valid_stats['BIAS']))
             if bias_neg:
@@ -2175,8 +2182,8 @@ class MDBPlot:
         # regression lines
         if options['log_scale']:
             if options['regression_line']:
-                xr = np.array([self.xregress[0], self.xregress[-1], self.xregress[-2]])
-                yr = np.array([self.yregress[0], self.yregress[-1], self.yregress[-2]])
+                xr = np.array(self.xregress)
+                yr = np.array(self.yregress)
                 xr = xr[xr.argsort()]
                 yr = yr[yr.argsort()]
                 plot.plot_regress_line(xr, yr, 'black')

@@ -18,7 +18,7 @@ class PlotOptions:
         # self.mu_valid_variable = 'mu_valid'
         # self.format_image = 'png'
         # self.image_resolution = 300
-        # self.output_path = None
+        self.output_path = None
 
         self.valid_stats = {
             'N': 0,
@@ -45,12 +45,15 @@ class PlotOptions:
         section = 'GLOBAL_OPTIONS'
         self.global_options = {}
         for goption in defaults.global_options:
+
             default = defaults.global_options[goption]['default']
             type = defaults.global_options[goption]['type']
+
             potential_values = None
             if 'values' in defaults.global_options[goption].keys():
                 potential_values = defaults.global_options[goption]['values']
             self.global_options[goption] = self.get_value_param(section, goption, default, type, potential_values)
+
             # if type=='str' and 'values' in defaults.global_options[goption].keys():
             #     values = defaults.global_options[goption]['values']
             #     if not self.global_options[goption] in values:
@@ -104,7 +107,7 @@ class PlotOptions:
         #     print(f'[INFO] Plot type: spectraplot')
         #     options_out = self.get_options_spectraplot(section, options_out)
 
-        if options_out['type'].startswith('statstable'):
+        if options_out['type'].startswith('singlestatstable'):
             print(f'[INFO] Getting options for plot type: statstable')
             options_out = self.get_options_csv_statstable(section, options_out)
         else:
@@ -265,16 +268,18 @@ class PlotOptions:
         return time_instants
 
     def get_options_csv_statstable(self, section, options_out):
-        options_out['xvar'] = self.get_value_param(section, 'xvar', 'mu_ins_rrs', 'str')
-        options_out['yvar'] = self.get_value_param(section, 'yvar', 'mu_sat_rrs', 'str')
-        options_out['params'] = self.get_value_param(section, 'params', self.valid_stats.keys(), 'strlist')
-        options_out['log_scale'] = self.get_value_param(section, 'log_scale', False, 'boolean')
-        options_out['use_rhow'] = self.get_value_param(section, 'use_rhow', False, 'boolean')
-        options_out['flag'] = self.get_value_param(section, 'flag', 'GLOBAL', 'str')
-        if self.output_path is not None:
+        options_out['xvar'] = self.get_value_param(section, 'xvar', 'mu_ins_rrs', 'str',None)
+        options_out['yvar'] = self.get_value_param(section, 'yvar', 'mu_sat_rrs', 'str',None)
+        options_out['params'] = self.get_value_param(section, 'params', self.valid_stats.keys(), 'strlist', None)
+        options_out['log_scale'] = self.get_value_param(section, 'log_scale', False, 'boolean', None)
+        options_out['use_rhow'] = self.get_value_param(section, 'use_rhow', False, 'boolean', None)
+        options_out['flag'] = self.get_value_param(section, 'flag', 'GLOBAL', 'str', None)
+
+        output_path = self.global_options['output_path']
+        if output_path is not None:
             name_default = options_out['name'] + '.csv'
-            file_out_default = os.path.join(self.output_path, name_default)
-        options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str')
+            file_out_default = os.path.join(output_path, name_default)
+        options_out['file_out'] = self.get_value_param(section, 'file_out', file_out_default, 'str',None)
         return options_out
 
     def get_options_scatterplot(self, section, options_out):
@@ -470,6 +475,7 @@ class PlotOptions:
                 return value.strip()
         if type == 'directory':
             directory = value.strip()
+
             if not os.path.isdir(directory):
                 try:
                     os.mkdir(directory)

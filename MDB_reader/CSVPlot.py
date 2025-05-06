@@ -22,22 +22,25 @@ class CSVPLOT:
         from PlotOptions import PlotOptions
         poptions = PlotOptions(options,None)
         poptions.set_global_options()
-        print(plot_list)
+
         for plot in plot_list:
             if plot == 'GLOBAL_OPTIONS':
                 continue
-            print(plot)
+
+
             options_out = poptions.get_options(plot)
-            print(options_out)
+
+            #print(options_out)
 
             if options_out is not None:
+                print(f'[INFO] Starting plot: {plot} Type: {options_out["type"]}')
                 self.plot_from_options_impl(options_out)
 
     def plot_from_options_impl(self,options_out):
         if options_out['type'] == 'scatterplot':
             print('[INFO] Start scatterplot...')
             self.plot_scatter_plot(options_out)
-        if options_out['type'] == 'statstable':
+        if options_out['type'] == 'singlestatstable':
             self.create_table_stats(options_out)
         if options_out['type'] == 'histogram':
             self.plot_histogram(options_out)
@@ -82,7 +85,10 @@ class CSVPLOT:
         pspectra.save_plot(options_out['file_out'])
 
     def create_table_stats(self,options_out):
+
+
         from MDBPlotV2 import MDBPlot
+
         import numpy as np
         mplot = MDBPlot(None)
         xdata = np.array(self.dataset[options_out['xvar']])
