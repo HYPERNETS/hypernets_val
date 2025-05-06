@@ -107,17 +107,15 @@ class MDBPlot:
         if not reg_2_valid:
             type_regression = 'I'
 
-        print('we are here...',reg_2_valid)
+
         if type_regression == 'I':
-            print('fa questo')
             self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
         elif type_regression == 'II':
             if reg_2_valid:
                 self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope_II, intercept_II, minxy,
                                                                         maxxy)
 
-        print(type(self.xregress))
-        print(type(self.yregress))
+
 
         ref_obs = np.asarray(self.xdata, dtype=np.float64)
         sat_obs = np.asarray(self.ydata, dtype=np.float64)
@@ -133,8 +131,8 @@ class MDBPlot:
             self.valid_stats['NGROUP'] = nvalid
             sat_obs = sat_obs[valid_array]
             ref_obs = ref_obs[valid_array]
-            self.xregress = np.pow(10,self.xregress)
-            self.yregress = np.pow(10,self.yregress)
+            self.xregress = np.pow(10,np.array(self.xregress))
+            self.yregress = np.pow(10,np.array(self.yregress))
 
         # the mean of relative (signed) percent differences
         rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)
