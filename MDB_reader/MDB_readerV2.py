@@ -1,19 +1,13 @@
 import datetime
-import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pylab as pl
 import pytz
 import os.path
-import sys
 import argparse
 import warnings
 
-
 import pandas as pd
-from fontTools.misc.plistlib import end_date
-from statsmodels.datasets.utils import Dataset
 
 warnings.simplefilter('ignore', UserWarning)
 warnings.simplefilter('ignore', RuntimeWarning)
