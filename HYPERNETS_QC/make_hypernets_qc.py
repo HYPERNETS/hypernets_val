@@ -858,7 +858,7 @@ def make_create_csvfiles(input_path, output_path, site, start_date, end_date,var
 
         work_date = work_date + timedelta(hours=interval)
 
-    if output_path.endswith('csv'):
+    if output_path.endswith('csv') and len(file_list_output)>0:
         df_final = pd.read_csv(file_list_output[0],sep=';')
         for idx in range(1,len(file_list_output)):
             df_here = pd.read_csv(file_list_output[idx])
