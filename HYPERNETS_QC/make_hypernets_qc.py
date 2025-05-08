@@ -864,6 +864,8 @@ def make_create_csvfiles(input_path, output_path, site, start_date, end_date,var
             df_here = pd.read_csv(file_list_output[idx])
             df_final = pd.concat([df_final,df_here])
         df_final.to_csv(output_path,sep= ';',index=False)
+        for ofile in file_list_output:
+            os.remove(ofile)
 
 
 
@@ -2179,7 +2181,6 @@ def main():
 
 
     if args.mode == 'HYPERNETS_TO_CSV':
-
         make_create_csvfiles(input_path,output_path,site,start_date,end_date,args.var_rrs)
 
 # %%
