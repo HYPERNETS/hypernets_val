@@ -638,7 +638,10 @@ class HYPERNETS_DAY():
             if wavelength is None:
                 dataset = Dataset(file)
                 wavelength = dataset.variables['wavelength']
-                dataset.close
+                dataset.close()
+
+        if len(file_list)==0:
+            return None
 
         col_names = ['Date','Time','IndexDate','quality_flag','epsilon','valid','solar_azimuth_angle','solar_zenith_angle',
                      'pointing_azimuth_angle','viewing_azimuth_angle','viewing_zenith_angle']

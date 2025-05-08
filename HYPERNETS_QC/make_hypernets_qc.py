@@ -854,7 +854,8 @@ def make_create_csvfiles(input_path, output_path, site, start_date, end_date,var
             print(f'[INFO] Number of sequences with files: {len(hday.files_dates)}')
 
         output_f = hday.create_csv_date(output_directory,site,work_date,var_rrs)
-        file_list_output.append(output_f)
+        if output_f is not None:
+            file_list_output.append(output_f)
 
         work_date = work_date + timedelta(hours=interval)
 
