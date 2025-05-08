@@ -131,8 +131,8 @@ class MDBPlot:
             self.valid_stats['NGROUP'] = nvalid
             sat_obs = sat_obs[valid_array]
             ref_obs = ref_obs[valid_array]
-            #self.xregress = np.pow(10,np.array(self.xregress))
-            #self.yregress = np.pow(10,np.array(self.yregress))
+            self.xregress = np.pow(10,np.array(self.xregress))
+            self.yregress = np.pow(10,np.array(self.yregress))
 
         # the mean of relative (signed) percent differences
         rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)

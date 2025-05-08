@@ -4,6 +4,7 @@ from datetime import datetime as dt
 from datetime import timedelta
 import argparse
 
+import pandas as pd
 import pytz
 
 from hypernets_day import HYPERNETS_DAY
@@ -17,7 +18,7 @@ parser.add_argument('-m', "--mode",
                     choices=['GETFILES', 'CREATEDAYFILES', 'REPORTDAYFILES', 'SUMMARYFILES', 'NCFROMCSV', 'PLOT',
                              'SUNDOWNLOAD', 'SUNPLOTS', 'SUNMAIL', 'CORRECTANGLES', 'COPYFROMCSV', 'SINGLEIMG',
                              'LOGDOWNLOAD', 'COPYNC','COPYREPORTS', 'COPYPLOTS', 'CLEARSKYMODEL', 'CLEARSKYMODELPLOTS',
-                             'CLEARSKYMODELTEST', 'QUALITYCONTROL'],
+                             'CLEARSKYMODELTEST', 'QUALITYCONTROL','HYPERNETS_TO_CSV'],
                     required=True)
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
 parser.add_argument('-ed', "--end_date", help="End date. Optional with --listdates (YYYY-mm-dd)")
@@ -29,6 +30,7 @@ parser.add_argument('-c', "--config_path", help="Configuration file path")
 parser.add_argument('-site', "--site_name", help="Site name")
 parser.add_argument('-key', "--key_image", help="Key for single images",
                     choices=['all', 'sun', 'water', 'skirad1', 'skiirrad1', 'skirad2', 'skiirrad2'])
+parser.add_argument('-vrrs',"--var_rrs",help='Rrs variable for option HYPERNETS_TO_CSV',default='reflectance',choices=['reflectance','reflectance_nosc'])
 parser.add_argument('-sopt', "--summary_options", help="Summary options,separated by '_': csv,nc,copy")
 parser.add_argument('-copt', "--copy_plot_options",
                     help="Copy plot options: use_basic,only_valid,sortbyespsilon,sortbyldcsm,sortbyedcsm,csm,ratiolded750,ratiolded400",
@@ -817,6 +819,59 @@ def make_get_files(input_path, site, start_date, end_date):
             print(f'[INFO] Date: {work_date}')
         hday.get_files_date(site, work_date)
         work_date = work_date + timedelta(hours=24)
+
+
+def make_create_csvfiles(input_path, output_path, site, start_date, end_date,var_rrs):
+
+    if args.verbose:
+        print(f'[INFO] Started creating CSV files')
+    if os.path.isdir(output_path):
+        output_directory = output_path
+    elif output_path.endswith('csv'):
+        output_directory = os.path.dirname(output_path)
+    else:
+        print(f'[ERROR] Output path should be a directory or a csv file')
+        return
+
+    work_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    interval = 24
+    if args.ndays_interval:
+        interval = 24 * int(args.ndays_interval)
+    hday = HYPERNETS_DAY(input_path, output_path)
+    file_list_output = []
+    while work_date <= end_date:
+        if args.verbose:
+            print(f'--------------------------------------------------------------------------------------------------')
+            print(f'[INFO] Date: {work_date}')
+        hday.get_files_date_nodownload(site,work_date)
+
+        if len(hday.files_dates) == 0:
+            print(f'[WARNING] No data files found for the sequences on date: {work_date}. Skipping...')
+            work_date = work_date + timedelta(hours=interval)
+            continue
+
+        if args.verbose:
+            print(f'[INFO] Number of sequences with files: {len(hday.files_dates)}')
+
+        output_f = hday.create_csv_date(output_directory,site,work_date,var_rrs)
+        file_list_output.append(output_f)
+
+        work_date = work_date + timedelta(hours=interval)
+
+    if output_path.endswith('csv'):
+        df_final = pd.read_csv(file_list_output[0],sep=';')
+        for idx in range(1,len(file_list_output)):
+            df_here = pd.read_csv(file_list_output[idx])
+            df_final = pd.concat([df_final,df_here])
+        df_final.to_csv(output_path,sep= ';',index=False)
+
+
+
+
+
+
+
+
 
 
 def make_create_dayfiles(input_path, output_path, site, start_date, end_date):
@@ -2122,6 +2177,10 @@ def main():
             options_test = get_options_test(args.config_path)
         make_clear_sky_model_test(input_path, output_path, site, start_date, end_date, options_test)
 
+
+    if args.mode == 'HYPERNETS_TO_CSV':
+
+        make_create_csvfiles(input_path,output_path,site,start_date,end_date,args.var_rrs)
 
 # %%
 if __name__ == '__main__':

@@ -2,6 +2,9 @@ from datetime import datetime as dt
 from datetime import timedelta
 import os
 import subprocess
+
+import pytz
+
 import __init__
 from MDB_reader.PlotMultiple import PlotMultiple
 
@@ -279,6 +282,7 @@ class HYPERNETS_DAY():
     def get_files_date(self, site, date_here):
         self.files_dates = {}
         date_folder = self.get_folder_date(site, date_here)
+
         if date_folder is None:
             return
 
@@ -608,6 +612,103 @@ class HYPERNETS_DAY():
         self.dataset_w.createVariable('sequence_ref', 'f8', ('series',), zlib=True, complevel=6)
 
         return nseq_valid
+
+
+    def create_csv_date(self,output_dir,site,date_here,var_rrs):
+        from netCDF4 import Dataset
+        import pandas as pd
+        import numpy as np
+
+
+        output_file = os.path.join(output_dir,f'HYPERNETS_DAY_CSV_{site}_{date_here.strftime("%Y%m%d")}_{var_rrs}.csv')
+        seq_list = list(self.files_dates.keys())
+        seq_list.sort()
+
+        file_list = []
+        wavelength = None
+        for idx in range(len(seq_list)):
+            seq = seq_list[idx]
+            if not self.files_dates[seq]['valid']:
+                continue
+            file = self.files_dates[seq]['file_l2']
+            if file is None:
+                continue
+
+            file_list.append(file)
+            if wavelength is None:
+                dataset = Dataset(file)
+                wavelength = dataset.variables['wavelength']
+                dataset.close
+
+        col_names = ['Date','Time','IndexDate','quality_flag','epsilon','valid','solar_azimuth_angle','solar_zenith_angle',
+                     'pointing_azimuth_angle','viewing_azimuth_angle','viewing_zenith_angle']
+        col_rrs = []
+        for wl in wavelength:
+            col_names.append(f'Rrs_{wl:.2f}')
+            col_rrs.append(f'Rrs_{wl:.2f}')
+        ndata = len(file_list)
+        df = pd.DataFrame(index=range(ndata),columns=col_names)
+        for idx in range(ndata):
+
+            file = file_list[idx]
+
+            dataset = Dataset(file,'r')
+            atime = dt.fromtimestamp(float(dataset.variables['acquisition_time'][0])).astimezone(pytz.UTC)
+            qf = dataset.variables['quality_flag'][0]
+            epsilon =dataset.variables['epsilon'][0]
+            rrs = np.squeeze(dataset.variables[var_rrs][:,0])
+            valid_val  = 1 if self.get_valid_from_sequence_file(None,dataset) else 0
+
+            df.loc[idx,"Date"] = atime.strftime('%Y-%m-%d')
+            df.loc[idx,"Time"] = atime.strftime('%H:%M')
+            df.loc[idx,"IndexDate"] = idx
+            df.loc[idx,"quality_flag"] = qf
+            df.loc[idx,"epsilon"] = epsilon
+            df.loc[idx,"valid"] = valid_val
+            df.loc[idx,"solar_azimuth_angle"] = np.float64(dataset.variables['solar_azimuth_angle'][0])
+            df.loc[idx,"solar_zenith_angle"] = np.float64(dataset.variables['solar_zenith_angle'][0])
+            df.loc[idx,"pointing_azimuth_angle"] = np.float64(dataset.variables['pointing_azimuth_angle'][0])
+            df.loc[idx,"viewing_azimuth_angle"] = np.float64(dataset.variables['viewing_azimuth_angle'][0])
+            df.loc[idx,"viewing_zenith_angle"] = np.float64(dataset.variables['viewing_zenith_angle'][0])
+            df.loc[idx,col_rrs] = rrs
+
+            dataset.close()
+
+        df.to_csv(output_file,sep=';',index= False)
+        return output_file
+
+    def get_valid_from_sequence_file(self,file,dataset):
+        from netCDF4 import Dataset
+        import numpy as np
+        if file is not None and dataset is None:
+            dataset = Dataset(file,'r')
+
+        quality_flag = np.uint64(dataset.variables['quality_flag'][0])
+        from COMMON.Class_Flags_OLCI import Class_Flags_OLCI
+        flag_values = dataset.variables['quality_flag'].flag_masks
+        flag_values = [np.uint64(x.strip()) for x in flag_values.split(',')]
+        flag_meanings = dataset.variables['quality_flag'].flag_meanings
+
+        fflags = Class_Flags_OLCI(flag_values,flag_meanings)
+        allow_flags = ['lon_default','lat_default','def_wind_flag']
+
+        for flag in flag_meanings.split(' '):
+            if flag not in allow_flags:
+                val = fflags.Mask(quality_flag,[flag])
+                if val>0:
+                    return False
+        epsilon = dataset.variables['epsilon'][0]
+        if epsilon<(-0.005):
+            return False
+        if epsilon>(0.005):
+            return False
+
+        return True
+
+
+
+
+
 
     def set_data(self, site, date_here):
         self.set_netcdf_data(1)

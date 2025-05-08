@@ -1635,13 +1635,13 @@ class HYPERNETS_DAY_FILE():
                     qf_value = qf_array[time_valid][0]
                     epsilon_value = epsilon_array[time_valid][0]
                     if qf_value == 0:
-                        if epsilon_value < (-0.05):
+                        if epsilon_value < (-0.005):
                             yarray[itime] = 2
                             daily_summary_sequences['ENEG'] = daily_summary_sequences['ENEG'] + 1
-                        elif (-0.05) <= epsilon_value < 0.05:
+                        elif (-0.005) <= epsilon_value < 0.005:
                             daily_summary_sequences['VALID'] = daily_summary_sequences['VALID'] + 1
                             yarray[itime] = 3
-                        elif epsilon_value > 0.05:
+                        elif epsilon_value > 0.005:
                             daily_summary_sequences['EHIGH'] = daily_summary_sequences['EHIGH'] + 1
                             yarray[itime] = 4
                     else:
