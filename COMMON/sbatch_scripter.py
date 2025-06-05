@@ -18,7 +18,7 @@ class SBATCH_SCRIPTER(object):
         self.fw.write(first_line)
         self.add_line('#SBATCH --nodes=1')
         self.add_line('#SBATCH --ntasks=1')
-        self.add_line(f'#SBATCH -p {sb_options['sbatch_partition']}')
+        self.add_line(f'#SBATCH -p {sb_options["sbatch_partition"]}')
         if 'sbatch_email' in sb_options:
             self.add_line(f'#SBATCH --mail-user {sb_options["sbatch_email"]}')
             if 'sbatch_email_type' in sb_options:
