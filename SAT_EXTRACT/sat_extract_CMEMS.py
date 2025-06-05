@@ -2517,9 +2517,9 @@ def main():
                             newExtract = add_variable_multiple(newExtract, extract_info,
                                                                extract_options['dataset_var_list'],
                                                                extract_options['dataset_var_list_out'])
-                            if newExtract is None:
-                                os.remove(ofname)
-                                continue
+                        if newExtract is None:
+                            os.remove(ofname)
+                            continue
 
                     newExtract.close_file()
                     ncreated = ncreated + 1

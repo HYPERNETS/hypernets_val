@@ -96,8 +96,6 @@ class Class_Flags_Polymer(object):
     def Mask(self, flags, maskList):
         myCode = self.Code(maskList)
         flags = np.int64(flags)
-        # print flags
-        # print myCode
         return np.bitwise_and(flags, myCode)
 
     def Decode(self, val):

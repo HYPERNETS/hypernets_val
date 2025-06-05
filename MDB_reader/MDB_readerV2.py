@@ -3421,11 +3421,16 @@ def make_map_rrs_match_ups():
     import cartopy
     import cartopy.crs as ccrs
     import matplotlib.pyplot as plt
-    file_csv = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/Match-up-Locations.csv'
-    file_out = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/Match-up-Locations_RRS.tif'
+    #file_csv = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/Match-up-Locations.csv'
+    #file_out = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/Match-up-Locations_RRS.tif'
+    file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK/spectra_list/validspectra/potential_matchups.csv'
+    file_out = os.path.join(os.path.dirname(file_csv),'MapPotentialMatch-ups.png')
+
     df = pd.read_csv(file_csv,sep=';')
-    lat_points = df['mu_insitu_latitude'][:]
-    lon_points = df['mu_insitu_longitude'][:]
+    # lat_points = df['mu_insitu_latitude'][:]
+    # lon_points = df['mu_insitu_longitude'][:]
+    lat_points = df['SatLat'][:]
+    lon_points = df['SatLong'][:]
     res_array = df['res'][:]
     geo_limits = [35,65,-15,30]
     extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
@@ -4176,15 +4181,15 @@ def main():
     if args.mode == 'TEST':
 
         ##correctins resto files
-        dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/TRIT'
-        file_good =os.path.join(dir_base,'RESTO_TRIT_20240930_20250315.nc')
-        from netCDF4 import Dataset
-        dataset = Dataset(file_good)
-        wl_array = dataset.variables['Nominal_Wavelenghts'][:]
-        dataset.close()
-        file_bad = os.path.join(dir_base,'RESTO_TRIT_20180425_20241208_COMPLETE.nc')
-        file_out = os.path.join(dir_base, 'RESTO_TRIT_20180425_20241208_COMPLETE_CORRECTED.nc')
-        creating_copy_correcting_variable(file_bad,file_out,'Nominal_Wavelenghts',wl_array)
+        # dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/TRIT'
+        # file_good =os.path.join(dir_base,'RESTO_TRIT_20240930_20250315.nc')
+        # from netCDF4 import Dataset
+        # dataset = Dataset(file_good)
+        # wl_array = dataset.variables['Nominal_Wavelenghts'][:]
+        # dataset.close()
+        # file_bad = os.path.join(dir_base,'RESTO_TRIT_20180425_20241208_COMPLETE.nc')
+        # file_out = os.path.join(dir_base, 'RESTO_TRIT_20180425_20241208_COMPLETE_CORRECTED.nc')
+        # creating_copy_correcting_variable(file_bad,file_out,'Nominal_Wavelenghts',wl_array)
 
         # file_mdb = '/mnt/c/DATA/OCTAC_WORK/MED_MATCH-UPS/MDB_CMEMS_OLCI_300M_CMEMS_OBS-OC_MED_BGC_20160401T000000_20230313T000000_AERONET_Venise.nc'
         # from netCDF4 import Dataset
@@ -4279,7 +4284,7 @@ def main():
         # wl_out =   [412, 443, 674, 681, 709]
         # creating_copy_correcting_changing_wl(file_olci_regional, file_out, wl_list, wl_in,wl_out)
 
-        #make_map_rrs_match_ups()
+        make_map_rrs_match_ups()
         #getting_valid_stations()
         #make_map_stations()
         #make_map_rrs_hyper_pro()

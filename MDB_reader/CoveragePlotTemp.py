@@ -1570,7 +1570,7 @@ def plot_baltic_map_impl(data, lat_array, lon_array, type, range, file_out):
     elif type == 'cci-expected':
         label = 'OC-CCI Observed/Expected (%)'
     elif type == 'chl':
-        label = 'chl'
+        label = 'chl [mg m-3]'
 
     cbar.set_label(label=label, size=15)
     # title = f'Chlorophyll a concentration - OLD ({units})'
@@ -1583,13 +1583,52 @@ def plot_baltic_map_impl(data, lat_array, lon_array, type, range, file_out):
     if type == 'chl':
         ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
 
+    plt.title('Monthly Chlorophyll-a (mg m-3) - July 2019',fontdict={'fontsize':18})
     fig.savefig(file_out, dpi=300, bbox_inches='tight')
 
 
+def plot_blk_chla():
+    file_in = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/NOW/OCTAC_QWG/20240721_cmems_obs-oc_blk_bgc-plankton_myint_l3-multi-1km_P1D.nc'
+    file_out = os.path.join(os.path.dirname(file_in),os.path.basename(file_in)[:-3]+'.tif')
+    dataset = Dataset(file_in)
+    chl = dataset.variables['CHL'][:]
+    data = np.ma.squeeze(chl)
+    lat_array = dataset.variables['lat'][:]
+    lon_array = dataset.variables['lon'][:]
+
+    dataset.close()
+
+    fig, ax = plt.subplots(subplot_kw=dict(projection=ccrs.PlateCarree()))
+    fig.set_figwidth(15)
+    fig.set_figheight(15)
+
+    # coastlines
+    ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+
+    # grid lines
+    gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False, linewidth=0.5, linestyle='dotted')
+    gl.xlocator = mticker.FixedLocator([28, 30, 32, 34, 36, 38, 40, 42])
+    gl.ylocator = mticker.FixedLocator([40, 42, 44, 46, 48])
+    gl.right_labels = False
+    gl.left_labels = True
+    gl.bottom_labels = True
+    gl.top_labels = False
+    gl.xlabel_style = {'size': 15}
+    gl.ylabel_style = {'size': 15}
+
+    h = ax.pcolormesh(lon_array, lat_array, data, norm=LogNorm(vmin=0.01, vmax=10))
+    cbar = fig.colorbar(h, cax=None, ax=ax, use_gridspec=True, fraction=0.03, format="$%.2f$")
+    cbar.ax.tick_params(labelsize=15)
+    label = 'chl [mg m-3]'
+    cbar.set_label(label=label, size=15)
+    ax.add_feature(cartopy.feature.LAND, zorder=0, edgecolor='black', linewidth=0.5)
+    plt.title('Chlorophyll-a (mg m-3) - 21 July 2024', fontdict={'fontsize': 18})
+    fig.savefig(file_out, dpi=300, bbox_inches='tight')
+
 def plot_maps_cci(dir_out):
-    file_mask = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/BAL_Land_Mask_hr_CFC.nc'
+    file_mask = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/OCTAC_WORK/BAL_EVOLUTION_202411/MASKS/BAL_Land_Mask_hr.nc'
     # file_cfc = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/CFCdm202307100000003UDAVPOSI1UD.nc'
-    file_chl = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/2009/220/C2009220-chl-bal-hr.nc'
+    file_chl = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/OCTAC_WORK/BAL_EVOLUTION_202411/C2019182212-chl-bal-hr-monthly.nc'
     name_chl = os.path.basename(file_chl)
     file_out = os.path.join(dir_out, f'{name_chl[:-3]}.tif')
     apply_mask = False
@@ -1597,11 +1636,13 @@ def plot_maps_cci(dir_out):
     dataset = Dataset(file_chl)
     chl = dataset.variables['CHL'][:]
     chl = np.ma.squeeze(chl)
+    chl = chl[:,210:1186]
     lat = dataset.variables['lat'][:]
-    lon = dataset.variables['lon'][:]
+    lon = dataset.variables['lon'][210:1186]
+
     dataset.close()
 
-    plot_baltic_map_impl(chl, lat, lon, 'chl', file_out)
+    plot_baltic_map_impl(chl, lat, lon, 'chl', None,file_out)
 
 
 def plot_era_sensors(dir_out):
@@ -1739,13 +1780,13 @@ def plot_era_sensors(dir_out):
 
 
 def plot_methods_plots():
-    dir_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/METHODS_PLOTS'
+    dir_out = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/OCTAC_WORK/BAL_EVOLUTION_202411'
 
     # plot_temporal_coverage_clara(dir_out)
     # plot_temporal_coverage_cci(dir_out)
 
     # plot_maps_clara_cfc(dir_out)
-    # plot_maps_cci(dir_out)
+    plot_maps_cci(dir_out)
     # plot_era_sensors(dir_out)
     # file_mask = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/BAL_Land_Mask_hr_CFC.nc'
     # plot_mask_clara(file_mask,dir_out)
@@ -2635,17 +2676,21 @@ def plot_olci():
 
 def main():
     # add_normalized_stats_to_table()
-    plot_tmp()
+    # plot_tmp()
+    ##METHODS PLOTS
+    plot_methods_plots()
+    # temp_doors()
+    # plot_blk_chla()
     #plot_olci()
     #plot_stats('/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/MATCH-UPS_ANALYSIS_2024/MDBs/PLOTS/COMBINED_STATS')
 
-    file_mask = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/BAL_Land_Mask_hr_CFC.nc'
+    # file_mask = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/BAL_Land_Mask_hr_CFC.nc'
     # dir_out = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/MASK_PLOTS'
     # plot_mask_clara(file_mask,dir_out)
     #
 
-    file_average = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/CoverageAnalysis_BAL_MULTI_COMPLETED_19970904_20241031.nc'
-    dir_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS/'
+    # file_average = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/CoverageAnalysis_BAL_MULTI_COMPLETED_19970904_20241031.nc'
+    # dir_base = '/mnt/c/DATA_LUIS/OCTAC_WORK/BAL_EVOLUTION_202411/COVERAGE_ANALYSIS/PLOTS/'
 
     ##BAR TIME SERIES->csv must be done before using MDBReaderV2 -m PLOT
     # names_out = ['TotalCoverageByYear_Complete.tif','TotalCoverageByYear_Summer.tif','TotalCoverageByMonth.tif']
@@ -2800,9 +2845,7 @@ def main():
     #     if ref.startswith('Percent'):
     #         plot_maps_clara(file_average,ref,True)
 
-    ##METHODS PLOTS
-    # plot_methods_plots()
-    # temp_doors()
+
 
     # ##until 2024-08-31: 0:9859
     # dataset_mask = Dataset(file_mask)

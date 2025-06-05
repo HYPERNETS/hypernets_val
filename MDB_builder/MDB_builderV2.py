@@ -43,22 +43,29 @@ from COMMON import common_functions as cfs
 
 def test():
     print('test')
-    from INSITU_tara import INSITU_TARA
-    im = INSITU_TARA(None, True)
-    from datetime import datetime as dt
-    date_here = dt(2023, 4, 3)
-    im.retrieve_metadata_from_file(date_here)
-    file_extract = '/mnt/c/DATA_LUIS/TARA_TEST/extracts/S3B_OL_2_WFR____20230403T111113_20230403T111413_20230404T221050_0179_078_037_2160_MAR_O_NT_003_SEN3_extract_549_4638.nc'
+    # from INSITU_tara import INSITU_TARA
+    # im = INSITU_TARA(None, True)
+    # from datetime import datetime as dt
+    # date_here = dt(2023, 4, 3)
+    # im.retrieve_metadata_from_file(date_here)
+    # file_extract = '/mnt/c/DATA_LUIS/TARA_TEST/extracts/S3B_OL_2_WFR____20230403T111113_20230403T111413_20230404T221050_0179_078_037_2160_MAR_O_NT_003_SEN3_extract_549_4638.nc'
+    #
+    # dataset = Dataset(file_extract)
+    # lat_array = dataset.variables['satellite_latitude'][0, :, :]
+    # lon_array = dataset.variables['satellite_longitude'][0, :, :]
+    #
+    # index_time = float(np.array(dataset.variables['satellite_time'][0]))
+    # sat_time = dt.fromtimestamp(index_time).replace(tzinfo=pytz.utc)
+    # dataset.close()
+    # max_time_diff = 180 * 60
+    # im.check_match_up_conditions(sat_time, lat_array, lon_array, max_time_diff)
+    dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK/SeaBassExamples'
+    file_seabass = os.path.join(dir_base,'TARA_HyperBOOST_Lwn_20240802_20240821_Version_20250422.sb')
+    from SB_support import readSB
+    sb = readSB(file_seabass)
+    print(sb.variables)
+    print(sb.data['lwn823.8_unc'])
 
-    dataset = Dataset(file_extract)
-    lat_array = dataset.variables['satellite_latitude'][0, :, :]
-    lon_array = dataset.variables['satellite_longitude'][0, :, :]
-
-    index_time = float(np.array(dataset.variables['satellite_time'][0]))
-    sat_time = dt.fromtimestamp(index_time).replace(tzinfo=pytz.utc)
-    dataset.close()
-    max_time_diff = 180 * 60
-    im.check_match_up_conditions(sat_time, lat_array, lon_array, max_time_diff)
 
     return True
 

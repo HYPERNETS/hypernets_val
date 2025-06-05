@@ -1,16 +1,13 @@
-import argparse
-import configparser
-import os
-import sys
+import argparse, os, sys
+import shutil
 
 import pandas as pd
-import pytz
 from netCDF4 import Dataset
 from datetime import datetime as dt
-from datetime import timedelta
 import numpy.ma as ma
 import numpy as np
-import subprocess
+from multiprocessing import Pool
+
 
 # import user defined functions from other .py
 import sat_extract
@@ -18,456 +15,12 @@ import sat_extract
 code_home = os.path.dirname(os.path.dirname(sat_extract.__file__))
 sys.path.append(code_home)
 from SAT_EXTRACT.sat_extract import SatExtract
-import COMMON.common_functions as cfs
 
-parser = argparse.ArgumentParser(description="Create Match-up DataBase files (MDB) files.")
-parser.add_argument("-d", "--download_sources", help="Download DOORS sources.", action="store_true")
+parser = argparse.ArgumentParser(description="Satellite extracts from multiple files (one file for variable) available in the CNR server.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-parser.add_argument('-c', "--config_file", help="Config File.")
+parser.add_argument('-c', "--config_file", help="Config File.", required=True)
 parser.add_argument('-p', "--product_file", help="Image file.")
-#parser.add_argument('-ac', "--atm_correction", help="Atmospheric correction algorithm (Default: C2RCC)",choices=["C2RCC", "FUB"])
 args = parser.parse_args()
-
-
-def copy_extract(input_file, output_file):
-    from netCDF4 import Dataset
-    input_dataset = Dataset(input_file)
-    ncout = Dataset(output_file, 'w', format='NETCDF4')
-
-    # copy global attributes all at once via dictionary
-    ncout.setncatts(input_dataset.__dict__)
-
-    # copy dimensions
-    for name, dimension in input_dataset.dimensions.items():
-        ncout.createDimension(
-            name, (len(dimension) if not dimension.isunlimited() else None))
-
-    for name, variable in input_dataset.variables.items():
-        fill_value = None
-        if '_FillValue' in list(variable.ncattrs()):
-            fill_value = variable._FillValue
-
-        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
-                             shuffle=True, complevel=6)
-        # copy variable attributes all at once via dictionary
-        ncout[name].setncatts(input_dataset[name].__dict__)
-
-        ncout[name][:] = input_dataset[name][:]
-
-    # ncout.close()
-    input_dataset.close()
-
-    newEXTRACT = SatExtract(None)
-    newEXTRACT.EXTRACT = ncout
-    newEXTRACT.FILE_CREATED = True
-
-    return newEXTRACT
-
-
-# no implemented yet
-def launch_create_extract_skie(filepath, skie_file, options):
-    ncreated = 0
-
-    path_output = get_output_path(options)
-    if path_output is None:
-        print(f'ERROR: {path_output} is not valid')
-        return ncreated
-
-    # Start dataset
-    if args.verbose:
-        if args.verbose:
-            print('[INFO] Starting dataset...')
-    nc_sat = Dataset(filepath, 'r')
-
-    # Retriving lat and long arrays
-    if args.verbose:
-        print('[INFO] Retrieving lat/long data...')
-    var_lat, var_lon = get_lat_long_var_names(options)
-    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
-    if args.atm_correction == 'FUB':
-        sat_time = get_sat_time_from_fname(filepath)
-    else:
-        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
-    nminutes = 120
-    if options.has_option('satellite_options', 'max_time_diff'):
-        nminutes = int(options['satellite_options']['max_time_diff'])
-
-    # Retrieving global atribbutes
-    if args.verbose:
-        print('[INFO] Retrieving global attributes...')
-    global_at = get_global_atrib(nc_sat, options)
-
-    max_time_diff = nminutes * 60
-    check_date = skie_file.get_subdf(sat_time, sat_time, max_time_diff)
-    if not check_date:
-        print(f'[WARNING] Spectral data for date: {sat_time} are not avaiable')
-        return ncreated
-    if args.verbose:
-        print(f'[INFO] Extracting data for sat time: {sat_time}')
-
-    extracts = {}
-    for irow in range(skie_file.get_n_df_sub()):
-        insitu_lat, insitu_lon = skie_file.get_lat_lon_at_subdb(irow)
-        size_box = get_box_size(options)
-        contain_flag, r, c = check_location(insitu_lat, insitu_lon, lat, lon, size_box)
-        if not contain_flag:
-            continue
-        # r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-        # insitu_time = skie_file.get_time_at_subdb(irow, None)
-        # distd, timed, speed = skie_file.get_dist_timedif_speed_at_subdb(irow)
-        # index = skie_file.get_index_at_subdb(irow)
-        # print(irow, index, insitu_time, insitu_lat, insitu_lon, r, c, distd, timed, speed)
-        keyrc = f'{r}_{c}'
-        if keyrc not in extracts.keys():
-            extracts[keyrc] = {
-                'r': r,
-                'c': c,
-                'irows': [irow]
-            }
-        else:
-            extracts[keyrc]['irows'].append(irow)
-
-    for extract in extracts:
-        r = int(extracts[extract]['r'])
-        c = int(extracts[extract]['c'])
-        filename = filepath.split('/')[-1].replace('.', '_') + '_extract_skie_' + extract + '.nc'
-        pdu = filepath.split('/')[-1]
-        ofname = os.path.join(path_output, filename)
-        global_at['station_name'] = 'skie'
-        global_at['in_situ_lat'] = f'in situ points at pixel row={r},col={c}'
-        global_at['in_situ_lon'] = f'in situ points at pixel row={r},col={c}'
-
-        b = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, skie_file,
-                           extracts[extract]['irows'], None)
-        if b:
-            ncreated = ncreated + 1
-
-    nc_sat.close()
-
-    return ncreated
-
-
-def launch_create_extract_station(filepath, options, insitu_lat, insitu_lon, insitu_time):
-    created = False
-    path_output = get_output_path(options)
-    if path_output is None:
-        print(f'ERROR: {path_output} is not valid')
-        return created
-
-    # Start dataset
-    if args.verbose:
-        print(f'[INFO] Starting dataset. File: {filepath}')
-    nc_sat = Dataset(filepath, 'r')
-
-    # Retriving lat and long arrays
-    if args.verbose:
-        print('[INFO] Retrieving lat/long data...')
-    var_lat, var_lon = get_lat_long_var_names(options)
-    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
-
-    # Retrieving global atribbutes
-    if args.verbose:
-        print('[INFO] Retrieving global attributes...')
-    global_at = get_global_atrib(nc_sat, options)
-
-    contain_flag = 0
-    if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-        if lat.ndim == 1 and lon.ndim == 1:
-            r = np.argmin(np.abs(lat - insitu_lat))
-            c = np.argmin(np.abs(lon - insitu_lon))
-        else:
-            r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-        size_box = get_box_size(options)
-        start_idx_x = (c - int(size_box / 2))  # lon
-        stop_idx_x = (c + int(size_box / 2) + 1)  # lon
-        start_idx_y = (r - int(size_box / 2))  # lat
-        stop_idx_y = (r + int(size_box / 2) + 1)  # lat
-
-        if lat.ndim == 1 and lon.ndim == 1:
-            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                    lon.shape[0]:
-                contain_flag = 1
-        else:
-            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                    lat.shape[1]:
-                contain_flag = 1
-    if contain_flag == 1:
-        # filename = filepath.split('/')[-1].replace('.', '_') + '_extract.nc'
-        filename = filepath.split('/')[-1][:-3]
-        filename = f'{filename}_{r}_{c}_extract.nc'
-        pdu = filepath.split('/')[-1]
-
-        ofname = os.path.join(path_output, filename)
-        # global_at['station_name'] =
-        global_at['in_situ_lat'] = insitu_lat
-        global_at['in_situ_lon'] = insitu_lon
-        insitu_time = insitu_time.timestamp()
-        irows = [insitu_lat, insitu_lon, insitu_time]
-        res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, 'STATION', irows)
-        if res:
-            created = True
-            print(f'[INFO] Extract file created: {ofname}')
-    else:
-        if args.verbose:
-            print(f'[WARNING] Site out of the image')
-
-    return created
-
-
-def launch_create_extract(filepath, options):
-    ncreated = 0
-
-    path_output = get_output_path(options)
-    if path_output is None:
-        print(f'ERROR: {path_output} is not valid')
-        return ncreated
-
-    # Retrieving sites
-    site_file, site_list, region_list = get_site_options(options)
-    if site_file is not None:
-        sites = cfs.get_sites_from_file(site_file, site_list, region_list, path_output)
-    else:
-        sites = cfs.get_sites_from_list(site_list, path_output)
-
-    if len(sites) == 0:
-        print('[ERROR] No sites are defined')
-        return ncreated
-
-    # Start dataset
-    if args.verbose:
-        if args.verbose:
-            print('[INFO] Starting dataset...')
-    nc_sat = Dataset(filepath, 'r')
-
-    # Retriving lat and long arrays
-    if args.verbose:
-        print('[INFO] Retrieving lat/long data...')
-    var_lat, var_lon = get_lat_long_var_names(options)
-    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
-
-    # Retrieving global atribbutes
-    if args.verbose:
-        print('[INFO] Retrieving global attributes...')
-    global_at = get_global_atrib(nc_sat, options)
-
-    # Working for each site, checking if there is in the image
-    for site in sites:
-        if args.verbose:
-            print(f'[INFO]Working for site: {site}')
-        insitu_lat = sites[site]['latitude']
-        insitu_lon = sites[site]['longitude']
-        contain_flag = 0
-        if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-            if lat.ndim == 1 and lon.ndim == 1:
-                r = np.argmin(np.abs(lat - insitu_lat))
-                c = np.argmin(np.abs(lon - insitu_lon))
-            else:
-                r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-            size_box = get_box_size(options)
-            start_idx_x = (c - int(size_box / 2))  # lon
-            stop_idx_x = (c + int(size_box / 2) + 1)  # lon
-            start_idx_y = (r - int(size_box / 2))  # lat
-            stop_idx_y = (r + int(size_box / 2) + 1)  # lat
-
-            if lat.ndim == 1 and lon.ndim == 1:
-                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                        lon.shape[0]:
-                    contain_flag = 1
-            else:
-                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                        lat.shape[1]:
-                    contain_flag = 1
-        if contain_flag == 1:
-            filename = filepath.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
-            pdu = filepath.split('/')[-1]
-            if not os.path.exists(sites[site]['path_out']):
-                os.mkdir(sites[site]['path_out'])
-            ofname = os.path.join(sites[site]['path_out'], filename)
-            global_at['station_name'] = site
-            global_at['in_situ_lat'] = insitu_lat
-            global_at['in_situ_lon'] = insitu_lon
-            res = create_extract(ofname, pdu, options, nc_sat, global_at, lat, lon, r, c, None, None)
-            if res:
-                ncreated = ncreated + 1
-                print(f'[INFO] Extract file created: {ofname}')
-        else:
-            if args.verbose:
-                print(f'[WARNING] Site {site} out of the image')
-
-    return ncreated
-
-
-# def check_contain_flag():
-
-
-def create_extract(ofname, pdu, options_extract, nc_sat, global_at, lat, long, r, c, skie_file, irows):
-
-    #size_box = get_box_size(options)
-    size_box = options_extract['size_box']
-    start_idx_x = (c - int(size_box / 2))
-    stop_idx_x = (c + int(size_box / 2) + 1)
-    start_idx_y = (r - int(size_box / 2))
-    stop_idx_y = (r + int(size_box / 2) + 1)
-
-    window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
-
-    search_pattern = options_extract['search_pattern'] if 'search_pattern' in options_extract.keys() else 'rrs_'
-    wl_atrib = options_extract['wl_atrib'] if 'wl_atrib' in options_extract.keys() else None
-
-
-    reflectance_bands, n_bands = get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib)
-
-    dataset_var_list = options_extract['dataset_var_list']
-    n_vars = len(dataset_var_list)
-    # print(reflectance_bands)
-    # print(n_bands)
-    if n_bands==0 and n_vars==0:
-        print(f'[ERROR] Please define RRS or single bands for the creation of the extract')
-        return False
-
-        #return False
-    # flag_band_name = 'c2rcc_flags'
-    # if args.atm_correction == 'FUB':
-    #     flag_band_name = 'quality_flags'
-
-    newEXTRACT = SatExtract(ofname)
-    if not newEXTRACT.FILE_CREATED:
-        print(f'[ERROR] File {ofname} could not be created')
-        return False
-
-    if args.verbose:
-        print(f'[INFO]    Creating file: {ofname}')
-
-    newEXTRACT.set_global_attributes(global_at)
-
-    if skie_file is not None and skie_file != 'STATION':
-        newEXTRACT.create_dimensions_incluidinginsitu(size_box, n_bands, skie_file.get_n_bands(), 30)
-    else:
-        newEXTRACT.create_dimensions(size_box, n_bands)
-
-    newEXTRACT.create_lat_long_variables(lat, long, window)
-
-    # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
-    sat_time = None
-    if 'sat_time' in options_extract.keys():
-        sat_time = options_extract['sat_time']
-    else:
-        try:
-            sat_time = dt.strptime(os.path.basename(ofname)[:15],'%Y%m%d')
-        except:
-            if 'start_date' in nc_sat.ncattrs():
-                try:
-                    sat_time_str = nc_sat.start_date
-                    if sat_time_str[2]=='-':
-                        sat_time = dt.strptime(sat_time_str[:11],'%d-%b-%Y')
-                    else:
-                        sat_time = dt.strptime(sat_time_str[:10], '%Y-%m-%d')
-                    sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
-                except:
-                    pass
-
-    if sat_time is not None:
-        newEXTRACT.create_satellite_time_variable(sat_time)
-    else:
-        print(f'[ERROR] Satellite time is not defined...')
-        newEXTRACT.close_file()
-        os.remove(ofname)
-        return False
-
-    # pdu variable
-    if pdu is not None:
-        newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
-
-    # Rrs and wavelenghts
-    if n_bands>0:
-        satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
-        rbands = list(reflectance_bands.keys())
-        wavelenghts = []
-        for index in range(len(rbands)):
-            rband = rbands[index]
-            rbandvar = nc_sat.variables[rband]
-            if rbandvar.ndim == 3:
-                # bandarray = ma.array(rbandvar[:, :, :])
-                # satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
-                bandarray = ma.array(rbandvar[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])
-                satellite_Rrs[0, index, :, :] = bandarray[:, :]
-            elif rbandvar.ndim == 2:
-                bandarray = ma.array(rbandvar[:, :])
-                satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
-            wl = reflectance_bands[rband]['wavelenght']
-            wavelenghts.append(wl)
-        newEXTRACT.create_satellite_bands_variable(wavelenghts)
-
-
-    if n_vars>0:
-        for var_name in dataset_var_list:
-            var_array = np.ma.squeeze(nc_sat.variables[var_name][:])
-            # if nc_sat.variables[var_name].ndim==3:
-            #     var_array = np.ma.squeeze(nc_sat.variables[var_name][0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])
-            # elif nc_sat.variables[var_name].ndim==2:
-            #     var_array = np.ma.squeeze(nc_sat.variables[var_name][start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])
-            newEXTRACT.create_2D_variable_general(var_name,var_array,window)
-            newEXTRACT.set_variable_attributes(var_name,nc_sat[var_name].__dict__)
-    # flags
-    # flag_band = nc_sat.variables[flag_band_name]
-    #
-    # newEXTRACT.create_flag_variable(f'satellite_{flag_band_name}', flag_band, flag_band.long_name, flag_band.flag_masks,
-    #                                 flag_band.flag_meanings, window)
-
-    if skie_file is not None:
-        if skie_file == 'STATION':
-            insitu_lat_here = irows[0]
-            insitu_lon_here = irows[1]
-            insitu_time_here = irows[2]
-            insitu_time = newEXTRACT.EXTRACT.createVariable('insitu_time', 'f8', ('satellite_id',), zlib=True,
-                                                            complevel=6)
-            insitu_time.units = "Seconds since 1970-1-1"
-            insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
-            insitu_time[0] = insitu_time_here
-            insitu_lat = newEXTRACT.EXTRACT.createVariable('insitu_latitude', 'f8', ('satellite_id',),
-                                                           fill_value=-999,
-                                                           zlib=True, complevel=6)
-            insitu_lat.short_name = "latitude"
-            insitu_lat.units = "degrees"
-            insitu_lon = newEXTRACT.EXTRACT.createVariable('insitu_longitude', 'f8', ('satellite_id',),
-                                                           fill_value=-999,
-                                                           zlib=True, complevel=6)
-            insitu_lon.short_name = "longitude"
-            insitu_lon.units = "degrees"
-            insitu_lat[0] = insitu_lat_here
-            insitu_lon[0] = insitu_lon_here
-
-        else:
-            insitu_origbands_var = newEXTRACT.create_insitu_original_bands_variable()
-            insitu_origbands_var[:] = skie_file.wavelengths
-            insitutime_var = newEXTRACT.create_insitu_time_variable()
-            insitu_exactwl_var = newEXTRACT.create_insitu_exact_wavelengths_variable()
-            insitu_timedif_var = newEXTRACT.create_insitu_time_difference_variable()
-            insitu_rrs_var = newEXTRACT.create_insitu_rrs_variable()
-            insitu_lat, insitu_lon = newEXTRACT.create_insitu_lat_long_variables()
-            index_var = 0
-            for irow in irows:
-                insitu_time_here = skie_file.get_time_at_subdb(irow, 'DT')
-                insitutime_var[0, index_var] = insitu_time_here.timestamp()
-                insitu_exactwl_var[0, :, index_var] = skie_file.wavelengths
-                insitu_rrs_var[0, :, index_var] = np.array(skie_file.get_spectra_at_subdb(irow))
-                if args.atm_correction == 'FUB':
-                    sat_time_here = get_sat_time_from_fname(pdu)
-                else:
-                    sat_time_here = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
-                time_diff = float(abs((insitu_time_here - sat_time_here).total_seconds()))
-                insitu_timedif_var[0, index_var] = time_diff
-                latp, lonp = skie_file.get_lat_lon_at_subdb(irow)
-                insitu_lat[0, index_var] = latp
-                insitu_lon[0, index_var] = lonp
-                index_var = index_var + 1
-
-    newEXTRACT.close_file()
-
-    return True
-
-
-
 
 
 def add_variable_multiple(newEXTRACT, extract, variable_list, variable_list_out):
@@ -507,7 +60,6 @@ def add_variable_multiple(newEXTRACT, extract, variable_list, variable_list_out)
         nc_in.close()
 
     return newEXTRACT
-
 
 
 def add_reflectance_multiple(newEXTRACT, extract, wl_list):
@@ -565,53 +117,8 @@ def add_reflectance_multiple(newEXTRACT, extract, wl_list):
 
     return newEXTRACT
 
-
-def add_insitu_basic_info(newEXTRACT, extract, id, nid, csv_flag_menings):
-    if 'insitu_id' not in newEXTRACT.EXTRACT.dimensions:
-        newEXTRACT.create_dimension_insitu(nid)
-    idx = id - 1
-    ids = str(id)
-    satellite_time = extract['satellite_time']
-    insitu_time = extract[ids]['insitu_time']
-
-    global_at = extract[ids]['global_at']
-    insitu_lat = global_at['in_situ_lat']
-    insitu_lon = global_at['in_situ_lon']
-
-    if 'insitu_time' not in newEXTRACT.EXTRACT.variables:
-        newEXTRACT.create_insitu_time_variable()
-    if 'insitu_latitude' not in newEXTRACT.EXTRACT.variables and 'insitu_longitude' not in newEXTRACT.EXTRACT.variables:
-        newEXTRACT.create_insitu_lat_long_variables()
-    if 'time_difference' not in newEXTRACT.EXTRACT.variables:
-        newEXTRACT.create_insitu_time_difference_variable()
-
-    newEXTRACT.EXTRACT.variables['insitu_time'][0, idx] = float(insitu_time.timestamp())
-    newEXTRACT.EXTRACT.variables['insitu_latitude'][0, idx] = insitu_lat
-    newEXTRACT.EXTRACT.variables['insitu_longitude'][0, idx] = insitu_lon
-    newEXTRACT.EXTRACT.variables['time_difference'][0, idx] = abs(insitu_time - satellite_time).total_seconds()
-
-    if csv_flag_menings is None:
-        return newEXTRACT
-
-    for flag in csv_flag_menings:
-        flag_meanings = csv_flag_menings[flag]
-        if len(flag_meanings) > 32:
-            continue
-        flag_v = f'insitu_flag_{flag.lower()}'
-        if flag_v not in newEXTRACT.EXTRACT.variables:
-            newEXTRACT.create_insitu_flag_variable_version2(flag_v, flag_meanings)
-        flag = global_at[flag]
-        value_flag = 0
-        if flag in flag_meanings:
-            index_flag = flag_meanings.index(flag)
-            value_flag = int(np.power(2, float(index_flag)))
-        newEXTRACT.EXTRACT.variables[flag_v][0, idx] = value_flag
-
-    return newEXTRACT
-
-
 ##start the extract without using original file
-def start_extract_2(ofname, extract_info):
+def start_extract(ofname, extract_info):
     newEXTRACT = SatExtract(ofname)
     if not newEXTRACT.FILE_CREATED:
         print(f'[ERROR] File {ofname} could not be created')
@@ -630,1109 +137,17 @@ def start_extract_2(ofname, extract_info):
     return newEXTRACT
 
 
-def start_extract(extract, ofname):
-    global_at = extract['1']['global_at']
-    satellite_time = extract['satellite_time']
-    size_box = extract['size_box']
-    n_bands = extract['n_bands']
-    window = extract['limits']
-    if 'list_files' in extract:
-        nc_file = extract['list_files'][0]
-    elif 'file' in extract:
-        nc_file = extract['file']
-
-    # print(global_at['in_situ_lat'], global_at['in_situ_lon'])
-
-    newEXTRACT = SatExtract(ofname)
-    if not newEXTRACT.FILE_CREATED:
-        print(f'[ERROR] File {ofname} could not be created')
-        return False
-
-    if args.verbose:
-        print(f'[INFO] Starting file: {ofname}')
-
-    newEXTRACT.set_global_attributes(global_at)
-
-    newEXTRACT.create_dimensions(size_box, n_bands)
-
-    var_lat = extract['var_lat']
-    var_lon = extract['var_lon']
-    nc_sat = Dataset(nc_file, 'r')
-    lat, long = get_lat_long_arrays(nc_sat, var_lat, var_lon)
-    nc_sat.close()
-    newEXTRACT.create_lat_long_variables(lat, long, window)
-    newEXTRACT.create_satellite_time_variable(satellite_time)
-
-    return newEXTRACT
-
-
-def create_extract_multiple(ofname, pdu, options, nc_files, band_list, global_at, lat, long, r, c):
-    size_box = get_box_size(options)
-    start_idx_x = (c - int(size_box / 2))
-    stop_idx_x = (c + int(size_box / 2) + 1)
-    start_idx_y = (r - int(size_box / 2))
-    stop_idx_y = (r + int(size_box / 2) + 1)
-
-    window = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
-
-    n_bands = len(nc_files)
-
-    if n_bands == 0:
-        print('[ERROR] reflectance bands are not defined')
-        return False
-
-    newEXTRACT = SatExtract(ofname)
-    if not newEXTRACT.FILE_CREATED:
-        print(f'[ERROR] File {ofname} could not be created')
-        return False
-
-    if args.verbose:
-        print(f'[INFO]    Creating file: {ofname}')
-
-    newEXTRACT.set_global_attributes(global_at)
-    newEXTRACT.EXTRACT.in_situ_lat = global_at['in_situ_lat']
-    newEXTRACT.EXTRACT.in_situ_lon = global_at['in_situ_lon']
-
-    newEXTRACT.create_dimensions(size_box, n_bands)
-
-    newEXTRACT.create_lat_long_variables(lat, long, window)
-
-    # Sat time start:  ,+9-2021-12-24T18:23:00.471Z
-    nc_sat = Dataset(nc_files[0])
-    if 'start_date' in nc_sat.ncattrs():
-        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d').astimezone(pytz.utc)
-        sat_time = sat_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        newEXTRACT.create_satellite_time_variable(sat_time)
-    else:
-        sat_time = get_sat_time_from_fname(pdu)
-        if sat_time is not None:
-            newEXTRACT.create_satellite_time_variable(sat_time)
-        else:
-            print(f'[ERROR] Satellite time is not defined...')
-            newEXTRACT.close_file()
-            return False
-    nc_sat.close()
-
-    # pdu variable
-    if pdu is not None:
-        newEXTRACT.create_pdu_variable(pdu, global_at['sensor'])
-
-    # Rrs and wavelenghts
-    satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
-    wavelenghts = []
-    for index in range(len(nc_files)):
-        f = nc_files[index]
-        nc_sat = Dataset(f)
-        name_file = f.split('/')[-1]
-        rband = name_file.split('-')[1].upper()
-        wls = band_list[index].replace('_', '.')
-        wl = float(wls)
-        wavelenghts.append(wl)
-        rbandvar = nc_sat.variables[rband]
-        if rbandvar.ndim == 3:
-            bandarray = ma.array(rbandvar[:, :, :])
-            satellite_Rrs[0, index, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
-        elif rbandvar.ndim == 2:
-            bandarray = ma.array(rbandvar[:, :])
-            satellite_Rrs[0, index, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
-        nc_sat.close()
-
-    newEXTRACT.create_satellite_bands_variable(wavelenghts)
-
-    newEXTRACT.close_file()
-
-    return True
-
-
-def config_reader(FILEconfig):
-    """
-    Reads and checks configuration file for the validation
-    Args:
-        FILEconfig(str): configuration file path
-
-    Return:
-        options object
-    """
-    options = configparser.ConfigParser()
-    options.read(FILEconfig)
-    return options
-
-
-def check_location(insitu_lat, insitu_lon, lat, lon, size_box):
-    contain_flag = False
-    r = -1
-    c = -1
-    if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-        if lat.ndim == 1 and lon.ndim == 1:
-            r = np.argmin(np.abs(lat - insitu_lat))
-            c = np.argmin(np.abs(lon - insitu_lon))
-        else:
-            r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-        start_idx_x = (c - int(size_box / 2))
-        stop_idx_x = (c + int(size_box / 2) + 1)
-        start_idx_y = (r - int(size_box / 2))
-        stop_idx_y = (r + int(size_box / 2) + 1)
-
-        # print('Check location line 336: ', r, c, start_idx_y,stop_idx_y,start_idx_x,stop_idx_x)
-
-        if lat.ndim == 1 and lon.ndim == 1:
-            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                    lon.shape[0]:
-                contain_flag = True
-        else:
-            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                    lat.shape[1]:
-                contain_flag = True
-
-    return contain_flag, r, c
-
-
-def get_output_path(options):
-    if options.has_option('file_path', 'output_dir'):
-        output_path = options['file_path']['output_dir']
-        if not os.path.exists(output_path):
-            if args.verbose:
-                print(f'[WARNING] Creating new output path: {output_path}')
-                try:
-                    os.mkdir(output_path)
-                except OSError:
-                    print(f'[ERROR] Folder: {output_path} could not be creaded')
-                    return None
-        if args.verbose:
-            print(f'[INFO] Output path:{output_path}')
-        return output_path
-    else:
-        print('[ERROR] section:file_path, option: output_dir is not included in the configuration file')
-        return None
-
-
-def get_box_size(options):
-    if options.has_option('satellite_options', 'extract_size'):
-        try:
-            size_box = int(options['satellite_options']['extract_size'])
-        except:
-            size_box = 25
-    else:
-        size_box = 25
-    return size_box
-
-
-def get_sat_time(nc_sat, pdu):
-    sat_time = None
-    if 'start_date' in nc_sat.ncattrs():
-        sat_time = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
-        sat_time = sat_time.replace(hour=11, minute=0, second=0)
-    else:
-        sat_time = get_sat_time_from_fname(pdu)
-    return sat_time
-
-
-def get_site_options(options):
-    site_file = None
-    site_list = None
-    region_list = None
-    section = 'Time_and_sites_selection'
-    # if not options.has_option('Time_and_sites_selection', 'sites'):
-    #     print(f'[ERROR] section Time_and_sites_selection, option sites not found in configuration file')
-
-    if options.has_option(section, 'sites_file'):
-        site_file = options[section]['sites_file'].strip()
-        if not os.path.isfile(site_file):
-            print(f'[WARNING] site_file {site_file} does not exist or is not a valid file')
-            site_file  = None
-        else:
-            if options.has_option(section, 'sites_region'):
-                region_list = options[section]['sites_region'].split(',')
-                region_list = [r.strip() for r in region_list]
-    if options.has_option(section,'sites'):
-        site_list = options[section]['sites'].split(',')
-        site_list = [s.strip() for s in site_list]
-    elif options.has_option(section,'in_situ_lat') and options.has_option(section,'in_situ_lon'):
-        try:
-            lat = float(options[section]['in_situ_lat'].strip())
-            long = float(options[section]['in_situ_lon'].strip())
-            site_name = options[section]['in_situ_name'] if options.has_option(section,'in_situ_name') else 'unknown'
-            site_list =  {
-                site_name: {
-                    'latitude': lat,
-                    'longitude': long,
-                    'path_out': None
-                }
-            }
-
-        except:
-            print(f'[ERROR] Error defining latitude and longitude values using options in_situ_lat and in_situ_lon in section {section}')
-
-
-
-
-    return site_file, site_list, region_list
-
-
-def get_lat_long_arrays(nc_sat, var_lat, var_lon):
-    vlat = nc_sat.variables[var_lat]
-    vlon = nc_sat.variables[var_lon]
-    if vlat.ndim == 2 and vlon.ndim == 2:
-        lat = nc_sat.variables[var_lat][:, :]
-        lon = nc_sat.variables[var_lon][:, :]
-    if vlat.ndim == 1 and vlon.ndim == 1:
-        lat = nc_sat.variables[var_lat][:]
-        lon = nc_sat.variables[var_lon][:]
-    return lat, lon
-
-
-def get_lat_long_var_names(options):
-    var_lat = 'lat'
-    var_lon = 'lon'
-    if options.has_option('satellite_options', 'lat_variable'):
-        var_lat = options['satellite_options']['lat_variable']
-    if options.has_option('satellite_options', 'lon_variable'):
-        var_lon = options['satellite_options']['lon_variable']
-    return var_lat, var_lon
-
-
-def get_sat_time_from_fname(fname):
-    val_list = fname.split('_')
-    sat_time = None
-    for v in val_list:
-        try:
-            sat_time = dt.strptime(v, '%Y%m%dT%H%M%S')
-            break
-        except ValueError:
-            continue
-    return sat_time
-
-
-def get_band_list(options):
-    if options.has_option('satellite_options', 'band_list'):
-        list_str = options['satellite_options']['band_list']
-        band_list = [x.strip() for x in list_str.split(',')]
-        return band_list
-    else:
-        band_list = ['400', '412_5', '442_5', '490', '510', '560', '620', '665', '673_75', '681_25', '708_75', '753_75',
-                     '778_75']
-        return band_list
-
-
-def get_format_name(options):
-    if options.has_option('satellite_options', 'format_name'):
-        format_name = options['satellite_options']['format_name'].strip()
-    else:
-        format_name = 'O$DATE$-rrs$BAND$-med-fr.nc'
-    if options.has_option('satellite_options', 'format_name_date'):
-        format_name_date = options['satellite_options']['format_name_date'].strip()
-    else:
-        format_name_date = '%Y%j'
-
-    return format_name, format_name_date
-
-
-def get_satellite_global_atrib_from_options(options):
-    compulsory_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
-    section = 'satellite_options'
-    at = {}
-    for key in compulsory_keys:
-        if options.has_option(section, key):
-            at[key] = options[section][key].strip()
-        else:
-            at[key] = ''
-
-    return at
-
-
-def get_satellite_ref(global_at):
-    ref_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
-    ref = None
-    for key in ref_keys:
-        if key in global_at.keys() and len(global_at[key]) > 0:
-            if ref is None:
-                ref = global_at[key]
-            else:
-                ref = f'{ref}_{global_at[key]}'
-    return ref
-
-
-def add_insitu_global_atrib(at, site, latitude, longitude, other):
-    at['site'] = site
-    at['in_situ_lat'] = latitude
-    at['in_situ_lon'] = longitude
-    if other is not None:
-        for key in other:
-            at[key] = other[key]
-    return at
-
-
-def get_global_atrib(nc_sat, options):
-    at = {}
-    equiv = {
-        'project': 'aco_processor',
-        'product_version': 'proc_version',
-        'grid_resolution': 'res'
-    }
-    if options.has_option('satellite_options', 'global_atrib'):
-        list_str = options['satellite_options']['global_atrib']
-        list_attributes = list_str.split(',')
-        for atrib in list_attributes:
-            atrib_name = atrib.strip()
-            if atrib_name in equiv.keys():
-                atrib_name = equiv[atrib_name]
-            if atrib_name in nc_sat.ncattrs():
-                at[atrib_name] = nc_sat.getncattr(atrib_name)
-            else:
-                print(f'[WARNING] Attribute {atrib_name} is not available in dataset. Skiping...')
-
-    compulsory_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
-    for key in compulsory_keys:
-        if key not in at.keys():
-            at[key] = ''
-
-    at['station_name'] = ''
-    at['in_situ_lat'] = -999
-    at['in_situ_lon'] = -999
-
-    return at
-
-
-def get_reflectance_bands_info(nc_sat, search_pattern, wl_atrib):
-    # search_pattern = 'rrs_'
-    # if args.atm_correction == 'FUB':
-    #     search_pattern = 'reflec_'
-
-    reflectance_bands = {}
-    nbands = 0
-    imin = 100000
-    imax = 0
-
-    for var in nc_sat.variables:
-        if var.startswith(search_pattern):
-            ival = int(var.split('_')[1].strip())
-            if ival < imin:
-                imin = ival
-            if ival > imax:
-                imax = ival
-
-    if imax == 0 and imin == 100000:
-        search_pattern = search_pattern[:-1]
-        lw = len(search_pattern)
-        for var in nc_sat.variables:
-            if var.startswith(search_pattern):
-                ival = var[lw:].strip()
-                ival = ival.replace('_', '.')
-                if wl_atrib is not None:
-                    wl_band = nc_sat.variables[var].getncattr(wl_atrib)
-                else:
-                    wl_band = float(ival)
-                reflectance_bands[var] = {'wavelenght': wl_band}
-                nbands = nbands + 1
-    else:
-        for ival in range(imin, imax + 1):
-            var_name = search_pattern + str(ival)
-            if var_name in nc_sat.variables:
-                if wl_atrib is not None:
-                    wl_band = nc_sat.variables[var_name].getncattr(wl_atrib)
-                else:
-                    wl_band = ival
-                reflectance_bands[var_name] = {'wavelenght': wl_band}
-                nbands = nbands + 1
-
-    if nbands == 0:
-        reflectance_bands = None
-
-    return reflectance_bands, nbands
-
-def get_date_list_from_options(options):
-    section = 'Time_and_sites_selection'
-    if not options.has_section(section):
-        print(f'[ERROR] Section Time_and_sites_selection, CSV_SELECTION or MULTIPLE_CSV_SELECTION section is required')
-        return None
-
-    date_list = []
-    if options.has_option(section,'time_list'):
-        flist = options['Time_and_sites_selection']['time_list']
-        if not os.path.isfile(flist):
-            print(f'[ERROR] Time list file {flist} is unavailable or invalid. Please review section {section}, option time_list')
-            return None
-        ff = open(flist, 'r')
-        for line in ff:
-            strdate = line.strip()
-            try:
-                date = dt.strptime(strdate, '%Y-%m-%d')
-                date_list.append(date)
-            except:
-                print(f'[WARNING] {strdate} is not valid, it should be in format YYYY-mm-dd. Skipping...')
-        ff.close()
-        if len(date_list)==0:
-            print(f'[ERROR] No valid dates were retrieved from the date list file {flist}. Dates should be in format YYYY-mm-dd')
-            return None
-    elif options.has_option(section, 'time_start'):
-        try:
-            time_start = dt.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
-        except:
-            print(f'[ERROR] time_start option in section {section} is not valid. Date format should be YYYY-mm-dd')
-            return None
-        if options.has_option(section, 'time_stop'):
-            try:
-                time_stop = dt.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(hours=24)
-            except:
-                print(f'[ERROR] time_stop option in section {section} is not valid. Date format should be YYYY-mm-dd')
-                return None
-        else:
-            print(f'[WARNING] time_stop is not given in section {section} and was set to the same date defined in time_start option')
-            time_stop = time_start
-        work_date = time_start
-        while work_date<=time_stop:
-            date_list.append(work_date)
-            work_date = work_date + timedelta(hours=24)
-    else:
-        print(f'[ERROR] Date list should be defined in section {section} using time_list or time_start/time_stop options.')
-        return None
-
-    return date_list
-
-def get_find_product_info(options):
-    path_source = options['file_path']['sat_source_dir']
-    org = None
-    if options.has_option('file_path', 'sat_source_dir_organization') and options['file_path'][
-        'sat_source_dir_organization']:
-        org = options['file_path']['sat_source_dir_organization']
-    wce = '*'
-    if options.has_option('file_path', 'wce') and options['file_path']['wce']:
-        wce = options['file_path']['wce']
-    time_start = None
-    time_stop = None
-    section = 'Time_and_sites_selection'
-    if options.has_section(section):
-        if options.has_option(section, 'time_start'):
-            time_start = dt.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
-        if options.has_option(section, 'time_stop'):
-            time_stop = dt.strptime(options['Time_and_sites_selection']['time_stop'], '%Y-%m-%d') + timedelta(hours=24)
-    # print('temp')
-    return path_source, org, wce, time_start, time_stop
-
-
-def check_product(filepath, time_start, time_stop):
-    try:
-        nc_sat = Dataset(filepath, 'r')
-    except OSError:
-        if args.verbose:
-            print(f'[WARNING] {filepath} is not a valid dataset. Skipping...')
-        return False
-
-    checkTime = False
-    if args.atm_correction == 'FUB':
-        time_sat = get_sat_time_from_fname(filepath)
-        if time_sat is not None:
-            checkTime = True
-    else:
-        if 'start_date' in nc_sat.ncattrs():
-            time_sat = dt.strptime(nc_sat.start_date, '%Y-%m-%d')
-            checkTime = True
-    check_res = True
-    if not checkTime and check_res:
-        if args.verbose:
-            print(f'[WARNING] Attribute start_date is not available in the dataset. Skipping...')
-        check_res = False
-    if check_res:
-        if time_sat < time_start or time_sat > time_stop:
-            if args.verbose:
-                print('[WARNING] Product is out of the temporal coverage. Skipping...')
-            check_res = False
-
-    return check_res
-
-
-def get_path_list_products(options):
-    path_out = get_output_path(options)
-    if path_out is None:
-        return None
-    # path_to_list = f'{path_out}/file_{platform}_list.txt'
-    path_to_list = f'{path_out}/file_list.txt'
-    return path_to_list
-
-
-def get_list_products(path_to_list, path_source, org, wce, time_start, time_stop):
-    if args.verbose:
-        print('[INFO]Creating list of products')
-
-    if os.path.exists(path_to_list):
-        if args.verbose:
-            print('[INFO]Deleting previous file list...')
-        cmd = f'rm {path_to_list}'
-        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
-        out, err = prog.communicate()
-        if err:
-            print(f'[ERROR]{err}')
-
-    if org is None:
-        if wce == '*':
-            cmd = f'find {path_source} |sort|uniq> {path_to_list}'
-        else:
-            cmd = f'find {path_source} -name {wce}|sort|uniq> {path_to_list}'
-        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
-        out, err = prog.communicate()
-        if err:
-            print(f'[ERROR]{err}')
-
-    product_path_list = []
-    with open(path_to_list, 'r') as file:
-        for cnt, line in enumerate(file):
-            path_to_sat_source = line[:-1]
-            if os.path.isdir(path_to_sat_source):
-                continue
-            if args.verbose:
-                print('-----------------')
-                print(f'Checking: {path_to_sat_source}')
-            if check_product(path_to_sat_source, time_start, time_stop):
-                product_path_list.append(path_to_sat_source)
-
-    return product_path_list
-
-
-
-
-
-def run_cmems_option_noreformat(options):
-    if args.verbose:
-        print('[INFO] Started CMEMS option...')
-
-    ncreated = 0
-    path_output = get_output_path(options)
-    if path_output is None:
-        print(f'ERROR: {path_output} is not valid')
-        return ncreated
-
-    # Retrieving sites
-    site_file, site_list, region_list = get_site_options(options)
-    if site_file is not None:
-        sites = cfs.get_sites_from_file(site_file, site_list, region_list, path_output)
-    else:
-        sites = cfs.get_sites_from_list(site_list, path_output)
-
-    if len(sites) == 0:
-        print('[ERROR] No sites are defined')
-        return ncreated
-
-    if len(sites) > 1:
-        print(f'[WARNING] Script implemented for only one site')
-        return ncreated
-
-    site = list(sites.keys())[0]
-    print(site)
-    product_name = options['file_path']['cmems_product']
-    dataset_name = options['file_path']['cmems_dataset']
-    path_source = options['file_path']['sat_source_dir']
-
-    flist = options['Time_and_sites_selection']['time_list']
-    ff = open(flist, 'r')
-    for line in ff:
-        strdate = line.strip()
-        try:
-            date = dt.strptime(strdate, '%Y-%m-%d')
-            datestr = date.strftime('%Y%m%d')
-            yyyy = date.strftime('%Y')
-            jjj = date.strftime('%j')
-            if args.verbose:
-                print('----------------------------------')
-                print(f'[INFO] Date: {strdate}')
-
-            filename = f'{dataset_name}_extract_{datestr}_{site}.nc'
-            ofname = os.path.join(path_output, filename)
-
-            if os.path.exists(ofname):
-                if args.verbose:
-                    print(f'[INFO] Extract file for date: {strdate} already exist. Skipping...')
-                continue
-
-            path_nc = os.path.join(path_source, yyyy, jjj)
-            if not os.path.exists(path_nc):
-                print(f'[WARNING] Path nc files {path_nc} does not exist. Skipping...')
-                continue
-            nhere = create_extract_cmems_multiple(path_nc, date, options, sites, ofname)
-
-            ncreated = ncreated + nhere
-            # if args.verbose:
-            #     print(f'[INFO] Removing file {filenc}')
-            # os.remove(filenc)
-
-        except:
-            print('[ERROR] Error creating extract...')
-            pass
-    ff.close()
-    if args.verbose:
-        print('*********************************************************************************')
-        print(f'[INFO] Extraction completed. Sat extracts created: {ncreated}')
-
-
-def run_cmems_option(options,extract_options):
-    if args.verbose:
-        print('[INFO] Started CMEMS option...')
-
-    ncreated = 0
-    path_output = get_output_path(options)
-    if path_output is None:
-        print(f'ERROR: {path_output} is not valid')
-        return ncreated
-
-    # Retrieving sites
-    site_file, site_list, region_list = get_site_options(options)
-    if site_file is not None:
-        sites = cfs.get_sites_from_file(site_file, site_list, region_list, path_output)
-    else:
-        if isinstance(site_list,dict):
-            site_name = list(site_list.keys())[0]
-            path_out_site = path_output if os.path.basename(path_output) == site_name else os.path.join(path_output, site_name)
-            sites = site_list
-            sites[site_name]['path_out'] = path_out_site
-        else:
-            sites = cfs.get_sites_from_list(site_list, path_output)
-
-    if len(sites) == 0:
-        print('[ERROR] Sites were not defined')
-        return ncreated
-    elif args.verbose:
-        print(f'[INFO] Sites:')
-        for s in sites:
-            print(f'[INFO] -> {s}. Latitude: {sites[s]["latitude"]}. Longitude: {sites[s]["longitude"]}')
-
-
-    # import __init__
-    # path_code_eistools = os.path.join(os.path.dirname(os.path.dirname(__init__.__file__)),'eistools')
-    # # path_code_eistools = '/home/Luis.Gonzalezvilas/eistools'
-    # # path_code_eistools = '/store/COP2-OC-TAC/CODE/eistools'
-
-
-    product_name = options['file_path']['cmems_product']
-    dataset_name = options['file_path']['cmems_dataset']
-    path_source, org, wce, time_start, time_stop = get_find_product_info(options)
-    if extract_options['dataset_name_file'] is None:
-        extract_options['dataset_name_file'] = f'$DATE$_{dataset_name}.nc'
-        extract_options['dataset_name_format_date'] = '%Y%m%d'
-
-    cmems_download_options = get_cmems_download_options(options)
-
-
-    date_list = get_date_list_from_options(options)
-    for date in date_list:
-        if args.verbose:
-            print('----------------------------------')
-            print(f'[INFO] Date: {date.strftime("%Y-%m-%d")}')
-        product = get_cmems_product_day_strict(path_source, org, date, extract_options['dataset_name_file'],
-                                               extract_options['dataset_name_format_date'], cmems_download_options)
-
-        if not os.path.isfile(product):
-            print(f'[WARNING] Product {product} is not available and could not be downloaded. Skipping...')
-            continue
-
-        ##checking if output files already exist
-        filesExist = True
-        for site in sites:
-            #path_output_site = os.path.join(path_output, site)
-            filename = os.path.basename(product)[:-3] + '_extract_' + site + '.nc'
-            ofname = os.path.join(sites[site]['path_out'], filename)
-            sites[site]['file_out'] = ofname
-            if not os.path.exists(ofname):
-                filesExist = False
-        if filesExist:
-            print(f'[INFO] Output extract files for date {date.strftime("%Y-%m-%d")} already exist for all the sites. Skipping...')
-            continue
-
-        extract_options['sat_time'] = date
-        nhere = create_extract_cmems(product, options, sites, path_output, extract_options)
-        ncreated = ncreated + nhere
-
-
-
-
-    # flist = options['Time_and_sites_selection']['time_list']
-    # ff = open(flist, 'r')
-    # for line in ff:
-    #     strdate = line.strip()
-    #     try:
-    #         date = dt.strptime(strdate, '%Y-%m-%d')
-    #         if args.verbose:
-    #             print('----------------------------------')
-    #             print(f'[INFO] Date: {strdate}')
-    #         ##checking if output files already exist
-    #         filesExist = True
-    #         expected_file_nc = pinfo.get_file_path_orig_name(None, date)
-    #         for site in sites:
-    #             path_output_site = os.path.join(path_output, site)
-    #             filename = expected_file_nc.split('/')[-1].replace('.', '_') + '_extract_' + site + '.nc'
-    #             ofname = os.path.join(path_output_site, filename)
-    #             if not os.path.exists(ofname):
-    #                 filesExist = False
-    #         if filesExist:
-    #             if args.verbose:
-    #                 print(f'[INFO] Files for date: {strdate} already exist. Skipping...')
-    #             continue
-    #
-    #         path_nc = os.path.dirname(expected_file_nc)
-    #         if not os.path.exists(path_nc):
-    #             print(f'[WARNING] Path nc files {path_nc} does not exist. Skipping...')
-    #             continue
-    #         nhere = create_extract_cmems_multiple(path_nc, date, options, sites, path_output)
-    #
-    #         ncreated = ncreated + nhere
-    #         # if args.verbose:
-    #         #     print(f'[INFO] Removing file {filenc}')
-    #         # os.remove(filenc)
-    #
-    #     except:
-    #         print('ERROR FILE')
-    #         pass
-    # ff.close()
-    if args.verbose:
-        print('*********************************************************************************')
-        print(f'[INFO] Extraction completed. Sat extracts created: {ncreated}')
-
-
-def create_extract_cmems(filepath, options, sites, path_output,extract_options):
-
-    nc_sat = Dataset(filepath, 'r')
-    # Retriving lat and long arrays
-    if args.verbose:
-        print('[INFO] Retrieving lat/long data...')
-    var_lat, var_lon = get_lat_long_var_names(options)
-    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
-
-    # Retrieving global atribbutes
-    if args.verbose:
-        print('[INFO] Retrieving global attributes...')
-    global_at = get_global_atrib(nc_sat, options)
-
-    size_box = get_box_size(options)
-    extract_options['size_box'] = size_box
-    search_pattern = 'rrs_'
-    wl_atrib = None
-    if options.has_option('satellite_options', 'rrs_prefix'):
-        search_pattern = options['satellite_options']['rrs_prefix']
-        if not search_pattern.endswith('_'):
-            search_pattern = f'{search_pattern}_'
-    if options.has_option('satellite_options', 'wl_atrib'):
-        wl_atrib = options['satellite_options']['wl_atrib']
-    extract_options['search_pattern'] = search_pattern
-    extract_options['wl_atrib'] = wl_atrib
-
-
-
-    ncreated = 0
-    # Working for each site, checking if there is in the image
-    for site in sites:
-        if args.verbose:
-            print(f'[INFO]    Working for site: {site}')
-        insitu_lat = sites[site]['latitude']
-        insitu_lon = sites[site]['longitude']
-        contain_flag = 0
-        if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-            if lat.ndim == 1 and lon.ndim == 1:
-                r = np.argmin(np.abs(lat - insitu_lat))
-                c = np.argmin(np.abs(lon - insitu_lon))
-            else:
-                r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-
-            start_idx_x = (c - int(size_box / 2))  # lon
-            stop_idx_x = (c + int(size_box / 2) + 1)  # lon
-            start_idx_y = (r - int(size_box / 2))  # lat
-            stop_idx_y = (r + int(size_box / 2) + 1)  # lat
-
-
-            if lat.ndim == 1 and lon.ndim == 1:
-                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                        lon.shape[0]:
-                    contain_flag = 1
-            else:
-                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                        lat.shape[1]:
-                    contain_flag = 1
-        if contain_flag == 1:
-            pdu = None
-            if 'file_out' in sites[site]:
-                ofname = sites[site]['file_out']
-                path_output_site = os.path.dirname(ofname)
-            else:
-                filename = os.path.basename(filepath)[:-3] + '_extract_' + site + '.nc'
-                path_output_site = os.path.join(path_output, site)
-                ofname = os.path.join(path_output_site, filename)
-            if not os.path.exists(path_output_site):
-                os.mkdir(path_output_site)
-
-            global_at['site'] = site
-            global_at['in_situ_lat'] = insitu_lat
-            global_at['in_situ_lon'] = insitu_lon
-
-            res = create_extract(ofname, pdu, extract_options, nc_sat, global_at, lat, lon, r, c, None, None)
-            if res:
-                ncreated = ncreated + 1
-                print(f'[INFO]    Extract file created: {ofname}')
-            nc_sat.close()
-        else:
-            if args.verbose:
-                print(f'[WARNING] Site {site} out of the image')
-
-    return ncreated
-
-
-def get_lat_lon_arrays(options, file_nc):
-    nc_sat = Dataset(file_nc, 'r')
-    var_lat, var_lon = get_lat_long_var_names(options)
-    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
-    nc_sat.close()
-    return lat, lon
-
-
-def get_geo_info(options, file_nc, insitu_lat, insitu_lon, lat, lon):
-    if lat is None or lon is None:
-        lat, lon = get_lat_lon_arrays(options, file_nc)
-
-    contain_flag = 0
-    limits = None
-    rc = None
-    if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-        if lat.ndim == 1 and lon.ndim == 1:
-            r = np.argmin(np.abs(lat - insitu_lat))
-            c = np.argmin(np.abs(lon - insitu_lon))
-        else:
-            r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-        size_box = get_box_size(options)
-        start_idx_x = (c - int(size_box / 2))  # lon
-        stop_idx_x = (c + int(size_box / 2) + 1)  # lon
-        start_idx_y = (r - int(size_box / 2))  # lat
-        stop_idx_y = (r + int(size_box / 2) + 1)  # lat
-
-        if lat.ndim == 1 and lon.ndim == 1:
-            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                    lon.shape[0]:
-                contain_flag = 1
-        else:
-            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                    lat.shape[1]:
-                contain_flag = 1
-        if contain_flag == 1:
-            limits = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
-            rc = [r, c]
-
-    return limits, rc
-
-
-def create_extract_cmems_multiple(ncpath, date, options, sites, ofname):
-    if args.verbose:
-        print(f'[INFO] NC Path: {ncpath}')
-
-    band_list = get_band_list(options)
-    format_name, format_name_date = get_format_name(options)
-    strdate = date.strftime(format_name_date)
-    if args.verbose:
-        print(f'[INFO] Band list: {band_list}')
-        print(f'[INFO] Format name: {format_name}')
-        print(f'[INFO] Format name date: {format_name_date}')
-    ncfiles = []
-    for b in band_list:
-        # name = f'O{strdate}-rrs{b}-med-fr.nc'
-        bstr = f'{float(b):.2f}'
-        if bstr.endswith('.00'):
-            bstr = bstr[:-3]
-        if bstr.find('.') > 0 and bstr.endswith('0'):
-            bstr = bstr[:-1]
-        bstr = bstr.replace('.', '_')
-        name = format_name
-        name = name.replace('$DATE$', strdate)
-        name = name.replace('$BAND$', bstr)
-        fname = os.path.join(ncpath, name)
-        if args.verbose:
-            print(f'[INFO] {fname} -> {os.path.exists(fname)}')
-        ncfiles.append(fname)
-
-    nc_sat = Dataset(ncfiles[0], 'r')
-
-    # Retriving lat and long arrays
-    if args.verbose:
-        print('[INFO] Retrieving lat/long data...')
-    var_lat, var_lon = get_lat_long_var_names(options)
-    lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
-
-    # Retrieving global atribbutes
-    if args.verbose:
-        print('[INFO] Retrieving global attributes...')
-    # global_at = get_global_atrib(nc_sat, options)
-    global_at = get_satellite_global_atrib_from_options(options)
-
-    nc_sat.close()
-
-    ncreated = 0
-    # Working for each site, checking if there is in the image
-    for site in sites:
-        if args.verbose:
-            print(f'[INFO]    Working for site: {site}')
-        insitu_lat = sites[site]['latitude']
-        insitu_lon = sites[site]['longitude']
-        contain_flag = 0
-        if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
-            if lat.ndim == 1 and lon.ndim == 1:
-                r = np.argmin(np.abs(lat - insitu_lat))
-                c = np.argmin(np.abs(lon - insitu_lon))
-            else:
-                r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-            size_box = get_box_size(options)
-            start_idx_x = (c - int(size_box / 2))  # lon
-            stop_idx_x = (c + int(size_box / 2) + 1)  # lon
-            start_idx_y = (r - int(size_box / 2))  # lat
-            stop_idx_y = (r + int(size_box / 2) + 1)  # lat
-
-            if lat.ndim == 1 and lon.ndim == 1:
-                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                        lon.shape[0]:
-                    contain_flag = 1
-            else:
-                if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
-                        lat.shape[1]:
-                    contain_flag = 1
-        if contain_flag == 1:
-            pdu = None  # not more implemented
-            global_at['site'] = site
-            global_at['in_situ_lat'] = insitu_lat
-            global_at['in_situ_lon'] = insitu_lon
-            res = create_extract_multiple(ofname, pdu, options, ncfiles, band_list, global_at, lat, lon, r, c)
-            if res:
-                ncreated = ncreated + 1
-                print(f'[INFO]    Extract file created: {ofname}')
-
-        else:
-            if args.verbose:
-                print(f'[WARNING] Site {site} out of the image')
-
-    return ncreated
-
-
-def get_cmems_product_day_dataset(path_source, org, datehere, dataset):
-    path_day = path_source
-    if org is not None:
-        if org == 'YYYYjjj':
-            yearstr = datehere.strftime('%Y')
-            jjjstr = datehere.strftime('%j')
-            path_day = os.path.join(path_source, yearstr, jjjstr)
-    datefile = datehere.strftime('%Y%m%d')
-    file = os.path.join(path_day, f'{datefile}_{dataset}.nc')
-    if not os.path.exists(file):
-        print(f'[WARNING] File: {file} does not exist. Skiping...')
-        return None
-    return file
-
-
-def get_cmems_product_day_strict(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
-                                 cmems_download_options):
-    product_day = get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
-                                        cmems_download_options, False)
-
-    if product_day is None:
-        product_day = get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
-                                            cmems_download_options, True)
-
-    return product_day
-
-
-def get_cmems_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
-                          cmems_download_options, use_myint):
-    path_day = path_source
-    if org is not None:
-        if org == 'YYYYjjj':
-            yearstr = datehere.strftime('%Y')
-            jjjstr = datehere.strftime('%j')
-            path_year = os.path.join(path_source, yearstr)
-            path_day = os.path.join(path_source, yearstr, jjjstr)
-
-    formats_date = dataset_name_format_date.split(',')
-
-    if len(formats_date) == 1:
-        datefile = datehere.strftime(dataset_name_format_date)
-        namefile = dataset_name_file.replace('$DATE$', datefile)
-    elif len(formats_date) == 2:
-        datefile = datehere.strftime(formats_date[0].strip())
-        namefile = dataset_name_file.replace('$DATE1$', datefile)
-        datefile2 = datehere.strftime(formats_date[1].strip())
-        namefile = namefile.replace('$DATE2$', datefile2)
-    if use_myint:
-        namefile = namefile.replace('my', 'myint')
-
-    file = os.path.join(path_day, f'{namefile}')
-
-    if not os.path.exists(file):
-        ods = None
-        if org == 'YYYYjjj':
-            ods = '%Y/%j'
-            path_year = os.path.join(path_source, yearstr)
-            if not os.path.isdir(path_year):
-                os.mkdir(path_year)
-            if not os.path.isdir(path_day):
-                os.mkdir(path_day)
-
-
-        ##DONWLOAD CERTO SOURCES
-        if namefile.find('CERTO') >= 0:
-            # folder_cmd = 'OLCI'
-            # if namefile.find('OLCI') < 0:
-            #     folder_cmd = 'MSI'
-            # cmd = f'wget --user=rsg_dump --password=yohlooHohw2Pa9ohv1Chi ftp://ftp.rsg.pml.ac.uk/DOORS_matchups/{folder_cmd}/{namefile} -O {file}'
-
-            url = 'https://rsg.pml.ac.uk/shared_files/liat/DOORS_final2024/OLCI'
-
-            if cmems_download_options is not None and 'url' in cmems_download_options.keys():
-                url = cmems_download_options['url']
-
-            cmd = f'wget {url}/{namefile} -O {file}'
-
-            if args.verbose:
-                print(f'[INFO] Trying download with cmd:')
-                print(f'[INFO] {cmd}')
-
-            proc = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-            try:
-                outs, errs = proc.communicate(timeout=1800)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                outs, errs = proc.communicate()
-
-        ##DOWNLOAD CMEMS SOURCES
-        if cmems_download_options is not None:
-            code_eistools = os.path.join(os.path.dirname(code_home), 'eistools')
-            if os.path.exists(code_eistools):
-                sys.path.append(code_eistools)
-                from cmems_lois import CMEMS_LOIS
-                clois = CMEMS_LOIS(args.verbose)
-                cmems_download_options['start_date'] = datehere
-                cmems_download_options['end_date'] = datehere
-                cmems_download_options['date_list'] = None
-                # print(cmems_download_options)
-                # print(path_source)
-                # print(ods)
-                cmems_download_options['remote_name'] = namefile
-
-                clois.make_cmems_download(cmems_download_options, True, path_source, ods, True)
-            else:
-                print(f'[WARNING] Code {code_eistools} for downloading is not available')
-
-    if os.path.exists(file) and os.stat(file).st_size == 0:
-        os.remove(file)
-        if org == 'YYYYjjj':
-            if len(os.listdir(path_day)) == 0:
-                os.rmdir(path_day)
-            if len(os.listdir(path_year)) == 0:
-                os.rmdir(path_year)
-
-    if not os.path.exists(file):
-        print(f'[WARNING] File: {file} does not exist for date: {datefile}. Skiping...')
-        return None
-
-    return file
-
-
 def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file, dataset_name_format_date,
                                    dataset_var_list):
-    path_day = path_source
-    if org is not None:
-        if org == 'YYYYjjj':
-            yearstr = datehere.strftime('%Y')
-            jjjstr = datehere.strftime('%j')
-            path_day = os.path.join(path_source, yearstr, jjjstr)
+    # path_day = path_source
+    # if org is not None:
+    #     if org == 'YYYYjjj':
+    #         yearstr = datehere.strftime('%Y')
+    #         jjjstr = datehere.strftime('%j')
+    #         path_day = os.path.join(path_source, yearstr, jjjstr)
+    path_day = sat_extract.get_path_date(path_source,org,datehere,False)
+    if path_day is None:
+        return None
     strdate = datehere.strftime(dataset_name_format_date)
     ncfiles = []
 
@@ -1752,184 +167,278 @@ def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file
     else:
         return None
 
+def create_multiple_csv_sbatch(options,output_path,mp_options):
+    print(mp_options)
+    import COMMON.sbatch_scripter as sbs
 
-def get_satellite_time_from_global_attributes(fproduct):
-    dataset = Dataset(fproduct)
-    if 'time_coverage_start' in dataset.ncattrs() and 'time_coverage_end' in dataset.ncattrs():
+    temp_path = sat_extract.create_dir(os.path.join(output_path,f'Temp_{str(dt.now().timestamp()).replace(".","_")}'))
+    if temp_path is None:
+        print(f'[ERROR] Temporary path for sbatch files could not be created. Please review permissions.')
+        return
+    if args.verbose:
+        print(f'[INFO] Temporary path: {temp_path}')
+    path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
+    if not os.path.isdir(path_csv):
+        print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
+        return
+
+    col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = sat_extract.get_csv_options(
+        options, 'MULTIPLE_CSV_SELECTION')
+
+    npool = os.cpu_count() if mp_options['ncores']<0 else 1 if mp_options['ncores']==0 else mp_options['ncores']
+    nincluded = 0
+    index_folder = 1
+    folder_csv = os.path.join(temp_path,f'CSV_{index_folder}')
+    sat_extract.create_dir(folder_csv)
+    sbatch_files = []
+    sbatch_log_files = []
+    dir_code = os.path.dirname(sat_extract.__file__)
+    line_py_base = f'python {dir_code}/sat_extract_CNR.py -c'
+
+    for name in os.listdir(path_csv):
+        if not name.endswith('csv'):
+            continue
         try:
-            start_date = dt.strptime(dataset.time_coverage_start, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
-            end_date = dt.strptime(dataset.time_coverage_end, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
-            sat_time = (start_date.timestamp() + end_date.timestamp()) / 2
-            sat_time = dt.utcfromtimestamp(sat_time).replace(tzinfo=pytz.utc)
-            return sat_time
-
+            file_csv = os.path.join(path_csv, name)
+            pd.read_csv(file_csv, sep=col_sep)
         except:
-            return None
-    dataset.close()
-    return None
+            print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
+            return
+        if nincluded==npool:
+            if args.verbose:
+                print(f'[NFO] Creating sbatch file...')
+            file_config = os.path.join(temp_path,f'config_file_{index_folder}.ini')
+            options.set('MULTIPLE_CSV_SELECTION','path_csv',folder_csv)
+            print(options['MULTIPLE_CSV_SELECTION']['path_csv'])
+            with open(file_config,'w') as configw:
+                options.write(configw)
+            file_sbatch = os.path.join(temp_path,f'sbatch_script_{index_folder}.slurm')
+            scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+            scripter.start_script(mp_options,True)
+            scripter.add_blank_lines(2)
+            scripter.add_line(f'{line_py_base} {file_config} -v')
+            scripter.close_script()
+            sbatch_files.append(file_sbatch)
+            sbatch_log_files.append(os.path.join(temp_path,f'sbatch_script_log_{index_folder}.log'))
+            # preparing next---
+            nincluded = 0
+            index_folder = index_folder + 1
+            folder_csv = os.path.join(temp_path, f'CSV_{index_folder}')
+            sat_extract.create_dir(folder_csv)
+            ##-------------------------------
+
+        if args.verbose:
+            print(f'[INFO] Adding CSV file {name}')
+        file_csv_copy = os.path.join(folder_csv,name)
+        shutil.copy(file_csv,file_csv_copy)
+        nincluded = nincluded +1
+
+    #final sbatch file
+    if args.verbose:
+        print(f'[NFO] Creating final sbatch file...')
+    file_config = os.path.join(temp_path, f'config_file_{index_folder}.ini')
+    options.set('MULTIPLE_CSV_SELECTION', 'path_csv', folder_csv)
+    print(options['MULTIPLE_CSV_SELECTION']['path_csv'])
+    with open(file_config, 'w') as configw:
+        options.write(configw)
+    file_sbatch = os.path.join(temp_path, f'sbatch_script_{index_folder}.slurm')
+    scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+    scripter.start_script(mp_options, True)
+    scripter.add_line(f'{line_py_base} {file_config} -v')
+    scripter.close_script()
+    sbatch_files.append(file_sbatch)
+    sbatch_log_files.append(os.path.join(temp_path, f'sbatch_script_log_{index_folder}.log'))
+    file_out_sh = os.path.join(temp_path,f'launch_multiple_sbatch.sh')
+    sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh,sbatch_files,sbatch_log_files,mp_options['sbatch_max_cores'])
+
+def run_multiple_csv(options,output_path, overwrite, ncores):
+    path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
+    if not os.path.isdir(path_csv):
+        print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
+        return
+
+    col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = sat_extract.get_csv_options(
+        options, 'MULTIPLE_CSV_SELECTION')
+    extract_options = sat_extract.get_cnr_extract_options(options)
+    input_path_info = sat_extract.get_input_path_info(options)
+    if input_path_info is None:
+        return
+
+
+
+    ##common for all days
+    lat_array = None
+    lon_array = None
 
 
 
 
+    params_list = []
 
-def get_cmems_extract_options(options, section):
-    use_single_file = True
-    n_bands = 0
-    if options.has_option(section, 'use_single_file'):  ##SINGLE FILE SELECTION
-        usf = options[section]['use_single_file']
-        if usf.strip().lower() == 'true' or usf.strip() == '1':
-            use_single_file = True
+    for name in os.listdir(path_csv):
+        if not name.endswith('csv'):
+            continue
+        namefile = name[:-4]
 
-    dataset_name_file = None
-    dataset_name_format_date = '%Y%m%d'
-    if options.has_option(section,'dataset_name_file'):
-        dataset_name_file = options[section]['dataset_name_file']
-    if options.has_option(section,'dataset_name_format_date'):
-        dataset_name_format_date = options[section]['dataset_name_format_date']
+        try:
+            file_csv = os.path.join(path_csv, name)
+            df = pd.read_csv(file_csv, sep=col_sep)
+        except:
+            print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
+            return
 
-    dataset_var_list = None
-    dataset_var_list_out = None
-    if options.has_option(section, 'dataset_var_list'):
-        s = options[section]['dataset_var_list']
-        if s.strip() != '':
-            dataset_var_list = [x.strip() for x in s.split(',')]
-            dataset_var_list_out = dataset_var_list
-            if options.has_option(section, 'dataset_var_list_out'):
-                s = options[section]['dataset_var_list_out']
-                dataset_var_list_out = [x.strip() for x in s.split(',')]
+        if args.verbose:
+            print(f'[INFO] --------------------------------------------------------------------------------------')
+            print(f'[INFO] Working with csv {namefile} Obtaining product(s)...')
 
-    rrs_list = []
-    rrs_var_list = []
-    if use_single_file:
-        is_reflectance = False
-        if options.has_option(section, 'var_rrs_list') and options.has_option(section, 'var_rrs_format'):
+        only_date_array_unique, time_list = sat_extract.get_date_list_from_dataframe(df,col_date,format_date,col_time,format_time)
+        if len(only_date_array_unique) == 0:
+            print(f'[ERROR] No valid dates retrieved from the CSV file.')
+            return
+        if len(only_date_array_unique)>1:
+            print(f'[ERROR] Each CSV file should also contain data for a single day. Check CSV parameters')
+            return
 
-            var_rrs_list = options[section]['var_rrs_list'].strip()
-            var_rrs_format = options[section]['var_rrs_format'].strip()
-            is_reflectance = True
-            for r in var_rrs_list.split(','):
-                try:
-                    rs = r.strip().replace('.', '_')
-                    rrs_here = float(r.strip())
-                    rrs_list.append(rrs_here)
-                    var_here = var_rrs_format.replace('$BAND$', rs)
-                    rrs_var_list.append(var_here)
-                except:
-                    is_reflectance = False
-                    break
-            if is_reflectance:
-                n_bands = len(rrs_list)
-    else:
-        is_reflectance = True
-        for var in dataset_var_list:
-            try:
-                value = float(var)
-                rrs_list.append(value)
-            except:
-                is_reflectance = False
-        if is_reflectance:
-            n_bands = len(dataset_var_list)
-
-    options = {
-        'use_single_file': use_single_file,
-        'is_reflectance': is_reflectance,
-        'n_bands': n_bands,
-        'dataset_name_file': dataset_name_file,
-        'dataset_name_format_date': dataset_name_format_date,
-        'dataset_var_list': dataset_var_list,
-        'dataset_var_list_out': dataset_var_list_out,
-        'rrs_list': rrs_list,
-        'rrs_var_list': rrs_var_list
-    }
-
-    return options
+        date_str = only_date_array_unique[0]
+        if args.verbose:
+                print(f'[INFO] Checking available products for day {date_str} in {input_path_info["path_source"]} with org. {input_path_info["org"]}')
 
 
-def get_cmems_download_options(options):
-    section = 'satellite_options'
-    options_download = ['download_product', 'download_dataset', 'download_endpoint', 'download_bucket', 'download_tag']
-    keys_download = ['product', 'dataset', 'endpoint', 'bucket', 'tag']
-    keys_present = [False, False, True, False, False]  ##endpoint is not required, always True
-    cmems_donwload_options = {'start_date': None, 'end_date': None}
-    for idx, op in enumerate(options_download):
-        if options.has_option(section, op):
-            cmems_donwload_options[keys_download[idx]] = options[section][op]
-            keys_present[idx] = True
+
+        list_files = get_cmems_multiple_product_day(input_path_info['path_source'], input_path_info['org'],
+                                                        dt.strptime(date_str, '%Y-%m-%d'),
+                                                        extract_options['dataset_name_file'],
+                                                        extract_options['dataset_name_format_date'],
+                                                        extract_options['dataset_var_list'])
+        if list_files is not None:
+           satellite_time = sat_extract.get_satellite_time_l3(options,list_files[0],dt.strptime(date_str, '%Y-%m-%d'))
+           if satellite_time is None:
+               print(f'[WARNING] Satellite time could not be defined. Skipping...')
+               continue
+           extract_info= {
+               'global_at': sat_extract.get_satellite_global_atrib_from_options(options),
+               'list_files': list_files,
+               'insitu_time': time_list,
+               'insitu_lat': np.ma.array(df[col_lat]),
+               'insitu_lon': np.ma.array(df[col_lon]),
+               'satellite_time': satellite_time,
+           }
+           if lat_array is None and lon_array is None:
+               lat_array, lon_array = sat_extract.get_lat_lon_arrays(options, list_files[0])
+
+           if ncores==0:
+               run_extract_day(extract_options,extract_info,lat_array,lon_array,output_path, overwrite)
+           else:
+               if ncores > 0 or ncores == -1:
+                   params_list.append([extract_options,extract_info,lat_array,lon_array,output_path, overwrite])
+
+
+    if ncores>0 or ncores<0:
+        if args.verbose:
+            print(f'[INFO] Starting parallel processing. Number of dates: {len(params_list)}')
+            print(f'[INFO] CPUs: {os.cpu_count()}')
+            print(f'[INFO] Parallel processes: {ncores}')
+        npool = os.cpu_count() if ncores<0 else ncores
+        poolhere = Pool(npool)
+        poolhere.map(run_parallel_extract_day, params_list)
+
+def run_parallel_extract_day(params):
+    run_extract_day(params[0],params[1],params[2],params[3],params[4],params[5])
+
+def run_extract_day(extract_options,extract_info,lat_array,lon_array,output_path, overwrite):
+    insitu_lat = extract_info['insitu_lat']
+    insitu_lon = extract_info['insitu_lon']
+    insitu_time = extract_info['insitu_time']
+    ntimes = len(insitu_time)
+
+
+    site_list = []
+
+    for itime in range(ntimes):
+
+
+        limits, rc = sat_extract.get_geo_info(extract_options, None, insitu_lat[itime], insitu_lon[itime], lat_array, lon_array)
+        if limits is None:
+            print(
+                f'[WARNING] In situ location out of the limits of the satellite product. Skipping...')
+            continue
+
+        global_at = extract_info['global_at'].copy()
+        datehere_str = extract_info['satellite_time'].strftime('%Y%m%d')
+        site = f'{sat_extract.get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+        ofname = os.path.join(output_path, f'extract_{site}.nc')
+
+        if os.path.exists(ofname) and not overwrite:
+            print(f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract extract_{site}.nc already exists. {itime+1}/{ntimes} Skiping...')
+            continue
+
+        if overwrite and site in site_list:
+            print(f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract for {site}  has been already done.  Skiping...')
+            continue
+
+        if args.verbose:
+            print(f'[INFO] [{itime + 1}/{ntimes}] Preparing extract for site {site}...')
+
+        global_at_here = sat_extract.add_insitu_global_atrib(global_at, site, insitu_lat[itime], insitu_lon[itime], None)
+        extract_info_here ={
+            'global_at': global_at_here,
+            'limits': limits,
+            'size_box': extract_options['size_box'],
+            'lat_array': lat_array,
+            'lon_array': lon_array,
+            'satellite_time': extract_info['satellite_time'],
+            'n_bands': extract_options['n_bands'],
+            'list_files': extract_info['list_files']
+        }
+        newExtract = start_extract(ofname, extract_info_here)
+        if extract_options['is_reflectance']:
+            newExtract = add_reflectance_multiple(newExtract, extract_info_here, extract_options['rrs_list'])
         else:
-            cmems_donwload_options[keys_download[idx]] = None
+            newExtract = add_variable_multiple(newExtract, extract_info_here,
+                                               extract_options['dataset_var_list'],
+                                               extract_options['dataset_var_list_out'])
+        if newExtract is None:
+            print(f'[ERROR] Error creating extract for site {site}')
+            os.remove(ofname)
+            continue
+        else:
+            print(f'[INFO] Extract {ofname} completed.')
+            site_list.append(site)
 
-    if keys_present.count(True) == 5:
-        return cmems_donwload_options
-    else:
-        return None
+def run_time_and_sites_selection(options,output_path):
+    extract_options = sat_extract.get_cnr_extract_options(options)
+    if args.verbose:
+        print('------------------------------')
+    # product_list = {}
+    # for date_here in date_list:
+    #     if args.verbose:
+    #         print(f'[INFO] Checking available products for day: {date_str}')
+    #
+    #     list_files = get_cmems_multiple_product_day(path_source, org, date_here,
+    #                                                 extract_options['dataset_name_file'],
+    #                                                 extract_options['dataset_name_format_date'],
+    #                                                 extract_options['dataset_var_list'])
 
-
-
-
-
-def get_csv_options_from_file_config(options, section):
-    if section == 'CSV_SELECTION':
-        col_date = 'date'
-        col_lat = 'lat'
-        col_lon = 'lon'
-        col_sep = ';'
-        format_date = '%Y-%m-%dT%H:%M'
-    if section == 'MULTIPLE_CSV_SELECTION':
-        col_date = 'timestamp'
-        col_lat = 'lat'
-        col_lon = 'lon'
-        format_date = '%Y-%m-%d %H:%M:%S.%f'
-        col_sep = ','
-
-    if options.has_option(section, 'col_date'):
-        col_date = options[section]['col_date']
-    if options.has_option(section, 'col_lat'):
-        col_lat = options[section]['col_lat']
-    if options.has_option(section, 'col_lon'):
-        col_lon = options[section]['col_lon']
-    if options.has_option(section, 'format_date'):
-        format_date = options[section]['format_date']
-    if options.has_option(section, 'col_sep'):
-        col_sep = options[section]['col_sep']
-
-    col_time = None
-    format_time = '%H:%M:%S'
-    if options.has_option(section, 'col_time'):
-        col_time = options[section]['col_time']
-    if options.has_option(section, 'format_time'):
-        format_time = options[section]['format_time']
-
-    return col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep
-
-
-def get_info_from_row(row, col_date, col_time, format_date, format_time, col_lat, col_lon):
-    try:
-        datehere = None
-        if col_time is not None:
-            try:
-                datetimerow = f'{row[col_date].strip()}T{row[col_time].strip()}'
-                if np.isreal(datetimerow):
-                    datetimerow = f'{datetimerow:.0f}'
-                format_datetime = f'{format_date}T{format_time}'
-                datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
-            except:
-                pass
-        if datehere is None:
-            datetimerow = row[col_date]
-            if np.isreal(datetimerow):
-                datetimerow = f'{datetimerow:.0f}'
-            format_datetime = format_date
-            datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
-            datehere = datehere.replace(hour=12, minute=0, second=0).replace(tzinfo=pytz.utc)
-        lathere = float(row[col_lat])
-        lonhere = float(row[col_lon])
-        if np.isnan(lathere) or np.isnan(lonhere):
-            return None, None, None
-
-        return datehere, lathere, lonhere
-    except:
-        return None, None, None
-
+    # path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+    # path_to_list = get_path_list_products(options)
+    # if path_to_list is not None:
+    #     product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
+    #     if len(product_path_list) == 0:
+    #         if args.verbose:
+    #             print('-----------------')
+    #         print(f'[WARNING] No valid datasets found on:  {path_source}')
+    #         print('------------------------------')
+    #         print('[INFO] COMPLETED. 0 sat extract files were created')
+    #         return
+    #     ncreated = 0
+    #     for filepath in product_path_list:
+    #         if args.verbose:
+    #             print('------------------------------')
+    #             print(f'[INFO]Extracting sat extract for product: {filepath}')
+    #         nhere = launch_create_extract(filepath, options)
+    #         ncreated = ncreated + nhere
+    #     print('------------------------------')
+    #     print(f'COMPLETED. {ncreated} sat extract files were created')
 
 def main():
 
@@ -1940,412 +449,421 @@ def main():
         print(f'[ERROR] File {args.config_file} does not exist')
         return
 
-    options = config_reader(args.config_file)
-
-
-
-    path_output = get_output_path(options)
+    options = sat_extract.config_reader(args.config_file)
+    path_output = sat_extract.get_output_path(options,args.verbose)
     if path_output is None:
         print(f'ERROR: {path_output} is not valid')
+        return
+    overwrite = sat_extract.overwrite(options)
+    mp_options = sat_extract.get_multiprocessing_options(options)
+    if mp_options is None:
         return
 
     ##MULTIPLE CSV FILE SELECTION (FOR TARA METADATA FILES)
     if options.has_section('MULTIPLE_CSV_SELECTION') and options.has_option('MULTIPLE_CSV_SELECTION', 'path_csv'):
-        path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
-        if not os.path.isdir(path_csv):
-            print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
-            return
+        if mp_options['use_sbatch']:
+            create_multiple_csv_sbatch(options,path_output,mp_options)
+        else:
+            run_multiple_csv(options,path_output,overwrite,mp_options['ncores'])
 
-        col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = get_csv_options_from_file_config(
-            options, 'MULTIPLE_CSV_SELECTION')
-
-        extract_options = get_cmems_extract_options(options, 'MULTIPLE_CSV_SELECTION')
-        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
-        size_box = get_box_size(options)
-        # var_lat, var_lon = get_lat_long_var_names(options)
-        cmems_download_options = get_cmems_download_options(options)
-
-        lat_array = None  ##CMEMS EXTRACTS WORKS ALWAYS WITH THE SAME LAT/LON ARRAYS FOR LOCATION
-        lon_array = None
-        ncreated = 0
-
-        for name in os.listdir(path_csv):
-            if not name.endswith('csv'):
-                continue
-            namefile = name[:-4]
-
-            try:
-                file_csv = os.path.join(path_csv, name)
-                df = pd.read_csv(file_csv, sep=col_sep)
-            except:
-                print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
-                return
-
-            if args.verbose:
-                print(f'[INFO] --------------------------------------------------------------------------------------')
-                print(f'[INFO] Working with csv {namefile} Obtaining product(s)...')
-
-            ##1: STEP 1: Obtain the products for the date list
-            date_array_ts = df[col_date]
-            only_date_array = []
-            for x in date_array_ts:
-                try:
-                    only_date_array.append(dt.strptime(x, format_date).strftime('%Y-%m-%d'))
-                except:
-                    continue
-            only_date_array_unique = np.unique(only_date_array).tolist()
-            product_list = {}
-            for date_str in only_date_array_unique:
-                if args.verbose:
-                    print(f'[INFO] Checking available products for day: {date_str}')
-
-                list_files = get_cmems_multiple_product_day(path_source, org, dt.strptime(date_str, '%Y-%m-%d'),
-                                                                extract_options['dataset_name_file'],
-                                                                extract_options['dataset_name_format_date'],
-                                                                extract_options['dataset_var_list'])
-                product_list[date_str] = list_files
-
-            ##2. STEP 2: Create extracts for each date
-            for date_str in product_list:
-
-
-                list_files = product_list[date_str]
-                fproduct = list_files[0] if list_files is not None else None
-
-                if fproduct is None:
-                    print(f'[WARNING] No product(s) is(are) available for date: {date_str}')
-                    continue
-                else:
-                    if args.verbose:
-                        print(f'[INFO] Working with {len(list_files)} files for date {date_str}')
-
-                if lat_array is None or lon_array is None:
-                    lat_array, lon_array = get_lat_lon_arrays(options, fproduct)
-
-                ##CHECKING EXTRACT INFO OPTION (INCLUDING SATELLITE TIME)
-                cmems_time = '11:00'
-                if options.has_option('satellite_options', 'satellite_time'):
-                    cmems_time = options['satellite_options']['satellite_time'].strip()
-                satellite_time = get_satellite_time_from_global_attributes(fproduct)
-                if satellite_time is None:
-                    try:
-                        datehere_str = dt.strptime(date_str, '%Y-%m-%d').strftime('%Y%m%d')
-                        satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}',
-                                                     '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
-                    except:
-                        print(f'{cmems_time} is not a valid satellite time option. Skipping')
-                        continue
-                extract_info = {
-                    'global_at': None,
-                    'satellite_time': satellite_time,
-                    'size_box': size_box,
-                    'n_bands': extract_options['n_bands'],
-                    'limits': None,
-                    'lat_array': lat_array,
-                    'lon_array': lon_array,
-                    'file': fproduct,
-                    'list_files': list_files
-                }
-
-                ##CHECKING EXTRACT FOR EACH ROW
-                for idx, row in df.iterrows():
-                    datehere, lathere, lonhere = get_info_from_row(row, col_date, col_time, format_date, format_time,
-                                                                   col_lat, col_lon)
-                    if datehere is None or lathere is None or lonhere is None:
-                        print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
-                        continue
-                    if datehere.strftime('%Y-%m-%d') != date_str:
-                        continue
-                    limits, rc = get_geo_info(options, fproduct, lathere, lonhere, lat_array, lon_array)
-                    if limits is None:
-                        print(
-                            f'[WARNING] In situ location out of the limits of the satellite product. Skipping...')
-                        continue
-
-                    global_at = get_satellite_global_atrib_from_options(options)
-                    datehere_str = datehere.strftime('%Y%m%d')
-                    site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
-                    ofname = os.path.join(path_output, f'extract_{site}.nc')
-                    if os.path.exists(ofname):
-                        print(f'[WARNING] Satellite extract extract_{site}.nc already exists. Skiping...')
-                        continue
-                    global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, None)
-                    extract_info['global_at'] = global_at
-                    extract_info['limits'] = limits
-
-                    newExtract = start_extract_2(ofname, extract_info)
-
-
-                    if extract_options['is_reflectance']:
-                        newExtract = add_reflectance_multiple(newExtract, extract_info, extract_options['rrs_list'])
-                    else:
-                        newExtract = add_variable_multiple(newExtract, extract_info,extract_options['dataset_var_list'],extract_options['dataset_var_list_out'])
-
-                    if newExtract is None:
-                        os.remove(ofname)
-                        continue
-
-                    newExtract.close_file()
-                    ncreated = ncreated + 1
-
-        print(f'[INFO] Extract generation for MULTIPLE_CSV_FILE was completed. ')
-        print(f'[INFO] {ncreated} extracts were created')
-        return
 
 
     if options.has_section('CSV_SELECTION') and options.has_option('CSV_SELECTION', 'path_csv'):
-        path_csv = options['CSV_SELECTION']['path_csv']
-        if not os.path.exists(path_csv):
-            print(f'[ERROR] Path csv: {path_csv} does not exist')
-            return
-
-        with open(path_csv) as f:
-            first_line = f.readline().strip()
-
-        path_csv_out = f'{path_csv[:-4]}_out.csv'
-        if options.has_option('CSV_SELECTION', 'path_csv_out'):
-            path_csv_out = options['CSV_SELECTION']['path_csv_out']
-
-        fcsv_out = open(path_csv_out, 'w')
-        fcsv_out.write(f'{first_line};Extract;Index')
-
-        use_single_file = False
-        n_bands = 0
-        if options.has_option('CSV_SELECTION', 'use_single_file'):  ##SINGLE FILE SELECTION
-            usf = options['CSV_SELECTION']['use_single_file']
-            if usf.strip().lower() == 'true' or usf.strip() == '1':
-                use_single_file = True
-
-        dataset_name_file = options['CSV_SELECTION']['dataset_name_file']
-        dataset_name_format_date = options['CSV_SELECTION']['dataset_name_format_date']
-        s = options['CSV_SELECTION']['dataset_var_list']
-        dataset_var_list = [x.strip() for x in s.split(',')]
-        dataset_var_list_out = dataset_var_list
-        if options.has_option('CSV_SELECTION', 'dataset_var_list_out'):
-            s = options['CSV_SELECTION']['dataset_var_list_out']
-            dataset_var_list_out = [x.strip() for x in s.split(',')]
-
-        if use_single_file:
-            rrs_list = []
-            rrs_var_list = []
-            is_reflectance = False
-            if options.has_option('CSV_SELECTION', 'var_rrs_list') and options.has_option('CSV_SELECTION',
-                                                                                          'var_rrs_format'):
-
-                var_rrs_list = options['CSV_SELECTION']['var_rrs_list'].strip()
-                var_rrs_format = options['CSV_SELECTION']['var_rrs_format'].strip()
-                is_reflectance = True
-                for r in var_rrs_list.split(','):
-                    try:
-                        rs = r.strip().replace('.', '_')
-                        rrs_here = float(r.strip())
-                        rrs_list.append(rrs_here)
-                        var_here = var_rrs_format.replace('$BAND$', rs)
-                        rrs_var_list.append(var_here)
-                    except:
-                        is_reflectance = False
-                        break
-                if is_reflectance:
-                    n_bands = len(rrs_list)
-        else:
-            is_reflectance = True
-            for var in dataset_var_list:
-                try:
-                    float(var)
-                except:
-                    is_reflectance = False
-            if is_reflectance:
-                n_bands = len(dataset_var_list)
-
-        try:
-            df = pd.read_csv(path_csv, sep=';')
-        except:
-            print(f'[ERROR] File {path_csv} is not a valid csv separated by ;')
-            return
-        col_date = 'date'
-        col_lat = 'lat'
-        col_lon = 'lon'
-        format_date = '%Y-%m-%dT%H:%M'
-        if options.has_option('CSV_SELECTION', 'col_date'):
-            col_date = options['CSV_SELECTION']['col_date']
-        if options.has_option('CSV_SELECTION', 'col_lat'):
-            col_lat = options['CSV_SELECTION']['col_lat']
-        if options.has_option('CSV_SELECTION', 'col_lon'):
-            col_lon = options['CSV_SELECTION']['col_lon']
-        if options.has_option('CSV_SELECTION', 'format_date'):
-            format_date = options['CSV_SELECTION']['format_date']
-        col_time = None
-        if options.has_option('CSV_SELECTION', 'col_time'):
-            col_time = options['CSV_SELECTION']['col_time']
-            format_time = '%H:%M:%S'
-        if options.has_option('CSV_SELECTION', 'format_time'):
-            format_time = options['CSV_SELECTION']['format_time']
-        csv_flags = None
-        csv_flags_meanings = None
-        if options.has_option('CSV_SELECTION', 'csv_flags'):
-            csv_flags_str = options['CSV_SELECTION']['csv_flags']
-            csv_flags = [x.strip() for x in csv_flags_str.split(',')]
-
-        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
-        size_box = get_box_size(options)
-        var_lat, var_lon = get_lat_long_var_names(options)
-
-        extract_list = {}
-        if csv_flags is not None:
-            csv_flags_meanings = {}
-
-        for idx, row in df.iterrows():
-            list = [str(x).strip() for x in row.to_list()]
-            line_orig = ";".join(list)
-            try:
-                datehere = None
-                if col_time is not None:
-                    try:
-                        datetimerow = f'{row[col_date].strip()}T{row[col_time].strip()}'
-                        if np.isreal(datetimerow):
-                            datetimerow = f'{datetimerow:.0f}'
-                        format_datetime = f'{format_date}T{format_time}'
-                        datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
-                    except:
-                        pass
-                if datehere is None:
-                    datetimerow = row[col_date]
-                    if np.isreal(datetimerow):
-                        datetimerow = f'{datetimerow:.0f}'
-                    format_datetime = format_date
-                    datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
-                    datehere = datehere.replace(hour=12, minute=0, second=0).replace(tzinfo=pytz.utc)
-            except:
-                print(f'[WARNING] Row {idx} is not valid. Date/Time could not be parsed. Skipping...')
-                fcsv_out.write('\n')
-                fcsv_out.write(f'{line_orig};NaN;-1')
-                continue
-            lathere = float(row[col_lat])
-            lonhere = float(row[col_lon])
-            if np.isnan(lathere) or np.isnan(lonhere):
-                print(f'[WARNING] Row {idx} is not valid. Latitude or longitude could not be parsed. Skipping...')
-                fcsv_out.write('\n')
-                fcsv_out.write(f'{line_orig};NaN;-1')
-                continue
-            if csv_flags is not None:
-                for f in csv_flags:
-                    val = row[f].strip()
-                    val = val.replace(' ', '_')
-                    if f not in csv_flags_meanings.keys():
-                        csv_flags_meanings[f] = [val]
-                    else:
-                        lflags = csv_flags_meanings[f]
-                        if val not in lflags:
-                            lflags.append(val)
-                            csv_flags_meanings[f] = lflags
-
-
-
-
-            list_files = get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file,
-                                                            dataset_name_format_date, dataset_var_list)
-
-            if list_files is not None:
-
-                limits, rc = get_geo_info(options, list_files[0], lathere, lonhere, None, None)
-                if limits is not None:
-                    global_at = get_satellite_global_atrib_from_options(options)
-                    datehere_str = datehere.strftime('%Y%m%d')
-                    site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
-                    # print(f'[INFO] Site: {site}')
-                    other = None
-                    if csv_flags is not None:
-                        other = {}
-                        for f in csv_flags:
-                            val = row[f].strip()
-                            val = val.replace(' ', '_')
-                            other[f] = val
-
-                    global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, other)
-
-                    ofname = os.path.join(path_output, f'extract_{site}.nc')
-                    cmems_time = '11:00'
-                    if options.has_option('satellite_options', 'satellite_time'):
-                        cmems_time = options['satellite_options']['satellite_time'].strip()
-                    try:
-                        satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}', '%Y%m%dT%H:%M').astimezone(
-                                pytz.utc)
-                        print(satellite_time)
-                    except:
-                        print(f'{cmems_time} is not a valid satellite time option. Skipping')
-                        fcsv_out.write('\n')
-                        fcsv_out.write(f'{line_orig};NaN;-1')
-                        continue
-
-                    if site not in extract_list.keys():
-                        extract_list[site] = {
-                            'ninsitu': 1,
-                            'satellite_time': satellite_time,
-                            'ofname': ofname,
-                            'limits': limits,
-                            'list_files': list_files,
-                            'size_box': size_box,
-                            'n_bands': n_bands,
-                            'var_lat': var_lat,
-                            'var_lon': var_lon,
-                            '1': {
-                                'insitu_time': datehere,
-                                'global_at': global_at,
-                            }
-                        }
-                        fcsv_out.write('\n')
-                        fcsv_out.write(f'{line_orig};{site}.nc;0')
-                    else:
-                        idx = extract_list[site]['ninsitu'] + 1
-                        fcsv_out.write('\n')
-                        fcsv_out.write(f'{line_orig};{site}.nc;{idx - 1}')
-                        idxs = str(idx)
-                        extract_list[site]['ninsitu'] = idx
-                        extract_list[site][idxs] = {
-                            'insitu_time': datehere,
-                            'global_at': global_at,
-                        }
-                else:
-                    fcsv_out.write('\n')
-                    fcsv_out.write(f'{line_orig};NaN;-1')
-            else:
-                print(f'[WARNING] Files not found for date: {datehere.strftime("%Y-%m-%d")}. Skipping...')
-                fcsv_out.write('\n')
-                fcsv_out.write(f'{line_orig};NaN;-1')
-
-        fcsv_out.close()
-
-        for site in extract_list:
-            extract = extract_list[site]
-            ofname = extract['ofname']
-            ofname_temp = f'{ofname[:-3]}_temp.nc'
-            if os.path.exists(ofname):
-                newExtract = copy_extract(ofname, ofname_temp)
-            else:
-                newExtract = start_extract(extract, ofname)
-
-            if is_reflectance:
-                newExtract = add_reflectance_multiple(newExtract, extract, dataset_var_list)
-            else:
-                newExtract = add_variable_multiple(newExtract, extract, dataset_var_list, dataset_var_list_out)
-            if newExtract is None:
-                    os.remove(ofname)
-                    continue
-            nidx = 50
-
-            newExtract = add_insitu_basic_info(newExtract, extract, 1, nidx, csv_flags_meanings)
-
-            nhere = extract['ninsitu']
-            if nhere > 1:
-                for idx in range(2, nhere + 1):
-                    newExtract = add_insitu_basic_info(newExtract, extract, idx, nidx, csv_flags_meanings)
-            newExtract.close_file()
-
-            if os.path.exists(ofname_temp):
-                os.rename(ofname_temp, ofname)
-
+        # path_csv = options['CSV_SELECTION']['path_csv']
+        # if not os.path.exists(path_csv):
+        #     print(f'[ERROR] Path csv: {path_csv} does not exist')
+        #     return
+        #
+        # with open(path_csv) as f:
+        #     first_line = f.readline().strip()
+        #
+        # path_csv_out = f'{path_csv[:-4]}_out.csv'
+        # if options.has_option('CSV_SELECTION', 'path_csv_out'):
+        #     path_csv_out = options['CSV_SELECTION']['path_csv_out']
+        #
+        # fcsv_out = open(path_csv_out, 'w')
+        # fcsv_out.write(f'{first_line};Extract;Index')
+        #
+        # use_single_file = False
+        # n_bands = 0
+        # if options.has_option('CSV_SELECTION', 'use_single_file'):  ##SINGLE FILE SELECTION
+        #     usf = options['CSV_SELECTION']['use_single_file']
+        #     if usf.strip().lower() == 'true' or usf.strip() == '1':
+        #         use_single_file = True
+        #
+        # dataset_name_file = options['CSV_SELECTION']['dataset_name_file']
+        # dataset_name_format_date = options['CSV_SELECTION']['dataset_name_format_date']
+        # s = options['CSV_SELECTION']['dataset_var_list']
+        # dataset_var_list = [x.strip() for x in s.split(',')]
+        # dataset_var_list_out = dataset_var_list
+        # if options.has_option('CSV_SELECTION', 'dataset_var_list_out'):
+        #     s = options['CSV_SELECTION']['dataset_var_list_out']
+        #     dataset_var_list_out = [x.strip() for x in s.split(',')]
+        #
+        # if use_single_file:
+        #     rrs_list = []
+        #     rrs_var_list = []
+        #     is_reflectance = False
+        #     if options.has_option('CSV_SELECTION', 'var_rrs_list') and options.has_option('CSV_SELECTION',
+        #                                                                                   'var_rrs_format'):
+        #
+        #         var_rrs_list = options['CSV_SELECTION']['var_rrs_list'].strip()
+        #         var_rrs_format = options['CSV_SELECTION']['var_rrs_format'].strip()
+        #         is_reflectance = True
+        #         for r in var_rrs_list.split(','):
+        #             try:
+        #                 rs = r.strip().replace('.', '_')
+        #      # path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
+        # if not os.path.isdir(path_csv):
+        #     print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
+        #     return
+        #
+        # col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = get_csv_options_from_file_config(
+        #     options, 'MULTIPLE_CSV_SELECTION')
+        #
+        # extract_options = get_cmems_extract_options(options, 'MULTIPLE_CSV_SELECTION')
+        # path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+        # size_box = get_box_size(options)
+        # # var_lat, var_lon = get_lat_long_var_names(options)
+        # cmems_download_options = get_cmems_download_options(options)
+        #
+        # lat_array = None  ##CMEMS EXTRACTS WORKS ALWAYS WITH THE SAME LAT/LON ARRAYS FOR LOCATION
+        # lon_array = None
+        # ncreated = 0
+        #
+        # for name in os.listdir(path_csv):
+        #     if not name.endswith('csv'):
+        #         continue
+        #     namefile = name[:-4]
+        #
+        #     try:
+        #         file_csv = os.path.join(path_csv, name)
+        #         df = pd.read_csv(file_csv, sep=col_sep)
+        #     except:
+        #         print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
+        #         return
+        #
+        #     if args.verbose:
+        #         print(f'[INFO] --------------------------------------------------------------------------------------')
+        #         print(f'[INFO] Working with csv {namefile} Obtaining product(s)...')
+        #
+        #     ##1: STEP 1: Obtain the products for the date list
+        #     date_array_ts = df[col_date]
+        #     only_date_array = []
+        #     for x in date_array_ts:
+        #         try:
+        #             only_date_array.append(dt.strptime(x, format_date).strftime('%Y-%m-%d'))
+        #         except:
+        #             continue
+        #     only_date_array_unique = np.unique(only_date_array).tolist()
+        #     product_list = {}
+        #     for date_str in only_date_array_unique:
+        #         if args.verbose:
+        #             print(f'[INFO] Checking available products for day: {date_str}')
+        #
+        #         list_files = get_cmems_multiple_product_day(path_source, org, dt.strptime(date_str, '%Y-%m-%d'),
+        #                                                         extract_options['dataset_name_file'],
+        #                                                         extract_options['dataset_name_format_date'],
+        #                                                         extract_options['dataset_var_list'])
+        #         product_list[date_str] = list_files
+        #
+        #     ##2. STEP 2: Create extracts for each date
+        #     for date_str in product_list:
+        #
+        #
+        #         list_files = product_list[date_str]
+        #         fproduct = list_files[0] if list_files is not None else None
+        #
+        #         if fproduct is None:
+        #             print(f'[WARNING] No product(s) is(are) available for date: {date_str}')
+        #             continue
+        #         else:
+        #             if args.verbose:
+        #                 print(f'[INFO] Working with {len(list_files)} files for date {date_str}')
+        #
+        #         if lat_array is None or lon_array is None:
+        #             lat_array, lon_array = get_lat_lon_arrays(options, fproduct)
+        #
+        #         ##CHECKING EXTRACT INFO OPTION (INCLUDING SATELLITE TIME)
+        #         cmems_time = '11:00'
+        #         if options.has_option('satellite_options', 'satellite_time'):
+        #             cmems_time = options['satellite_options']['satellite_time'].strip()
+        #         satellite_time = get_satellite_time_from_global_attributes(fproduct)
+        #         if satellite_time is None:
+        #             try:
+        #                 datehere_str = dt.strptime(date_str, '%Y-%m-%d').strftime('%Y%m%d')
+        #                 satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}',
+        #                                              '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
+        #             except:
+        #                 print(f'{cmems_time} is not a valid satellite time option. Skipping')
+        #                 continue
+        #         extract_info = {
+        #             'global_at': None,
+        #             'satellite_time': satellite_time,
+        #             'size_box': size_box,
+        #             'n_bands': extract_options['n_bands'],
+        #             'limits': None,
+        #             'lat_array': lat_array,
+        #             'lon_array': lon_array,
+        #             'file': fproduct,
+        #             'list_files': list_files
+        #         }
+        #
+        #         ##CHECKING EXTRACT FOR EACH ROW
+        #         for idx, row in df.iterrows():
+        #             datehere, lathere, lonhere = get_info_from_row(row, col_date, col_time, format_date, format_time,
+        #                                                            col_lat, col_lon)
+        #             if datehere is None or lathere is None or lonhere is None:
+        #                 print(f'[WARNING] Row {idx} is not valid. Date, latitute and/or longitude could not be parsed')
+        #                 continue
+        #             if datehere.strftime('%Y-%m-%d') != date_str:
+        #                 continue
+        #             limits, rc = get_geo_info(options, fproduct, lathere, lonhere, lat_array, lon_array)
+        #             if limits is None:
+        #                 print(
+        #                     f'[WARNING] In situ location out of the limits of the satellite product. Skipping...')
+        #                 continue
+        #
+        #             global_at = get_satellite_global_atrib_from_options(options)
+        #             datehere_str = datehere.strftime('%Y%m%d')
+        #             site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+        #             ofname = os.path.join(path_output, f'extract_{site}.nc')
+        #             if os.path.exists(ofname):
+        #                 print(f'[WARNING] Satellite extract extract_{site}.nc already exists. Skiping...')
+        #                 continue
+        #             global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, None)
+        #             extract_info['global_at'] = global_at
+        #             extract_info['limits'] = limits
+        #
+        #             newExtract = start_extract_2(ofname, extract_info)
+        #
+        #
+        #             if extract_options['is_reflectance']:
+        #                 newExtract = add_reflectance_multiple(newExtract, extract_info, extract_options['rrs_list'])
+        #             else:
+        #                 newExtract = add_variable_multiple(newExtract, extract_info,extract_options['dataset_var_list'],extract_options['dataset_var_list_out'])
+        #
+        #             if newExtract is None:
+        #                 os.remove(ofname)
+        #                 continue
+        #
+        #             newExtract.close_file()
+        #             ncreated = ncreated + 1
+        #
+        # print(f'[INFO] Extract generation for MULTIPLE_CSV_FILE was completed. ')
+        # print(f'[INFO] {ncreated} extracts were created')
+        # return           rrs_here = float(r.strip())
+        #                 rrs_list.append(rrs_here)
+        #                 var_here = var_rrs_format.replace('$BAND$', rs)
+        #                 rrs_var_list.append(var_here)
+        #             except:
+        #                 is_reflectance = False
+        #                 break
+        #         if is_reflectance:
+        #             n_bands = len(rrs_list)
+        # else:
+        #     is_reflectance = True
+        #     for var in dataset_var_list:
+        #         try:
+        #             float(var)
+        #         except:
+        #             is_reflectance = False
+        #     if is_reflectance:
+        #         n_bands = len(dataset_var_list)
+        #
+        # try:
+        #     df = pd.read_csv(path_csv, sep=';')
+        # except:
+        #     print(f'[ERROR] File {path_csv} is not a valid csv separated by ;')
+        #     return
+        # col_date = 'date'
+        # col_lat = 'lat'
+        # col_lon = 'lon'
+        # format_date = '%Y-%m-%dT%H:%M'
+        # if options.has_option('CSV_SELECTION', 'col_date'):
+        #     col_date = options['CSV_SELECTION']['col_date']
+        # if options.has_option('CSV_SELECTION', 'col_lat'):
+        #     col_lat = options['CSV_SELECTION']['col_lat']
+        # if options.has_option('CSV_SELECTION', 'col_lon'):
+        #     col_lon = options['CSV_SELECTION']['col_lon']
+        # if options.has_option('CSV_SELECTION', 'format_date'):
+        #     format_date = options['CSV_SELECTION']['format_date']
+        # col_time = None
+        # if options.has_option('CSV_SELECTION', 'col_time'):
+        #     col_time = options['CSV_SELECTION']['col_time']
+        #     format_time = '%H:%M:%S'
+        # if options.has_option('CSV_SELECTION', 'format_time'):
+        #     format_time = options['CSV_SELECTION']['format_time']
+        # csv_flags = None
+        # csv_flags_meanings = None
+        # if options.has_option('CSV_SELECTION', 'csv_flags'):
+        #     csv_flags_str = options['CSV_SELECTION']['csv_flags']
+        #     csv_flags = [x.strip() for x in csv_flags_str.split(',')]
+        #
+        # path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+        # size_box = get_box_size(options)
+        # var_lat, var_lon = get_lat_long_var_names(options)
+        #
+        # extract_list = {}
+        # if csv_flags is not None:
+        #     csv_flags_meanings = {}
+        #
+        # for idx, row in df.iterrows():
+        #     list = [str(x).strip() for x in row.to_list()]
+        #     line_orig = ";".join(list)
+        #     try:
+        #         datehere = None
+        #         if col_time is not None:
+        #             try:
+        #                 datetimerow = f'{row[col_date].strip()}T{row[col_time].strip()}'
+        #                 if np.isreal(datetimerow):
+        #                     datetimerow = f'{datetimerow:.0f}'
+        #                 format_datetime = f'{format_date}T{format_time}'
+        #                 datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
+        #             except:
+        #                 pass
+        #         if datehere is None:
+        #             datetimerow = row[col_date]
+        #             if np.isreal(datetimerow):
+        #                 datetimerow = f'{datetimerow:.0f}'
+        #             format_datetime = format_date
+        #             datehere = dt.strptime(datetimerow, format_datetime).replace(tzinfo=pytz.utc)
+        #             datehere = datehere.replace(hour=12, minute=0, second=0).replace(tzinfo=pytz.utc)
+        #     except:
+        #         print(f'[WARNING] Row {idx} is not valid. Date/Time could not be parsed. Skipping...')
+        #         fcsv_out.write('\n')
+        #         fcsv_out.write(f'{line_orig};NaN;-1')
+        #         continue
+        #     lathere = float(row[col_lat])
+        #     lonhere = float(row[col_lon])
+        #     if np.isnan(lathere) or np.isnan(lonhere):
+        #         print(f'[WARNING] Row {idx} is not valid. Latitude or longitude could not be parsed. Skipping...')
+        #         fcsv_out.write('\n')
+        #         fcsv_out.write(f'{line_orig};NaN;-1')
+        #         continue
+        #     if csv_flags is not None:
+        #         for f in csv_flags:
+        #             val = row[f].strip()
+        #             val = val.replace(' ', '_')
+        #             if f not in csv_flags_meanings.keys():
+        #                 csv_flags_meanings[f] = [val]
+        #             else:
+        #                 lflags = csv_flags_meanings[f]
+        #                 if val not in lflags:
+        #                     lflags.append(val)
+        #                     csv_flags_meanings[f] = lflags
+        #
+        #
+        #
+        #
+        #     list_files = get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file,
+        #                                                     dataset_name_format_date, dataset_var_list)
+        #
+        #     if list_files is not None:
+        #
+        #         limits, rc = get_geo_info(options, list_files[0], lathere, lonhere, None, None)
+        #         if limits is not None:
+        #             global_at = get_satellite_global_atrib_from_options(options)
+        #             datehere_str = datehere.strftime('%Y%m%d')
+        #             site = f'{get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+        #             # print(f'[INFO] Site: {site}')
+        #             other = None
+        #             if csv_flags is not None:
+        #                 other = {}
+        #                 for f in csv_flags:
+        #                     val = row[f].strip()
+        #                     val = val.replace(' ', '_')
+        #                     other[f] = val
+        #
+        #             global_at = add_insitu_global_atrib(global_at, site, lathere, lonhere, other)
+        #
+        #             ofname = os.path.join(path_output, f'extract_{site}.nc')
+        #             cmems_time = '11:00'
+        #             if options.has_option('satellite_options', 'satellite_time'):
+        #                 cmems_time = options['satellite_options']['satellite_time'].strip()
+        #             try:
+        #                 satellite_time = dt.strptime(f'{datehere_str}T{cmems_time}', '%Y%m%dT%H:%M').astimezone(
+        #                         pytz.utc)
+        #                 print(satellite_time)
+        #             except:
+        #                 print(f'{cmems_time} is not a valid satellite time option. Skipping')
+        #                 fcsv_out.write('\n')
+        #                 fcsv_out.write(f'{line_orig};NaN;-1')
+        #                 continue
+        #
+        #             if site not in extract_list.keys():
+        #                 extract_list[site] = {
+        #                     'ninsitu': 1,
+        #                     'satellite_time': satellite_time,
+        #                     'ofname': ofname,
+        #                     'limits': limits,
+        #                     'list_files': list_files,
+        #                     'size_box': size_box,
+        #                     'n_bands': n_bands,
+        #                     'var_lat': var_lat,
+        #                     'var_lon': var_lon,
+        #                     '1': {
+        #                         'insitu_time': datehere,
+        #                         'global_at': global_at,
+        #                     }
+        #                 }
+        #                 fcsv_out.write('\n')
+        #                 fcsv_out.write(f'{line_orig};{site}.nc;0')
+        #             else:
+        #                 idx = extract_list[site]['ninsitu'] + 1
+        #                 fcsv_out.write('\n')
+        #                 fcsv_out.write(f'{line_orig};{site}.nc;{idx - 1}')
+        #                 idxs = str(idx)
+        #                 extract_list[site]['ninsitu'] = idx
+        #                 extract_list[site][idxs] = {
+        #                     'insitu_time': datehere,
+        #                     'global_at': global_at,
+        #                 }
+        #         else:
+        #             fcsv_out.write('\n')
+        #             fcsv_out.write(f'{line_orig};NaN;-1')
+        #     else:
+        #         print(f'[WARNING] Files not found for date: {datehere.strftime("%Y-%m-%d")}. Skipping...')
+        #         fcsv_out.write('\n')
+        #         fcsv_out.write(f'{line_orig};NaN;-1')
+        #
+        # fcsv_out.close()
+        #
+        # for site in extract_list:
+        #     extract = extract_list[site]
+        #     ofname = extract['ofname']
+        #     ofname_temp = f'{ofname[:-3]}_temp.nc'
+        #     if os.path.exists(ofname):
+        #         newExtract = copy_extract(ofname, ofname_temp)
+        #     else:
+        #         newExtract = start_extract(extract, ofname)
+        #
+        #     if is_reflectance:
+        #         newExtract = add_reflectance_multiple(newExtract, extract, dataset_var_list)
+        #     else:
+        #         newExtract = add_variable_multiple(newExtract, extract, dataset_var_list, dataset_var_list_out)
+        #     if newExtract is None:
+        #             os.remove(ofname)
+        #             continue
+        #     nidx = 50
+        #
+        #     newExtract = add_insitu_basic_info(newExtract, extract, 1, nidx, csv_flags_meanings)
+        #
+        #     nhere = extract['ninsitu']
+        #     if nhere > 1:
+        #         for idx in range(2, nhere + 1):
+        #             newExtract = add_insitu_basic_info(newExtract, extract, idx, nidx, csv_flags_meanings)
+        #     newExtract.close_file()
+        #
+        #     if os.path.exists(ofname_temp):
+        #         os.rename(ofname_temp, ofname)
         return
 
+
+
+    if options.has_section('TIME_AND_SITES_SELECTION'):
+        run_time_and_sites_selection(options,path_output)
+        return
 
 
     #if options.has_option('file_path', 'path_insitu') and options.has_option('file_path', 'path_insitu_code'):
@@ -2353,59 +871,45 @@ def main():
     #    return
 
 
-    # use_single_file = False
-    # section = 'file_path'
-    # n_bands = 0
-    # if options.has_option(section, 'use_single_file'):  ##SINGLE FILE SELECTION
-    #     usf = options[section]['use_single_file']
-    #     if usf.strip().lower() == 'true' or usf.strip() == '1':
-    #         use_single_file = True
-    extract_options = get_cmems_extract_options(options,'file_path')
-    use_single_file = extract_options['use_single_file']
 
-    if options.has_option('Time_and_sites_selection', 'time_list') and \
-            options.has_option('file_path', 'cmems_product') and \
-            options.has_option('file_path', 'cmems_dataset') and not use_single_file:
-        run_cmems_option_noreformat(options)
-        return
 
-    if options.has_option('file_path', 'cmems_product') and options.has_option('file_path', 'cmems_dataset') and use_single_file:
-        run_cmems_option(options,extract_options)
-        return
+    #use_single_file = extract_options['use_single_file']
+
+
 
 
 
     # work only with the specified product file
-    if args.product_file:
-        print('------------------------------')
-        filepath = args.product_file
-        if args.verbose:
-            print(f'[INFO]Extracting sat extract for product: {filepath}')
-        ncreated = launch_create_extract(filepath, options)
-        print('------------------------------')
-        print(f'[INFO] COMPLETED. {ncreated} sat extract files were created')
-    else:
-        print('------------------------------')
-        path_source, org, wce, time_start, time_stop = get_find_product_info(options)
-        path_to_list = get_path_list_products(options)
-        if path_to_list is not None:
-            product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
-            if len(product_path_list) == 0:
-                if args.verbose:
-                    print('-----------------')
-                print(f'[WARNING] No valid datasets found on:  {path_source}')
-                print('------------------------------')
-                print('[INFO] COMPLETED. 0 sat extract files were created')
-                return
-            ncreated = 0
-            for filepath in product_path_list:
-                if args.verbose:
-                    print('------------------------------')
-                    print(f'[INFO]Extracting sat extract for product: {filepath}')
-                nhere = launch_create_extract(filepath, options)
-                ncreated = ncreated + nhere
-            print('------------------------------')
-            print(f'COMPLETED. {ncreated} sat extract files were created')
+    # if args.product_file:
+    #     print('------------------------------')
+    #     filepath = args.product_file
+    #     if args.verbose:
+    #         print(f'[INFO]Extracting sat extract for product: {filepath}')
+    #     ncreated = launch_create_extract(filepath, options)
+    #     print('------------------------------')
+    #     print(f'[INFO] COMPLETED. {ncreated} sat extract files were created')
+    # else:
+    #     print('------------------------------')
+    #     path_source, org, wce, time_start, time_stop = get_find_product_info(options)
+    #     path_to_list = get_path_list_products(options)
+    #     if path_to_list is not None:
+    #         product_path_list = get_list_products(path_to_list, path_source, org, wce, time_start, time_stop)
+    #         if len(product_path_list) == 0:
+    #             if args.verbose:
+    #                 print('-----------------')
+    #             print(f'[WARNING] No valid datasets found on:  {path_source}')
+    #             print('------------------------------')
+    #             print('[INFO] COMPLETED. 0 sat extract files were created')
+    #             return
+    #         ncreated = 0
+    #         for filepath in product_path_list:
+    #             if args.verbose:
+    #                 print('------------------------------')
+    #                 print(f'[INFO]Extracting sat extract for product: {filepath}')
+    #             nhere = launch_create_extract(filepath, options)
+    #             ncreated = ncreated + nhere
+    #         print('------------------------------')
+    #         print(f'COMPLETED. {ncreated} sat extract files were created')
 
 
 if __name__ == '__main__':

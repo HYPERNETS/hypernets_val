@@ -209,11 +209,12 @@ class MDBPlot:
             stats_to_convert = ['RMSD', 'XAVG', 'YAVG', 'XMEDIAN','YMEDIAN','CRMSE', 'MAD','MdAD']
             for stat in stats_to_convert:
                 self.valid_stats[stat] = np.power(10, self.valid_stats[stat])
-            sign_stats_to_convert = ['BIAS']
-            bias_neg = self.valid_stats['BIAS'] < 0
-            self.valid_stats['BIAS'] = np.power(10, np.abs(self.valid_stats['BIAS']))
-            if bias_neg:
-                self.valid_stats['BIAS'] = self.valid_stats['BIAS'] * (-1)
+            sign_stats_to_convert = ['BIAS','MdBIAS']
+            for stat in sign_stats_to_convert:
+                bias_neg = self.valid_stats[stat] < 0
+                self.valid_stats[stat] = np.power(10, np.abs(self.valid_stats[stat]))
+                if bias_neg:
+                    self.valid_stats[stat] = self.valid_stats[stat] * (-1)
 
         # print(self.valid_stats)
 

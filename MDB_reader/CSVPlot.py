@@ -132,6 +132,22 @@ class CSVPLOT:
             groupdata = np.array(self.dataset[options_out['groupBy']])
             gData = groupdata[valid]
             mplot.groupdata = gData
+
+            if options_out['groupBy'] == 'bitmask':
+                options_out['bitmask']={
+                    'flag_values': [0,1],
+                    'flag_meanings': ['NO FLAGGED','CASE 2']
+                }
+                options_out['groupValues'] = [0,1]
+
+            if options_out['groupBy'] == 'valid':
+                options_out['valid']={
+                    'flag_values': [0,1,2,3],
+                    'flag_meanings': ['VALID','>0.001','>0.01','>0.1']
+                    #'flag_meanings': ['VALID','>10E-4','>10E-3','>10E-2']
+                }
+                options_out['groupValues'] = [0,1,2,3]
+
             if options_out['groupBy']=='blended_dominant_owt':
                 values = list(range(1,19))
                 #values = [-1] + values

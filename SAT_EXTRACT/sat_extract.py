@@ -1,6 +1,6 @@
 import numpy as np
 from netCDF4 import Dataset
-from datetime import datetime
+from datetime import datetime as dt
 import numpy.ma as ma
 import configparser,os,subprocess,pytz,__init__,sys
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
@@ -52,7 +52,7 @@ class SatExtract:
 
     def set_global_attributes(self, at):
         # Atributes
-        self.EXTRACT.creation_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.EXTRACT.creation_time = dt.now().strftime("%Y-%m-%dT%H:%M:%SZ")
         satellite = at['satellite']
         platform = at['platform']
         sensor = at['sensor']
@@ -471,6 +471,8 @@ def get_basic_options_from_file_config(args,options):
     }
     return basic_options
 
+
+
 def create_dir(path):
     try:
         os.mkdir(path)
@@ -535,6 +537,69 @@ def get_basic_options_from_arguments(args):
 
     return basic_options
 
+
+def get_multiprocessing_options(options):
+    mp_options ={
+        'ncores': {
+            'type':'int',
+            'default': 0
+        },
+        'use_sbatch':{
+            'type': 'boolean',
+            'default': False
+        },
+        'sbatch_max_cores':{
+            'type': 'int',
+            'default': 8
+        },
+        'sbatch_launch':{
+            'type': 'boolean',
+            'default': True
+        },
+        'sbatch_partition':{
+            'type': 'str',
+            'default': 'octac_rep'
+        },
+        'sbatch_email':{
+            'type': 'str',
+            'default': None
+        },
+        'sbatch_email_type':{
+            'type': 'str',
+            'default': 'BEGIN,END,FAIL'
+        },
+        'conda_source':{
+            'type':'str',
+            'default': 'load_miniconda3.source'
+        },
+        'conda_env':{
+            'type':'str',
+            'default': 'op_proc_202211v2'
+        }
+    }
+    options_out = {}
+
+    if options.has_section('multiprocessing'):
+        for key in mp_options:
+            value = mp_options[key]['default']
+            if options.has_option('multiprocessing',key):
+                value = options['multiprocessing'][key].strip()
+                type_v = mp_options[key]['type']
+                if type_v=='int':
+                    value = get_int_val(value)
+                    if value is None:
+                        print(f'[ERROR] Option {key} in multiprocessing section {value} is not a a valid integer')
+                        return None
+                if type_v=='boolean':
+                    value = get_boolean_val(options['multiprocessing'][key])
+
+            options_out[key] = value
+
+    return options_out
+
+
+
+
 def get_insitu_site(args,options, path_out):
     in_situ_lat = None
     in_situ_lon = None
@@ -582,18 +647,18 @@ def get_insitu_site(args,options, path_out):
 
 def get_params_time(args,options):
     date_list = None
-    if args.config_file:
-        datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
-        datetime_end = datetime.today()
+    if options is not None:
+        datetime_start =dt.strptime('2000-01-01', '%Y-%m-%d')
+        datetime_end = dt.today()
         if options.has_option('Time_and_sites_selection', 'time_start'):
             try:
-                datetime_start = datetime.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
+                datetime_start =dt.strptime(options['Time_and_sites_selection']['time_start'], '%Y-%m-%d')
             except:
                 print(f'WARNING: time_start format is not valid. Usind dafult value: 2000-01-01')
 
         if options.has_option('Time_and_sites_selection', 'time_end'):
             try:
-                datetime_end = datetime.strptime(options['Time_and_sites_selection']['time_stop'],
+                datetime_end =dt.strptime(options['Time_and_sites_selection']['time_stop'],
                                                  '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
             except:
                 print(f'WARNING: time_end format is not valid. Usind dafult value: today')
@@ -606,13 +671,13 @@ def get_params_time(args,options):
 
     else:
         if args.startdate:
-            datetime_start = datetime.strptime(args.startdate, '%Y-%m-%d')
+            datetime_start =dt.strptime(args.startdate, '%Y-%m-%d')
         else:
-            datetime_start = datetime.strptime('2000-01-01', '%Y-%m-%d')
+            datetime_start =dt.strptime('2000-01-01', '%Y-%m-%d')
         if args.enddate:
-            datetime_end = datetime.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
+            datetime_end =dt.strptime(args.enddate, '%Y-%m-%d') + timedelta(seconds=59, minutes=59, hours=23)
         else:
-            datetime_end = datetime.today()
+            datetime_end = dt.today()
         if args.date_list_file and os.path.isfile(args.date_list_file):
             date_list, datetime_start, datetime_end = get_date_list_from_file(args.date_list_file, datetime_start,
                                                                               datetime_end)
@@ -637,7 +702,7 @@ def get_date_list_from_file(file_list, dt_start, dt_end):
     for line in f1:
         dateherestr = line.strip()
         try:
-            datehere = datetime.strptime(dateherestr, '%Y-%m-%d')
+            datehere =dt.strptime(dateherestr, '%Y-%m-%d')
             if dt_start <= datehere <= dt_end:
                 date_list.append(datehere)
                 if dt_start_real is None:
@@ -689,7 +754,344 @@ def get_list_products_day(path_source, date_here, wce , org):
     return product_list
 
 
+def overwrite(options):
+    ow = False
+    if options.has_option('file_path', 'overwrite'):
+        ow = get_boolean_val(options['file_path']['overwrite'])
+    return ow
+
+def get_boolean_val(sval):
+    sval = sval.strip().upper()
+    if sval == 'TRUE' or sval == 'T' or sval == '1':
+        return True
+    else:
+        return False
+
+def get_int_val(sval):
+    sval = sval.strip()
+    try:
+        val = int(sval)
+    except:
+        val = None
+    return val
+
+def get_output_path(options,verbose):
+    if options.has_option('file_path', 'output_dir'):
+        output_path = options['file_path']['output_dir']
+        if not os.path.isdir(output_path):
+            if verbose:
+                print(f'[WARNING] Trying to create the output path: {output_path}')
+            output_path = create_dir(output_path)
+        if output_path is None:
+            print(f'[ERROR] Output {output_path} is not available and could not be created')
+            return None
+        if verbose:
+            print(f'[INFO] Output path:{output_path}')
+        return output_path
+    else:
+        print('[ERROR] section:file_path, option: output_dir is not included in the configuration file')
+        return None
+
+def get_input_path_info(options):
+    path_source = options['file_path']['sat_source_dir'].strip()
+    if not os.path.isdir(path_source):
+        print(f'[ERROR] Source path {path_source} is not available or is not a valid directory')
+        return None
+    org = None
+    if options.has_option('file_path', 'sat_source_dir_organization') and options['file_path'][
+        'sat_source_dir_organization']:
+        org = options['file_path']['sat_source_dir_organization']
+
+    if org is not None:
+        if org.lower()=='none':
+            org = None
+        elif org=='YYYYmmdd':
+            org = '%Y/%m/%d'
+        elif org == 'YYYYjjj':
+            org = '%Y/%j'
+        elif org == 'YYYYmm':
+            org = '%Y/%m'
+        else:
+            org = org.replace('YYYY','%Y')
+            org = org.replace('mm', '%m')
+            org = org.replace('dd', '%d')
+            org = org.replace('jjj', '%j')
+        try:
+           
+            dt.now().strftime(org)
+        except:
+            print(f'[ERROR] Satellite path date organization {org} is not valid')
+            return None
 
 
+    wce = '*'
+    if options.has_option('file_path', 'wce') and options['file_path']['wce']:
+        wce = options['file_path']['wce']
+
+    input_path_info = {
+        'path_source': path_source,
+        'org': org,
+        'wce': wce
+    }
+    return input_path_info
+
+def get_cnr_extract_options(options):
+    section = 'CNR_OPTIONS'
+    n_bands = 0
+
+    dataset_name_file = None
+    dataset_name_format_date = '%Y%j'
+    if options.has_option(section,'dataset_name_file'):
+        dataset_name_file = options[section]['dataset_name_file']
+    if options.has_option(section,'dataset_name_format_date'):
+        dataset_name_format_date = options[section]['dataset_name_format_date']
+
+    dataset_var_list = None
+    dataset_var_list_out = None
+    if options.has_option(section, 'dataset_var_list'):
+        s = options[section]['dataset_var_list']
+        dataset_var_list = [x.strip() for x in s.split(',')]
+        dataset_var_list_out = dataset_var_list
+        if options.has_option(section, 'dataset_var_list_out'):
+            s = options[section]['dataset_var_list_out']
+            dataset_var_list_out = [x.strip() for x in s.split(',')]
+
+    rrs_list = []
+    is_reflectance = True
+    for var in dataset_var_list:
+        try:
+            value = float(var)
+            rrs_list.append(value)
+        except:
+            is_reflectance = False
+    if is_reflectance:
+            n_bands = len(dataset_var_list)
+
+    options_out = {
+        'is_reflectance': is_reflectance,
+        'n_bands': n_bands,
+        'dataset_name_file': dataset_name_file,
+        'dataset_name_format_date': dataset_name_format_date,
+        'dataset_var_list': dataset_var_list,
+        'dataset_var_list_out': dataset_var_list_out,
+        'rrs_list': rrs_list,
+        'size_box': get_box_size(options)
+    }
+
+    return options_out
+
+def get_csv_options(options, section):
+    if section == 'CSV_SELECTION':
+        col_date = 'date'
+        col_lat = 'lat'
+        col_lon = 'lon'
+        col_sep = ';'
+        format_date = '%Y-%m-%dT%H:%M'
+    if section == 'MULTIPLE_CSV_SELECTION':
+        col_date = 'timestamp'
+        col_lat = 'lat'
+        col_lon = 'lon'
+        format_date = '%Y-%m-%d %H:%M:%S.%f'
+        col_sep = ','
+
+    if options.has_option(section, 'col_date'):
+        col_date = options[section]['col_date']
+    if options.has_option(section, 'col_lat'):
+        col_lat = options[section]['col_lat']
+    if options.has_option(section, 'col_lon'):
+        col_lon = options[section]['col_lon']
+    if options.has_option(section, 'format_date'):
+        format_date = options[section]['format_date']
+    if options.has_option(section, 'col_sep'):
+        col_sep = options[section]['col_sep']
+
+    col_time = None
+    format_time = '%H:%M:%S'
+    if options.has_option(section, 'col_time'):
+        col_time = options[section]['col_time']
+    if options.has_option(section, 'format_time'):
+        format_time = options[section]['format_time']
+
+    return col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep
+
+def get_box_size(options):
+    if options.has_option('satellite_options', 'extract_size'):
+        try:
+            size_box = int(options['satellite_options']['extract_size'])
+        except:
+            size_box = 25
+    else:
+        size_box = 25
+    return size_box
+
+def get_geo_info(options, file_nc, insitu_lat, insitu_lon, lat, lon):
+    if lat is None or lon is None:
+        lat, lon = get_lat_lon_arrays(options, file_nc)
+
+    contain_flag = 0
+    limits = None
+    rc = None
+    if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
+        if lat.ndim == 1 and lon.ndim == 1:
+            r = np.argmin(np.abs(lat - insitu_lat))
+            c = np.argmin(np.abs(lon - insitu_lon))
+        else:
+            r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+        if 'size_box' in options:
+            size_box = options['size_box']
+        else:
+            size_box = get_box_size(options)
+        start_idx_x = (c - int(size_box / 2))  # lon
+        stop_idx_x = (c + int(size_box / 2) + 1)  # lon
+        start_idx_y = (r - int(size_box / 2))  # lat
+        stop_idx_y = (r + int(size_box / 2) + 1)  # lat
+
+        if lat.ndim == 1 and lon.ndim == 1:
+            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                    lon.shape[0]:
+                contain_flag = 1
+        else:
+            if start_idx_y >= 0 and (stop_idx_y + 1) < lat.shape[0] and start_idx_x >= 0 and (stop_idx_x + 1) < \
+                    lat.shape[1]:
+                contain_flag = 1
+        if contain_flag == 1:
+            limits = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
+            rc = [r, c]
+
+    return limits, rc
 
 
+def get_date_list_from_dataframe(df,col_date,format_date,col_time,format_time):
+    date_array_ts = df[col_date]
+    time_array_ts = None
+    if col_time is not None:
+        format_datetime = f'{format_date}T{format_time}'
+        time_array_ts = df[col_time]
+    else:
+        format_datetime = format_date
+    only_date_array = []
+    time_list = []
+    for idx,xd in enumerate(date_array_ts):
+        x = f'{xd}T{time_array_ts[idx]}' if time_array_ts is not None else xd
+        try:
+            time_here = dt.strptime(x, format_datetime)
+            time_list.append(time_here)
+            only_date_array.append(time_here.strftime('%Y-%m-%d'))
+        except:
+            print(f'[WARNING] {x} could not be parsed with format {format_datetime}')
+            continue
+    only_date_array_unique = np.unique(only_date_array).tolist()
+    return only_date_array_unique, time_list
+
+def get_lat_lon_arrays(options, file_nc):
+    nc_sat = Dataset(file_nc, 'r')
+    var_lat, var_lon = get_lat_long_var_names(options)
+    lat = nc_sat.variables[var_lat][:]
+    lon = nc_sat.variables[var_lon][:]
+    #lat, lon = get_lat_long_arrays(nc_sat, var_lat, var_lon)
+    nc_sat.close()
+    return lat, lon
+
+def get_lat_long_var_names(options):
+    var_lat = 'lat'
+    var_lon = 'lon'
+    if options.has_option('satellite_options', 'lat_variable'):
+        var_lat = options['satellite_options']['lat_variable']
+    if options.has_option('satellite_options', 'lon_variable'):
+        var_lon = options['satellite_options']['lon_variable']
+    return var_lat, var_lon
+
+def get_satellite_time_l3(options,fproduct,daydate):
+    cmems_time = '11:00'
+    if options.has_option('satellite_options', 'satellite_time'):
+        cmems_time = options['satellite_options']['satellite_time'].strip()
+    satellite_time = get_satellite_time_from_global_attributes(fproduct)
+    if satellite_time is None:
+        try:
+            satellite_time = dt.strptime(f'{daydate.strftime("%Y%m%d")}T{cmems_time}',
+                                         '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
+        except:
+            print(f'{cmems_time} is not a valid satellite time option. Skipping')
+            return None
+    return satellite_time
+
+def get_satellite_time_from_global_attributes(fproduct):
+    dataset = Dataset(fproduct)
+    if 'time_coverage_start' in dataset.ncattrs() and 'time_coverage_end' in dataset.ncattrs():
+        try:
+            start_date = dt.strptime(dataset.time_coverage_start, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+            end_date = dt.strptime(dataset.time_coverage_end, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+            sat_time = (start_date.timestamp() + end_date.timestamp()) / 2
+            sat_time = dt.fromtimestamp(sat_time).astimezone(pytz.utc)
+            dataset.close()
+            return sat_time
+
+        except:
+            dataset.close()
+            return None
+    dataset.close()
+    return None
+
+def get_satellite_global_atrib_from_options(options):
+    compulsory_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
+    section = 'satellite_options'
+    at = {}
+    for key in compulsory_keys:
+        if options.has_option(section, key):
+            at[key] = options[section][key].strip()
+        else:
+            at[key] = ''
+
+    return at
+
+def add_insitu_global_atrib(at, site, latitude, longitude, other):
+    at['site'] = site
+    at['in_situ_lat'] = latitude
+    at['in_situ_lon'] = longitude
+    if other is not None:
+        for key in other:
+            at[key] = other[key]
+    return at
+
+def get_satellite_ref(global_at):
+    ref_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
+    ref = None
+    for key in ref_keys:
+        if key in global_at.keys() and len(global_at[key]) > 0:
+            if ref is None:
+                ref = global_at[key]
+            else:
+                ref = f'{ref}_{global_at[key]}'
+    return ref
+
+def get_path_date(path_base,org,date_here,createIfNotExist):
+    if org is None:
+        path_date = path_base
+    else:
+        try:
+            path_date = os.path.join(path_base,date_here.strftime(org))
+        except:
+            print(f'[ERROR] Path date for date {date_here.strftime("%Y-%m-%d")} could not be parsed using {org} organization')
+            return None
+
+    if not os.path.isdir(path_date):
+        if not createIfNotExist:
+            print(f'[ERROR] Path date {path_date} does not exist or is not a valid directory')
+            return None
+        else:
+            path_date = create_dir(path_date)
+            if path_date is None:
+                print(f'[ERROR] Path date {path_date} does not exist and could not be created. Please review permissions')
+    return path_date
+
+
+# def get_lat_long_arrays(nc_sat, var_lat, var_lon):
+#     vlat = nc_sat.variables[var_lat]
+#     vlon = nc_sat.variables[var_lon]
+#     if vlat.ndim == 2 and vlon.ndim == 2:
+#         lat = nc_sat.variables[var_lat][:, :]
+#         lon = nc_sat.variables[var_lon][:, :]
+#     if vlat.ndim == 1 and vlon.ndim == 1:
+#         lat = nc_sat.variables[var_lat][:]
+#         lon = nc_sat.variables[var_lon][:]
+#     return lat, lon
