@@ -209,7 +209,7 @@ def create_multiple_csv_sbatch(options,output_path,mp_options):
                 print(f'[NFO] Creating sbatch file...')
             file_config = os.path.join(temp_path,f'config_file_{index_folder}.ini')
             options.set('MULTIPLE_CSV_SELECTION','path_csv',folder_csv)
-            options.set('multiprocessing','use_sbatch',False)
+            options.set('multiprocessing','use_sbatch','False')
             print(options['MULTIPLE_CSV_SELECTION']['path_csv'])
             with open(file_config,'w') as configw:
                 options.write(configw)
