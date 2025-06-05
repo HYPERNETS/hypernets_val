@@ -235,7 +235,7 @@ def create_multiple_csv_sbatch(options,output_path,mp_options):
 
     #final sbatch file
     if args.verbose:
-        print(f'[NFO] Creating final sbatch file...')
+        print(f'[INFO] Creating final sbatch file...')
     file_config = os.path.join(temp_path, f'config_file_{index_folder}.ini')
     options.set('MULTIPLE_CSV_SELECTION', 'path_csv', folder_csv)
     print(options['MULTIPLE_CSV_SELECTION']['path_csv'])
@@ -250,6 +250,14 @@ def create_multiple_csv_sbatch(options,output_path,mp_options):
     sbatch_log_files.append(os.path.join(temp_path, f'sbatch_script_log_{index_folder}.log'))
     file_out_sh = os.path.join(temp_path,f'launch_multiple_sbatch.sh')
     sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh,sbatch_files,sbatch_log_files,mp_options['sbatch_max_cores'])
+    print(f'[INFO] SH file: {file_out_sh} has been created.')
+    if mp_options['sbatch_launch']:
+        import subprocess
+        cmd = f'sh {file_out_sh}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(f'[ERROR]Error lunching script: {err}')
 
 def run_multiple_csv(options,output_path, overwrite, ncores):
     path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
