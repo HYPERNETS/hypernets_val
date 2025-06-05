@@ -33,7 +33,7 @@ class SBATCH_SCRIPTER(object):
         if self.fw is None:
             return
         if 'conda_source' in sb_options.keys() and 'conda_env' in sb_options.keys():
-            self.add_line(f'source $USER/{sb_options["conda_source"]}')
+            self.add_line(f'source /home/$USER/{sb_options["conda_source"]}')
             self.add_line(f'conda activate {sb_options["conda_env"]}')
 
     def add_line(self,line):
