@@ -490,7 +490,7 @@ def run_single_seabass(options,output_path,overwrite, ncores, concatenate_daily_
         print(f'[ERROR] Path to SeaBass file {path_seabass} was not found or is not a valid file')
         return
 
-    path_extract_output = os.path.join(output_path,f'{path_seabass[0:path_seabass.rfind('.')]}_extracts.csv')
+    path_extract_output = os.path.join(output_path,f'{path_seabass[0:path_seabass.rfind(".")]}_extracts.csv')
     if os.path.isfile(path_extract_output):
         try:
             os.remove(path_extract_output)
@@ -530,7 +530,7 @@ def run_single_seabass(options,output_path,overwrite, ncores, concatenate_daily_
     params_list = []
     path_extract_output_list = []
     path_extract_output_date = os.path.join(output_path,
-                                            f'{path_seabass[0:path_seabass.rfind('.')]}_$DATE$_extracts.csv')
+                                            f'{path_seabass[0:path_seabass.rfind(".")]}_$DATE$_extracts.csv')
     ##remove files by date if they exist
     for date_str in date_array_unique:
         path_extract_output_here = path_extract_output_date.replace('$DATE$', date_str)
@@ -730,9 +730,9 @@ def make_seabass_concatenation(options,output_path):
         print(f'[ERROR] Path to SeaBass file {path_seabass} was not found or is not a valid file')
         return
 
-    path_extract_output = os.path.join(output_path, f'{path_seabass[0:path_seabass.rfind('.')]}_extracts.csv')
+    path_extract_output = os.path.join(output_path, f'{path_seabass[0:path_seabass.rfind(".")]}_extracts.csv')
     path_extract_output_date = os.path.join(output_path,
-                                            f'{path_seabass[0:path_seabass.rfind('.')]}_$DATE$_extracts.csv')
+                                            f'{path_seabass[0:path_seabass.rfind(".")]}_$DATE$_extracts.csv')
 
     file_list = []
     work_date = start_date
