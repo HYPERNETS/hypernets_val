@@ -881,12 +881,12 @@ def get_cnr_extract_options(options):
     return options_out
 
 def get_csv_options(options, section):
-    if section == 'CSV_SELECTION':
-        col_date = 'date'
-        col_lat = 'lat'
-        col_lon = 'lon'
-        col_sep = ';'
-        format_date = '%Y-%m-%dT%H:%M'
+    #if section == 'CSV_SELECTION':
+    col_date = 'date'
+    col_lat = 'lat'
+    col_lon = 'lon'
+    col_sep = ';'
+    format_date = '%Y-%m-%dT%H:%M'
     if section == 'MULTIPLE_CSV_SELECTION':
         col_date = 'timestamp'
         col_lat = 'lat'
@@ -913,6 +913,31 @@ def get_csv_options(options, section):
         format_time = options[section]['format_time']
 
     return col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep
+
+def get_seabass_options(options, section):
+    var_date = 'date'
+    var_time = 'time'
+    var_lat = 'lat'
+    var_lon = 'lon'
+    format_date = '%Y%m%d'
+    format_time = '%H:%M:%S'
+
+    if options.has_option(section, 'var_date'):
+        var_date = options[section]['var_date'].strip()
+    if options.has_option(section, 'var_lat'):
+        var_lat = options[section]['var_lat'].strip()
+    if options.has_option(section, 'var_lon'):
+        var_lon = options[section]['var_lon'].strip()
+    if options.has_option(section, 'format_date'):
+        format_date = options[section]['format_date'].strip()
+
+    if options.has_option(section, 'var_time'):
+        var_time = options[section]['var_time'].strip()
+    if options.has_option(section, 'format_time'):
+        format_time = options[section]['format_time']
+
+    return var_date, var_time, var_lat, var_lon, format_date, format_time
+
 
 def get_box_size(options):
     if options.has_option('satellite_options', 'extract_size'):
@@ -960,6 +985,41 @@ def get_geo_info(options, file_nc, insitu_lat, insitu_lon, lat, lon):
 
     return limits, rc
 
+def get_date_list_from_seabass(sb,var_date,var_time,format_date,format_time):
+    if not var_date in sb.variables:
+        return [None]*2
+
+
+    date_list_orig = sb.data[var_date]
+    time_list_orig = sb.data[var_time] if var_time in sb.variables else None
+    format_date_time = f'{format_date}T{format_time}'
+    date_array = []
+    time_list = []
+    for idx,x in enumerate(date_list_orig):
+        try:
+            date_array.append(dt.strptime(str(x), format_date).strftime('%Y-%m-%d'))
+        except:
+            print(f'[ERROR] Error parsing dates in SeaBass file: {x} could not be parsed using {format_date} format.')
+            print(
+                f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {sb.variables[var_date][1]}')
+            return [None]*2
+        if time_list_orig is None:
+            time_list.append(dt.strptime(str(x), format_date))
+        else:
+            try:
+                val_s = f'{str(x)}T{str(time_list_orig[idx])}'
+                time_list.append(dt.strptime(val_s, format_date_time))
+            except:
+                print(
+                    f'[ERROR] Error parsing dates in SeaBass file: {val_s} could not be parsed using {format_date_time} format.')
+                print(
+                    f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {sb.variables[var_date][1]}T{sb.variables[var_time][1]}')
+                return [None] * 2
+
+    date_array = np.array(date_array)
+    time_list = np.array(time_list)
+
+    return date_array,time_list
 
 def get_date_list_from_dataframe(df,col_date,format_date,col_time,format_time):
     date_array_ts = df[col_date]
@@ -1084,6 +1144,18 @@ def get_path_date(path_base,org,date_here,createIfNotExist):
                 print(f'[ERROR] Path date {path_date} does not exist and could not be created. Please review permissions')
     return path_date
 
+def concatenate_csv(file_list,file_out,remove_files):
+    import pandas as pd
+    objs = []
+    for file in file_list:
+        objs.append(pd.read_csv(file,sep=';'))
+        if remove_files:
+            try:
+                os.remove(file)
+            except:
+                pass
+    df = pd.concat(objs)
+    df.to_csv(file_out,sep=';',index=False)
 
 # def get_lat_long_arrays(nc_sat, var_lat, var_lon):
 #     vlat = nc_sat.variables[var_lat]

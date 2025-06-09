@@ -351,6 +351,123 @@ def run_multiple_csv(options,output_path, overwrite, ncores):
         poolhere = Pool(npool)
         poolhere.map(run_parallel_extract_day, params_list)
 
+def run_single_seabass(options,output_path,overwrite, ncores):
+    path_seabass = options['SEABASS_SELECTION']['path_seabass']
+    if not os.path.isfile(path_seabass):
+        print(f'[ERROR] Path to SeaBass file {path_seabass} was not found or is not a valid file')
+        return
+
+    path_extract_output = os.path.join(output_path,f'{path_seabass[0:path_seabass.rfind('.')]}_extracts.csv')
+    if os.path.isfile(path_extract_output):
+        try:
+            os.remove(path_extract_output)
+        except:
+            print(f'[ERROR] Path extract output {path_extract_output} could not be remove. Please review permission or if the file is open')
+            return
+    if args.verbose:
+        print(f'[INFO] Path extract output: {path_extract_output}')
+
+    from MDB_builder.SB_support import readSB
+    sb = readSB(path_seabass)
+    var_date, var_time, var_lat, var_lon, format_date, format_time = sat_extract.get_seabass_options(
+        options, 'SEABASS_SELECTION')
+    extract_options = sat_extract.get_cnr_extract_options(options)
+    input_path_info = sat_extract.get_input_path_info(options)
+    if input_path_info is None:
+        return
+
+    var_ok = True
+    if var_date not in sb.variables:
+        print(f'[ERROR] {var_date} set in SEABASS_SELECTION/var_date option in the configuration is not found in the SeaBass file')
+        var_ok = False
+    if var_lat not in sb.variables:
+        print(f'[ERROR] {var_lat} set in SEABASS_SELECTION/var_lat option in the configuration is not found in the SeaBass file')
+        var_ok = False
+    if var_lon not in sb.variables:
+        print(f'[ERROR] {var_lon} set in SEABASS_SELECTION/var_lon option in the configuration is not found in the SeaBass file')
+        var_ok = False
+    if not var_ok:
+        print(f'[ERROR] The following variables are avaialble: {[x for x in sb.variables]}')
+        return
+
+    date_array, time_list = sat_extract.get_date_list_from_seabass(sb,var_date,var_time,format_date,format_time)
+    date_array_unique = np.unique(date_array)
+
+    lat_array = np.array(sb.data[var_lat])
+    lon_array = np.array(sb.data[var_lon])
+    lat_image = None
+    lon_image = None
+
+    params_list = []
+    path_extract_output_list = []
+    path_extract_output_date = os.path.join(output_path,
+                                            f'{path_seabass[0:path_seabass.rfind('.')]}_$DATE$_extracts.csv')
+    ##remove files by date if they exist
+    for date_str in date_array_unique:
+        path_extract_output_here = path_extract_output_date.replace('$DATE$', date_str)
+        if os.path.isfile(path_extract_output_here):
+            try:
+                os.remove(path_extract_output_here)
+            except:
+                print(
+                    f'[ERROR] Path extract output date {path_extract_output_here} could not be remove. Please review permission or if the file is open')
+                return
+
+    for date_str in date_array_unique:
+        indices_here = np.where(date_array==date_str)
+        lat_here = lat_array[indices_here]
+        lon_here = lon_array[indices_here]
+        time_list_here = time_list[indices_here]
+        if args.verbose:
+            print(f'[INFO] Checking available products for day {date_str} in {input_path_info["path_source"]} with org. {input_path_info["org"]}')
+
+        list_files = get_cmems_multiple_product_day(input_path_info['path_source'], input_path_info['org'],
+                                                        dt.strptime(date_str, '%Y-%m-%d'),
+                                                        extract_options['dataset_name_file'],
+                                                        extract_options['dataset_name_format_date'],
+                                                        extract_options['dataset_var_list'])
+
+        if list_files is not None:
+            satellite_time = sat_extract.get_satellite_time_l3(options, list_files[0],
+                                                               dt.strptime(date_str, '%Y-%m-%d'))
+            if satellite_time is None:
+                print(f'[WARNING] Satellite time could not be defined. Skipping...')
+                continue
+            path_extract_output_here = path_extract_output_date.replace('$DATE$',date_str)
+            path_extract_output_list.append(path_extract_output_here)
+            extract_info = {
+                'global_at': sat_extract.get_satellite_global_atrib_from_options(options),
+                'list_files': list_files,
+                'insitu_time': time_list_here,
+                'insitu_lat': lat_here,
+                'insitu_lon': lon_here,
+                'insitu_indices': indices_here,
+                'path_extract_output': path_extract_output_here,
+                'satellite_time': satellite_time
+            }
+            if lat_image is None and lon_image is None:
+                lat_image, lon_image = sat_extract.get_lat_lon_arrays(options, list_files[0])
+            if ncores == 0:
+                run_extract_day(extract_options, extract_info, lat_image, lon_image, output_path, overwrite)
+            else:
+                if ncores > 0 or ncores == -1:
+                    params_list.append([extract_options, extract_info, lat_image, lon_image, output_path, overwrite])
+
+
+    if ncores>0 or ncores<0:
+        if args.verbose:
+            print(f'[INFO] Starting parallel processing. Number of dates: {len(params_list)}')
+            print(f'[INFO] CPUs: {os.cpu_count()}')
+            print(f'[INFO] Parallel processes: {ncores}')
+        npool = os.cpu_count() if ncores<0 else ncores
+        poolhere = Pool(npool)
+        poolhere.map(run_parallel_extract_day, params_list)
+
+    if args.verbose:
+        print(f'[INFO] Concatenating date files...')
+        sat_extract.concatenate_csv(path_extract_output_list,path_extract_output,True)
+        print(f'[INFO] Completed')
+
 def run_parallel_extract_day(params):
     run_extract_day(params[0],params[1],params[2],params[3],params[4],params[5])
 
@@ -358,10 +475,19 @@ def run_extract_day(extract_options,extract_info,lat_array,lon_array,output_path
     insitu_lat = extract_info['insitu_lat']
     insitu_lon = extract_info['insitu_lon']
     insitu_time = extract_info['insitu_time']
+    insitu_indices = extract_info['insitu_indices']
+    path_extract_output = extract_info['path_extract_output']
+    if not os.path.exists(path_extract_output):
+        few = open(path_extract_output,'w')
+        few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
+    else:
+        few = open(path_extract_output,'a')
+
     ntimes = len(insitu_time)
 
 
     site_list = []
+    format_datetime = '%Y-%m-%dT%H:%M:%S'
 
     for itime in range(ntimes):
 
@@ -378,10 +504,16 @@ def run_extract_day(extract_options,extract_info,lat_array,lon_array,output_path
         ofname = os.path.join(output_path, f'extract_{site}.nc')
 
         if os.path.exists(ofname) and not overwrite:
+            few.write('\n')
+            few.write(
+                f'extract_{site}.nc;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
             print(f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract extract_{site}.nc already exists. {itime+1}/{ntimes} Skiping...')
             continue
 
         if overwrite and site in site_list:
+            few.write('\n')
+            few.write(
+                f'extract_{site}.nc;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
             print(f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract for {site}  has been already done.  Skiping...')
             continue
 
@@ -409,11 +541,16 @@ def run_extract_day(extract_options,extract_info,lat_array,lon_array,output_path
         if newExtract is None:
             print(f'[ERROR] Error creating extract for site {site}')
             os.remove(ofname)
+            few.write('\n')
+            few.write(
+                f'noextract;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
             continue
         else:
             print(f'[INFO] Extract {ofname} completed.')
             site_list.append(site)
-
+            few.write('\n')
+            few.write(f'extract_{site}.nc;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
+    few.close()
 def run_time_and_sites_selection(options,output_path):
     extract_options = sat_extract.get_cnr_extract_options(options)
     if args.verbose:
@@ -468,12 +605,19 @@ def main():
     if mp_options is None:
         return
 
-    ##MULTIPLE CSV FILE SELECTION (FOR TARA METADATA FILES)
+    ##MULTIPLE CSV FILE SELECTION (e.g., FOR TARA METADATA FILES)
     if options.has_section('MULTIPLE_CSV_SELECTION') and options.has_option('MULTIPLE_CSV_SELECTION', 'path_csv'):
         if mp_options['use_sbatch']:
             create_multiple_csv_sbatch(options,path_output,mp_options)
         else:
             run_multiple_csv(options,path_output,overwrite,mp_options['ncores'])
+
+    ##SINGLE SEABASS FILE SELECTION (e.g., FOR HYPERCP)
+    if options.has_section('SEABASS_SELECTION'):
+        if not options.has_option('SEABASS_SELECTION', 'path_seabass'):
+            print(f'[ERROR] Option path_seabass is required for SEABASSS_SELECTION')
+            return
+        run_single_seabass(options,path_output,overwrite,mp_options['ncores'])
 
 
 
