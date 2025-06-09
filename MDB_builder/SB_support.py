@@ -849,3 +849,18 @@ class readSB:
         fout.close()
 
         return
+
+
+
+def check_seabass_variables(sb,var_date,var_lat,var_lon):
+    var_ok = True
+    if var_date not in sb.variables:
+        print(f'[ERROR] {var_date} set in SEABASS_SELECTION/var_date option in the configuration is not found in the SeaBass file')
+        var_ok = False
+    if var_lat not in sb.variables:
+        print(f'[ERROR] {var_lat} set in SEABASS_SELECTION/var_lat option in the configuration is not found in the SeaBass file')
+        var_ok = False
+    if var_lon not in sb.variables:
+        print(f'[ERROR] {var_lon} set in SEABASS_SELECTION/var_lon option in the configuration is not found in the SeaBass file')
+        var_ok = False
+    return var_ok

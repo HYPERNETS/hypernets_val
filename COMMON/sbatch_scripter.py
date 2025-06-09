@@ -20,9 +20,10 @@ class SBATCH_SCRIPTER(object):
         self.add_line('#SBATCH --ntasks=1')
         self.add_line(f'#SBATCH -p {sb_options["sbatch_partition"]}')
         if 'sbatch_email' in sb_options:
-            self.add_line(f'#SBATCH --mail-user {sb_options["sbatch_email"]}')
-            if 'sbatch_email_type' in sb_options:
-                self.add_line(f'#SBATCH --mail-type {sb_options["sbatch_email_type"]}')
+            if sb_options["sbatch_email"] is not None:
+                self.add_line(f'#SBATCH --mail-user {sb_options["sbatch_email"]}')
+                if 'sbatch_email_type' in sb_options:
+                    self.add_line(f'#SBATCH --mail-type {sb_options["sbatch_email_type"]}')
 
         if add_conda:
             self.add_blank_lines(3)

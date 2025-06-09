@@ -645,6 +645,19 @@ def get_insitu_site(args,options, path_out):
     }
     return in_situ_site
 
+def get_start_end_date_from_args(args):
+    start_date = None
+    end_date = None
+    if args.startdate and args.enddate:
+        try:
+            start_date = dt.strptime(args.startdate, '%Y-%m-%d')
+            end_date = dt.strptime(args.enddate, '%Y-%m-%d')
+        except:
+            print(f'[WARNING] --startdate (-sd) and/or --enddate (-ed) could not be parsed from {args.startdate} and/or {args.enddate}. Format should be: YYYY-mm-dd')
+            start_date = None
+            end_date = None
+    return start_date,end_date
+
 def get_params_time(args,options):
     date_list = None
     if options is not None:
@@ -691,6 +704,7 @@ def get_params_time(args,options):
         print(f'[INFO] # of dates: {ndates}')
 
     return datetime_start, datetime_end, date_list
+
 
 def get_date_list_from_file(file_list, dt_start, dt_end):
     if not os.path.exists(file_list):
@@ -985,7 +999,7 @@ def get_geo_info(options, file_nc, insitu_lat, insitu_lon, lat, lon):
 
     return limits, rc
 
-def get_date_list_from_seabass(sb,var_date,var_time,format_date,format_time):
+def get_date_list_from_seabass(sb,var_date,var_time,format_date,format_time,start_date,end_date):
     if not var_date in sb.variables:
         return [None]*2
 
@@ -996,13 +1010,19 @@ def get_date_list_from_seabass(sb,var_date,var_time,format_date,format_time):
     date_array = []
     time_list = []
     for idx,x in enumerate(date_list_orig):
+
         try:
-            date_array.append(dt.strptime(str(x), format_date).strftime('%Y-%m-%d'))
+            date_here = dt.strptime(str(x), format_date)
         except:
             print(f'[ERROR] Error parsing dates in SeaBass file: {x} could not be parsed using {format_date} format.')
             print(
                 f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {sb.variables[var_date][1]}')
             return [None]*2
+        if start_date is not None and end_date is not None:
+            if date_here<start_date or date_here>end_date:
+                continue
+
+        date_array.append(date_here.strftime('%Y-%m-%d'))
         if time_list_orig is None:
             time_list.append(dt.strptime(str(x), format_date))
         else:
@@ -1016,6 +1036,9 @@ def get_date_list_from_seabass(sb,var_date,var_time,format_date,format_time):
                     f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {sb.variables[var_date][1]}T{sb.variables[var_time][1]}')
                 return [None] * 2
 
+    if len(date_array)==0:
+        print(f'[WARNING] No data was found for the given temporal range')
+        return [None]*2
     date_array = np.array(date_array)
     time_list = np.array(time_list)
 

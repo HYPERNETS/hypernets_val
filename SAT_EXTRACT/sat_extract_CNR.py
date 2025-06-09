@@ -19,6 +19,10 @@ from SAT_EXTRACT.sat_extract import SatExtract
 parser = argparse.ArgumentParser(description="Satellite extracts from multiple files (one file for variable) available in the CNR server.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument('-c', "--config_file", help="Config File.", required=True)
+parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
+parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
+parser.add_argument('-no_concat', "--no_concatenate", help="Use internaly for sbatch mode",action="store_true")
+parser.add_argument('-make_concat', "--make_concatenate", help="Use internaly for sbatch mode to make final concatenation",action="store_true")
 parser.add_argument('-p', "--product_file", help="Image file.")
 args = parser.parse_args()
 
@@ -168,7 +172,6 @@ def get_cmems_multiple_product_day(path_source, org, datehere, dataset_name_file
         return None
 
 def create_multiple_csv_sbatch(options,output_path,mp_options):
-    print(mp_options)
     import COMMON.sbatch_scripter as sbs
 
     temp_path = sat_extract.create_dir(os.path.join(output_path,f'Temp_{str(dt.now().timestamp()).replace(".","_")}'))
@@ -210,7 +213,6 @@ def create_multiple_csv_sbatch(options,output_path,mp_options):
             file_config = os.path.join(temp_path,f'config_file_{index_folder}.ini')
             options.set('MULTIPLE_CSV_SELECTION','path_csv',folder_csv)
             options.set('multiprocessing','use_sbatch','False')
-            print(options['MULTIPLE_CSV_SELECTION']['path_csv'])
             with open(file_config,'w') as configw:
                 options.write(configw)
             file_sbatch = os.path.join(temp_path,f'sbatch_script_{index_folder}.slurm')
@@ -249,8 +251,144 @@ def create_multiple_csv_sbatch(options,output_path,mp_options):
     scripter.close_script()
     sbatch_files.append(file_sbatch)
     sbatch_log_files.append(os.path.join(temp_path, f'sbatch_script_log_{index_folder}.log'))
+
+    #file out sh
     file_out_sh = os.path.join(temp_path,f'launch_multiple_sbatch.sh')
     sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh,sbatch_files,sbatch_log_files,mp_options['sbatch_max_cores'])
+    print(f'[INFO] SH file: {file_out_sh} has been created.')
+    if mp_options['sbatch_launch']:
+        import subprocess
+        cmd = f'sh {file_out_sh}'
+        prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+        out, err = prog.communicate()
+        if err:
+            print(f'[ERROR]Error lunching script: {err}')
+
+def create_single_seabass_sbatch(options,output_path,mp_options):
+    import COMMON.sbatch_scripter as sbs
+
+    temp_path = sat_extract.create_dir(os.path.join(output_path, f'Temp_{str(dt.now().timestamp()).replace(".", "_")}'))
+    if temp_path is None:
+        print(f'[ERROR] Temporary path for sbatch files could not be created. Please review permissions.')
+        return
+    if args.verbose:
+        print(f'[INFO] Temporary path: {temp_path}')
+
+    path_seabass = options['SEABASS_SELECTION']['path_seabass']
+    if not os.path.isfile(path_seabass):
+        print(f'[ERROR] Path to SeaBass file {path_seabass} was not found or is not a valid file')
+        return
+    import MDB_builder.SB_support as SBr
+    sb = SBr.readSB(path_seabass)
+    var_date, var_time, var_lat, var_lon, format_date, format_time = sat_extract.get_seabass_options(
+        options, 'SEABASS_SELECTION')
+    var_ok = SBr.check_seabass_variables(sb, var_date, var_lat, var_lon)
+    if not var_ok:
+        print(f'[ERROR] The following variables are avaialble: {[x for x in sb.variables]}')
+        return
+
+    ##get list dates
+    start_date, end_date = sat_extract.get_start_end_date_from_args(args)
+    date_array, time_list = sat_extract.get_date_list_from_seabass(sb, var_date, var_time, format_date, format_time,start_date, end_date)
+    if date_array is None:  ##it could be none by a parsing error or because there is not data in the temoporal range between start_date and end_date
+        return
+    date_array_unique = np.unique(date_array)
+    date_array_unique = np.array([dt.strptime(x,'%Y-%m-%d').timestamp() for x in date_array_unique])
+    date_array_unique = np.sort(date_array_unique)
+
+    npool = os.cpu_count() if mp_options['ncores'] < 0 else 1 if mp_options['ncores'] == 0 else mp_options['ncores']
+    min_ts_abs = None
+    max_ts_abs = None
+    date_ts_folder = []
+    index_folder = 1
+    sbatch_files = []
+    sbatch_log_files = []
+    dir_code = os.path.dirname(sat_extract.__file__)
+    line_py_base = f'python {dir_code}/sat_extract_CNR.py -c'
+
+
+    for date_ts in date_array_unique:
+        if len(date_ts_folder)==npool:
+            if args.verbose:
+                print(f'[NFO] Creating sbatch file...')
+            file_config = os.path.join(temp_path,f'config_file_{index_folder}.ini')
+            file_sb = os.path.join(temp_path, f'SB_TEMP_{index_folder}.sb')
+            shutil.copy(path_seabass, file_sb)
+            options.set('SEABASS_SELECTION','path_seabass',file_sb)
+            options.set('multiprocessing','use_sbatch','False')
+            with open(file_config,'w') as configw:
+                options.write(configw)
+            file_sbatch = os.path.join(temp_path,f'sbatch_script_{index_folder}.slurm')
+            scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+            scripter.start_script(mp_options,True)
+            scripter.add_blank_lines(2)
+            min_ts = np.min(np.array(date_ts_folder))
+            max_ts = np.max(np.array(date_ts_folder))
+            if min_ts_abs is None:
+                min_ts_abs = min_ts
+                max_ts_abs = max_ts
+            else:
+                min_ts_abs = min_ts if min_ts < min_ts_abs else min_ts_abs
+                max_ts_abs = max_ts if max_ts > max_ts_abs else max_ts_abs
+
+            scripter.add_line(f'{line_py_base} {file_config} -sd {dt.fromtimestamp(min_ts).strftime("%Y-%m-%d")} -sd {dt.fromtimestamp(max_ts).strftime("%Y-%m-%d")} -v')
+            scripter.close_script()
+            sbatch_files.append(file_sbatch)
+            sbatch_log_files.append(os.path.join(temp_path,f'sbatch_script_log_{index_folder}.log'))
+            # preparing next---
+            date_ts_folder = []
+            index_folder = index_folder + 1
+            ##-------------------------------
+
+        if args.verbose:
+            print(f'[INFO] Adding date: {dt.fromtimestamp(date_ts)}')
+        date_ts_folder.append(date_ts)
+
+    # final sbatch file
+    if args.verbose:
+        print(f'[INFO] Creating final sbatch file...')
+    file_config = os.path.join(temp_path, f'config_file_{index_folder}.ini')
+    file_sb = os.path.join(temp_path, f'SB_TEMP_{index_folder}.sb')
+    shutil.copy(path_seabass, file_sb)
+    options.set('SEABASS_SELECTION', 'path_seabass', file_sb)
+    options.set('multiprocessing', 'use_sbatch', 'False')
+    with open(file_config, 'w') as configw:
+        options.write(configw)
+    file_sbatch = os.path.join(temp_path, f'sbatch_script_{index_folder}.slurm')
+    scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+    scripter.start_script(mp_options, True)
+    scripter.add_blank_lines(2)
+    min_ts = np.min(np.array(date_ts_folder))
+    max_ts = np.max(np.array(date_ts_folder))
+    min_ts_abs = min_ts if min_ts < min_ts_abs else min_ts_abs
+    max_ts_abs = max_ts if max_ts > max_ts_abs else max_ts_abs
+    scripter.add_line(
+        f'{line_py_base} {file_config} -sd {dt.fromtimestamp(min_ts).strftime("%Y-%m-%d")} -ed {dt.fromtimestamp(max_ts).strftime("%Y-%m-%d")} -no_concat -v')
+    scripter.close_script()
+    sbatch_files.append(file_sbatch)
+    sbatch_log_files.append(os.path.join(temp_path, f'sbatch_script_log_{index_folder}.log'))
+
+    #sbatch file for contanenation
+    file_sbatch = os.path.join(temp_path, f'sbatch_script_contact.slurm')
+    scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+    scripter.start_script(mp_options, True)
+    scripter.add_blank_lines(2)
+    scripter.add_line(
+        f'{line_py_base} {args.config_file} -sd {dt.fromtimestamp(min_ts_abs).strftime("%Y-%m-%d")} -ed {dt.fromtimestamp(max_ts_abs).strftime("%Y-%m-%d")} -make_concat -v')
+    scripter.close_script()
+    file_log = os.path.join(temp_path, f'sbatch_script_log_concat.log')
+
+    # file out sh
+    file_out_sh = os.path.join(temp_path, f'launch_multiple_sbatch.sh')
+    sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh, sbatch_files, sbatch_log_files,
+                                               mp_options['sbatch_max_cores'])
+    ##add contatenation sbatch
+    fw = open(file_out_sh,'a')
+    fw.write('\n')
+    fw.write('\n')
+    fw.write(f'sbatch --dependency=afterany:$jobid0:$jobid{len(sbatch_files)-1} --output={file_log} {file_sbatch})')
+    fw.close()
+
     print(f'[INFO] SH file: {file_out_sh} has been created.')
     if mp_options['sbatch_launch']:
         import subprocess
@@ -273,14 +411,9 @@ def run_multiple_csv(options,output_path, overwrite, ncores):
     if input_path_info is None:
         return
 
-
-
     ##common for all days
     lat_array = None
     lon_array = None
-
-
-
 
     params_list = []
 
@@ -351,7 +484,7 @@ def run_multiple_csv(options,output_path, overwrite, ncores):
         poolhere = Pool(npool)
         poolhere.map(run_parallel_extract_day, params_list)
 
-def run_single_seabass(options,output_path,overwrite, ncores):
+def run_single_seabass(options,output_path,overwrite, ncores, concatenate_daily_csv_extract):
     path_seabass = options['SEABASS_SELECTION']['path_seabass']
     if not os.path.isfile(path_seabass):
         print(f'[ERROR] Path to SeaBass file {path_seabass} was not found or is not a valid file')
@@ -367,8 +500,9 @@ def run_single_seabass(options,output_path,overwrite, ncores):
     if args.verbose:
         print(f'[INFO] Path extract output: {path_extract_output}')
 
-    from MDB_builder.SB_support import readSB
-    sb = readSB(path_seabass)
+    #from MDB_builder.SB_support import readSB
+    import MDB_builder.SB_support as SBr
+    sb = SBr.readSB(path_seabass)
     var_date, var_time, var_lat, var_lon, format_date, format_time = sat_extract.get_seabass_options(
         options, 'SEABASS_SELECTION')
     extract_options = sat_extract.get_cnr_extract_options(options)
@@ -376,21 +510,16 @@ def run_single_seabass(options,output_path,overwrite, ncores):
     if input_path_info is None:
         return
 
-    var_ok = True
-    if var_date not in sb.variables:
-        print(f'[ERROR] {var_date} set in SEABASS_SELECTION/var_date option in the configuration is not found in the SeaBass file')
-        var_ok = False
-    if var_lat not in sb.variables:
-        print(f'[ERROR] {var_lat} set in SEABASS_SELECTION/var_lat option in the configuration is not found in the SeaBass file')
-        var_ok = False
-    if var_lon not in sb.variables:
-        print(f'[ERROR] {var_lon} set in SEABASS_SELECTION/var_lon option in the configuration is not found in the SeaBass file')
-        var_ok = False
+    var_ok = SBr.check_seabass_variables(sb,var_date,var_lat,var_lon)
     if not var_ok:
-        print(f'[ERROR] The following variables are avaialble: {[x for x in sb.variables]}')
+        print(f'[ERROR] The following variables are avaialable: {[x for x in sb.variables]}')
         return
 
-    date_array, time_list = sat_extract.get_date_list_from_seabass(sb,var_date,var_time,format_date,format_time)
+    start_date, end_date = sat_extract.get_start_end_date_from_args(args)
+    date_array, time_list = sat_extract.get_date_list_from_seabass(sb,var_date,var_time,format_date,format_time,start_date,end_date)
+    if date_array is None:##it could be none by a parsing error or because there is not data in the temoporal range between start_date and end_date
+        return
+
     date_array_unique = np.unique(date_array)
 
     lat_array = np.array(sb.data[var_lat])
@@ -463,10 +592,13 @@ def run_single_seabass(options,output_path,overwrite, ncores):
         poolhere = Pool(npool)
         poolhere.map(run_parallel_extract_day, params_list)
 
-    if args.verbose:
-        print(f'[INFO] Concatenating date files...')
+
+    if concatenate_daily_csv_extract:
+        if args.verbose:
+            print(f'[INFO] Concatenating date files...')
         sat_extract.concatenate_csv(path_extract_output_list,path_extract_output,True)
-        print(f'[INFO] Completed')
+        if args.verbose:
+            print(f'[INFO] Completed')
 
 def run_parallel_extract_day(params):
     run_extract_day(params[0],params[1],params[2],params[3],params[4],params[5])
@@ -551,6 +683,7 @@ def run_extract_day(extract_options,extract_info,lat_array,lon_array,output_path
             few.write('\n')
             few.write(f'extract_{site}.nc;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
     few.close()
+
 def run_time_and_sites_selection(options,output_path):
     extract_options = sat_extract.get_cnr_extract_options(options)
     if args.verbose:
@@ -586,6 +719,32 @@ def run_time_and_sites_selection(options,output_path):
     #     print('------------------------------')
     #     print(f'COMPLETED. {ncreated} sat extract files were created')
 
+
+def make_seabass_concatenation(options,output_path):
+    start_date, end_date = sat_extract.get_start_end_date_from_args(args)
+    if start_date is None or end_date is None:
+        print(f'[ERROR] Start date and end date are required.')
+        return
+    path_seabass = options['SEABASS_SELECTION']['path_seabass']
+    if not os.path.isfile(path_seabass):
+        print(f'[ERROR] Path to SeaBass file {path_seabass} was not found or is not a valid file')
+        return
+
+    path_extract_output = os.path.join(output_path, f'{path_seabass[0:path_seabass.rfind('.')]}_extracts.csv')
+    path_extract_output_date = os.path.join(output_path,
+                                            f'{path_seabass[0:path_seabass.rfind('.')]}_$DATE$_extracts.csv')
+
+    file_list = []
+    work_date = start_date
+    from datetime import timedelta
+    while work_date<=end_date:
+        file_date = path_extract_output_date.replace('$DATE$',work_date.strftime("%Y-%m-%d"))
+        if os.path.isfile(file_date):
+            file_list.append(file_date)
+        work_date = work_date + timedelta(hours=24)
+    sat_extract.concatenate_csv(file_list,path_extract_output,True)
+
+
 def main():
 
     print('[INFO] Creating satellite extracts')
@@ -617,7 +776,13 @@ def main():
         if not options.has_option('SEABASS_SELECTION', 'path_seabass'):
             print(f'[ERROR] Option path_seabass is required for SEABASSS_SELECTION')
             return
-        run_single_seabass(options,path_output,overwrite,mp_options['ncores'])
+        if args.make_concatenate and args.startdate and args.enddate:
+            make_seabass_concatenation(options,path_output)
+        else:
+            if mp_options['use_sbatch']:
+                create_single_seabass_sbatch(options,path_output,mp_options)
+            else:
+                run_single_seabass(options,path_output,overwrite,mp_options['ncores'],args.no_concatenate)
 
 
 
