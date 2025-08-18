@@ -1,12 +1,119 @@
+
 import numpy as np
 from netCDF4 import Dataset
 from datetime import datetime as dt
 import numpy.ma as ma
-import configparser,os,subprocess,pytz,__init__,sys
+import pandas as pd
+import configparser,os,subprocess,pytz,__init__,sys,shutil
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
 import COMMON.common_functions as cfs
 from datetime import timedelta
+from multiprocessing import Pool
+
+class SatExtractOptions:
+    def __init__(self,config_file,verbose):
+        self.verbose = verbose
+        self.options = None
+        self.mp_options = {
+            'ncores': {
+                'type': 'int',
+                'default': 0
+            },
+            'use_slurm_sh': {
+                'type': 'boolean',
+                'default': False
+            },
+            'slurm_sh_max_cores': {
+                'type': 'int',
+                'default': 8
+            },
+            'slurm_sh_launch': {
+                'type': 'boolean',
+                'default': True
+            },
+            'sbatch_partition': {
+                'type': 'str',
+                'default': 'octac_rep'
+            },
+            'sbatch_email': {
+                'type': 'str',
+                'default': None
+            },
+            'sbatch_email_type': {
+                'type': 'str',
+                'default': 'BEGIN,END,FAIL'
+            },
+            'conda_source': {
+                'type': 'str',
+                'default': 'load_miniconda3.source'
+            },
+            'conda_env': {
+                'type': 'str',
+                'default': 'op_proc_202211v2'
+            }
+        }
+        self.insitu_options_list = ['MULTIPLE_CSV_SELECTION']
+
+
+        if os.path.isfile(config_file):
+            try:
+                self.options = configparser.ConfigParser()
+                self.options.read(config_file)
+            except:
+                print(f'[ERROR] Error parsing configuration file: {config_file}')
+        else:
+            print(f'[ERROR] Configuration file {config_file} does not exist or is not a valid file')
+
+    def get_output_path(self):
+        if self.options.has_option('file_path', 'output_dir'):
+            output_path = self.options['file_path']['output_dir']
+            if not os.path.isdir(output_path):
+                if self.verbose:
+                    print(f'[WARNING] Trying to create the output path: {output_path}')
+                output_path = create_dir(output_path)
+            if output_path is None:
+                print(f'[ERROR] Output {output_path} is not available and could not be created')
+                return None
+            if self.verbose:
+                print(f'[INFO] Output path:{output_path}')
+            return output_path
+        else:
+            print('[ERROR] section:file_path, option: output_dir is not included in the configuration file')
+            return None
+
+    def overwrite(self):
+        ow = False
+        if self.options.has_option('file_path', 'overwrite'):
+            ow = get_boolean_val(self.options['file_path']['overwrite'])
+        return ow
+
+    def get_options(self,section,soptions):
+        options_out = {}
+        if self.options.has_section(section):
+            for key in soptions:
+                value = soptions[key]['default']
+                if self.options.has_option(section, key):
+                    value = self.options[section][key].strip()
+                    type_v = soptions[key]['type']
+                    if type_v == 'int':
+                        value = get_int_val(value)
+                        if value is None:
+                            print(f'[ERROR] Option {key} in {section} section: {value} is not a a valid integer')
+                            return None
+                    if type_v == 'boolean':
+                        value = get_boolean_val(self.options['multiprocessing'][key])
+
+                options_out[key] = value
+
+        return options_out
+
+    def get_multiprocessing_options(self):
+        options_out = self.get_options('multiprocessing',self.mp_options)
+        return options_out
+
+
+
 
 class SatExtract:
     def __init__(self, ofname):
@@ -66,7 +173,6 @@ class SatExtract:
 
         self.EXTRACT.site = at['site']
 
-
     def create_dimensions_basic(self, size_box):
         self.EXTRACT.createDimension('satellite_id', None)
         self.EXTRACT.createDimension('rows', size_box)
@@ -87,7 +193,6 @@ class SatExtract:
         self.EXTRACT.createDimension('columns', size_box)
         if n_bands > 0:
             self.EXTRACT.createDimension('satellite_bands', n_bands)
-
 
     def create_dimensions_incluidinginsitu(self, size_box, n_bands, n_insitubands, n_insituid):
         # dimensions
@@ -364,15 +469,15 @@ class SatExtract:
         self.EXTRACT.close()
 
 
-class SatExtractOptions:
-    def  __init__(self,config_file):
-        self.options = None
-        if config_file is not None:
-            try:
-                self.options = configparser.ConfigParser()
-                self.options.read(config_file)
-            except:
-                self.options = None
+# class SatExtractOptions:
+#     def  __init__(self,config_file):
+#         self.options = None
+#         if config_file is not None:
+#             try:
+#                 self.options = configparser.ConfigParser()
+#                 self.options.read(config_file)
+#             except:
+#                 self.options = None
 
 def config_reader(FILEconfig):
     options = configparser.ConfigParser()
@@ -544,15 +649,15 @@ def get_multiprocessing_options(options):
             'type':'int',
             'default': 0
         },
-        'use_sbatch':{
+        'use_slurm_sh':{
             'type': 'boolean',
             'default': False
         },
-        'sbatch_max_cores':{
+        'slurm_sh_max_cores':{
             'type': 'int',
             'default': 8
         },
-        'sbatch_launch':{
+        'slurm_sh_launch':{
             'type': 'boolean',
             'default': True
         },
@@ -652,6 +757,8 @@ def get_start_end_date_from_args(args):
         try:
             start_date = dt.strptime(args.startdate, '%Y-%m-%d')
             end_date = dt.strptime(args.enddate, '%Y-%m-%d')
+            if args.verbose:
+                print(f'[INFO] Start date: {args.startdate} End date: {args.enddate}')
         except:
             print(f'[WARNING] --startdate (-sd) and/or --enddate (-ed) could not be parsed from {args.startdate} and/or {args.enddate}. Format should be: YYYY-mm-dd')
             start_date = None
@@ -894,6 +1001,28 @@ def get_cnr_extract_options(options):
 
     return options_out
 
+
+def check_csv_structure(file_csv,col_sep,col_date,col_time,col_lat,col_lon):
+    try:
+        df = pd.read_csv(file_csv, sep=col_sep)
+    except:
+        print(f'[ERROR] File {file_csv} is not a valid csv separated by {col_sep}')
+        return False
+    valid = True
+    if not col_date in df.columns:
+        print(f'[ERROR] col_date {col_date} is not available in the CSV file: {file_csv}')
+        valid = False
+    if col_time is not None and not col_time in df.columns:
+        print(f'[ERROR] col_time {col_date} is not available in the CSV file: {file_csv}')
+        valid = False
+    if not col_lat in df.columns:
+        print(f'[ERROR] col_lat {col_lat} is not available in the CSV file: {file_csv}')
+        valid = False
+    if not col_lon in df.columns:
+        print(f'[ERROR] col_lat {col_lon} is not available in the CSV file: {file_csv}')
+        valid = False
+    return valid
+
 def get_csv_options(options, section):
     #if section == 'CSV_SELECTION':
     col_date = 'date'
@@ -1063,8 +1192,8 @@ def get_date_list_from_dataframe(df,col_date,format_date,col_time,format_time):
         except:
             print(f'[WARNING] {x} could not be parsed with format {format_datetime}')
             continue
-    only_date_array_unique = np.unique(only_date_array).tolist()
-    return only_date_array_unique, time_list
+
+    return only_date_array, time_list
 
 def get_lat_lon_arrays(options, file_nc):
     nc_sat = Dataset(file_nc, 'r')
@@ -1180,13 +1309,205 @@ def concatenate_csv(file_list,file_out,remove_files):
     df = pd.concat(objs)
     df.to_csv(file_out,sep=';',index=False)
 
-# def get_lat_long_arrays(nc_sat, var_lat, var_lon):
-#     vlat = nc_sat.variables[var_lat]
-#     vlon = nc_sat.variables[var_lon]
-#     if vlat.ndim == 2 and vlon.ndim == 2:
-#         lat = nc_sat.variables[var_lat][:, :]
-#         lon = nc_sat.variables[var_lon][:, :]
-#     if vlat.ndim == 1 and vlon.ndim == 1:
-#         lat = nc_sat.variables[var_lat][:]
-#         lon = nc_sat.variables[var_lon][:]
-#     return lat, lon
+class SatExtractBase:
+    def __init__(self,type_sat_extract,verbose):
+        self.verbose  =verbose
+        if type_sat_extract is None:
+            type_sat_extract = 'OLCI'
+
+        self.sat_extract_sensor = None
+        if type_sat_extract == 'CNR':
+            from sat_extract_CNR import SatExtractCNR
+            self.sat_extract_sensor = SatExtractCNR(self.verbose)
+
+    def run_multiple_csv(self,options,output_path, overwrite, ncores):
+        path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
+        if not os.path.isdir(path_csv):
+            print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
+            return
+
+        col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = get_csv_options(options, 'MULTIPLE_CSV_SELECTION')
+        extract_options = self.sat_extract_sensor.get_extract_options(options)
+        input_path_info = get_input_path_info(options)
+        if input_path_info is None:
+            return
+
+        ##common for all days
+        lat_array = None
+        lon_array = None
+
+        params_list = []
+
+        ##checking CSV files
+        for name in os.listdir(path_csv):
+            if not name.endswith('csv'):
+                continue
+            file_csv = os.path.join(path_csv, name)
+            print(f'[INFO] Checking file: {file_csv}')
+            if not check_csv_structure(file_csv,col_sep,col_date,col_time,col_lat,col_lon):
+                return
+
+
+        for name in os.listdir(path_csv):
+            if not name.endswith('csv'):
+                continue
+            namefile = name[:-4]
+            path_extract_output_date = os.path.join(output_path,
+                                                    f'{namefile}_$DATE$_extracts.csv')
+            try:
+                file_csv = os.path.join(path_csv, name)
+                df = pd.read_csv(file_csv, sep=col_sep)
+            except:
+                print(f'[ERROR] File {file_csv} is not a valid csv separated by {col_sep}')
+                return
+
+            if self.verbose:
+                print(f'[INFO] --------------------------------------------------------------------------------------')
+                print(f'[INFO] Working with csv {namefile} Obtaining product(s)...')
+
+            only_date_array, time_list = get_date_list_from_dataframe(df,col_date,format_date,col_time,format_time)
+            only_date_array_unique = np.unique(only_date_array).tolist()
+            if len(only_date_array_unique) == 0:
+                print(f'[ERROR] No valid dates retrieved from the CSV file.')
+                return
+            if len(only_date_array_unique)>1:
+                print(f'[ERROR] Each CSV file should also contain data for a single day. Check CSV parameters')
+                return
+
+            date_str = only_date_array_unique[0]
+            if self.verbose:
+                print(f'[INFO] Checking available products for day {date_str} in {input_path_info["path_source"]} with org. {input_path_info["org"]}')
+
+            list_files = self.sat_extract_sensor.get_files_day(dt.strptime(date_str, '%Y-%m-%d'),input_path_info,extract_options)
+            if list_files is not None:
+                satellite_time = get_satellite_time_l3(options, list_files[0],dt.strptime(date_str, '%Y-%m-%d'))
+                if satellite_time is None:
+                    print(f'[WARNING] Satellite time could not be defined. Skipping...')
+                    continue
+                path_extract_output_here = path_extract_output_date.replace('$DATE$', date_str)
+                extract_info = {
+                    'global_at': get_satellite_global_atrib_from_options(options),
+                    'list_files': list_files,
+                    'insitu_time': time_list,
+                    'insitu_lat': np.ma.array(df[col_lat]),
+                    'insitu_lon': np.ma.array(df[col_lon]),
+                    'insitu_indices': np.where(np.array(only_date_array)==date_str),##all the indices, for compatibility with SeaBass
+                    'satellite_time': satellite_time,
+                    'path_extract_output': path_extract_output_here
+                }
+                if lat_array is None and lon_array is None:
+                    lat_array, lon_array = get_lat_lon_arrays(options, list_files[0])
+
+                if ncores == 0:
+                    self.sat_extract_sensor.run_extract_day(extract_options, extract_info, lat_array, lon_array, output_path, overwrite)
+                else:
+                    if ncores > 0 or ncores == -1:
+                        params_list.append(
+                            [extract_options, extract_info, lat_array, lon_array, output_path, overwrite])
+
+        if ncores > 0 or ncores == -1:
+            if self.verbose:
+                print(f'[INFO] Starting parallel processing. Number of dates: {len(params_list)}')
+                print(f'[INFO] CPUs: {os.cpu_count()}')
+                print(f'[INFO] Parallel processes: {ncores}')
+            npool = os.cpu_count() if ncores < 0 else ncores
+            poolhere = Pool(npool)
+            poolhere.map(self.sat_extract_sensor.run_parallel_extract_day, params_list)
+
+    #def create_sh_slurm(self,sat_extract_options):
+
+
+    def create_sh_slurm_multiple_csv(self,options, output_path, mp_options):
+        import COMMON.sbatch_scripter as sbs
+
+        temp_path = create_dir(
+            os.path.join(output_path, f'Temp_{str(dt.now().timestamp()).replace(".", "_")}'))
+        if temp_path is None:
+            print(f'[ERROR] Temporary path for sbatch files could not be created. Please review permissions.')
+            return
+        if self.verbose:
+            print(f'[INFO] Temporary path: {temp_path}')
+        path_csv = options['MULTIPLE_CSV_SELECTION']['path_csv']
+        if not os.path.isdir(path_csv):
+            print(f'[ERROR] Path to csv files {path_csv} was not found or is not a valid directory')
+            return
+
+        col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = get_csv_options(
+            options, 'MULTIPLE_CSV_SELECTION')
+
+        npool = os.cpu_count() if mp_options['ncores'] < 0 else 1 if mp_options['ncores'] == 0 else mp_options['ncores']
+        nincluded = 0
+        index_folder = 1
+        folder_csv = os.path.join(temp_path, f'CSV_{index_folder}')
+        create_dir(folder_csv)
+        sbatch_files = []
+        sbatch_log_files = []
+        dir_code = os.path.dirname(__init__.__file__)
+        line_py_base = f'python {dir_code}/sat_extract_CNR.py -c'
+
+        for name in os.listdir(path_csv):
+            if not name.endswith('csv'):
+                continue
+            try:
+                file_csv = os.path.join(path_csv, name)
+                pd.read_csv(file_csv, sep=col_sep)
+            except:
+                print(f'[ERROR] File {path_csv} is not a valid csv separated by {col_sep}')
+                return
+            if nincluded == npool:
+                if self.verbose:
+                    print(f'[NFO] Creating sbatch file...')
+                file_config = os.path.join(temp_path, f'config_file_{index_folder}.ini')
+                options.set('MULTIPLE_CSV_SELECTION', 'path_csv', folder_csv)
+                options.set('multiprocessing', 'use_slurm_sh', 'False')
+                with open(file_config, 'w') as configw:
+                    options.write(configw)
+                file_sbatch = os.path.join(temp_path, f'sbatch_script_{index_folder}.slurm')
+                scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+                scripter.start_script(mp_options, True)
+                scripter.add_blank_lines(2)
+                scripter.add_line(f'{line_py_base} {file_config} -v')
+                scripter.close_script()
+                sbatch_files.append(file_sbatch)
+                sbatch_log_files.append(os.path.join(temp_path, f'sbatch_script_log_{index_folder}.log'))
+                # preparing next---
+                nincluded = 0
+                index_folder = index_folder + 1
+                folder_csv = os.path.join(temp_path, f'CSV_{index_folder}')
+                create_dir(folder_csv)
+                ##-------------------------------
+
+            if self.verbose:
+                print(f'[INFO] Adding CSV file {name}')
+            file_csv_copy = os.path.join(folder_csv, name)
+            shutil.copy(file_csv, file_csv_copy)
+            nincluded = nincluded + 1
+
+        # final sbatch file
+        if self.verbose:
+            print(f'[INFO] Creating final sbatch file...')
+        file_config = os.path.join(temp_path, f'config_file_{index_folder}.ini')
+        options.set('MULTIPLE_CSV_SELECTION', 'path_csv', folder_csv)
+        print(options['MULTIPLE_CSV_SELECTION']['path_csv'])
+        with open(file_config, 'w') as configw:
+            options.write(configw)
+        file_sbatch = os.path.join(temp_path, f'sbatch_script_{index_folder}.slurm')
+        scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+        scripter.start_script(mp_options, True)
+        scripter.add_line(f'{line_py_base} {file_config} -v')
+        scripter.close_script()
+        sbatch_files.append(file_sbatch)
+        sbatch_log_files.append(os.path.join(temp_path, f'sbatch_script_log_{index_folder}.log'))
+
+        # file out sh
+        file_out_sh = os.path.join(temp_path, f'launch_multiple_sbatch.sh')
+        sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh, sbatch_files, sbatch_log_files,
+                                                   mp_options['slurm_sh_max_cores'])
+        print(f'[INFO] SH file: {file_out_sh} has been created.')
+        if mp_options['slurm_sh_launch']:
+            import subprocess
+            cmd = f'sh {file_out_sh}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(f'[ERROR]Error lunching script: {err}')

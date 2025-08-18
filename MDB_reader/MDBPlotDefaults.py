@@ -758,7 +758,7 @@ options_spectraplots = {
     'type_rrs': {
         'default': 'comparison_sat_insitu',
         'type': 'str',
-        'values': ['ins', 'sat', 'mu_ins', 'mu_comparison', 'comparison_sat_insitu', 'comparison_sat', 'user_defined']
+        'values': ['ins', 'sat', 'mu_ins','mu_comparison', 'comparison_sat_insitu', 'comparison_sat', 'user_defined']
     },
     'wl_variable': {
         'default': None,
@@ -968,6 +968,10 @@ options_spectraparam = {
         'default': [stat_line_style_default['linewidth']],
         'type': 'strlist'
     },
+    'markeredgecolor':{
+        'default': [None],
+        'type': 'strlist'
+    }
 }
 
 options_histogram = {

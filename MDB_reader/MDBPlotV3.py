@@ -451,8 +451,11 @@ class MDBPlot:
         linestyle = linestyles[iseries] if iseries < len(linestyles) else linestyles[0]
         linewidths = options_figure['linewidth']
         linewidth = linewidths[iseries] if iseries < len(linewidths) else linewidths[0]
+        markercolors = options_figure['markeredgecolor']
+        markercolor = markercolors[iseries] if iseries< len(markercolors) else markercolors[0]
 
-        pspectra.plot_single_line(ydata, color, linestyle, linewidth, marker,markersize)
+        #pspectra.plot_single_line(ydata, color, linestyle, linewidth, marker,markersize)
+        pspectra.plot_single_linev2(ydata, color, linestyle, linewidth, marker,markersize,markercolor)
 
     def close_spectra_params(self,options_figure, pspectra, stat, wl_stats):
         wl_values = list(wl_stats.keys())
@@ -472,17 +475,21 @@ class MDBPlot:
         pspectra.set_grid()
 
         file_out = options_figure['file_out']
-
-        pspectra.set_yaxis_title(stat)
+        if options_figure['ylabel'] is not None:
+            pspectra.set_yaxis_title(options_figure['ylabel'])
+        else:
+            pspectra.set_yaxis_title(stat)
         pspectra.set_xaxis_title('Wavelength (nm)')
 
         if options_figure['legend']:
+            pspectra.legend_options['markerscale']=2
             pspectra.legend_options['loc']='lower center'
             pspectra.legend_options['ncols'] = len(options_figure['legend_values'])
             pos = (0.50,-0.40)
             pspectra.legend_options['bbox_to_anchor'] = pos
             pspectra.set_legend(options_figure['legend_values'])
 
+        pspectra.prepare_poster()
         pspectra.set_tigth_layout()
 
 
@@ -1537,10 +1544,10 @@ class MDBPlot:
                         ydata = ydata[0]
 
                         if index == 0:
-                            print(ivalue, '--->', ydata)
+                            # print(ivalue, '--->', ydata)
                             insitu_array[instant_values == ivalue] = ydata
                         if index == 1:
-                            print(ivalue, '--->', ydata)
+                            # print(ivalue, '--->', ydata)
                             global_array[instant_values == ivalue] = ydata
                         if index == 2:
                             regional_array[instant_values == ivalue] = ydata
@@ -1690,8 +1697,8 @@ class MDBPlot:
             return var_array
 
     def get_fix_time_axis(self, time_array, options):
-        print('aqui')
-        print(options)
+        #print('aqui')
+        #print(options)
         from datetime import datetime as dt
         time_array_instants = time_array.copy().astype(np.int32)
         format_abs = options['format_abs']
@@ -1761,7 +1768,7 @@ class MDBPlot:
             file_out_base = options_figure['file_out']
             title_base = options_figure['title']
             for svalue in selectValues:
-                print('-->',svalue)
+                #print('-->',svalue)
                 options_figure['selectValues'] = svalue
                 flag = self.get_str_select_value(options_figure, svalue)
                 options_figure['file_out'] = self.get_file_out_name(file_out_base, None, flag)
@@ -1918,7 +1925,7 @@ class MDBPlot:
         if options['include_stats'] or options['regression_line']:
             use_log_scale = options['log_scale']
             self.compute_statistics(use_log_scale, use_rhow, options['type_regression'])
-            print(self.valid_stats)
+            #print(self.valid_stats)
         # check groups and get legend if applicable
         ngroup = 1
         str_legend = []
@@ -2012,7 +2019,9 @@ class MDBPlot:
                 if len(xhere) > 0 and len(yhere) > 0:
                     nmubygroup[idx] = len(xhere)
                     ngroupReal = ngroupReal + 1
-
+                # if g==1:
+                #     print(xhere.shape,yhere.shape,np.mean(xhere),np.mean(yhere))
+                #     print(marker,markersize,color,edgecolor,linewidth)
                 plot.plot_data(xhere, yhere, marker, markersize, color, edgecolor, linewidth)
         else:  # density or normal scatter plot
 
@@ -2221,6 +2230,8 @@ class MDBPlot:
             plot.set_title(title_here)
             plot.ax.title.set_size(options['fontsizetitle'])
 
+        print('PREPARE POSTER OPTION')
+        plot.prepare_poster()
         ##saving to file
         if not options['file_out'] is None:
             plot.save_fig(options['file_out'])
@@ -2246,7 +2257,7 @@ class MDBPlot:
                 print(f'[INFO] Plotting ins spectra for match-up {index_mu}')
                 self.plot_insmu_spectraplot(options_figure, index_mu)
 
-        if options_figure['type_rrs'] == 'mu_comparison':
+        if options_figure['type_rrs'] == 'mu_comparison' or options_figure['type_rrs'] == 'mu_sat':
             mu_valid = np.ones((self.mrfile.n_mu_total,))
             if self.mu_valid_variable in self.mrfile.variables:
                 mu_valid = self.mrfile.variables[self.mu_valid_variable][:]
@@ -2327,6 +2338,9 @@ class MDBPlot:
         xdata_plot = [float(self.get_wl_str_from_wl(x)) for x in wl_list]
         wl_col = [self.get_wl_str_from_wl(x) for x in wl_list]
 
+        #CHANGE LYNE STYLE LINE FOR POSTER.
+        #pspectra.stats_style['central']['linewidth']=2
+
         pspectra.xdata = xdata_plot
         h_legend = []
         ##insitu
@@ -2367,7 +2381,7 @@ class MDBPlot:
                 pspectra.set_xticks(xdata_plot, wl_col, 90, xticks_size)
         else:
             xdata_plot = options_figure['x_ticks']
-            wl_col = [f'{x}' for x in xdata_plot]
+            wl_col = [f'{x:.2f}'.replace('.00','') for x in xdata_plot]
             pspectra.set_xticks(xdata_plot, wl_col, 0, xticks_size)
 
         if len(xdata_plot) == 16 or len(xdata_plot) == 15:
@@ -2387,10 +2401,14 @@ class MDBPlot:
         pspectra.set_grid()
         pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
         pspectra.legend_options['framealpha'] = 1
-        if options_figure['legend']:
+        if options_figure['legend']: ##FOR POSTER, ADD FONTSIZE=14 IN set_legend_h
             pspectra.set_legend_h(h_legend, str_legend)
         pspectra.set_tigth_layout()
         file_out = options_figure['file_out']
+
+        ##POSTER STYLE
+        #pspectra.prepare_poster()
+
         if not file_out is None:
             pspectra.save_fig(file_out)
         pspectra.close_plot()
@@ -2510,15 +2528,16 @@ class MDBPlot:
         pspectra.xdata = wl
         if options_figure['wlticks'] is not None:
             wlt = options_figure['wlticks']
-            wls = [f'{x}' for x in wlt]
+            wls = [f'{x:.2f}'.replace('.00','') for x in wlt]
         else:
             wlt = wl
             wls = self.mrfile.get_sat_wl_as_strlist(wl)
 
         pspectra.set_xticks(wlt, wls, 0, 12)
+
         if options_figure['type_rrs'] == 'mu_comparison':
-            hline1 = pspectra.plot_single_line(insitu_spectra, 'red', 'solid', 1, '.', 0)
-            hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 1, '.', 0)
+            hline1 = pspectra.plot_single_line(insitu_spectra, 'red', 'solid', 2, '.', 0)
+            hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 2, '.', 0)
             if insitu_spectra_unc is not None:
                 insitu_min = insitu_spectra.copy()
                 insitu_max = insitu_spectra.copy()
@@ -2543,6 +2562,9 @@ class MDBPlot:
 
         pspectra.set_xaxis_title(options_figure['xlabel'])
         pspectra.set_yaxis_title(options_figure['ylabel'])
+
+
+
         if options_figure['title'] is not None:
             title_here = options_figure['title'] + f' MU: {index_mu}'
             pspectra.set_title(title_here)
@@ -2550,10 +2572,10 @@ class MDBPlot:
             pspectra.legend_options['loc'] = 'lower center'
             pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.25)
             pspectra.legend_options['ncols'] = 2
-            pspectra.set_legend_h([hline1[0], hline2[0]], ['In situ Rrs', 'Satellite Rrs'])
+            #pspectra.set_legend_h([hline1[0], hline2[0]], ['In situ Rrs', 'Satellite Rrs'])
 
 
-        ### TEMPORAL FOR PRESENTATION VALIDATIION PACE (also comment lines 2538, 2505, 2514)
+        ### TEMPORAL FOR PRESENTATION VALIDATIION PACE (also comment lines 2521, 2530, 2557)
         # pspectra.set_vertical_line_impl(590,-1,4.2,'red','-')
         # pspectra.set_vertical_line_impl(610, -1,4.2, 'red', '-')
         # pspectra.kk()
@@ -2561,7 +2583,11 @@ class MDBPlot:
 
         if options_figure['y_min'] is not None and options_figure['y_max'] is not None:
             pspectra.set_y_range(options_figure['y_min'], options_figure['y_max'])
+
         pspectra.set_grid()
+
+        pspectra.prepare_poster()
+
         pspectra.set_tigth_layout()
         if not options_figure['file_out'] is None:
             file_out = options_figure['file_out']
@@ -2611,7 +2637,6 @@ class MDBPlot:
             hselected = pspectra.plot_single_line(np.squeeze(spectra_selected), 'black', 'solid', 2, None, 10)
 
         if n_valid == 0 and n_selected == 0:
-            print('here')
             pspectra.close_plot()
             return
 
@@ -2716,7 +2741,7 @@ class MDBPlot:
 
 
     def plot_taylor_type(self,options_figure,rdata,angledata,stat_array):
-        print(options_figure)
+        #print(options_figure)
         from PlotScatter import PlotScatter
         ps = PlotScatter()
         ps.start_plot_polar()
@@ -2783,7 +2808,7 @@ class MDBPlot:
 
 
     def plot_joliff_type(self,options_figure,xdata,ydata,wldata,stat_array):
-        print(options_figure)
+        #print(options_figure)
         #from matplotlib import pyplot as plt
         from PlotScatter import PlotScatter
         ps = PlotScatter()
@@ -3037,7 +3062,7 @@ class MDBPlot:
         ##valid_all[27]=0
 
         if self.mu_valid_variable in self.mrfile.nc.variables:
-            print('===============================================================================>')
+            #print('===============================================================================>')
             mu_valid = self.mrfile.nc.variables[self.mu_valid_variable][:]
             valid_all = np.array(mu_valid)
 
@@ -3122,6 +3147,10 @@ class MDBPlot:
 
         self.xdata = rrs_ins[valid_all == 1]
         self.ydata = rrs_sat[valid_all == 1]
+
+        ##TEMPORAL POSTER
+        # self.xdata = self.xdata * 1000
+        # self.ydata = self.ydata * 1000
 
         if groupBy is not None:
             if options_out['groupType'] == 'float' or options_out['groupType'] == 'wavelength':

@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(
     description="Obtaining information for running MDB_builder.")
 
 parser.add_argument('-m', "--mode", help='Mode option',
-                    choices=["add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
+                    choices=["insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
                     required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file.")
@@ -24,11 +24,20 @@ args = parser.parse_args()
 
 def main():
     print(f'[INFO] Started MDB_utils!')
+    if args.mode == 'insitu_brdf':
+        if not check_required_params(['input_path']):
+            return
+        if not os.path.isfile(args.input_path):
+            print(f'[ERROR] {args.input_path} does not exist or is not a valid file')
+            return
+        output_path = args.output if args.output else None
+        run_insitu_brdf()
+
     if args.mode == 'add_instrument_id':
         if not check_required_params(['input_path']):
             return
         if not os.path.isfile(args.input_path):
-            print(f'[ERROR] {args.input_path} does not exist or is not a valid directory')
+            print(f'[ERROR] {args.input_path} does not exist or is not a valid file')
             return
         output_path = args.output if args.output else None
         add_instrument_id(args.input_path, output_path)
@@ -63,6 +72,40 @@ def main():
         file_out  = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU_V3WL.nc')
         wl_list = [591,593,596,598,601,603,605,608,610]
         remove_wl_from_mu_variables(file_in,file_out,wl_list)
+
+def run_insitu_brdf():
+    import __init__
+    import sys
+    from netCDF4 import Dataset
+    dset = Dataset(args.input_path)
+    code_home = os.path.dirname(__init__.__file__)
+    code_025 = os.path.join(os.path.dirname(os.path.dirname(code_home)),'O25')
+
+    sys.path.append(code_025)
+    print(code_025,os.path.exists(code_025))
+    from o25 import O25_hyp
+    # Define inputs
+    l = dset.variables['insitu_original_bands'][1,:]  # Wavelengths in nm
+    Rrs = dset.variables['insitu_Rrs'][5,:,0] # Remote sensing reflectance
+    print(l.shape,Rrs.shape)
+    sza = dset.variables['insitu_solar_zenith_angle'][5,0]
+    vza = dset.variables['insitu_viewing_zenith_angle'][5,0]
+    raa = dset.variables['insitu_viewing_azimuth_angle'][5,0]-dset.variables['insitu_solar_azimuth_angle'][5,0]
+    print(sza,vza,raa)
+    geom_old = [sza,vza, raa]
+    geom_new = [0,0,0]
+    #geom_old = [...]  # Original geometry: [solar zenith angle, viewing zenith angle, relative azimuth angle]
+    #geom_new = [...]  # New geometry
+    # Run O25
+    a, bb, Rrs_N = O25_hyp.O25_hyp(l, Rrs, geom_old, geom_new)
+    fout = '/mnt/c/DATA/FICE2025/BRDF_TEST/test_brdf.csv'
+    fw = open(fout,'w')
+    fw.write('WL;RRS_In;RRS_out')
+    for idx in range(len(Rrs)):
+        fw.write('\n')
+        fw.write(f'{l[idx]};{Rrs[idx]};{Rrs_N[idx]}')
+    fw.close()
+
 
 def remove_wl_from_mu_variables(input_file,output_file,wl_list):
     from netCDF4 import Dataset

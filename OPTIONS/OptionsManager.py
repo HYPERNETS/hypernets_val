@@ -17,9 +17,7 @@ class OptionsManager():
 
 
 
-        # config_file = 'a'
-        # self.options = configparser.ConfigParser()
-        # self.options.read(config_file)
+
 
     def get_virtual_flag_list(self):
         if self.options is None:

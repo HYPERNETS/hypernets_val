@@ -373,30 +373,34 @@ def plot_figure_20190523():
         'file_out': os.path.join(dir_out,f'CMEMS_OLCI_CHLA_{date_here.strftime("%Y%m%d")}.png'),
         'geo_limits_image': [43.6,45.6,28.6,32.6]
     }
-    file_cmems_olci = info['file_out']
-    #plot_doors_impl(info,'CMEMS')
 
-    info['file_source']=os.path.join(dir_sources, yyyy, jjj, f'X{yyyy}{jjj}-chl-bs-hr.nc')
-    info['title']=f'CMEMS-MULTI CHL-A {date_here.strftime("%Y-%m-%d")}'
-    info['file_out'] = os.path.join(dir_out,f'CMEMS_MULTI_CHLA_{date_here.strftime("%Y%m%d")}.png')
-    file_cmems_multi = info['file_out']
-    # plot_doors_impl(info,'CMEMS')
+    for lat,lon in zip(info['lat_centers'],info['lon_centers']):
+        print(lat,';',lon)
 
-    info['file_source'] =  os.path.join(dir_sources,yyyy,jjj,f'CERTO_blk_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
-    info['title'] = f'CERTO CHL-A {date_here.strftime("%Y-%m-%d")}'
-    info['file_out'] = os.path.join(dir_out, f'CERTO_CHLA_{date_here.strftime("%Y%m%d")}.png')
-    file_certo = info['file_out']
-    # plot_doors_impl(info, 'CERTO_TOP3')
-
-    file_out = os.path.join(dir_out,f'CHLA_{date_here.strftime("%Y%m%d")}.png')
-    from PlotMultiple import PlotMultiple
-    pm = PlotMultiple()
-    pm.start_multiple_plot(3,1)
-    pm.plot_image(file_cmems_olci,0,0)
-    pm.plot_image(file_certo, 1, 0)
-    pm.plot_image(file_cmems_multi, 2, 0)
-    pm.save_fig(file_out)
-    pm.close_plot()
+    # file_cmems_olci = info['file_out']
+    # #plot_doors_impl(info,'CMEMS')
+    #
+    # info['file_source']=os.path.join(dir_sources, yyyy, jjj, f'X{yyyy}{jjj}-chl-bs-hr.nc')
+    # info['title']=f'CMEMS-MULTI CHL-A {date_here.strftime("%Y-%m-%d")}'
+    # info['file_out'] = os.path.join(dir_out,f'CMEMS_MULTI_CHLA_{date_here.strftime("%Y%m%d")}.png')
+    # file_cmems_multi = info['file_out']
+    # # plot_doors_impl(info,'CMEMS')
+    #
+    # info['file_source'] =  os.path.join(dir_sources,yyyy,jjj,f'CERTO_blk_{yyyy}{mm}{dd}_OLCI_RES300__final_l3_product.nc')
+    # info['title'] = f'CERTO CHL-A {date_here.strftime("%Y-%m-%d")}'
+    # info['file_out'] = os.path.join(dir_out, f'CERTO_CHLA_{date_here.strftime("%Y%m%d")}.png')
+    # file_certo = info['file_out']
+    # # plot_doors_impl(info, 'CERTO_TOP3')
+    #
+    # file_out = os.path.join(dir_out,f'CHLA_{date_here.strftime("%Y%m%d")}.png')
+    # from PlotMultiple import PlotMultiple
+    # pm = PlotMultiple()
+    # pm.start_multiple_plot(3,1)
+    # pm.plot_image(file_cmems_olci,0,0)
+    # pm.plot_image(file_certo, 1, 0)
+    # pm.plot_image(file_cmems_multi, 2, 0)
+    # pm.save_fig(file_out)
+    # pm.close_plot()
 
 def test():
     print('zona utm para coordenadas')
@@ -421,8 +425,8 @@ def main():
     print('[INFO] Started map plot')
     #plot_doors()
     #plot_multiple()
-    #plot_figure_20190523()
-    test()
+    plot_figure_20190523()
+    #test()
 
 if __name__ == '__main__':
     main()

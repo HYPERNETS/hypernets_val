@@ -4057,7 +4057,100 @@ def plot_test_time_series():
 
 
 
+def make_oci_matchups():
+    file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/Match-ups.csv'
+    df = pd.read_csv(file_csv,sep=';')
+    print(df.columns)
+    sites = list(df['Site'])
+    sites.reverse()
 
+    pot = df['Potential']
+    v2 = df['V2']
+    v3 = df['V3']
+    com = df['Common']
+    file_out = os.path.join(os.path.dirname(file_csv),'Match-ups.png')
+    hfig, ax = plt.subplots()
+    height = 0.25
+    xval = 0
+    xticks_pos = []
+    xticks_pos_minor = []
+    nseriesplot = 4
+    colors = ['blue','salmon','purple','green']
+    colors = ['brown', 'blue', 'red', 'olive']
+    legend = ['Potential match-ups','V2 match-ups','V3 match-ups','Common match-ups']
+
+    heightbyseries = height / nseriesplot
+    handles = []
+    hbarvalidity = []
+    hbarvalidity_values = []
+
+    for idx in range(3,-1,-1):
+        xvalini = xval - (heightbyseries / 2)
+        xticks_pos_minor.append(xvalini)
+        icolor = 0
+        ##common
+        hbar = plt.barh(xval, com[idx], height=heightbyseries, color=colors[3])
+        xval = xval + heightbyseries
+        if idx == 0:
+            handles.append(hbar)
+        ##v3
+        hbar = plt.barh(xval, v3[idx], height=heightbyseries, color=colors[2])
+        xval = xval + heightbyseries
+        if idx == 0:
+            handles.append(hbar)
+        ##v2
+        hbar = plt.barh(xval, v2[idx], height=heightbyseries, color=colors[1])
+        xval = xval + heightbyseries
+        if idx == 0:
+            handles.append(hbar)
+        ##potential
+        hbar = plt.barh(xval, pot[idx], height=heightbyseries, color=colors[0])
+        xval = xval + heightbyseries
+        if idx==0:
+            handles.append(hbar)
+
+
+
+        xvalfin = xval - (heightbyseries / 2)
+        xticks_pos_minor.append(xvalfin)
+        xticks_pos.append((xvalini + xvalfin) / 2)
+
+
+
+    plt.yticks(xticks_pos, sites)
+    ax.set_yticks(xticks_pos_minor, minor=True)
+    plt.grid(visible=True, which='minor', color='black', linestyle='-', axis='y')
+    plt.grid(visible=True, which='major', color='gray', linestyle='--', axis='x')
+    ax.tick_params(which='major', length=0, axis='y')
+    ax.tick_params(which='minor', length=10, axis='y')
+
+
+
+    # for idx in range(len(hbarvalidity)):
+    #     hbar = hbarvalidity[idx]
+    #     val = hbarvalidity_values[idx]
+    #     vals = [f'{val:.2f} %']
+    #
+    #     plt.bar_label(hbar, vals)
+
+    plt.xlabel('Number of match-ups', fontsize=12)
+    plt.ylabel('Site', fontsize=12)
+
+    plt.gca().tick_params(axis='both', which='major', labelsize=14)
+    plt.xlabel(plt.gca().get_xlabel(), fontsize=16)
+    plt.ylabel(plt.gca().get_ylabel(), fontsize=16)
+    import matplotlib.ticker as ticker
+    #plt.gca().yaxis.set_minor_locator(ticker.AutoMinorLocator(4))
+    plt.gca().xaxis.set_minor_locator(ticker.AutoMinorLocator(4))
+
+    plt.gcf().tight_layout()
+    if legend is not None:
+        handles.reverse()
+        #legend.reverse()
+        plt.legend(handles, legend, framealpha=1,fontsize=14)
+    if file_out is not None:
+        plt.savefig(file_out, dpi=300)
+    plt.close(hfig)
 
 def main():
     mode = args.mode
@@ -4180,6 +4273,8 @@ def main():
 
     if args.mode == 'TEST':
 
+        make_oci_matchups()
+
         ##correctins resto files
         # dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/TRIT'
         # file_good =os.path.join(dir_base,'RESTO_TRIT_20240930_20250315.nc')
@@ -4284,7 +4379,8 @@ def main():
         # wl_out =   [412, 443, 674, 681, 709]
         # creating_copy_correcting_changing_wl(file_olci_regional, file_out, wl_list, wl_in,wl_out)
 
-        make_map_rrs_match_ups()
+        #make_map_rrs_match_ups()
+
         #getting_valid_stations()
         #make_map_stations()
         #make_map_rrs_hyper_pro()

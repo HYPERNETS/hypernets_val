@@ -64,6 +64,16 @@ class PlotSpectra():
         plt.close()
         plt.figure()
 
+    def prepare_poster(self):
+        import matplotlib.ticker as ticker
+        plt.gca().tick_params(axis='both',which='major',labelsize=14)
+        plt.xlabel(plt.gca().get_xlabel(), fontsize=16)
+        plt.ylabel(plt.gca().get_ylabel(), fontsize=16)
+        plt.gca().yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
+        plt.gca().xaxis.set_minor_locator(ticker.AutoMinorLocator(2))
+
+        #plt.grid(which='minor', color='lightgray', linestyle=':', axis='y')
+
     def get_secondary_axis(self):
         return plt.gca().twinx()
 
@@ -92,12 +102,15 @@ class PlotSpectra():
         self.stats_plot['factor'] = factor
 
     def plot_data(self, ydata, style):
+        if 'mec' not in style:
+            style['mec']=None
         h = plt.plot(self.xdata, ydata,
                      color=style['color'],
                      linestyle=style['linestyle'],
                      linewidth=style['linewidth'],
                      marker=style['marker'],
-                     markersize=style['markersize'])
+                     markersize=style['markersize'],
+                     mec=style['mec'])
         return h
 
     def plot_data_secondary_axis(self,ydata,ylabel,style):
@@ -151,6 +164,25 @@ class PlotSpectra():
             style['marker'] = marker
         if marker_size is not None:
             style['markersize'] = marker_size
+
+        h = self.plot_data(ydata, style)
+
+        return h
+
+    def plot_single_linev2(self, ydata, line_color, line_type, line_width, marker, marker_size,mec):
+        style = self.line_style_default
+        if line_color is not None:
+            style['color'] = line_color
+        if line_type is not None:
+            style['linestyle'] = line_type
+        if line_width is not None:
+            style['linewidth'] = line_width
+        if marker is not None:
+            style['marker'] = marker
+        if marker_size is not None:
+            style['markersize'] = marker_size
+
+        style['mec'] = mec
 
         h = self.plot_data(ydata, style)
 
@@ -211,7 +243,7 @@ class PlotSpectra():
     def set_legend(self, str_legend):
         print(self.legend_options)
         plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'],
-                   framealpha=self.legend_options['framealpha'], ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'])
+                   framealpha=self.legend_options['framealpha'], ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'],fontsize=16)
 
     def set_legend_h(self, handles, str_legend):
         plt.legend(handles, str_legend, loc=self.legend_options['loc'],
@@ -422,6 +454,7 @@ class PlotSpectra():
         return h
     def kk(self):
         plt.fill_between([590, 610], [-1, -1], [4.2, 4.2], facecolor='gray', alpha=0.5)
+
     def plot_iqr_basic(self, y1, y2, color):
 
         plt.fill_between(self.xdata, y1, y2, facecolor=color, alpha=0.5)

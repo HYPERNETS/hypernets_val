@@ -1,6 +1,4 @@
-import argparse, os, sys
-import shutil
-
+import argparse, os, sys, shutil,pytz
 import pandas as pd
 from netCDF4 import Dataset
 from datetime import datetime as dt
@@ -14,7 +12,7 @@ import sat_extract
 
 code_home = os.path.dirname(os.path.dirname(sat_extract.__file__))
 sys.path.append(code_home)
-from SAT_EXTRACT.sat_extract import SatExtract
+
 
 parser = argparse.ArgumentParser(description="Satellite extracts from multiple files (one file for variable) available in the CNR server.")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
@@ -123,7 +121,7 @@ def add_reflectance_multiple(newEXTRACT, extract, wl_list):
 
 ##start the extract without using original file
 def start_extract(ofname, extract_info):
-    newEXTRACT = SatExtract(ofname)
+    newEXTRACT = sat_extract.SatExtract(ofname)
     if not newEXTRACT.FILE_CREATED:
         print(f'[ERROR] File {ofname} could not be created')
         return False
@@ -212,7 +210,7 @@ def create_multiple_csv_sbatch(options,output_path,mp_options):
                 print(f'[NFO] Creating sbatch file...')
             file_config = os.path.join(temp_path,f'config_file_{index_folder}.ini')
             options.set('MULTIPLE_CSV_SELECTION','path_csv',folder_csv)
-            options.set('multiprocessing','use_sbatch','False')
+            options.set('multiprocessing','use_slurm_sh','False')
             with open(file_config,'w') as configw:
                 options.write(configw)
             file_sbatch = os.path.join(temp_path,f'sbatch_script_{index_folder}.slurm')
@@ -254,9 +252,9 @@ def create_multiple_csv_sbatch(options,output_path,mp_options):
 
     #file out sh
     file_out_sh = os.path.join(temp_path,f'launch_multiple_sbatch.sh')
-    sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh,sbatch_files,sbatch_log_files,mp_options['sbatch_max_cores'])
+    sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh,sbatch_files,sbatch_log_files,mp_options['slurm_sh_max_cores'])
     print(f'[INFO] SH file: {file_out_sh} has been created.')
-    if mp_options['sbatch_launch']:
+    if mp_options['slurm_sh_launch']:
         import subprocess
         cmd = f'sh {file_out_sh}'
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
@@ -315,7 +313,7 @@ def create_single_seabass_sbatch(options,output_path,mp_options):
             file_sb = os.path.join(temp_path, f'SB_TEMP_{index_folder}.sb')
             shutil.copy(path_seabass, file_sb)
             options.set('SEABASS_SELECTION','path_seabass',file_sb)
-            options.set('multiprocessing','use_sbatch','False')
+            options.set('multiprocessing','use_slurm_sh','False')
             with open(file_config,'w') as configw:
                 options.write(configw)
             file_sbatch = os.path.join(temp_path,f'sbatch_script_{index_folder}.slurm')
@@ -351,7 +349,7 @@ def create_single_seabass_sbatch(options,output_path,mp_options):
     file_sb = os.path.join(temp_path, f'SB_TEMP_{index_folder}.sb')
     shutil.copy(path_seabass, file_sb)
     options.set('SEABASS_SELECTION', 'path_seabass', file_sb)
-    options.set('multiprocessing', 'use_sbatch', 'False')
+    options.set('multiprocessing', 'use_slurm_sh', 'False')
     with open(file_config, 'w') as configw:
         options.write(configw)
     file_sbatch = os.path.join(temp_path, f'sbatch_script_{index_folder}.slurm')
@@ -381,7 +379,7 @@ def create_single_seabass_sbatch(options,output_path,mp_options):
     # file out sh
     file_out_sh = os.path.join(temp_path, f'launch_multiple_sbatch.sh')
     sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh, sbatch_files, sbatch_log_files,
-                                               mp_options['sbatch_max_cores'])
+                                               mp_options['slurm_sh_max_cores'])
     ##add contatenation sbatch
     fw = open(file_out_sh,'a')
     fw.write('\n')
@@ -390,7 +388,7 @@ def create_single_seabass_sbatch(options,output_path,mp_options):
     fw.close()
 
     print(f'[INFO] SH file: {file_out_sh} has been created.')
-    if mp_options['sbatch_launch']:
+    if mp_options['slurm_sh_launch']:
         import subprocess
         cmd = f'sh {file_out_sh}'
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
@@ -433,7 +431,8 @@ def run_multiple_csv(options,output_path, overwrite, ncores):
             print(f'[INFO] --------------------------------------------------------------------------------------')
             print(f'[INFO] Working with csv {namefile} Obtaining product(s)...')
 
-        only_date_array_unique, time_list = sat_extract.get_date_list_from_dataframe(df,col_date,format_date,col_time,format_time)
+        only_date_array, time_list = sat_extract.get_date_list_from_dataframe(df,col_date,format_date,col_time,format_time)
+        only_date_array_unique = np.unique(only_date_array).tolist()
         if len(only_date_array_unique) == 0:
             print(f'[ERROR] No valid dates retrieved from the CSV file.')
             return
@@ -463,6 +462,7 @@ def run_multiple_csv(options,output_path, overwrite, ncores):
                'insitu_time': time_list,
                'insitu_lat': np.ma.array(df[col_lat]),
                'insitu_lon': np.ma.array(df[col_lon]),
+               'insitu_indices': np.where(date_str==only_date_array),##all the indices, for compatibility with SeaBass
                'satellite_time': satellite_time,
            }
            if lat_array is None and lon_array is None:
@@ -475,7 +475,7 @@ def run_multiple_csv(options,output_path, overwrite, ncores):
                    params_list.append([extract_options,extract_info,lat_array,lon_array,output_path, overwrite])
 
 
-    if ncores>0 or ncores<0:
+    if ncores>0 or ncores == -1:
         if args.verbose:
             print(f'[INFO] Starting parallel processing. Number of dates: {len(params_list)}')
             print(f'[INFO] CPUs: {os.cpu_count()}')
@@ -744,32 +744,326 @@ def make_seabass_concatenation(options,output_path):
         work_date = work_date + timedelta(hours=24)
     sat_extract.concatenate_csv(file_list,path_extract_output,True)
 
+class SatExtractCNR:
+    def __init__(self,verbose):
+        self.verbose = verbose
+
+    ##Method to retrieve file for a single date. Deprecated: get_cmems_multiple_product_day
+    def get_files_day(self,datehere, input_path_info, extract_options):
+
+        path_source = input_path_info['path_source']
+        org = input_path_info['org']
+        path_day = sat_extract.get_path_date(path_source, org, datehere, False)
+        if path_day is None:
+            return None
+
+        dataset_name_format_date = extract_options['dataset_name_format_date']
+        dataset_var_list = extract_options['dataset_var_list']
+        dataset_name_file = extract_options['dataset_name_file']
+        strdate = datehere.strftime(dataset_name_format_date)
+        ncfiles = []
+
+        for var in dataset_var_list:
+            name = dataset_name_file
+            var = var.replace('.', '_')
+            name = name.replace('$DATE$', strdate)
+            name = name.replace('$BAND$', var)
+            fname = os.path.join(path_day, name)
+            if os.path.exists(fname):
+                ncfiles.append(fname)
+            else:
+                print(f'[WARNING] File: {fname} was not found')
+
+        if len(ncfiles) == len(dataset_var_list):
+            return ncfiles
+        else:
+            return None
+
+    def get_extract_options(self,options):
+        section = 'CNR_OPTIONS'
+        n_bands = 0
+
+        dataset_name_file = None
+        dataset_name_format_date = '%Y%j'
+        if options.has_option(section, 'dataset_name_file'):
+            dataset_name_file = options[section]['dataset_name_file']
+        if options.has_option(section, 'dataset_name_format_date'):
+            dataset_name_format_date = options[section]['dataset_name_format_date']
+
+        dataset_var_list = None
+        dataset_var_list_out = None
+        if options.has_option(section, 'dataset_var_list'):
+            s = options[section]['dataset_var_list']
+            dataset_var_list = [x.strip() for x in s.split(',')]
+            dataset_var_list_out = dataset_var_list
+            if options.has_option(section, 'dataset_var_list_out'):
+                s = options[section]['dataset_var_list_out']
+                dataset_var_list_out = [x.strip() for x in s.split(',')]
+
+        rrs_list = []
+        is_reflectance = True
+        for var in dataset_var_list:
+            try:
+                value = float(var)
+                rrs_list.append(value)
+            except:
+                is_reflectance = False
+        if is_reflectance:
+            n_bands = len(dataset_var_list)
+
+        options_out = {
+            'is_reflectance': is_reflectance,
+            'n_bands': n_bands,
+            'dataset_name_file': dataset_name_file,
+            'dataset_name_format_date': dataset_name_format_date,
+            'dataset_var_list': dataset_var_list,
+            'dataset_var_list_out': dataset_var_list_out,
+            'rrs_list': rrs_list,
+            'size_box': sat_extract.get_box_size(options)
+        }
+
+        return options_out
+
+    def get_satellite_time(self,options, fproduct, daydate):
+        cmems_time = '11:00'
+        if options.has_option('satellite_options', 'satellite_time'):
+            cmems_time = options['satellite_options']['satellite_time'].strip()
+        satellite_time = sat_extract.get_satellite_time_from_global_attributes(fproduct)
+        if satellite_time is None:
+            try:
+                satellite_time = dt.strptime(f'{daydate.strftime("%Y%m%d")}T{cmems_time}',
+                                             '%Y%m%dT%H:%M').replace(tzinfo=pytz.utc)
+            except:
+                print(f'{cmems_time} is not a valid satellite time option. Skipping')
+                return None
+        return satellite_time
+
+    def run_parallel_extract_day(self,params):
+        self.run_extract_day(params[0], params[1], params[2], params[3], params[4], params[5])
+
+    def run_extract_day(self,extract_options, extract_info, lat_array, lon_array, output_path, overwrite):
+        insitu_lat = extract_info['insitu_lat']
+        insitu_lon = extract_info['insitu_lon']
+        insitu_time = extract_info['insitu_time']
+        insitu_indices = extract_info['insitu_indices']
+
+        path_extract_output = extract_info['path_extract_output']
+        if not os.path.exists(path_extract_output):
+            few = open(path_extract_output, 'w')
+            few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
+        else:
+            few = open(path_extract_output, 'a')
+
+        ntimes = len(insitu_time)
+
+        site_list = []
+        format_datetime = '%Y-%m-%dT%H:%M:%S'
+
+        for itime in range(ntimes):
+
+            limits, rc = sat_extract.get_geo_info(extract_options, None, insitu_lat[itime], insitu_lon[itime],
+                                                  lat_array, lon_array)
+            if limits is None:
+                print(
+                    f'[WARNING] In situ location out of the limits of the satellite product. Skipping...')
+                continue
+
+            global_at = extract_info['global_at'].copy()
+            datehere_str = extract_info['satellite_time'].strftime('%Y%m%d')
+            site = f'{sat_extract.get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+            ofname = os.path.join(output_path, f'extract_{site}.nc')
+
+            if os.path.exists(ofname) and not overwrite:
+                few.write('\n')
+                few.write(
+                    f'extract_{site}.nc;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
+                print(
+                    f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract extract_{site}.nc already exists. {itime + 1}/{ntimes} Skiping...')
+                continue
+
+            if overwrite and site in site_list:
+                few.write('\n')
+                few.write(
+                    f'extract_{site}.nc;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
+                print(
+                    f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract for {site}  has been already done.  Skiping...')
+                continue
+
+            if args.verbose:
+                print(f'[INFO] [{itime + 1}/{ntimes}] Preparing extract for site {site}...')
+
+            global_at_here = sat_extract.add_insitu_global_atrib(global_at, site, insitu_lat[itime], insitu_lon[itime],
+                                                                 None)
+            extract_info_here = {
+                'global_at': global_at_here,
+                'limits': limits,
+                'size_box': extract_options['size_box'],
+                'lat_array': lat_array,
+                'lon_array': lon_array,
+                'satellite_time': extract_info['satellite_time'],
+                'n_bands': extract_options['n_bands'],
+                'list_files': extract_info['list_files']
+            }
+            newExtract = self.start_extract(ofname, extract_info_here)
+            if extract_options['is_reflectance']:
+                newExtract = self.add_reflectance_multiple(newExtract, extract_info_here, extract_options['rrs_list'])
+            else:
+                newExtract = self.add_variable_multiple(newExtract, extract_info_here,
+                                                   extract_options['dataset_var_list'],
+                                                   extract_options['dataset_var_list_out'])
+            if newExtract is None:
+                print(f'[ERROR] Error creating extract for site {site}')
+                os.remove(ofname)
+                few.write('\n')
+                few.write(
+                    f'noextract;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
+                continue
+            else:
+                print(f'[INFO] Extract {ofname} completed.')
+                site_list.append(site)
+                few.write('\n')
+                few.write(
+                    f'extract_{site}.nc;{insitu_indices[0][itime]};{insitu_time[itime].strftime(format_datetime)};{insitu_lat[itime]};{insitu_lon[itime]}')
+        few.close()
+
+    ##start the extract without using original file
+    def start_extract(self,ofname, extract_info):
+        newEXTRACT = sat_extract.SatExtract(ofname)
+        if not newEXTRACT.FILE_CREATED:
+            print(f'[ERROR] File {ofname} could not be created')
+            return False
+
+        if args.verbose:
+            print(f'[INFO] Starting file: {ofname}')
+
+        window = extract_info['limits']
+        newEXTRACT.set_global_attributes(extract_info['global_at'])
+
+        newEXTRACT.create_dimensions(extract_info['size_box'], extract_info['n_bands'])
+        newEXTRACT.create_lat_long_variables(extract_info['lat_array'], extract_info['lon_array'], window)
+        newEXTRACT.create_satellite_time_variable(extract_info['satellite_time'])
+
+        return newEXTRACT
+
+    def add_reflectance_multiple(self,newEXTRACT, extract, wl_list):
+        if not 'satellite_bands' in newEXTRACT.EXTRACT.dimensions:
+            print(f'[ERROR] Dimension satellite bands is not defined')
+            return
+        if 'global_at' in extract:
+            global_at = extract['global_at']
+        if '1' in extract:
+            global_at = extract['1']['global_at']
+        list_files = extract['list_files']
+        limits = extract['limits']
+        start_idx_y = limits[0]
+        stop_idx_y = limits[1]
+        start_idx_x = limits[2]
+        stop_idx_x = limits[3]
+
+        nwl = len(list_files)
+
+        if 'satellite_Rrs' in newEXTRACT.EXTRACT.variables:
+            satellite_Rrs = newEXTRACT.EXTRACT.variables['satellite_Rrs']
+        else:
+            satellite_Rrs = newEXTRACT.create_rrs_variable(global_at['sensor'])
+        wavelengths = []
+        for iwl in range(nwl):
+            wl = float(wl_list[iwl])
+            wavelengths.append(float(wl))
+            input_dataset = Dataset(list_files[iwl])
+            for name, variable in input_dataset.variables.items():
+                # wls = str(wl).replace('.', '_')
+                wls = f'{wl:.2f}'
+                wls = wls.replace('.', '_')
+                if wls.endswith('_00'):
+                    wls = wls[:-3]
+                if wls.find('_') > 0 and wls.endswith('0'):
+                    wls = wls[:-1]
+                ifind = name.find(wls)
+                if ifind >= 0:
+                    if variable.ndim == 3:
+                        bandarray = ma.array(variable[:, :, :])
+                        satellite_Rrs[0, iwl, :, :] = bandarray[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+                    elif variable.ndim == 2:
+                        bandarray = ma.array(variable[:, :])
+                        satellite_Rrs[0, iwl, :, :] = bandarray[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+            input_dataset.close()
+
+        if 'satellite_bands' in newEXTRACT.EXTRACT.variables:
+            satellite_bands = newEXTRACT.EXTRACT.variables['satellite_bands']
+            satellite_bands[:] = wavelengths
+        else:
+            newEXTRACT.create_satellite_bands_variable(wavelengths)
+
+        return newEXTRACT
+
+    def add_variable_multiple(self,newEXTRACT, extract, variable_list, variable_list_out):
+        list_files = extract['list_files']
+        limits = extract['limits']
+        start_idx_y = limits[0]
+        stop_idx_y = limits[1]
+        start_idx_x = limits[2]
+        stop_idx_x = limits[3]
+        nvar = len(list_files)
+        for idx in range(nvar):
+            file_in = list_files[idx]
+            variable_in = variable_list[idx]
+            variable_out = f'satellite_{variable_list_out[idx]}'
+            nc_in = Dataset(file_in, 'r')
+            if variable_in in nc_in.variables:
+                var_in = nc_in.variables[variable_in]
+            elif variable_in.upper() in nc_in.variables:
+                var_in = nc_in.variables[variable_in.upper()]
+            else:
+                print(f'[ERROR] Variable {variable_in} is not available in the file. Extract not created')
+                newEXTRACT.close_file()
+                return None
+            var_array = ma.array(var_in[:])
+            var_array = np.array(var_array.filled(-999.0))
+
+            if variable_out not in newEXTRACT.EXTRACT.variables:
+                variable = newEXTRACT.create_2D_variable_general(variable_out, var_array, limits)
+            else:
+                variable = newEXTRACT.EXTRACT.variables[variable_out]
+                variable[0, :, :] = var_array[0, start_idx_y:stop_idx_y, start_idx_x:stop_idx_x]
+
+            for at in var_in.ncattrs():
+                if at == '_FillValue' or at == 'add_offset' or at == 'scale_factor':
+                    continue
+                variable.setncattr(at, var_in.getncattr(at))
+            nc_in.close()
+
+        return newEXTRACT
 
 def main():
 
     print('[INFO] Creating satellite extracts')
     if not args.config_file:
         return
-    if not os.path.exists(args.config_file):
-        print(f'[ERROR] File {args.config_file} does not exist')
+    # if not os.path.exists(args.config_file):
+    #     print(f'[ERROR] File {args.config_file} does not exist')
+    #     return
+    options = sat_extract.SatExtractOptions(args.config_file,args.verbose)
+    if options is None:
         return
-
-    options = sat_extract.config_reader(args.config_file)
-    path_output = sat_extract.get_output_path(options,args.verbose)
+    #options = sat_extract.config_reader(args.config_file)
+    path_output = options.get_output_path()
     if path_output is None:
-        print(f'ERROR: {path_output} is not valid')
         return
-    overwrite = sat_extract.overwrite(options)
-    mp_options = sat_extract.get_multiprocessing_options(options)
+    overwrite = options.overwrite()
+    mp_options = options.get_multiprocessing_options()
     if mp_options is None:
         return
 
+
+    satExtractBase = sat_extract.SatExtractBase('CNR',args.verbose)
+
     ##MULTIPLE CSV FILE SELECTION (e.g., FOR TARA METADATA FILES)
     if options.has_section('MULTIPLE_CSV_SELECTION') and options.has_option('MULTIPLE_CSV_SELECTION', 'path_csv'):
-        if mp_options['use_sbatch']:
-            create_multiple_csv_sbatch(options,path_output,mp_options)
+        if mp_options['use_slurm_sh']:
+            satExtractBase.create_sh_slurm_multiple_csv(options,path_output,mp_options)
         else:
-            run_multiple_csv(options,path_output,overwrite,mp_options['ncores'])
+            satExtractBase.run_multiple_csv(options,path_output,overwrite,mp_options['ncores'])
 
     ##SINGLE SEABASS FILE SELECTION (e.g., FOR HYPERCP)
     if options.has_section('SEABASS_SELECTION'):
@@ -779,10 +1073,10 @@ def main():
         if args.make_concatenate and args.startdate and args.enddate:
             make_seabass_concatenation(options,path_output)
         else:
-            if mp_options['use_sbatch']:
+            if mp_options['use_slurm_sh']:
                 create_single_seabass_sbatch(options,path_output,mp_options)
             else:
-                run_single_seabass(options,path_output,overwrite,mp_options['ncores'],args.no_concatenate)
+                run_single_seabass(options,path_output,overwrite,mp_options['ncores'],not args.no_concatenate)
 
 
 

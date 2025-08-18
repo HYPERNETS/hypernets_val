@@ -48,6 +48,20 @@ class PlotScatter():
             'fontsize': 12
         }
 
+    def prepare_poster(self):
+        import matplotlib.ticker as ticker
+        self.ax.tick_params(axis='both',which='major',labelsize=14)
+        plt.xlabel(self.ax.get_xlabel(), fontsize=16)
+        plt.ylabel(self.ax.get_ylabel(), fontsize=16)
+        self.ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(4))
+        self.ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(4))
+
+
+    def set_grid(self):
+        # plt.grid(b=True, which='major', color='gray', linestyle='--')
+        plt.grid(which='major', color='gray', linestyle='--', axis='both')
+
+
     def start_plot(self):
         self.fig, self.ax = plt.subplots()
 
@@ -113,6 +127,8 @@ class PlotScatter():
             style['linewidths'] = linewidth
         if self.ax is None:
             self.set_axhere()
+
+
 
         hscatter = self.ax.scatter(xdata, ydata,
                             marker=style['marker'],
