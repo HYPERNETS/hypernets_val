@@ -1,6 +1,5 @@
-import math
-import os
-import configparser
+import math,os,re,configparser
+
 
 
 class OptionsManager():
@@ -8,16 +7,21 @@ class OptionsManager():
     def __init__(self, config_file, options):
         self.options = None
         if options is None:
-            if config_file is not None and os.path.exists(config_file):
-                self.options = configparser.ConfigParser()
-                self.options.read(config_file)
+            if not os.path.exists(config_file):
+                print(f'[ERROR] {config_file} does not exist')
+            elif not os.path.isfile(config_file):
+                print(f'[ERROR] {config_file} is not a valid file')
+            else:
+                try:
+                    self.options = configparser.ConfigParser()
+                    self.options.read(config_file)
+                except:
+                    print(f'[ERROR] Error parsing configuration file {config_file}')
         else:
             self.options = options
 
-
-
-
-
+    def is_valid(self):
+        return False if self.options is None else True
 
     def get_virtual_flag_list(self):
         if self.options is None:
@@ -32,20 +36,55 @@ class OptionsManager():
             sfinal = None
         return sfinal
 
-    def get_section_list(self, exclude_flags):
+    def get_section_list(self, exclude_sections):
         if self.options is None:
             return None
         slist = self.options.sections()
-        if exclude_flags is not None:
+        if exclude_sections is not None:
             sfinal = []
-            for flag in slist:
-                if flag not in exclude_flags:
-                    sfinal.append(flag)
+            for section in slist:
+                if section not in exclude_sections:
+                    sfinal.append(section)
         else:
             sfinal = slist
         if len(sfinal) == 0:
             return None
         return sfinal
+
+    def get_options_list(self,section):
+        if self.options is None:
+            return None
+        if not self.options.has_section(section):
+            print(f'[ERROR] Section {section} is not available')
+            return None
+        options = self.options.options(section)
+        return options
+
+    def get_retrieve_options(self,section):
+        slist = self.get_options_list(section)
+        if slist is None:
+            print(f'[ERROR] Retrieve options were not found for section {section}')
+            return [None] * 2
+        soptions = {}
+        required_list = None
+        for op in slist:
+            if op == 'required':
+                required_list = self.get_value_param(section, op, None, 'strlist')
+            else:
+                list = self.get_value_param(section, op, None, 'strlist')
+                type_param = list[0]
+                default = None if list[1].upper() == 'NONE' else list[1]
+                if default is not None:
+                    default = self.get_value_param_impl(default,type_param,None)
+
+
+                soptions[op] = {
+                    'type_param': type_param,
+                    'default': default
+                }
+                if len(list) == 3:
+                    soptions[op]['list_values'] = [s.strip() for s in list[2].split(',')]
+        return soptions, required_list
 
     ##when type option is selected, then the rest of options are only applied if type_group=type
     ##it includes also overall options for virtual_flags
@@ -268,10 +307,49 @@ class OptionsManager():
             }
         return value_dict
 
+    def get_options_as_dict(self,section,poptions,required):
+        if not self.options.has_section(section):
+            return None
+        result = {}
+        for option in poptions:
+            result[option] = self.get_option(section,option,poptions,None,None)
+
+        if required is not None:
+            for r in required:
+                if not r in result:
+                    print(f'[ERROR] Option {r} is required in section {section} of the configuration file.')
+                    return None
+                if result[r] is None:
+                    print(f'[ERROR] Option {section}/{r}  of the configuration file is required.')
+                    return None
+
+        return result
+
+    def get_option(self,section,option,poptions,default,type_param):
+
+        list_values = None
+        if poptions is not None and option in poptions.keys():
+            if default is None  and 'default' in poptions[option].keys():
+                default = poptions[option]['default']
+            if type_param is None and 'type_param' in poptions[option].keys():
+                type_param = poptions[option]['type_param']
+            if 'list_values' in poptions[option].keys():
+                list_values = poptions[option]['list_values']
+
+        if type_param is None:
+            return None
+
+        value = self.get_value_param(section, option, default, type_param)
+
+        if list_values is not None and  value not in list_values :
+            value = None
+
+        return value
+
     def get_value(self, section, key):
         value = None
         if self.options.has_option(section, key):
-            value = self.options[section][key]
+            value = self.options[section][key].strip()
         return value
 
     def get_value_param(self, section, key, default, type):
@@ -279,15 +357,23 @@ class OptionsManager():
 
         if value is None:
             return default
+
+        return self.get_value_param_impl(value,type,default)
+
+    def get_value_param_impl(self,value,type,default):
+
         if type == 'str':
-            return value
+            return value.strip(f'"')
+
         if type == 'file':
-            if not os.path.exists(value.strip()):
+            file = value.strip(f'"')
+            if not os.path.exists(file):
                 return default
             else:
-                return value.strip()
-        if type == 'directory':
-            directory = value.strip()
+                return file
+
+        if type == 'directory' or type=='output_path':
+            directory = value.strip(f'"')
             if not os.path.isdir(directory):
                 try:
                     os.mkdir(directory)
@@ -296,41 +382,53 @@ class OptionsManager():
                     return default
             else:
                 return directory
+
+        if type== 'input_path':
+            input_path = value.strip(f'"')
+            if not os.path.isdir(input_path):
+                return default
+            else:
+                return input_path
+
         if type == 'int':
-            return int(value)
+            return int(value.strip(f'"'))
+
         if type == 'float':
-            return float(value)
+            return float(value.strip(f'"'))
+
         if type == 'boolean':
+            value = value.strip(f'"')
             if value == '1' or value.upper() == 'TRUE':
                 return True
             elif value == '0' or value.upper() == 'FALSE':
                 return False
             else:
                 return True
+
         if type == 'rrslist':
-            list_str = value.split(',')
+            #list_str = value.split(',')
+            list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
             list = []
             for vals in list_str:
-                vals = vals.strip().replace('.', '_')
+                vals = vals.replace('.', '_')
                 list.append(f'RRS{vals}')
             return list
+
         if type == 'strlist':
-            list_str = value.split(',')
-            list = []
-            for vals in list_str:
-                list.append(vals.strip())
+            list = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
+
             return list
+
         if type == 'floatlist':
-            list_str = value.split(',')
+            list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
             list = []
             for vals in list_str:
-                vals = vals.strip()
                 list.append(float(vals))
             return list
+
         if type == 'intlist':
-            list_str = value.split(',')
+            list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
             list = []
             for vals in list_str:
-                vals = vals.strip()
                 list.append(int(vals))
             return list

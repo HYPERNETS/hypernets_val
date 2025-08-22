@@ -6,6 +6,7 @@ import numpy.ma as ma
 import numpy as np
 from multiprocessing import Pool
 
+from statsmodels.stats.rates import nonequivalence_poisson_2indep
 
 # import user defined functions from other .py
 import sat_extract
@@ -134,7 +135,7 @@ def start_extract(ofname, extract_info):
 
     newEXTRACT.create_dimensions(extract_info['size_box'], extract_info['n_bands'])
     newEXTRACT.create_lat_long_variables(extract_info['lat_array'], extract_info['lon_array'], window)
-    newEXTRACT.create_satellite_time_variable(extract_info['satellite_time'])
+    newEXTRACT.create_satellite_time_variable(extract_info['satellite_time'][0])
 
     return newEXTRACT
 
@@ -624,14 +625,14 @@ def run_extract_day(extract_options,extract_info,lat_array,lon_array,output_path
     for itime in range(ntimes):
 
 
-        limits, rc = sat_extract.get_geo_info(extract_options, None, insitu_lat[itime], insitu_lon[itime], lat_array, lon_array)
+        limits, rc = sat_extract.get_geo_info(extract_info['size_box'],insitu_lat[itime], insitu_lon[itime], lat_array, lon_array)
         if limits is None:
             print(
                 f'[WARNING] In situ location out of the limits of the satellite product. Skipping...')
             continue
 
         global_at = extract_info['global_at'].copy()
-        datehere_str = extract_info['satellite_time'].strftime('%Y%m%d')
+        datehere_str = extract_info['satellite_time'][0].strftime('%Y%m%d')
         site = f'{sat_extract.get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
         ofname = os.path.join(output_path, f'extract_{site}.nc')
 
@@ -749,13 +750,16 @@ class SatExtractCNR:
         self.verbose = verbose
 
     ##Method to retrieve file for a single date. Deprecated: get_cmems_multiple_product_day
-    def get_files_day(self,datehere, input_path_info, extract_options):
+    def get_files_day(self,datehere, input_path_info, sat_extract_options):
+
+
+        extract_options = self.get_extract_options(sat_extract_options)
 
         path_source = input_path_info['path_source']
         org = input_path_info['org']
         path_day = sat_extract.get_path_date(path_source, org, datehere, False)
         if path_day is None:
-            return None
+            return [None]*2
 
         dataset_name_format_date = extract_options['dataset_name_format_date']
         dataset_var_list = extract_options['dataset_var_list']
@@ -775,59 +779,55 @@ class SatExtractCNR:
                 print(f'[WARNING] File: {fname} was not found')
 
         if len(ncfiles) == len(dataset_var_list):
-            return ncfiles
+            satellite_time = [self.get_satellite_time(sat_extract_options,ncfiles[0],datehere)]
+            return ncfiles,satellite_time
         else:
+            return [None]*2
+
+    def is_l3_product(self):
+        return True
+
+    def get_lat_lon_arrays(selfs,sat_extract_options,file_ref):
+        nc_sat = Dataset(file_ref, 'r')
+        var_lat, var_lon = sat_extract_options.get_lat_long_var_names()
+        lat = nc_sat.variables[var_lat][:]
+        lon = nc_sat.variables[var_lon][:]
+        nc_sat.close()
+
+        return lat, lon
+
+    def get_extract_options(self,sat_extract_options):
+
+        options_out = sat_extract_options.get_satellite_options('CNR')
+        if options_out is None:
             return None
+        if options_out['dataset_var_list_out'] is None:
+            options_out['dataset_var_list_out'] = options_out['dataset_var_list']
 
-    def get_extract_options(self,options):
-        section = 'CNR_OPTIONS'
         n_bands = 0
-
-        dataset_name_file = None
-        dataset_name_format_date = '%Y%j'
-        if options.has_option(section, 'dataset_name_file'):
-            dataset_name_file = options[section]['dataset_name_file']
-        if options.has_option(section, 'dataset_name_format_date'):
-            dataset_name_format_date = options[section]['dataset_name_format_date']
-
-        dataset_var_list = None
-        dataset_var_list_out = None
-        if options.has_option(section, 'dataset_var_list'):
-            s = options[section]['dataset_var_list']
-            dataset_var_list = [x.strip() for x in s.split(',')]
-            dataset_var_list_out = dataset_var_list
-            if options.has_option(section, 'dataset_var_list_out'):
-                s = options[section]['dataset_var_list_out']
-                dataset_var_list_out = [x.strip() for x in s.split(',')]
-
         rrs_list = []
         is_reflectance = True
-        for var in dataset_var_list:
+        for var in options_out['dataset_var_list']:
             try:
                 value = float(var)
                 rrs_list.append(value)
             except:
                 is_reflectance = False
         if is_reflectance:
-            n_bands = len(dataset_var_list)
+            n_bands = len(options_out['dataset_var_list'])
 
-        options_out = {
-            'is_reflectance': is_reflectance,
-            'n_bands': n_bands,
-            'dataset_name_file': dataset_name_file,
-            'dataset_name_format_date': dataset_name_format_date,
-            'dataset_var_list': dataset_var_list,
-            'dataset_var_list_out': dataset_var_list_out,
-            'rrs_list': rrs_list,
-            'size_box': sat_extract.get_box_size(options)
-        }
+        options_out['n_bands'] = n_bands
+        options_out['is_reflectance'] = is_reflectance
+        options_out['size_box'] = sat_extract_options.get_box_size()
+        options_out['rrs_list'] = rrs_list
+
 
         return options_out
 
     def get_satellite_time(self,options, fproduct, daydate):
-        cmems_time = '11:00'
-        if options.has_option('satellite_options', 'satellite_time'):
-            cmems_time = options['satellite_options']['satellite_time'].strip()
+        sat_options = options.get_general_options('satellite_options')
+        cmems_time = sat_options['satellite_time'] if (sat_options is not None and 'satellite_time' in sat_options) else '12:00'
+
         satellite_time = sat_extract.get_satellite_time_from_global_attributes(fproduct)
         if satellite_time is None:
             try:
@@ -861,7 +861,7 @@ class SatExtractCNR:
 
         for itime in range(ntimes):
 
-            limits, rc = sat_extract.get_geo_info(extract_options, None, insitu_lat[itime], insitu_lon[itime],
+            limits, rc = sat_extract.get_geo_info(extract_options['size_box'], insitu_lat[itime], insitu_lon[itime],
                                                   lat_array, lon_array)
             if limits is None:
                 print(
@@ -869,7 +869,7 @@ class SatExtractCNR:
                 continue
 
             global_at = extract_info['global_at'].copy()
-            datehere_str = extract_info['satellite_time'].strftime('%Y%m%d')
+            datehere_str = extract_info['satellite_time'][0].strftime('%Y%m%d')
             site = f'{sat_extract.get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
             ofname = os.path.join(output_path, f'extract_{site}.nc')
 
@@ -941,7 +941,7 @@ class SatExtractCNR:
 
         newEXTRACT.create_dimensions(extract_info['size_box'], extract_info['n_bands'])
         newEXTRACT.create_lat_long_variables(extract_info['lat_array'], extract_info['lon_array'], window)
-        newEXTRACT.create_satellite_time_variable(extract_info['satellite_time'])
+        newEXTRACT.create_satellite_time_variable(extract_info['satellite_time'][0])
 
         return newEXTRACT
 
@@ -1055,6 +1055,10 @@ def main():
     if mp_options is None:
         return
 
+    insitu_type,insitu_options = options.check_insitu_options()
+
+    if insitu_type is None:
+        return
 
     satExtractBase = sat_extract.SatExtractBase('CNR',args.verbose)
 

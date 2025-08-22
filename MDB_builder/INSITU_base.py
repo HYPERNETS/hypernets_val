@@ -222,3 +222,15 @@ class INSITUBASE:
     def close(self):
         self.new_MDB.close()
         self.new_MDB = None
+
+
+
+def get_insitu_object(insitu_type,insitu_options,verbose):
+    insituBase = None
+    if insitu_type=='MULTIPLE_CSV':
+        from MDB_builder.INSITU_multiplecsv import INSITU_MULTIPLE_CSV
+        insituBase = INSITU_MULTIPLE_CSV(insitu_options,verbose)
+    if insitu_type=='SINGLE_SEABASS':
+        from MDB_builder.INSITU_SeaBass import INSITU_SEABASS
+        insituBase = INSITU_SEABASS(insitu_options,verbose)
+    return insituBase

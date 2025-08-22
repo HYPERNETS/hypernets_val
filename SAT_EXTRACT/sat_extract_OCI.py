@@ -1,6 +1,7 @@
 import os, sys, argparse, __init__
 
 import pytz
+import numpy as np
 
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
@@ -10,6 +11,8 @@ import sat_extract as sextract
 from netCDF4 import Dataset
 from datetime import datetime as dt
 from datetime import timedelta
+# import user defined functions from other .py
+import sat_extract
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'  # to avoid error "QXcbConnection: Could not connect to display"
 path2ncrcat = '/opt/local/bin/ncrcat'
@@ -53,6 +56,41 @@ class SatSourceOCI():
         self.VALID = self.check_file()
         if not self.VALID:
             print(f'[ERROR] {self.path_source} is not a valid PACE file')
+
+        self.file_geo = self.get_file_geo()
+
+    def get_file_geo(self):
+        name_file = os.path.basename(self.path_source)
+        name_file_geo = name_file.replace('OC_AOP','AER_UAA')
+        file_geo = os.path.join(os.path.dirname(self.path_source),name_file_geo)
+        if not os.path.exists(file_geo):
+            name_file_geo = name_file_geo.replace('V3_0','V3_1')
+            file_geo = os.path.join(os.path.dirname(self.path_source), name_file_geo)
+        return file_geo if os.path.exists(file_geo) else None
+
+    def get_lat_lon_arrays_from_file_geo(self):
+        if self.file_geo is None:
+            return [None]*3
+        lat_array = None
+        lon_array = None
+        oza_array = None
+
+        try:
+            dataset = Dataset(self.file_geo)
+        except:
+            print(f'[WARNING] {self.file_geo} is not a valid NetCDF dataset. AEE_UAA file can not be used')
+            return lat_array, lon_array,oza_array
+        try:
+            ng = dataset['geolocation_data']
+            lat_array = ng.variables['latitude'][:]
+            lon_array = ng.variables['longitude'][:]
+            oza_array = ng.variables['sensor_zenith_angle'][:]
+        except:
+            print(f'[WARNING] geolocation_data is not a valid group in NetCDF dataset {self.path_source}')
+
+        dataset.close()
+
+        return lat_array, lon_array, oza_array
 
     def check_file(self):
         if not os.path.isfile(self.path_source):
@@ -120,6 +158,12 @@ class SatSourceOCI():
     def check_location(self, in_situ_lat, in_situ_lon, size_box):
 
         lat, lon = self.get_lat_long_arrays()
+
+        return self.check_location_impl(in_situ_lat, in_situ_lon,lat,lon,size_box)
+
+    def check_location_impl(self, in_situ_lat, in_situ_lon, lat, lon, size_box):
+
+        #lat, lon = self.get_lat_long_arrays()
         contain_flag = cfs.contain_location(lat, lon, in_situ_lat, in_situ_lon)
         r = -1
         c = -1
@@ -226,16 +270,123 @@ class SatSourceOCI():
 
 class SatExtractOCI(SatExtract):
 
-    def __init__(self, ofname, variable_list):
-        if ofname is not None:
-            SatExtract.__init__(self, ofname)
-        if variable_list is not None and len(variable_list)>0:
-            self.variable_list = variable_list
+    def __init__(self, verbose):
+        # if ofname is not None:
+        #     SatExtract.__init__(self, ofname)
+        # if variable_list is not None and len(variable_list)>0:
+        #     self.variable_list = variable_list
+        # else:
+        #     self.variable_list = {
+        #         'geophysical_data': ['angstrom','aot_865','avw']
+        #     }
+        # self.sensor = 'oci'
+        self.verbose = verbose
+
+    def get_extract_options(self,sat_extract_options):
+        options_out = sat_extract_options.get_satellite_options('PACE_OCI')
+
+        if options_out is None:
+            return None
+
+        return options_out
+
+    ##Method to retrieve file for a single date. Deprecated: get_cmems_multiple_product_day
+    def get_files_day(self,datehere, input_path_info, sat_extract_options):
+
+        extract_options = self.get_extract_options(sat_extract_options)
+
+        path_source = input_path_info['path_source']
+        org = input_path_info['org']
+        path_day = sat_extract.get_path_date(path_source, org, datehere, False)
+        if path_day is None:
+            return [None]*2
+
+        timeliness = extract_options['timeliness']
+        if timeliness is None:
+            print(f'[ERROR] {timeliness} options is not valid. Choose among NRT, DT or ANY')
+            return [None]*2
+        version_r = extract_options['version']
+
+        list_files = {}
+        for name in os.listdir(path_day):
+            if not name.startswith('PACE_OCI'):
+                continue
+            if not name.find('OC_AOP')>0:
+                continue
+            name_s = name.split('.')
+            datetime =  name_s[1]
+            version = name_s[4]
+            tn = 'NRT' if name_s[-2] == 'NRT' else 'DT'
+            if datetime not in list_files.keys():
+                list_files[datetime]={version:{tn:name}}
+            else:
+                if version not in list_files[datetime].keys():
+                    list_files[datetime][version] = {tn:name}
+                else:
+                    list_files[datetime][version][tn] = name
+
+        satellite_time = []
+        ncfiles = []
+        for l in list_files:
+            satellite_time_here = dt.strptime(l,'%Y%m%dT%H%M%S')
+            if version_r in list_files[l]:
+                nrt_name = list_files[l][version_r]['NRT'] if 'NRT' in list_files[l][version_r] else None
+                dt_name = list_files[l][version_r]['DT'] if 'DT' in list_files[l][version_r] else None
+                if timeliness=='NRT' and nrt_name is not None:
+                    satellite_time.append(satellite_time_here)
+                    ncfiles.append(os.path.join(path_day,nrt_name))
+                elif timeliness=='DT' and dt_name is not None:
+                    satellite_time.append(satellite_time_here)
+                    ncfiles.append(os.path.join(path_day,dt_name))
+                elif timeliness=='ANY':
+                    if dt_name is not None:
+                        satellite_time.append(satellite_time_here)
+                        ncfiles.append(os.path.join(path_day, dt_name))
+                    elif nrt_name is not None:
+                        satellite_time.append(satellite_time_here)
+                        ncfiles.append(os.path.join(path_day, dt_name))
+
+        print(ncfiles,satellite_time)
+        if len(ncfiles)>0:
+            return ncfiles,satellite_time
         else:
-            self.variable_list = {
-                'geophysical_data': ['angstrom','aot_865','avw']
-            }
-        self.sensor = 'oci'
+            return [None]*2
+
+    def is_l3_product(self):
+        return False
+
+    def run_extract_day(self,extract_options, extract_info, lat_array, lon_array, output_path, overwrite):
+        insitu_lat = extract_info['insitu_lat']
+        insitu_lon = extract_info['insitu_lon']
+        insitu_time = extract_info['insitu_time']
+        insitu_indices = extract_info['insitu_indices']
+
+        path_extract_output = extract_info['path_extract_output']
+        if not os.path.exists(path_extract_output):
+            few = open(path_extract_output, 'w')
+            few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
+        else:
+            few = open(path_extract_output, 'a')
+
+        ntimes = len(insitu_time)
+        list_files = extract_info['list_files']
+        if len(list_files)==1:
+            sat_file_indices = np.zeros(ntimes)
+        else:
+            sat_file_indices = []
+
+        for ifile in range(len(list_files)):
+            indices_ifile = np.where(sat_file_indices==ifile)
+            if len(indices_ifile[0])==0:
+                continue
+            oci_source = SatSourceOCI(list_files[ifile])
+            lat_arrayg,lon_arrayg, oza_array = oci_source.get_lat_lon_arrays_from_file_geo()
+            print(lat_arrayg.shape)
+
+
+
+
+
 
     def create_rrs_oci_variables(self,rrs_t,rrs_unc_t):
         self.create_rrs_variable('OCI')
