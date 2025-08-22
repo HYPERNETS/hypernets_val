@@ -81,6 +81,10 @@ def download_pace_data(file_metadata,input_path_info):
         if args.verbose:
             print(f'[INFO] Getting granule list for {line_s[0]} in the area {region}')
         list_aop_here = ndownload.get_list_date('PACE_AOP',None, region,None,None, date_here, False)
+        if list_aop_here is None:
+            fr.close()
+            os.remove(file_metadata)
+            return
         for l in list_aop_here:
             if l not in list_aop:
                 list_aop.append(l)
