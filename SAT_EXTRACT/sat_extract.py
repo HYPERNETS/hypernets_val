@@ -1,10 +1,8 @@
 
 import numpy as np
-from fontTools.misc.psCharStrings import t1Operators
 from netCDF4 import Dataset
 from datetime import datetime as dt
 import numpy.ma as ma
-#import pandas as pd
 import argparse,os,subprocess,pytz,__init__,sys,shutil
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
@@ -12,17 +10,6 @@ import COMMON.common_functions as cfs
 from OPTIONS.OptionsManager import OptionsManager
 from datetime import timedelta
 from multiprocessing import Pool
-
-# parser = argparse.ArgumentParser(description="Satellite extracts from multiple files (one file for variable) available in the CNR server.")
-# parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-# parser.add_argument('-c', "--config_file", help="Config File.", required=True)
-# parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
-# parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
-# parser.add_argument('-no_concat', "--no_concatenate", help="Use internaly for sbatch mode",action="store_true")
-# parser.add_argument('-make_concat', "--make_concatenate", help="Use internaly for sbatch mode to make final concatenation",action="store_true")
-# parser.add_argument('-p', "--product_file", help="Image file.")
-# args = parser.parse_args()
-
 
 
 class SatExtractOptions:

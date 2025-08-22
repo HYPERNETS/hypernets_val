@@ -1,19 +1,12 @@
-import numpy as np
+
 from netCDF4 import Dataset
 from datetime import datetime as dt
-import numpy.ma as ma
-#import pandas as pd
-import argparse,os,subprocess,pytz,__init__,sys,shutil
 
-from statsmodels.datasets.macrodata.data import variable_names
+import argparse,os,subprocess,pytz,__init__,sys,shutil
 
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
-import COMMON.common_functions as cfs
 import MDB_builder.INSITU_base as ibase
-from OPTIONS.OptionsManager import OptionsManager
-from datetime import timedelta
-from multiprocessing import Pool
 from sat_extract import SatExtractOptions
 import sat_extract as sextract
 
