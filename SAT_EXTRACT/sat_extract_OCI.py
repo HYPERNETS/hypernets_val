@@ -434,12 +434,11 @@ class SatExtractOCI:
                 else:
                     if rc is not None:
                         geo_info_prev = geo_info_array[itime]
-
                         update_geo_info = False
                         if geo_info_prev['rc'] is None:
                             update_geo_info = True
                         elif geo_info_prev['oza'] is not None and oza is not None and oza<geo_info_prev['oza']:
-                            print('llega aqui dos en el mismo')
+                            print(f'[WARNING] More than one image is available for point: {insitu_time[itime]},{insitu_lat[itime]},{insitu_lon[itime]}. Choosing {list_files[ifile]} as oza {oza} is lower than {geo_info_prev["oza"]} in file {list_files[sat_file_indices[itime]]}')
                             update_geo_info = True
                         if update_geo_info:
                             geo_info_array[itime] = {'rc': rc, 'limits': limits, 'oza': oza}
