@@ -212,9 +212,9 @@ def download_olci_data(file_metadata,input_path_info,options):
                                                                           region, -1, -1,options['timeliness'])
 
         if products is None or len(products)==0:
-            fr.close()
-            os.remove(file_metadata)
-            return
+            # fr.close()
+            # os.remove(file_metadata)
+            continue
         for product,name in zip(products,product_names):
             if name not in list_granules:
                 list_granules.append(name)
