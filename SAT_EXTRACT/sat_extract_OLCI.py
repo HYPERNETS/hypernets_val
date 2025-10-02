@@ -381,7 +381,7 @@ class SatSourceOlci:
         if self.valid and not self.platform in ['S3A','S3B']:
             self.valid = False
 
-        if self.timeliness is None:
+        if self.valid and self.timeliness is None:
             self.valid = False
 
         self.manifest = self.get_manifest()
