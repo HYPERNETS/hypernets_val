@@ -117,12 +117,15 @@ def run_unzip_s3(input_path,output_path,start_date,end_date):
 
                     if os.path.isdir(path_prod_u):
                         ref = name.split('_')[7]
-                        file_browser = os.path.join(output_path_date,'browse.jpg')
-                        os.rename(file_browser,os.path.join(output_path_date,f'{ref}_browse.jpg'))
+                        file_browse = os.path.join(output_path_date,'browse.jpg')
+                        if os.path.exists(file_browse):
+                            os.rename(file_browse,os.path.join(output_path_date,f'{ref}_browse.jpg'))
                         file_manifest = os.path.join(output_path_date,'manifest.xml')
-                        os.rename(file_manifest, os.path.join(output_path_date, f'{ref}_manifest.jpg'))
+                        if os.path.exists(file_manifest):
+                            os.rename(file_manifest, os.path.join(output_path_date, f'{ref}_manifest.jpg'))
                         file_eop =  os.path.join(output_path_date,'EOPMetadata.xml')
-                        os.rename(file_eop, os.path.join(output_path_date, f'{ref}_EOPMetadata.xml'))
+                        if os.path.exists(file_eop):
+                            os.rename(file_eop, os.path.join(output_path_date, f'{ref}_EOPMetadata.xml'))
                         os.remove(file_zip)
 
         work_date = work_date + timedelta(days=1)
