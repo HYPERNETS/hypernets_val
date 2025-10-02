@@ -22,6 +22,7 @@ parser.add_argument('-s', "--source_path", help="Source path.", default="/dst04-
 parser.add_argument('-p', "--param", help="Param for TEST")
 parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
+parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 args = parser.parse_args()
 
 
