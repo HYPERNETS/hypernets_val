@@ -1438,7 +1438,7 @@ class SatExtractBase:
 
 
             if self.verbose:
-                print(f'[INFO] Adding date {insitu_date.strftime('%Y%m%d')}')
+                print(f'[INFO] Adding date {insitu_date.strftime("%Y%m%d")}')
 
             if slurm_start is None and slurm_end is None:
                 slurm_start = insitu_date
