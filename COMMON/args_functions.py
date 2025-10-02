@@ -31,6 +31,6 @@ def get_start_end_date_from_args(args):
         print(f'[WARNING] As end date was not specified, it was set equal to start date.')
 
     if args.verbose and start_date is not None and end_date is not None:
-        print(f'[INFO] Start date: {start_date.strftime('%Y-%m-%d')} End date: {end_date.strftime('%Y-%m-%d')}')
+        print(f'[INFO] Start date: {start_date.strftime("%Y-%m-%d")} End date: {end_date.strftime("%Y-%m-%d")}')
 
     return start_date,end_date
