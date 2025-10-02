@@ -309,18 +309,53 @@ class MDBPlot:
             yregress.append(yrmin)
 
         return xregress, yregress
-
-    def plot_from_options_file(self, file_config):
+    
+    def get_option_from_file_config(self,file_config):
         if not os.path.isfile(file_config):
             print(f'[ERROR] File config {file_config} is not a valid config file')
-            return
+            return None
         import configparser
         try:
             options = configparser.ConfigParser()
             options.read(file_config)
+            return options
         except:
             print(f'[ERROR] Error reading file_config: {file_config}')
-        self.plot_from_options(options)
+            return None
+
+    def plot_from_options_file(self, file_config):
+        options = self.get_option_from_file_config(file_config)
+        if options is not None:
+            self.plot_from_options(options)
+
+    def plot_figure_from_options_file(self,file_config,figure):
+        options = self.get_option_from_file_config(file_config)
+        if options is not None:
+            poptions = PlotOptions(options, None)
+            poptions.set_global_options()
+            self.global_options = poptions.global_options
+            self.mu_valid_variable = self.global_options['mu_valid_variable']
+            list_figures = poptions.get_list_figures()
+            if figure not in list_figures:
+                print(f'[ERROR] Figure {figure} is not available in the figure list')
+                return
+            list_virtual = poptions.get_list_virtual_flags()
+
+            print('------------------------------------------------------------------------------------------')
+            print(f'[INFO] Starting figure: {figure}')
+            options_figure = poptions.get_options(figure)
+
+            if options_figure is None:
+                return
+            if 'selectBy' in options_figure and options_figure['selectBy'] is not None:
+                if options_figure['selectBy'] in list_virtual:
+                    self.create_virtual_flag(poptions, options_figure['selectBy'])
+                options_figure = self.check_gs_options_impl(options_figure, 'selectBy', 'selectType', 'selectValues')
+            if 'groupBy' in options_figure and options_figure['groupBy'] is not None:
+                if options_figure['groupBy'] in list_virtual:
+                    self.create_virtual_flag(poptions, options_figure['groupBy'])
+                options_figure = self.check_gs_options_impl(options_figure, 'groupBy', 'groupType', 'groupValues')
+            self.plot_from_options_impl(options_figure)
 
     def plot_from_options(self, options):
         poptions = PlotOptions(options, None)
@@ -374,6 +409,78 @@ class MDBPlot:
             self.plot_multiple_bounding_box(options_figure)
         if options_figure['type'] == 'spectraparam':
             self.plot_spectra_params(options_figure)
+        if options_figure['type'] == 'multipleplot':
+            self.plot_multiple_plot(options_figure)
+
+    def plot_multiple_plot(self,options_figure):
+        print(options_figure)
+        from PlotMultiple import PlotMultiple
+        rc = options_figure['multiple_plot'].split(',')
+        list_files = options_figure['multiple_files']
+        file_out = options_figure['file_out']
+        files_multiple = []
+        for name in list_files:
+            if os.path.exists(name):
+                files_multiple.append(name)
+            else:
+                ext = os.path.basename(file_out)[os.path.basename(file_out).index('.'):]
+                file_here = os.path.join(os.path.dirname(file_out),f'{name}{ext}')
+                print(file_here)
+                if os.path.exists(file_here):
+                    files_multiple.append(file_here)
+
+        nrow = int(rc[0].strip())
+        ncol = int(rc[1].strip())
+        ntot = nrow * ncol
+
+        # print(ntot, len(files_multiple), file_out)
+        # for idx, file in enumerate(files_multiple):
+        #     print(idx, file)
+
+        if ntot != len(files_multiple):
+            return
+        pm = PlotMultiple()
+        xfigsize = options_figure['xfigsize']
+        yfigsize = options_figure['yfigsize']
+        wspace = options_figure['widthspace']
+        hspace = options_figure['heightspace']
+        pm.start_multiple_plot_advanced(nrow, ncol, xfigsize, yfigsize, wspace, hspace, True)
+        index = 0
+        for irow in range(nrow):
+            for icol in range(ncol):
+                pm.plot_image(files_multiple[index], irow, icol)
+                index = index + 1
+
+        #pm.plot_color_bar()
+        ##annotations
+        if not options_figure['anot_y_axis_'] is None:
+            anots = options_figure['anot_y_axis_']
+            style = options_figure['anot_default_style']
+            fontsize = int(style[0])
+            for anot in anots:
+                anot_info = anots[anot]
+                print(anot_info)
+                xpos = float(anot_info[0])
+                ypos_list = [float(x) for x in anot_info[1].split(';')]
+                print(anot_info[2],type(anot_info[2]))
+                text_list = [x.strip() for x in anot_info[2].split(';')]
+                for ypos,text in zip(ypos_list,text_list):
+                    print(xpos, ypos, text, fontsize)
+                    pm.set_text_size(xpos, ypos, text, fontsize)
+
+        if not options_figure['anot_'] is None:
+            anots = options_figure['anot_']
+            style = options_figure['anot_default_style']
+            fontsize = int(style[0])
+            for anot in anots:
+                anot_info = anots[anot]
+                ypos = float(anot_info[0])
+                xpos = float(anot_info[1])
+                text = anot_info[2]
+                print(xpos, ypos, text, fontsize)
+                pm.set_text_size(xpos, ypos, text, fontsize)
+
+        pm.save_fig(file_out)
 
     def plot_spectra_params(self, options_figure):
 
@@ -489,7 +596,7 @@ class MDBPlot:
             pspectra.legend_options['bbox_to_anchor'] = pos
             pspectra.set_legend(options_figure['legend_values'])
 
-        pspectra.prepare_poster()
+        #pspectra.prepare_poster()
         pspectra.set_tigth_layout()
 
 
@@ -583,7 +690,8 @@ class MDBPlot:
         handles = []
         colors = options_figure['color']
 
-        plt.figure(figsize=(7, 5.25))
+        plt.figure(figsize=(8, 5.5))
+
         for idx, var in enumerate(vars):
             series_name = var
             array = self.mrfile.nc.variables[var][:]
@@ -594,7 +702,6 @@ class MDBPlot:
                 color = colors[idx]
 
             for igroup, group in enumerate(options_figure['groups']):
-
                 values = [x.strip() for x in options_figure['groupsValues'][igroup].split(';')]
                 options_figure['selectBy'] = group
                 options_figure['selectValues'] = values
@@ -625,17 +732,18 @@ class MDBPlot:
 
         plt.grid(which='major', color='lightgray', linestyle='--', axis='y')
         groupsTicks = options_figure['groupsTicks']
-        plt.xticks(ticks, groupsTicks, fontsize=10)
-        plt.yticks(fontsize=10)
+        plt.xticks(ticks, groupsTicks, fontsize=12)
+        plt.yticks(fontsize=12)
         if options_figure['legend_values'] is not None:
             legend_values = options_figure['legend_values']
         else:
             legend_values = vars
-        plt.legend(handles, legend_values, loc='lower center', ncols=nseries, bbox_to_anchor=(0.5, -0.2))
-        plt.ylim([0, 30])
+        plt.legend(handles, legend_values, fontsize=12,loc='lower center', ncols=nseries, bbox_to_anchor=(0.5, -0.2))
+        if options_figure['y_min'] is not None and options_figure['y_max'] is not None:
+            plt.ylim([options_figure['y_min'], options_figure['y_max']])
         if options_figure['ylabel'] is not None:
             y_label = options_figure['ylabel']
-            plt.ylabel(y_label, fontsize=10)
+            plt.ylabel(y_label, fontsize=12)
 
         plt.tight_layout()
 
@@ -2230,8 +2338,25 @@ class MDBPlot:
             plot.set_title(title_here)
             plot.ax.title.set_size(options['fontsizetitle'])
 
-        print('PREPARE POSTER OPTION')
-        plot.prepare_poster()
+        #print('PREPARE POSTER OPTION')
+        #plot.prepare_poster()
+
+        ##annotations
+        if not options['anot_'] is None:
+            anots = options['anot_']
+            style = options['anot_default_style']
+            fontsize = int(style[0])
+            for anot in anots:
+                anot_info = anots[anot]
+                ypos = float(anot_info[0])
+                xpos = float(anot_info[1])
+                text = anot_info[2]
+                print(xpos,ypos,text,fontsize)
+                plot.set_text_size(xpos,ypos,text,fontsize)
+
+
+
+
         ##saving to file
         if not options['file_out'] is None:
             plot.save_fig(options['file_out'])

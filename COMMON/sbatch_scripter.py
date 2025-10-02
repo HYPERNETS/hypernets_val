@@ -81,12 +81,12 @@ class SH_SCRIPTER():
         for ifile in range(len(script_list)):
             iprev = ifile-nmax_cores
             if iprev<0:
-                line = f'job{ifile}=$(sbatch --output={log_list[ifile]} {script_list[ifile]})' if use_log else f'job{ifile}=$(sbatch {script_list[ifile]})'
+                line = f'job{ifile}=$(sbatch --output="{log_list[ifile]}" "{script_list[ifile]}")' if use_log else f'job{ifile}=$(sbatch "{script_list[ifile]}")'
                 self.add_line(line)
                 line = f'jobid{ifile}=$(echo "$job{ifile}" | awk \'{{print $NF}}\')'
                 self.add_line(line)
             else:
-                line = f'job{ifile}=$(sbatch --dependency=afterany:$jobid{iprev} --output={log_list[ifile]} {script_list[ifile]})' if use_log else f'job{ifile}=$(sbatch --dependency=afterany:$jobid{iprev} {script_list[ifile]})'
+                line = f'job{ifile}=$(sbatch --dependency=afterany:$jobid{iprev} --output="{log_list[ifile]}" "{script_list[ifile]}")' if use_log else f'job{ifile}=$(sbatch --dependency=afterany:$jobid{iprev} "{script_list[ifile]}")'
                 self.add_line(line)
                 line = f'jobid{ifile}=$(echo "$job{ifile}" | awk \'{{print $NF}}\')'
                 self.add_line(line)

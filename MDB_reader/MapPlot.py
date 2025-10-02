@@ -40,6 +40,10 @@ class MapPlot:
         extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
         self.ax = plt.axes(projection=self.projection, extent=extent)
 
+    def update_extent(self,geo_limits):
+        extent = (geo_limits[2], geo_limits[3], geo_limits[0], geo_limits[1])
+        self.ax.set_extent(extent)
+
     def plot_array(self,lat_array,lon_array,data_array,colormap,minv,maxv,use_log):
         if minv is None and maxv is None:
             plt.pcolormesh(lon_array, lat_array, data_array, transform=ccrs.PlateCarree(), cmap=colormap)
@@ -421,12 +425,56 @@ def test():
 
     print(f'{zone_number}{zone_letter}')
 
+
+def multiple_plot_lines():
+    print('MULTIPLE')
+    import __init__, sys
+    code_home = os.path.dirname(os.path.dirname(__init__.__file__))
+    sys.path.append(code_home)
+    import MDB_builder.INSITU_base as ibase
+    from SAT_EXTRACT.sat_extract import SatExtractOptions
+    config_file = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK/config_files/config_sat_extract_cmems_s2.ini'
+    dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK/TestMap'
+    options = SatExtractOptions(config_file, True)
+    insitu_type, insitu_options = options.check_insitu_options('SINGLE_SEABASS')
+    insituBase = ibase.get_insitu_object(insitu_type, insitu_options, True)
+    insituBase.prepare_data()
+    insitu_time, insitu_lat, insitu_lon, insitu_indices = insituBase.get_metadata_date(insituBase.date_list[0])
+    imap = 1
+    mplot = MapPlot()
+    mplot.start_map([40,45,0,10])
+    mplot.add_land()
+
+    for lat_P,lon_P in zip(insitu_lat,insitu_lon):
+        print(lat_P,lon_P)
+        geo_limits = [lat_P-0.1,lat_P+0.1,lon_P-0.1,lon_P+0.1]
+
+        mplot.update_extent(geo_limits)
+
+        #gl = mplot.set_grid_lines()
+        #mplot.top_labels(gl, False)
+        #mplot.right_labels(gl, False)
+        #mplot.plot_array(lat_map, lon_map, array_map, 'viridis', 0.01, 100, True)
+
+        #mplot.plot_box(lat_bbox_extracts, lon_bbox_extracts, None)
+        #for lat_c, lon_c in zip(lat_centers, lon_centers):
+        style = mplot.point_style_default
+        style['markersize'] = 20
+        mplot.plot_point(lat_P, lon_P, style)
+        #mplot.set_color_bar(0.5)
+        #mplot.add_title(info['title'])
+        mplot.set_tight_layout()
+        mplot.save_map(os.path.join(dir_base,f'Map_{imap}'))
+        imap = imap + 1
+        #mplot.close_map()
+    mplot.close_map()
 def main():
     print('[INFO] Started map plot')
     #plot_doors()
     #plot_multiple()
-    plot_figure_20190523()
+    #plot_figure_20190523()
     #test()
+    multiple_plot_lines()
 
 if __name__ == '__main__':
     main()

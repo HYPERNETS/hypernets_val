@@ -1,7 +1,11 @@
-import os
+import os,pytz,sys,__init__
+import numpy as np
+import pandas as pd
 from netCDF4 import Dataset
 from datetime import datetime as dt
-import pytz
+code_home = os.path.dirname(os.path.dirname(__init__.__file__))
+sys.path.append(code_home)
+import COMMON.common_functions as cfs
 
 
 class SAT_EXTRACTS_LIST:
@@ -343,3 +347,245 @@ class SAT_EXTRACTS_LIST:
         #     'ac': atm_corr.upper(),
         #     'prefix': prefix
         # }
+
+
+class EXTRACT_LIST:
+
+    def __init__(self, mdb_options,insitu_type, sat_type, verbose):
+        self.mo = mdb_options
+        self.insitu_type = insitu_type
+        self.sat_type =sat_type
+        self.verbose = verbose
+        self.extract_files_by_date = None
+        self.csv_files_by_date = None
+
+    def prepare_extract_list(self,insituBase):
+        self.csv_files_by_date = self.check_csv_extract_files(insituBase)
+        if self.csv_files_by_date is None:
+            pass ##self.extract_file_by_date should be prepare
+
+    def get_valid_extracts_date(self,insituBase,date_here):
+        mdb_options = self.mo.get_mdb_options()
+        sat_options = self.mo.get_general_options('satellite_options')
+        extract_path = mdb_options['extract_dir']
+        if extract_path is None:
+            return [None]*2
+        time_diff_mu = mdb_options['time_diff_match_up']
+        time_diff_mu = time_diff_mu * 60 ##from minutes to seconds
+        ninsitu_max = mdb_options['ninsitu_max']
+        time_diff_tv = mdb_options['time_diff_temporal_variability']
+        insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day =  [None]*4
+        if time_diff_tv>0: ##if greater than zero, we need all the metadata for the day to complete the in situ metadata
+                           ##with in situ data points outside the central pixel
+            time_diff_tv = time_diff_tv * 60 ##from minutes to seconds
+            insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day = insituBase.get_metadata_date(date_here)
+
+        info_extracts = {}
+        time_extracts = []
+
+        if self.csv_files_by_date is not None:
+            file_csv = self.csv_files_by_date[date_here.strftime('%Y%m%d')]
+            df = pd.read_csv(file_csv,sep=';')
+            extract_names_array = df['extract_file'][:]
+            insitu_times_array = df['insitu_time'][:]
+            insitu_times_array_ts = np.array([dt.strptime(x,'%Y-%m-%dT%H:%M:%S').replace(tzinfo=pytz.utc).timestamp() for x in insitu_times_array])
+            extract_names = np.unique(extract_names_array)
+
+            for extract_name in extract_names:
+                file_extract = os.path.join(extract_path,extract_name)
+                if os.path.exists(file_extract):
+                    insitu_times_extract = insitu_times_array_ts[extract_names_array==extract_name]
+                    insitu_indices_extract = df['insitu_index'][extract_names_array == extract_name].to_numpy()
+                    insitu_lat_extract = df['insitu_lat'][extract_names_array == extract_name].to_numpy()
+                    insitu_lon_extract = df['insitu_lon'][extract_names_array == extract_name].to_numpy()
+                    info = self.check_extract_file(file_extract,insitu_indices_extract,insitu_times_extract,insitu_lat_extract,insitu_lon_extract,time_diff_mu,ninsitu_max)
+                    if info is None:
+                        return [None]*2
+                    if len(info)==0:
+                        continue
+
+                    info = self.check_attributes(info, sat_options, insituBase)
+                    if info is None:
+                        return [None]*2
+
+                    nvalid = len(info['insitu_indices'])
+                    if time_diff_tv>0 and nvalid<ninsitu_max and nvalid<len(insitu_indices_day[0]):
+                        info = self.check_insitu_variability_extract(info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day[0],time_diff_tv,ninsitu_max)
+                        if info is None:
+                            return [None]*2
+                    time_min_diff = dt.fromtimestamp(info['time_min_diff']).astimezone(pytz.utc)
+                    ref = time_min_diff.strftime('%Y%m%dT%H%M%S')
+                    info_extracts[ref] = info
+                    time_extracts.append(time_min_diff)
+
+        if len(time_extracts)>0:
+            time_extracts.sort()
+
+        return info_extracts,time_extracts
+
+    def check_insitu_variability_extract(self,info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day,time_diff_tv,ninsitu_max):
+        time_diff_prev = info['time_diff'][:]
+        pos_min_time_diff_prev = np.argmin(time_diff_prev)
+        index_min_time_diff = info['insitu_indices'][pos_min_time_diff_prev]
+
+        pos_ref = int(np.where(insitu_indices_day==index_min_time_diff)[0][0])
+        pos_min = int(pos_ref - np.floor(ninsitu_max / 2)) if (pos_ref - np.floor(ninsitu_max / 2)) > 0 else 0
+        pos_max = pos_min + ninsitu_max
+        if pos_max>=len(insitu_indices_day):
+            pos_max = len(insitu_indices_day)
+        nvalid_new = pos_max-pos_min
+
+
+        insitu_indices_new = insitu_indices_day[pos_min:pos_max]
+
+        insitu_time_new = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in insitu_time_day[pos_min:pos_max]]).astype(np.float64)
+
+        insitu_lat_new = insitu_lat_day[pos_min:pos_max]
+        insitu_lon_new = insitu_lon_day[pos_min:pos_max]
+        satellite_ts = info['satellite_time']
+        time_diff_new = np.abs(satellite_ts-insitu_time_new)
+        valid_new = time_diff_new<time_diff_tv
+        insitu_spatial_index_new = np.zeros(nvalid_new)
+        nc_sat  = Dataset(info['file'])
+        lat_array = np.squeeze(nc_sat.variables['satellite_latitude'][:])
+        lon_array = np.squeeze(nc_sat.variables['satellite_longitude'][:])
+        rc_center = int(np.floor(lat_array.shape[0]/2))
+        nc_sat.close()
+        for idx in range(nvalid_new):
+            if not valid_new[idx]:
+                insitu_spatial_index_new[idx] = -1
+                continue
+            r, c = cfs.find_row_column_from_lat_lon(lat_array, lon_array, insitu_lat_new[idx], insitu_lon_new[idx])
+            if np.isnan(r) and np.isnan(c):
+                valid_new[idx] = False
+                insitu_spatial_index_new[idx]=-1
+            else:
+
+                insitu_spatial_index_new[idx] = max(abs(r-rc_center),abs(c-rc_center))
+
+
+        info['insitu_time'] = insitu_time_new[valid_new]
+        info['insitu_lat'] = insitu_lat_new[valid_new]
+        info['insitu_lon'] = insitu_lon_new[valid_new]
+        info['insitu_indices'] = insitu_indices_new[valid_new]
+        info['insitu_spatial_index'] = insitu_spatial_index_new[valid_new]
+        info['time_diff'] = time_diff_new[valid_new]
+
+        tf = info['time_diff']
+        isi = info['insitu_spatial_index']
+        tf[isi>0] = np.finfo(np.float32).max
+        pos_min_tf = np.argmin(tf)
+        time_min_diff = info['insitu_time'][pos_min_tf]
+        if time_min_diff!=info['time_min_diff']:
+            print(f'[INFO] Incongruency in the in situ point with the minimal time difference.')
+            return None
+
+
+
+        return info
+
+    def check_extract_file(self,file_extract,insitu_indices_extract,insitu_time_extract,insitu_lat_extract,insitu_lon_extract,time_diff_mu,ninsitu_max):
+        ##check the extract file. insitu_times is the timestamp of measurements inside the central pixel of the extract
+        info = {}
+        if self.verbose:
+            print(f'[INFO] Checking extract file: {file_extract}')
+        try:
+            dataset = Dataset(file_extract)
+        except:
+            print(f'[WARNING] Extract {file_extract} is not a valid NetCDF file. Skipping...')
+            return None
+        info_atrs = {}
+        atrs = ['site','satellite','platform','sensor','satellite_aco_processor','satellite_proc_version','res']
+        for at in atrs:
+            info_atrs[at] = dataset.getncattr(at) if at in dataset.ncattrs() else None
+
+        satellite_time = float(dataset.variables['satellite_time'][0])
+        time_diff= np.abs(satellite_time-insitu_time_extract)
+        valid_ref = time_diff<time_diff_mu
+
+        nvalid = np.count_nonzero(valid_ref)
+        if nvalid==0:
+            print(f'[WARNING] No insitu data points were found in the central pixel considering a time difference of {time_diff_mu/60:.0f} minutes')
+            return info
+
+        dataset.close()
+        time_diff_valid = time_diff[valid_ref]
+        insitu_time_valid = insitu_time_extract[valid_ref]
+        min_ref = np.argmin(time_diff_valid)
+        if nvalid > ninsitu_max:
+            pos_min = min_ref-np.floor(ninsitu_max/2) if (min_ref-np.floor(ninsitu_max/2))>0 else 0
+            pos_max = pos_min + ninsitu_max
+            insitu_time_valid = insitu_time_valid[pos_min:pos_max]
+            valid_ref[insitu_times<insitu_times_valid[0]]=False
+            valid_ref[insitu_times>insitu_times_valid[-1]]=False
+            time_diff_valid = time_diff[valid_ref]
+            min_ref = np.argmin(time_diff_valid)
+            nvalid = np.count_nonzero(valid_ref)
+
+        insitu_indices_valid = insitu_indices_extract[valid_ref]
+        insitu_lat_valid = insitu_lat_extract[valid_ref]
+        insitu_lon_valid = insitu_lon_extract[valid_ref]
+        time_min_diff = insitu_time_valid[min_ref]
+
+        info = {
+            'file': file_extract,
+            'insitu_indices': insitu_indices_valid,
+            'insitu_time': insitu_time_valid,
+            'insitu_lat': insitu_lat_valid,
+            'insitu_lon': insitu_lon_valid,
+            'insitu_spatial_index': np.zeros(nvalid),
+            'satellite_time':satellite_time,
+            'time_diff': time_diff_valid,
+            'time_min_diff': time_min_diff,
+            'site': info_atrs['site'],
+            'satellite': info_atrs['satellite'],
+            'platform': info_atrs['platform'],
+            'sensor': info_atrs['sensor'],
+            'proc_version': info_atrs['satellite_proc_version'],
+            'aco_processor': info_atrs['satellite_aco_processor'],
+            'res': info_atrs['res']
+        }
+        # 'valid_ref': valid_ref,
+        # 'min_time_ref': min_ref,
+
+
+        return info
+
+    def check_attributes(self,info, sat_options, insituBase):
+        if insituBase.fixed_site:
+            expected_site = insituBase.site
+            if expected_site!=info['site']:
+                print(f'[ERROR] Attribute site in the extract {info["site"]} is different from the site option {expected_site}')
+                return None
+        else:
+            info['site'] = 'SHIPBORNE' if insituBase.site is None else insituBase.site
+        sat_attrs = ['satellite', 'platform', 'sensor', 'aco_processor', 'proc_version', 'res']
+        for at in sat_attrs:
+            if info[at] is None:
+                info[at] = sat_options[at] if sat_options[at] is not None else ''
+            else:
+                if sat_options[at] is not None and sat_options[at].upper()!=info[at].upper():
+                    print(f'[ERROR] Satellite attribute inconsistency. Found {info[at]} in the satellite extract file, but expected {sat_options[at]}')
+                    return None
+        return info
+
+
+
+
+    def check_csv_extract_files(self,insituBase):
+
+        extract_path = self.mo.get_extract_path()
+        if extract_path is None:
+            return None
+        date_list = insituBase.date_list
+        files_csv = {}
+        for date_h in date_list:
+            file_csv_here = os.path.join(extract_path, f'{insituBase.get_ref_date(date_h)}_extracts.csv')
+            if os.path.exists(file_csv_here):
+                files_csv[date_h.strftime('%Y%m%d')] = file_csv_here
+            else:
+                print(f'[WARNING] CSV extract file for date {date_list[idate].strftime("%Y-%m-%d")} is not available')
+                return None
+
+
+        return files_csv

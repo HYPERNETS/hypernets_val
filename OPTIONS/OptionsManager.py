@@ -15,10 +15,34 @@ class OptionsManager():
                 try:
                     self.options = configparser.ConfigParser()
                     self.options.read(config_file)
-                except:
-                    print(f'[ERROR] Error parsing configuration file {config_file}')
+
+                except Exception as ex:
+                    print(f'[ERROR] Error parsing configuration file {config_file}: {ex}')
         else:
             self.options = options
+
+
+    def add_section(self,new_section):
+        if self.options is not None:
+            self.options.add_section(new_section)
+
+    def remove_option(self,section,option):
+        if self.options is not None:
+            if self.options.has_option(section,option):
+                self.options.remove_option(section, option)
+
+    def add_value(self,section,option,value):
+        if self.options is not None:
+            if not self.options.has_section(section):
+                self.options.add_section(section)
+            self.options.set(section,option,value)
+
+    def save_copy_as_file(self,file_config):
+        if self.options is not None:
+            with open(file_config, 'w') as configw:
+                self.options.write(configw)
+
+
 
     def is_valid(self):
         return False if self.options is None else True
@@ -55,7 +79,7 @@ class OptionsManager():
         if self.options is None:
             return None
         if not self.options.has_section(section):
-            print(f'[ERROR] Section {section} is not available')
+            print(f'[WARNING] Section {section} is not available')
             return None
         options = self.options.options(section)
         return options
@@ -72,6 +96,7 @@ class OptionsManager():
                 required_list = self.get_value_param(section, op, None, 'strlist')
             else:
                 list = self.get_value_param(section, op, None, 'strlist')
+
                 type_param = list[0]
                 default = None if list[1].upper() == 'NONE' else list[1]
                 if default is not None:
@@ -307,12 +332,17 @@ class OptionsManager():
             }
         return value_dict
 
+
+
     def get_options_as_dict(self,section,poptions,required):
-        if not self.options.has_section(section):
-            return None
         result = {}
-        for option in poptions:
-            result[option] = self.get_option(section,option,poptions,None,None)
+        if not self.options.has_section(section):
+            for option in poptions:
+                result[option] = poptions[option]['default']
+        else:
+            for option in poptions:
+                result[option] = self.get_option(section,option,poptions,None,None)
+
 
         if required is not None:
             for r in required:

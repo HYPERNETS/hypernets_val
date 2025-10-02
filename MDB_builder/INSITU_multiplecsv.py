@@ -1,4 +1,6 @@
 import os
+import shutil
+
 import pandas as pd
 from datetime import datetime as dt
 import numpy as np
@@ -6,11 +8,15 @@ import numpy as np
 class INSITU_MULTIPLE_CSV():
 
     def __init__(self, insitu_options, verbose):
+        self.fixed_site = False
+        self.insitu_type = 'MULTIPLE_CSV'
         self.verbose = verbose
         self.insitu_options = insitu_options
-
+        self.site = self.insitu_options['site']
         self.file_list = {}
         self.date_list = []
+        self.start_date = None
+        self.end_date = None
 
     def check_data(self):
         if not 'path_csv' in self.insitu_options:
@@ -100,6 +106,9 @@ class INSITU_MULTIPLE_CSV():
         name = os.path.basename(file_csv)
         return name[0:name.rfind('.')]
 
+
+
+
     def get_metadata_date(self,datehere):
         date_ts = datehere.strftime('%Y-%m-%d')
         file_csv = self.file_list[date_ts]
@@ -118,6 +127,25 @@ class INSITU_MULTIPLE_CSV():
         insitu_indices = (sorted_indices,)
 
         return insitu_time,insitu_lat,insitu_lon,insitu_indices
+
+    def create_csv_metadata_for_date(self,insitu_date, file_csv_out):
+        if self.file_list is None:
+            self.prepare_data()
+        if self.file_list is None:
+            return False
+        date_ts = insitu_date.strftime('%Y-%m-%d')
+        if date_ts in self.file_list:
+            file_csv_in = self.file_list[date_ts]
+            try:
+                shutil.copy(file_csv_in,file_csv_out)
+            except Exception as ex:
+                print(f'[ERROR] File {file_csv_in} could not be copied to {file_csv_out}. Please review permissions')
+                return False
+        else:
+            print(f'[ERROR] CSV file was not found for date {date_ts}')
+            return False
+
+        return True
 
     def get_date_list_from_dataframe(self,df, col_date, format_date, col_time, format_time):
         date_array_ts = df[col_date]
@@ -170,6 +198,14 @@ class INSITU_MULTIPLE_CSV():
                 os.remove(output_file)
                 return False
             date_ts = only_date_array_unique[0]
+            date_here = dt.strptime(date_ts,'%Y-%m-%d')
+            if self.start_date is not None and self.end_date is not None:
+                if date_here<self.start_date or date_here>self.end_date:
+                    if self.verbose:
+                        print(f'[INFO] Skipping date {date_here.strftime("%Y-%m-%d")} as it not in the range: {self.start_date.strftime("%Y-%m-%d")} to {self.end_date.strftime("%Y-%m-%d")}')
+                    continue
+
+
             insitu_lat = np.ma.array(df[col_lat])
             insitu_lon = np.ma.array(df[col_lon])
             lat_min = np.ma.min(insitu_lat)-0.001

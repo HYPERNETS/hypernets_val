@@ -176,6 +176,8 @@ class PlotOptions:
             doptions = defaults.get_options_multiple_bounding_box()
         if type == 'spectraparam':
             doptions = defaults.get_options_spectraparam()
+        if type== 'multipleplot':
+            doptions = defaults.get_options_multiple_plot()
 
 
         if doptions is None:
@@ -186,6 +188,8 @@ class PlotOptions:
             pvalues = None
             if 'values' in doptions[option]:
                 pvalues = doptions[option]['values']
+
+
 
             if option.endswith('_'):##multiple options, consecutive numbers starting for zero
                 index_option = 0
@@ -198,6 +202,7 @@ class PlotOptions:
                     option_here = f'{option}{index_option}'
 
                 options_out[option] = vals
+
 
             else:
                 options_out[option] = self.get_value_param(section, option, doptions[option]['default'],

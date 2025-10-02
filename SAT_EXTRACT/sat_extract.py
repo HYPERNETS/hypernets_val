@@ -7,9 +7,11 @@ import argparse,os,subprocess,pytz,__init__,sys,shutil
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
 import COMMON.common_functions as cfs
+import COMMON.args_functions as arf
 from OPTIONS.OptionsManager import OptionsManager
 from datetime import timedelta
 from multiprocessing import Pool
+import MDB_builder.INSITU_base as ibase
 
 
 class SatExtractOptions:
@@ -36,7 +38,7 @@ class SatExtractOptions:
         else:
             return None
 
-    def check_insitu_options(self):
+    def check_insitu_options(self,insitu_type):
         insitu_options_file = os.path.join(code_home, 'OPTIONS', 'insitu_options.ini')
         om = OptionsManager(insitu_options_file, None)
         if not om.is_valid():
@@ -46,7 +48,22 @@ class SatExtractOptions:
             print(f'[ERROR] In situ type list (option GLOBAL/type_list) in file {insitu_options_file} is unavailable or not valid')
             return [None]*2
 
-        insitu_type = None
+        if insitu_type is not None:
+            if insitu_type not in insitu_type_list:
+                print(f'[ERROR] In situ type {insitu_type} is not defined. Please choose among: {insitu_type_list}')
+                return [None]*2
+            else:
+                sopt, required = self.get_retrive_options_insitu(insitu_type)
+                if sopt is None:
+                    print(f'[ERROR] Section {insitu_type} defining in situ type {insitu_type} is not available in {insitu_options_file}.')
+                    return [None] * 2
+                insitu_options = self.omanager.get_options_as_dict(insitu_type, sopt, required)
+                if insitu_options is None:
+                    print(f'[ERROR] In situ options for in situ type {insitu_type} could not be retrieved')
+                    return [None] * 2
+                return insitu_type,insitu_options
+
+
         insitu_options = None
         for opt in insitu_type_list:
             sopt,required = self.get_retrive_options_insitu(opt)
@@ -61,13 +78,9 @@ class SatExtractOptions:
             print(f'[ERROR] In situ type is not defined in the configuration file {insitu_options_file}.')
             print(f'[ERROR] Please choose among: {insitu_type_list}')
 
-        else:
-            if self.verbose:
-                print(f'[INFO] In situ data type: {insitu_type}')
-
         return insitu_type,insitu_options
 
-    def check_sat_type(self):
+    def check_sat_type(self,sat_type):
         sat_options_file = os.path.join(code_home, 'OPTIONS', 'satellite_options.ini')
         om = OptionsManager(sat_options_file, None)
         if not om.is_valid():
@@ -77,7 +90,14 @@ class SatExtractOptions:
             print(
                 f'[ERROR] Satellite type list (option GLOBAL/type_list) in file {sat_options_file} is unavailable or not valid')
             return None
-        sat_type = None
+        if sat_type is not None:
+            if sat_type in sat_type_list:
+                if self.verbose:
+                    print(f'[INFO] Satellite data type: {sat_type}')
+                return sat_type
+            else:
+                print(f'[ERROR] Satellite type {sat_type} is not defined. Please choose among: {sat_type_list}')
+                return None
         for opt in sat_type_list:
             if self.omanager.get_options_list(opt) is not None:
                 sat_type = opt
@@ -118,6 +138,21 @@ class SatExtractOptions:
             return None
 
 
+    def prepare_config_file_for_sh_slurm(self,path_csv,file_copy):
+        if path_csv is not None:
+            self.omanager.add_value('MULTIPLE_CSV','path_csv',path_csv)
+            self.omanager.add_value('MULTIPLE_CSV', 'col_date', 'date')
+            self.omanager.add_value('MULTIPLE_CSV', 'col_lat', 'lat')
+            self.omanager.add_value('MULTIPLE_CSV', 'col_lon', 'lon')
+            self.omanager.add_value('MULTIPLE_CSV', 'col_sep', ';')
+            self.omanager.add_value('MULTIPLE_CSV', 'format_date', '%%Y-%%m-%%d %%H:%%M:%%S.%%f')
+            self.omanager.remove_option('MULTIPLE_CSV','col_time')
+            self.omanager.remove_option('MULTIPLE_CSV', 'format_time')
+
+
+        self.omanager.add_value('multiprocessing', 'use_slurm_sh', 'False')
+        self.omanager.save_copy_as_file(file_copy)
+
     def get_output_path(self):
         options = self.get_general_options('file_path')
         return options['output_dir'] if options is not None else None
@@ -131,11 +166,11 @@ class SatExtractOptions:
         return options['overwrite'] if options is not None else None
 
 
-    def get_lat_long_var_names(self):
-        options = self.get_general_options('satellite_options')
-        if options is None:
-            return [None]*2
-        return options['lat_variable'],options['lon_variable']
+    # def get_lat_long_var_names(self):
+    #     options = self.get_general_options('satellite_options')
+    #     if options is None:
+    #         return [None]*2
+    #     return options['lat_variable'],options['lon_variable']
 
 
     def get_input_path_info(self):
@@ -147,6 +182,7 @@ class SatExtractOptions:
         wce = options['wce']
         if path_source is None:
             return None
+
 
         if org is not None:
             if org.lower() == 'none':
@@ -172,7 +208,8 @@ class SatExtractOptions:
         input_path_info = {
             'path_source': path_source,
             'org': org,
-            'wce': wce
+            'wce': wce,
+            'unzip_dir': options['unzip_dir']
         }
         return input_path_info
 
@@ -407,6 +444,38 @@ class SatExtract:
         satellite_flag.description = description
         satellite_flag.flag_masks = flag_masks
         satellite_flag.flag_meanings = flag_meanings
+
+    def create_2D_variable_from_info_dict(self,var_info,var_name):
+        if var_name is not None:
+            if var_name in var_info.keys():
+                var =  self.create_2D_variable_from_info_dict_impl(var_info[var_name],var_name)
+                return True if var is not None else False
+            else:
+                print(f'[ERROR] Info for variable {var_name} is not available')
+                return False
+        else:
+            for var_name in var_info:
+                var = self.create_2D_variable_from_info_dict_impl(var_info[var_name],var_name)
+                if var is None:
+                    return False
+            return True
+
+
+
+    def create_2D_variable_from_info_dict_impl(self,var_info,var_name):
+        try:
+
+            var = self.EXTRACT.createVariable(var_name,var_info['data_type'],('satellite_id', 'rows', 'columns'),fill_value=var_info['fill_value'],zlib=True, complevel=6)
+            attrs = var_info['attrs']
+            if attrs is not None:
+                var.setncatts(attrs)
+            var_array = var_info['array']
+            var[0, :, :] = var_array[:,:]
+        except Exception as ex:
+            print(f'[ERROR] Variable {var_name} could not be created. Exception: {ex}')
+            return None
+        return var
+
 
     def create_2D_variable_general(self, var_name, var_array, window):
         start_idx_y = window[0]
@@ -656,6 +725,8 @@ class SatExtract:
 
 
 def create_dir(path):
+    if os.path.isdir(path):
+        return path
     try:
         os.mkdir(path)
         return path
@@ -722,7 +793,24 @@ def create_dir(path):
 
 
 
+def start_extract(ofname, extract_info,verbose):
+    newEXTRACT = SatExtract(ofname)
+    if not newEXTRACT.FILE_CREATED:
+        print(f'[ERROR] File {ofname} could not be created')
+        return None
 
+    if verbose:
+        print(f'[INFO] Starting file: {ofname}')
+
+    window = extract_info['limits']
+
+    newEXTRACT.set_global_attributes(extract_info['global_at'])
+
+    newEXTRACT.create_dimensions(extract_info['size_box'], extract_info['n_bands'])
+    newEXTRACT.create_lat_long_variables(extract_info['lat_array'], extract_info['lon_array'], window)
+    newEXTRACT.create_satellite_time_variable(extract_info['satellite_time'][0])
+
+    return newEXTRACT
 
 
 def get_insitu_site(args,options, path_out):
@@ -770,20 +858,20 @@ def get_insitu_site(args,options, path_out):
     }
     return in_situ_site
 
-def get_start_end_date_from_args(args):
-    start_date = None
-    end_date = None
-    if args.startdate and args.enddate:
-        try:
-            start_date = dt.strptime(args.startdate, '%Y-%m-%d')
-            end_date = dt.strptime(args.enddate, '%Y-%m-%d')
-            if args.verbose:
-                print(f'[INFO] Start date: {args.startdate} End date: {args.enddate}')
-        except:
-            print(f'[WARNING] --startdate (-sd) and/or --enddate (-ed) could not be parsed from {args.startdate} and/or {args.enddate}. Format should be: YYYY-mm-dd')
-            start_date = None
-            end_date = None
-    return start_date,end_date
+# def get_start_end_date_from_args(args):
+#     start_date = None
+#     end_date = None
+#     if args.startdate and args.enddate:
+#         try:
+#             start_date = dt.strptime(args.startdate, '%Y-%m-%d')
+#             end_date = dt.strptime(args.enddate, '%Y-%m-%d')
+#             if args.verbose:
+#                 print(f'[INFO] Start date: {args.startdate} End date: {args.enddate}')
+#         except:
+#             print(f'[WARNING] --startdate (-sd) and/or --enddate (-ed) could not be parsed from {args.startdate} and/or {args.enddate}. Format should be: YYYY-mm-dd')
+#             start_date = None
+#             end_date = None
+#     return start_date,end_date
 
 def get_params_time(args,options):
     date_list = None
@@ -962,10 +1050,8 @@ def get_geo_info(size_box,insitu_lat, insitu_lon, lat, lon):
             c = np.argmin(np.abs(lon - insitu_lon))
         else:
             r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
-        # if 'size_box' in options:
-        #     size_box = options['size_box']
-        # else:
-        #     size_box = get_box_size(options)
+
+
         start_idx_x = (c - int(size_box / 2))  # lon
         stop_idx_x = (c + int(size_box / 2) + 1)  # lon
         start_idx_y = (r - int(size_box / 2))  # lat
@@ -982,6 +1068,8 @@ def get_geo_info(size_box,insitu_lat, insitu_lon, lat, lon):
         if contain_flag == 1:
             limits = [start_idx_y, stop_idx_y, start_idx_x, stop_idx_x]
             rc = [r, c]
+
+
 
     return limits, rc
 
@@ -1055,20 +1143,26 @@ def get_date_list_from_dataframe(df,col_date,format_date,col_time,format_time):
 
 def get_satellite_time_from_global_attributes(fproduct):
     dataset = Dataset(fproduct)
+    start_date, end_date, sat_time = [None]*3
     if 'time_coverage_start' in dataset.ncattrs() and 'time_coverage_end' in dataset.ncattrs():
         try:
             start_date = dt.strptime(dataset.time_coverage_start, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
             end_date = dt.strptime(dataset.time_coverage_end, '%d-%b-%Y %H:%M:%S.%f').replace(tzinfo=pytz.utc)
+        except:
+           pass
+        if start_date is None and end_date is None:
+            try:
+                start_date = dt.strptime(dataset.time_coverage_start, '%Y%m%dT%H%M%SZ').replace(tzinfo=pytz.utc)
+                end_date = dt.strptime(dataset.time_coverage_end, '%Y%m%dT%H%M%SZ').replace(tzinfo=pytz.utc)
+            except:
+                pass
+
+        if start_date is not None and end_date is not None:
             sat_time = (start_date.timestamp() + end_date.timestamp()) / 2
             sat_time = dt.fromtimestamp(sat_time).astimezone(pytz.utc)
-            dataset.close()
-            return sat_time
 
-        except:
-            dataset.close()
-            return None
     dataset.close()
-    return None
+    return sat_time
 
 def get_satellite_global_atrib_from_options(options):
     compulsory_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
@@ -1117,9 +1211,14 @@ def get_path_date(path_base,org,date_here,createIfNotExist):
             print(f'[WARNING] Path date {path_date} does not exist or is not a valid directory')
             return None
         else:
-            path_date = create_dir(path_date)
-            if path_date is None:
-                print(f'[WARNING] Path date {path_date} does not exist and could not be created. Please review permissions')
+            path_expected  = path_date
+            path_date = path_base
+            for time_ref in org.split('/'):
+                path_date = os.path.join(path_date,date_here.strftime(time_ref))
+                path_date = create_dir(path_date)
+                if path_date is None:
+                    print(f'[WARNING] Path date {path_expected} does not exist and could not be created. Please review permissions')
+                    break
     return path_date
 
 def concatenate_csv(file_list,file_out,remove_files):
@@ -1145,9 +1244,21 @@ class SatExtractBase:
         if type_sat_extract == 'CNR':
             from sat_extract_CNR import SatExtractCNR
             self.sat_extract_sensor = SatExtractCNR(self.verbose)
-        elif type_sat_extract == 'PACE_OCI':
+        elif type_sat_extract == 'OCI':
             from sat_extract_OCI import SatExtractOCI
             self.sat_extract_sensor = SatExtractOCI(self.verbose)
+        elif type_sat_extract == 'OLCI':
+            from sat_extract_OLCI import SatExtractOLCI
+            self.sat_extract_sensor = SatExtractOLCI(self.verbose)
+        elif type_sat_extract == 'CMEMS':
+            from sat_extract_CMEMS import SatExtractCMEMS
+            self.sat_extract_sensor  = SatExtractCMEMS(self.verbose)
+        else:
+            print(f'[ERROR] Satellite extract sensor class for  {type_sat_extract} is not implemented: Please check SatExtractBase in sat_extract.py')
+
+        self.start_date = None
+        self.end_date = None
+
 
     def run(self,sat_extract_options,insituBase,ncores):
         ##common for all days for l3 products
@@ -1155,6 +1266,8 @@ class SatExtractBase:
         lon_array = None
         ##param list is used for ncores>0
         params_list = []
+        insituBase.start_date = self.start_date
+        insituBase.end_date = self.end_date
 
         if args.verbose:
             print(f'[INFO] Getting output path...')
@@ -1170,7 +1283,6 @@ class SatExtractBase:
             return
         if args.verbose:
             print(f'[INFO] Preparing in situ data: Completed')
-
 
         if args.verbose:
             print(f'[INFO] Getting input path info...')
@@ -1197,6 +1309,11 @@ class SatExtractBase:
             print(f'[INFO] Overwrite: {overwrite}')
 
         for date_here in insituBase.date_list:
+            if self.start_date is not None and self.end_date is not None:
+                if date_here<self.start_date or date_here>self.end_date:
+                    if self.verbose:
+                        print(f'[INFO] Skipping date {date_here.strftime("%Y-%m-%d")} as it not in the range: {self.start_date.strftime("%Y-%m-%d")} to {self.end_date.strftime("%Y-%m-%d")}')
+                    continue
             if args.verbose:
                 print(f'[INFO] Working with date: {date_here.strftime("%Y-%m-%d")}')
             list_files,satellite_time = self.sat_extract_sensor.get_files_day(date_here, input_path_info,sat_extract_options)
@@ -1206,7 +1323,14 @@ class SatExtractBase:
             if satellite_time is None:
                 print(f'[WARNING] Satellite time for date could not be defined. Skipping...')
                 continue
-            insitu_time,insitu_lat,insitu_lon,insitu_indices = insituBase.get_metadata_date(date_here)
+
+            #insitu_time,insitu_lat,insitu_lon,insitu_indices = insituBase.get_metadata_date(date_here)
+            if insituBase.fixed_site:
+                insitu_time, insitu_lat, insitu_lon, insitu_indices = insituBase.get_metadata_date_basic(date_here)
+            else:
+                insitu_time, insitu_lat, insitu_lon, insitu_indices = insituBase.get_metadata_date(date_here)
+
+
             path_extract_output_here = os.path.join(output_path,f'{insituBase.get_ref_date(date_here)}_extracts.csv')
             if os.path.exists(path_extract_output_here):
                 os.remove(path_extract_output_here)
@@ -1218,10 +1342,14 @@ class SatExtractBase:
                     'insitu_lon': insitu_lon,
                     'insitu_indices': insitu_indices,
                     'satellite_time': satellite_time,
-                    'path_extract_output': path_extract_output_here
+                    'path_extract_output': path_extract_output_here,
+                    'unzip_dir': input_path_info['unzip_dir']
             }
             if lat_array is None and lon_array is None and self.sat_extract_sensor.is_l3_product():
-                lat_array, lon_array = self.sat_extract_sensor.get_lat_lon_arrays(sat_extract_options, list_files[0])
+                if self.sat_extract_sensor.sat_type=='CMEMS' and extract_options['is_utm']:
+                    pass
+                else:
+                    lat_array, lon_array = self.sat_extract_sensor.get_lat_lon_arrays(extract_options, list_files[0])
             if ncores == 0:
                 self.sat_extract_sensor.run_extract_day(extract_options, extract_info, lat_array, lon_array,output_path, overwrite)
             else:
@@ -1243,7 +1371,115 @@ class SatExtractBase:
 
 
 
-    #def create_sh_slurm(self,sat_extract_options):
+    def create_sh_slurm(self,sat_extract_options,mp_options,insituBase):
+        import COMMON.sbatch_scripter as sbs
+        insituBase.start_date = self.start_date
+        insituBase.end_date = self.end_date
+        output_path = sat_extract_options.get_output_path()
+        if output_path is None:
+            return
+        if args.verbose:
+            print(f'[INFO] Preparing in situ data...')
+        if not insituBase.prepare_data():
+            return
+        temp_path = create_dir(os.path.join(output_path, f'Temp_{str(dt.now().timestamp()).replace(".", "_")}'))
+        if temp_path is None:
+            print(f'[ERROR] Temporary path for sbatch files could not be created. Please review permissions.')
+            return
+        if self.verbose:
+            print(f'[INFO] Temporary path: {temp_path}')
+
+        npool = os.cpu_count() if mp_options['ncores'] < 0 else 1 if mp_options['ncores'] == 0 else mp_options['ncores']
+        nincluded = 0
+        index_folder = 1
+        sbatch_files = []
+        sbatch_log_files = []
+        dir_code = os.path.dirname(__init__.__file__)
+        if insituBase.fixed_site:
+            folder_csv = None
+            line_py_base = f'python "{dir_code}/sat_extract.py" -sat {self.sat_extract_sensor.sat_type} -insitu {insituBase.insitu_type}'
+        else:
+            folder_csv = os.path.join(temp_path, f'CSV_{index_folder}')
+            create_dir(folder_csv)
+            line_py_base = f'python "{dir_code}/sat_extract.py" -sat {self.sat_extract_sensor.sat_type} -insitu MULTIPLE_CSV'
+        insitu_date_list = insituBase.date_list
+
+        slurm_start = None
+        slurm_end = None
+
+        for insitu_date in insitu_date_list:
+            if self.start_date is not None and self.end_date is not None:
+                if insitu_date<self.start_date or insitu_date>self.end_date:
+                    if self.verbose:
+                        print(f'[INFO] Skipping date {insitu_date.strftime("%Y-%m-%d")} as it not in the range: {self.start_date.strftime("%Y-%m-%d")} to {self.end_date.strftime("%Y-%m-%d")}')
+                    continue
+            if nincluded == npool:
+                if self.verbose:
+                    print(f'[NFO] Creating sbatch file...')
+                file_config = os.path.join(temp_path, f'config_file_{index_folder}.ini')
+                sat_extract_options.prepare_config_file_for_sh_slurm(folder_csv,file_config)
+                file_sbatch = os.path.join(temp_path, f'sbatch_script_{index_folder}.slurm')
+                scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+                scripter.start_script(mp_options, True)
+                line_py_here = f'{line_py_base} -sd {slurm_start.strftime("%Y-%m-%d")} -ed {slurm_end.strftime("%Y-%m-%d")} -c'
+                scripter.add_line(f'{line_py_here} "{file_config}" -v')
+                scripter.close_script()
+                sbatch_files.append(file_sbatch)
+                sbatch_log_files.append(os.path.join(temp_path, f'sbatch_script_log_{index_folder}.log'))
+                # preparing next---
+                nincluded = 0
+                index_folder = index_folder + 1
+                if not insituBase.fixed_site:
+                    folder_csv = os.path.join(temp_path, f'CSV_{index_folder}')
+                    create_dir(folder_csv)
+                slurm_start = None
+                slurm_end = None
+                #-------------------------------
+
+
+            if self.verbose:
+                print(f'[INFO] Adding date {insitu_date.strftime('%Y%m%d')}')
+
+            if slurm_start is None and slurm_end is None:
+                slurm_start = insitu_date
+                slurm_end = insitu_date
+            else:
+                slurm_end = insitu_date
+            if not insituBase.fixed_site:
+                name_csv = f'{insituBase.get_ref_date(insitu_date)}.csv'
+                file_csv_out = os.path.join(folder_csv, name_csv)
+                insituBase.create_csv_metadata_for_date(insitu_date,file_csv_out)
+            nincluded = nincluded + 1
+
+        # final sbatch file
+        if self.verbose:
+            print(f'[INFO] Creating final sbatch file...')
+        file_config = os.path.join(temp_path, f'config_file_{index_folder}.ini')
+        sat_extract_options.prepare_config_file_for_sh_slurm(folder_csv,file_config)
+        file_sbatch = os.path.join(temp_path, f'sbatch_script_{index_folder}.slurm')
+        scripter = sbs.SBATCH_SCRIPTER(file_sbatch)
+        scripter.start_script(mp_options, True)
+        line_py_here = f'{line_py_base} -sd {slurm_start.strftime("%Y-%m-%d")} -ed {slurm_end.strftime("%Y-%m-%d")} -c'
+        scripter.add_line(f'{line_py_here} "{file_config}" -v')
+        scripter.close_script()
+        sbatch_files.append(file_sbatch)
+        sbatch_log_files.append(os.path.join(temp_path, f'sbatch_script_log_{index_folder}.log'))
+
+        # file out sh
+        file_out_sh = os.path.join(temp_path, f'launch_multiple_sbatch.sh')
+        sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh, sbatch_files, sbatch_log_files,mp_options['slurm_sh_max_cores'])
+
+        if self.verbose:
+            print(f'[INFO] SH file: {file_out_sh} has been created.')
+        if mp_options['slurm_sh_launch']:
+            import subprocess
+            cmd = f'sh {file_out_sh}'
+            prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+            out, err = prog.communicate()
+            if err:
+                print(f'[ERROR]Error lunching script: {err}')
+            elif self.verbose:
+                pring(f'[INFO] CMD {file_out_sh} have been launched')
 
 
     # def create_sh_slurm_multiple_csv(self,options, output_path, mp_options):
@@ -1341,6 +1577,19 @@ class SatExtractBase:
     #         if err:
     #             print(f'[ERROR]Error lunching script: {err}')
 
+def get_utm_zone(latitude,longitude):
+    #from pyproj import CRS
+    #longitude = -8.85
+    #latitude = 42.59
+    # Determine the UTM zone number
+    zone_number = int((longitude + 180) / 6) + 1
+    ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
+    zone_letter = ZONE_LETTERS[int(latitude + 80) >> 3]
+    # Determine the hemisphere
+    #hemisphere = 'north' if latitude >= 0 else 'south'
+    #utm_crs = CRS.from_dict({'proj': 'utm', 'zone': zone_number, 'south': hemisphere == 'south'})
+    return f'{zone_number}{zone_letter}'
+
 
 def main():
     print('[INFO] Creating satellite extracts')
@@ -1358,28 +1607,33 @@ def main():
     mp_options = options.get_multiprocessing_options()
     if mp_options is None:
         return
+    if args.verbose:
+        print(f'[INFO] Multiprocessing options:')
+        for mp in mp_options:
+            print(f'[INFO]   {mp} -> {mp_options[mp]}')
 
-    sat_type = options.check_sat_type()
+
+    sat_type = options.check_sat_type(args.sat_type)
     if sat_type is None:
         return
     satExtractBase = SatExtractBase(sat_type, args.verbose)
     if satExtractBase.sat_extract_sensor is None:
         return
 
-    insitu_type, insitu_options = options.check_insitu_options()
+
+    insitu_type, insitu_options = options.check_insitu_options(args.insitu_type)
     if insitu_type is None:
         return
-    insituBase = None
-    if insitu_type=='MULTIPLE_CSV':
-        from MDB_builder.INSITU_multiplecsv import INSITU_MULTIPLE_CSV
-        insituBase = INSITU_MULTIPLE_CSV(insitu_options,args.verbose)
-    if insitu_type=='SINGLE_SEABASS':
-        from MDB_builder.INSITU_SeaBass import INSITU_SEABASS
-        insituBase = INSITU_SEABASS(insitu_options,args.verbose)
+
+    insituBase = ibase.get_insitu_object(insitu_type, insitu_options, args.verbose)
+    if insituBase is None:
+        return
+
+    satExtractBase.start_date, satExtractBase.end_date = arf.get_start_end_date_from_args(args)
+
 
     if mp_options['use_slurm_sh']:
-        print('sh')
-        #satExtractBase.create_sh_slurm_multiple_csv(options, path_output, mp_options)
+        satExtractBase.create_sh_slurm(options,mp_options,insituBase)
     else:
         satExtractBase.run(options,insituBase,mp_options['ncores'])
 
@@ -1390,11 +1644,22 @@ if __name__ == '__main__':
         description="Satellite extracts from multiple files (one file for variable) available in the CNR server.")
     parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
     parser.add_argument('-c', "--config_file", help="Config File.", required=True)
-    parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
-    parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
+    parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM-DD ")
+    parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
+    parser.add_argument('-insitu',"--insitu_type",help="In situ type")
+    parser.add_argument('-sat', "--sat_type", help="Satellite type")
     parser.add_argument('-no_concat', "--no_concatenate", help="Use internaly for sbatch mode", action="store_true")
     parser.add_argument('-make_concat', "--make_concatenate",
                         help="Use internaly for sbatch mode to make final concatenation", action="store_true")
     parser.add_argument('-p', "--product_file", help="Image file.")
     args = parser.parse_args()
+
     main()
+    # from sat_extract_OLCI import SatSourceOlci
+    # dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK'
+    # file_olci = os.path.join(dir_base,'S3A_OL_2_WFR____20230519T101357_20230519T101657_20230520T221344_0179_099_065_1980_MAR_O_NT_003.SEN3')
+    # osource = SatSourceOlci(file_olci,args.verbose)
+    # # print(osource.timeliness,osource.collection)
+    # # polygon = osource.get_polygon_from_manifest()
+    # # print(polygon)
+    # osource.get_geometry_array('OZA',[190,215,73,98])

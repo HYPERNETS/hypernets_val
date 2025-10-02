@@ -1,7 +1,255 @@
-from INSITU_base import INSITUBASE
-import subprocess, os
+try:
+    from INSITU_base import INSITUBASE
+except:
+    from MDB_builder.INSITU_base import INSITUBASE
+# import subprocess, os
+from netCDF4 import Dataset
 from datetime import datetime as dt
 from datetime import timedelta
+import numpy as np
+import __init__,sys,os,pytz
+code_home = os.path.dirname(os.path.dirname(__init__.__file__))
+sys.path.append(code_home)
+import COMMON.common_functions as cfs
+
+
+
+class HYPSTAR_L2():
+
+    def __init__(self, insitu_options, verbose):
+        self.fixed_site = True
+        self.insitu_type = 'HYPSTAR_L2'
+        self.verbose = verbose
+        self.insitu_options = insitu_options
+        ##start site path and geographic coordinates
+        path_h = self.insitu_options['path_hypstar']
+        self.site = self.insitu_options['site']
+        self.path_site = path_h if os.path.basename(path_h)==self.site else os.path.join(path_h,self.site)
+        self.lat, self.lon = cfs.get_lat_lon_ins(self.site)
+
+        self.file_list = {}
+        self.date_list = []
+        self.start_date = None
+        self.end_date = None
+
+
+
+    def check_data(self):
+        if not os.path.isdir(self.path_site):
+            print(f'[ERROR] Path site {self.path_site} does not exist or is not a valid directory')
+            return False
+        if self.lat is None or self.lon is None:
+            print(f'[ERROR] Geographic coordinates of site {site} are not avaliable')
+            return False
+        return True
+
+    def prepare_data(self):
+        if not self.check_data():
+            return False
+        if self.start_date is not None and self.end_date is not None:
+            start_d = self.start_date
+            end_d = self.end_date
+        else:
+            start_d, end_d = self.get_start_end_dates_from_path_site()
+        if start_d is None or end_d is None:
+            print(f'[ERROR] No folder dates were found in the site path {self.path_site}')
+            return False
+        elif self.verbose:
+            print(f'[INFO] Checking data for the date range from {start_d.strftime("%Y-%m-%d")} to {end_d.strftime("%Y-%m-%d")}')
+        date_here = start_d
+        self.file_list = {}
+        self.date_list = []
+        while date_here<=end_d:
+
+            path_date = self.get_path_date(date_here)
+            if path_date is None:
+                date_here = date_here + timedelta(days=1)
+                continue
+            if self.verbose:
+                print(f'[INFO] Checking date: {date_here}')
+            list_files = self.get_file_list(path_date)
+            if len(list_files)==0:
+                date_here = date_here + timedelta(days=1)
+                continue
+
+            date_ts = date_here.strftime('%Y-%m-%d')
+            self.file_list[date_ts] = list_files
+            self.date_list.append(date_here)
+
+            date_here = date_here+timedelta(days=1)
+
+        if len(self.date_list)>0:
+            if self.verbose:
+                print(f'[INFO] Number of dates with data found: {len(self.date_list)}')
+            return True
+        else:
+            print(f'[ERROR] No dates with HYPSTAR L2 data were found.')
+            return False
+
+
+    def get_ref_date(self,datehere):
+        ref_date = f'HYPERNETS_W_DAY_{datehere.strftime("%Y%m%d")}'
+        return ref_date
+
+
+    def get_metadata_date(self, datehere):
+        date_ts = datehere.strftime('%Y-%m-%d')
+        list_files = self.file_list[date_ts]
+        insitu_time = []
+        for file in list_files:
+            hsource = HYPSTAR_L2_SOURCE(file)
+            htime = hsource.get_time(True)
+            if htime is None:
+                htime = hsource.get_time_from_file_name()
+            if htime is None:
+                return [None]*5
+            insitu_time.append(htime)
+
+        insitu_time = np.array(insitu_time)
+        sorted_indices = np.argsort(insitu_time)
+        insitu_time = insitu_time[sorted_indices]
+        insitu_lat = np.full(insitu_time.shape,self.lat)
+        insitu_lon = np.full(insitu_time.shape,self.lon)
+        insitu_indices = (sorted_indices,)
+
+        return insitu_time, insitu_lat, insitu_lon, insitu_indices
+
+    #basic metadata for extracts for fixed sites
+    def get_metadata_date_basic(self, datehere):
+        insitu_time = np.array([datehere])
+        insitu_lat = np.array([self.lat])
+        insitu_lon = np.array([self.lon])
+        insitu_indices = (np.array([0]),)
+        return insitu_time, insitu_lat, insitu_lon, insitu_indices
+
+    def prepare_csv_metadata(self,output_file):
+        ##data preparation include start_date and end_date
+        if not self.prepare_data():
+            return False
+
+        lat_min = np.ma.min(self.lat) - 0.001
+        lat_max = np.ma.max(self.lat) + 0.001
+        lon_min = np.ma.min(self.lon) - 0.001
+        lon_max = np.ma.max(self.lon) + 0.001
+
+        fw = open(output_file, 'w')
+        started = False
+
+        for date_here in self.date_list:
+            date_ts = date_here.strftime('%Y-%m-%d')
+            if self.verbose:
+                print(f'[INFO] Getting metadata for date: {date_ts}')
+            line = f'{date_ts},{lat_min},{lat_max},{lon_min},{lon_max}'
+            if started:
+                fw.write('\n')
+            if not started:
+                started = True
+            fw.write(line)
+
+        fw.close()
+
+        return True
+
+
+    def get_file_list(self,path_date):
+        tag = self.insitu_options['tag']
+        version = self.insitu_options['version']
+        list_files=[]
+        for name in os.listdir(path_date):
+            if os.path.isdir(os.path.join(path_date,name)) and name.startswith('SEQ'):
+                dir_seq = os.path.join(path_date, name)
+                for name_f in os.listdir(dir_seq):
+                    if os.path.isfile(os.path.join(dir_seq,name_f)):
+                        file_in = os.path.join(dir_seq,name_f)
+                        if self.check_file_nc_l2(name_f,tag,version):
+                            list_files.append(file_in)
+
+            elif os.path.isfile(os.path.join(path_date,name)):
+                file_in = os.path.join(path_date,name)
+                if self.check_file_nc_l2(name, tag, version):
+                    list_files.append(file_in)
+        return list_files
+
+    def check_file_nc_l2(self,name,tag,version):
+        #print(name,tag,version,type(name))
+        if not name.endswith('.nc'):
+            return False
+        if not name.find(tag)>0:
+            return False
+        if version is not None and not name.find(version)>0:
+            return False
+        return True
+
+    def get_path_date(self,date_here):
+        path_date = f'{self.path_site}{date_here.strftime("/%Y/%m/%d")}'
+        return path_date if os.path.isdir(path_date) else None
+
+    def get_start_end_dates_from_path_site(self):
+        #check years
+        year_ini,year_end = cfs.get_min_max_int_folders(self.path_site)
+        month_ini,day_ini,month_end,day_end,start_date,end_date = None,None,None,None,None,None
+        if year_ini is not None and year_end is not None:
+            ##start date
+            path_year_ini = os.path.join(self.path_site,dt.now().replace(year=year_ini).strftime('%Y'))
+            month_ini,temp = cfs.get_min_max_int_folders(path_year_ini)
+            if month_ini is not None:
+                path_month_ini = os.path.join(path_year_ini,dt.now().replace(month=month_ini).strftime('%m'))
+                day_ini,temp = cfs.get_min_max_int_folders(path_month_ini)
+                if day_ini is not None:
+                    start_date = dt(year_ini,month_ini,day_ini)
+
+                ##start date
+                path_year_end = os.path.join(self.path_site, dt.now().replace(year=year_end).strftime('%Y'))
+                tmp, month_end = cfs.get_min_max_int_folders(path_year_end)
+                if month_end is not None:
+                    path_month_end = os.path.join(path_year_end, dt.now().replace(month=month_end).strftime('%m'))
+                    temp,day_end = cfs.get_min_max_int_folders(path_month_end)
+                    if day_end is not None:
+                        end_date = dt(year_end, month_end, day_end)
+
+        return start_date,end_date
+
+
+class HYPSTAR_L2_SOURCE():
+    def __init__(self,file_l2):
+        self.file_l2 = file_l2
+        self.dataset = None
+
+    def get_time_from_file_name(self):
+        htime = None
+        for token in os.path.basename(self.file_l2).split('_'):
+            try:
+                htime = dt.strptime(token, '%Y%m%dT%H%M')
+            except:
+                htime = None
+            if htime is not None:
+                break
+        return htime
+
+    def open_dataset(self):
+        if self.dataset is None:
+            try:
+                self.dataset = Dataset(self.file_l2)
+                return True
+            except:
+                return False
+
+        return True
+
+    def close_dataset(self):
+        if self.dataset is not None:
+            self.dataset.close()
+
+    def get_time(self,close_dataset):
+        atime = None
+        if self.open_dataset():
+            try:
+                atime = dt.fromtimestamp(float(self.dataset.variables['acquisition_time'][0])).astimezone(ptyz.utc)
+            except:
+                pass
+        if close_dataset:
+            self.close_dataset()
+        return atime
 
 
 class INSITU_HYPERNETS_DAY(INSITUBASE):

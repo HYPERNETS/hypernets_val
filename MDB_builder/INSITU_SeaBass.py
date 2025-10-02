@@ -4,21 +4,41 @@ import numpy as np
 import pandas as pd
 try:
     import SB_support as SBr
+    import INSITU_base as ISb
 except:
     import MDB_builder.SB_support as SBr
+    import MDB_builder.INSITU_base as ISb
+
+
+
 
 class INSITU_SEABASS():
 
     def __init__(self, insitu_options, verbose):
+
+        self.sb = None
+
+        self.fixed_site = False
+        self.insitu_type = 'SINGLE_SEABASS'
         self.verbose = verbose
         self.insitu_options = insitu_options
-
+        self.site = self.insitu_options['site']
         self.file_list = {}
         self.date_list = []
+        self.start_date = None
+        self.end_date = None
 
+        self.basic_arrays = None
 
+        ##RRS & RRS UNC
+        self.wl_array = None
+        self.nwl = 0
+        self.rrs_band_list = None
+        self.rrs_unc_band_list = None
+        self.rrs_array = None
+        self.rrs_unc_array = None
 
-    def check_data(self):
+    def open_seabass(self):
         if not 'path_seabass' in self.insitu_options:
             print(f'[ERROR] path_seabass is not available in the options dictionary')
             return False
@@ -26,38 +46,55 @@ class INSITU_SEABASS():
         if not os.path.isfile(path_s):
             print(f'[ERROR] {path_s} does not exist or is not a valid file.')
             return False
-        var_date, var_time, var_lat, var_lon, format_date, format_time = self.get_seabass_options()
-        try:
-            sb = SBr.readSB(path_s)
-        except Exception as ex:
-            print(f'[ERROR] Error reading SeaBass file: {ex}')
+        if self.sb is None:
+            path_s = self.insitu_options['path_seabass']
+            try:
+                self.sb = SBr.readSB(path_s, no_warn=True)
+            except Exception as ex:
+                print(f'[ERROR] Error reading SeaBass file: {ex}')
+                return False
+        return True
+
+    def check_data(self):
+        if self.sb is not None:
+            return True
+        if not self.open_seabass():
             return False
-        var_ok = SBr.check_seabass_variables(sb, var_date, var_lat, var_lon)
+        var_date, var_time, var_lat, var_lon, format_date, format_time = self.get_seabass_options()
+        var_ok = SBr.check_seabass_variables(self.sb, var_date, var_lat, var_lon)
         if not var_ok:
-            print(f'[ERROR] The following variables are avaialable: {[x for x in sb.variables]}')
+            self.sb = None
             return False
         return True
 
-    def prepare_data(self):
-        if not self.check_data():
-            return False
+    def get_temp_folder(self):
         path_s = self.insitu_options['path_seabass']
-        var_date, var_time, var_lat, var_lon, format_date, format_time = self.get_seabass_options()
-        sb = SBr.readSB(path_s)
-        date_array, time_list,lat_array,lon_array,indices_array = self.get_matadata_arrays(sb, var_date, var_time, var_lat, var_lon, format_date, format_time)
-        if date_array is None:
-            return False
         name = os.path.basename(path_s)
-        temp_folder = os.path.join(os.path.dirname(path_s),name[0:name.rfind('.')])
+        temp_folder = os.path.join(os.path.dirname(path_s), name[0:name.rfind('.')])
         if not os.path.isdir(temp_folder):
             try:
                 os.mkdir(temp_folder)
             except:
                 print(f'[ERROR] Temporary folder {temp_folder} could not be created. Please review permissions')
-                return False
+                return None
+        return temp_folder
+
+    def prepare_data(self):
+
+        date_array, time_list,lat_array,lon_array,indices_array = self.get_metadata_arrays()
+        if date_array is None:
+            return False
+        temp_folder = self.get_temp_folder()
+
+        if temp_folder is None:
+            return False
 
         date_array_unique = np.unique(date_array)
         for date_ts in date_array_unique:
+            date_ts_obj = dt.strptime(date_ts, '%Y-%m-%d')
+            if self.start_date is not None and self.end_date is not None:
+                if date_ts_obj<self.start_date or date_ts_obj>self.end_date:
+                    continue
             if self.verbose:
                 print(f'[INFO] Getting metadata for date: {date_ts}')
 
@@ -70,13 +107,166 @@ class INSITU_SEABASS():
             file_csv = os.path.join(temp_folder,f'Metadata_{date_ts}.csv')
             df.to_csv(file_csv,sep=';',index=None)
             self.file_list[date_ts] = file_csv
-            self.date_list.append(dt.strptime(date_ts,'%Y-%m-%d'))
+            self.date_list.append(date_ts_obj)
 
         if len(self.date_list) == 0:
             print(f'[ERROR] No valid dates were retrieved from CSV files')
             return False
 
         self.date_list.sort()
+
+        return True
+
+    def get_rrs_array(self):
+        if self.rrs_array is not None:
+            return True
+        if not self.check_data():
+            return False
+        if self.nwl == 0:
+            if not self.check_rrs_and_data_variables():
+                return False
+
+        self.rrs_array = np.zeros((self.sb.length, self.nwl))
+        for iwl, band in enumerate(self.rrs_band_list):
+            self.rrs_array[:, iwl] = np.array(self.sb.data[band])
+        if self.verbose:
+            print(f'[INFO] Rrs data were extracted')
+        return True
+
+    def get_rrs_unc_array(self):
+        if self.rrs_unc_array is not None:
+            return True
+        if not self.check_data():
+            return False
+        if self.nwl == 0:
+            if not self.check_rrs_and_data_variables():
+                return False
+
+        self.rrs_unc_array = np.zeros((self.sb.length, self.nwl))
+        for iwl, band in enumerate(self.rrs_band_list):
+            self.rrs_unc_array[:, iwl] = np.array(self.sb.data[band])
+        if self.verbose:
+            print(f'[INFO] Rrs data were extracted')
+        return True
+
+
+    def check_rrs_and_data_variables(self):
+        if not self.check_data():
+            return False
+
+        col_names = list(self.sb.variables.keys())
+
+        ##RRS
+        if self.insitu_options['rrs_format'] is not None: ##RRS info is available
+            self.rrs_band_list, self.wl_array = self.check_rrs_list(self.insitu_options['rrs_format'],self.insitu_options['rrs_bandlist'],self.insitu_options['rrs_list'],col_names)
+            if self.rrs_band_list is None or self.wl_array is None:
+                return False
+            self.nwl = len(self.wl_array)
+            if self.verbose:
+                print(f'[INFO] {self.nwl} in situ Rrs bands identified in the SeaBass file')
+
+
+
+
+
+
+
+        ##RRS UNCENTAINTY
+        if self.insitu_options['rrs_unc_format'] is not None:
+            self.rrs_unc_band_list, wl_array_unc = self.check_rrs_list(self.insitu_options['rrs_unc_format'],self.insitu_options['rrs_unc_bandlist'],self.insitu_options['rrs_list'],col_names)
+            if self.rrs_unc_band_list is None or wl_array_unc is None:
+                return False
+            if self.nwl!=len(wl_array_unc):
+                print(f'[ERROR] Rrs uncentainties are available for {len(wl_array_unc)} band but Rrs are available for {self.nwl} bands')
+                return False
+            if not (self.wl_array==wl_array_unc).all():
+                print(f'[ERROR] Rrs wavelengths are different for Rrs uncentainty wavelengths')
+                return False
+            if self.verbose:
+                print(f'[INFO] {self.nwl} in situ Rrs uncentainty bands identified in the SeaBass file')
+
+
+
+        
+
+    def check_rrs_list(self,rrs_format,rrs_band_list,rrs_list,col_names):
+        wl = []
+        if rrs_band_list is not None:
+            if rrs_list is not None:
+                if len(rrs_list) != len(rrs_band_list):
+                    print(f'[ERROR] Inconsistency between SeaBass options for rrs_list and rrs_bandlist (or rrs_unc_band_list). Both lists have a different number of elements')
+                    return [None]*2
+                for rrs, band in zip(rrs_list,rrs_band_list):
+                    try:
+                        wl.append(float(rrs))
+                    except:
+                        print(f'[ERROR] {rrs} value in rrs_list is not a valid number')
+                        return [None]*2
+                    expected_band = rrs_format.replace('$BAND$', rrs)
+                    if expected_band != band:
+                        expected_band = expected_band.replace('.', '_')
+                    if expected_band != band:
+                        print(f'[ERROR] Inconsistency between SeaBass options rrs_list and rrs_bandlist (or rrs_unc_band_list). Expected band should be {rrs_format.replace("$BAND$", rrs)}, but {band} was found')
+                        return [None]*2
+            else:
+                prefix = rrs_format[0:rrs_format.index('$BAND$')]
+                suffix = rrs_format[rrs_format.index('$BAND$') + 6:]
+                for band in rrs_band_list:
+                    rrs = band.replace(prefix, '')
+                    rrs = rrs.replace(suffix, '')
+                    try:
+                       wl.append(float(rrs))
+                    except:
+                        print(f'[ERROR] {rrs} value in rrs_band_list is not a valid number')
+                        return [None]*2
+
+        if rrs_band_list is None:
+            rrs_band_list = []
+            if rrs_list is not None:
+                for rrs in rrs_list:
+                    try:
+                        rrs_band_list.append(rrs_format.replace('$BAND$',rrs))
+                        wl.append(float(rrs))
+                    except:
+                        print(f'[ERROR] {rrs} value in rrs_list is not a valid number')
+                        return [None]*2
+            else:
+
+                prefix = rrs_format[0:rrs_format.index('$BAND$')]
+                suffix = rrs_format[rrs_format.index('$BAND$') + 6:]
+
+                for col in col_names:
+                    if col.startswith(prefix) and col.endswith(suffix):
+                        iini = len(prefix)
+                        ifin = len(col)-len(suffix)
+                        val = col[iini:ifin].replace('_','.')
+                        try:
+                            wl.append(float(val))
+                            rrs_band_list.append(col)
+                        except:
+                            continue
+
+        if len(rrs_band_list)!=len(wl):
+            print(f'[ERROR] Inconsistency in the lenghts of rrs_band_list and wl')
+            return [None]*2
+        if len(rrs_band_list)==0:
+            print(f'[ERROR] No bands found using format {rrs_format}')
+            return [None]*2
+        if not self.check_exist_variables(rrs_band_list,col_names):
+            return [None]*2
+        wl = np.array(wl)
+        return rrs_band_list,wl
+
+
+    def check_exist_variables(self,var_to_check,col_names):
+        if not self.check_data():
+            return False
+        if col_names is None:
+            col_names = list(self.sb.variables.keys())
+        for var in var_to_check:
+            if var not in col_names:
+                print(f'[ERROR] Variable {var} is not valid variables in the SeaBass file')
+                return False
 
         return True
 
@@ -106,15 +296,8 @@ class INSITU_SEABASS():
 
     ##csv with metadata for downloading sources
     def prepare_csv_metadata(self, output_file):
-        if not self.check_data():
-            return False
 
-        path_s = self.insitu_options['path_seabass']
-        var_date, var_time, var_lat, var_lon, format_date, format_time = self.get_seabass_options()
-        sb = SBr.readSB(path_s)
-        date_array, time_list, lat_array, lon_array, indices_array = self.get_matadata_arrays(sb, var_date, var_time,
-                                                                                              var_lat, var_lon,
-                                                                                              format_date, format_time)
+        date_array, time_list, lat_array, lon_array, indices_array = self.get_metadata_arrays()
         if date_array is None:
             return False
 
@@ -122,8 +305,14 @@ class INSITU_SEABASS():
         started = False
         date_array_unique = np.unique(date_array)
         for date_ts in date_array_unique:
+            date_here = dt.strptime(date_ts,'%Y-%m-%d')
+            if self.start_date is not None and self.end_date is not None:
+                if date_here<self.start_date or date_here>self.end_date:
+                    if self.verbose:
+                        print(f'[INFO][SeaBass] Skipping date {date_here.strftime("%Y-%m-%d")} as it not in the range: {self.start_date.strftime("%Y-%m-%d")} to {self.end_date.strftime("%Y-%m-%d")}')
+                    continue
             if self.verbose:
-                print(f'[INFO] Getting metadata for date: {date_ts}')
+                print(f'[INFO][SeaBass] Getting metadata for date: {date_ts}')
             indices = np.where(date_array == date_ts)
             insitu_lat = lat_array[indices]
             insitu_lon = lon_array[indices]
@@ -141,13 +330,53 @@ class INSITU_SEABASS():
 
 
         fw.close()
-        return True
+        if not started:
+            print(f'[WARNING][SeaBass] No data were found for the given data range in the SeaBass dataset.')
+            os.remove(output_file)
+            return False
+        else:
+            return True
 
-    def get_matadata_arrays(self,sb,var_date,var_time,var_lat,var_lon,format_date,format_time):
-        date_list_orig = sb.data[var_date]
-        time_list_orig = sb.data[var_time] if var_time in sb.variables else None
-        lat_array_orig = sb.data[var_lat]
-        lon_array_orig = sb.data[var_lon]
+    def create_csv_metadata_for_date(self,insitu_date, file_csv_out):
+        if self.basic_arrays is None:
+            date_array, time_list, lat_array, lon_array, indices_array = self.get_metadata_arrays()
+            self.basic_arrays = {
+                'date':date_array,
+                'time':time_list,
+                'lat':lat_array,
+                'lon':lon_array
+            }
+        else:
+            date_array = self.basic_arrays['date']
+            time_list = self.basic_arrays['time']
+            lat_array = self.basic_arrays['lat']
+            lon_array = self.basic_arrays['lon']
+
+        if date_array is None:
+            return False
+
+        date_ts = insitu_date.strftime('%Y-%m-%d')
+        indices = np.where(date_array == date_ts)
+        ndata = len(indices[0])
+        if ndata==0:
+            return False
+        insitu_lat = lat_array[indices]
+        insitu_lon = lon_array[indices]
+        insitu_time = [x.strftime('%Y-%m-%d %H:%M:%S.%f') for x in time_list[indices]]
+        df = pd.DataFrame(index=np.arange(ndata),columns=['date','lat','lon'])
+        df.loc[:,'lat'] = insitu_lat[:]
+        df.loc[:,'lon'] = insitu_lon[:]
+        df.loc[:,'date'] = insitu_time[:]
+        df.to_csv(file_csv_out,sep=';',index=None)
+
+    def get_metadata_arrays(self):
+        if not self.check_data():
+            return [None]*5
+        var_date, var_time, var_lat, var_lon, format_date, format_time = self.get_seabass_options()
+        date_list_orig = self.sb.data[var_date]
+        time_list_orig = self.sb.data[var_time] if var_time in self.sb.variables else None
+        lat_array_orig = self.sb.data[var_lat]
+        lon_array_orig = self.sb.data[var_lon]
         ndata = len(date_list_orig)
         indices_orig = np.arange(ndata)
         format_date_time = f'{format_date}T{format_time}'
@@ -164,11 +393,8 @@ class INSITU_SEABASS():
                 print(
                     f'[ERROR] Error parsing dates in SeaBass file: {x} could not be parsed using {format_date} format.')
                 print(
-                    f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {sb.variables[var_date][1]}')
-                return [None] * 2
-            # if start_date is not None and end_date is not None:
-            #     if date_here < start_date or date_here > end_date:
-            #         continue
+                    f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {self.sb.variables[var_date][1]}')
+                return [None] * 5
 
             lat_array.append(lat_array_orig[idx])
             lon_array.append(lon_array_orig[idx])
@@ -185,12 +411,12 @@ class INSITU_SEABASS():
                     print(
                         f'[ERROR] Error parsing dates in SeaBass file: {x} could not be parsed using {format_date_time} format.')
                     print(
-                        f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {sb.variables[var_date][1]}T{sb.variables[var_time][1]}')
-                    return [None] * 2
+                        f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {self.sb.variables[var_date][1]}T{self.sb.variables[var_time][1]}')
+                    return [None] * 5
 
         if len(date_array) == 0:
             print(f'[ERROR] No data was found for the given temporal range')
-            return [None] * 2
+            return [None] * 5
         date_array = np.array(date_array)
         time_list = np.array(time_list)
         lat_array = np.array(lat_array)
@@ -207,3 +433,25 @@ class INSITU_SEABASS():
         format_date = self.insitu_options['format_date']
         format_time = self.insitu_options['format_time']
         return var_date, var_time, var_lat, var_lon, format_date, format_time
+
+    def create_mini_mdb_files(self,mdb_options,extracts,time_extracts):
+        options = mdb_options.get_mdb_options()
+        options['n_insitu_bands'] = self.nwl
+        extract_dir = options['output_dir']
+        for t in time_extracts:
+            ref = t.strftime('%Y%m%dT%H%M%S')
+            #print(ref,'-->',extracts[ref]['file'])
+            file_out = ISb.get_mini_mdb_file_path(extract_dir,extracts[ref])
+            if os.path.exists(file_out):
+                print(f'[WARNING] Mini MDB file already exists. Skipping...')
+            else:
+                if self.verbose:
+                    print(f'[INFO] Creating mini MDB file {os.path.basename(file_out)}')
+                self.create_mini_mdb_file_impl(file_out,options,extracts[ref])
+
+    def create_mini_mdb_file_impl(self,file_out,options,extract_info):
+        builder = ISb.Mini_MDB_Builder(options,self.verbose)
+        builder.start_mini_mdb(extract_info['file'],file_out)
+        builder.add_shipborne_variables()
+        print(extract_info.keys())
+        builder.close_mini_mdb_file()

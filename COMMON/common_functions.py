@@ -131,6 +131,8 @@ def convert_DMS_to_decimal(DD, MM, SS, cardinal):
     return D
 
 
+
+
 def contain_location(lat, lon, in_situ_lat, in_situ_lon):
     if lat.min() <= in_situ_lat <= lat.max() and lon.min() <= in_situ_lon <= lon.max():
         contain_flag = 1
@@ -140,14 +142,15 @@ def contain_location(lat, lon, in_situ_lat, in_situ_lon):
     return contain_flag
 
 
+
+
 def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
     # % closest squared distance
     # % lat and lon are arrays of MxN
     # % lat0 and lon0 is the coordinates of one point
     if contain_location(lat, lon, lat0, lon0):
         dist_squared = (lat - lat0) ** 2 + (lon - lon0) ** 2
-        r, c = np.unravel_index(np.argmin(dist_squared),
-                                lon.shape)  # index to the closest in the latitude and longitude arrays
+        r, c = np.unravel_index(np.argmin(dist_squared),lon.shape)  # index to the closest in the latitude and longitude arrays
     else:
         print('Warning: Location not contained in the file!!!')
         r = np.nan
@@ -231,6 +234,27 @@ def doy_from_YYYYMMDD(date):
     day_of_year = adate.timetuple().tm_yday
     return day_of_year
 
+def get_min_max_int_folders(input_path):
+    min_v = None
+    max_v = None
+    if not os.path.isdir(input_path):
+        return min_v,max_v
+    for valstr in os.listdir(input_path):
+        if not os.path.isdir(os.path.join(input_path,valstr)):
+            continue
+        try:
+            valint = int(valstr)
+        except:
+            continue
+        if min_v is None and max_v is None:
+            min_v = valint
+            max_v = valint
+        else:
+            if valint<min_v:
+                min_v = valint
+            if valint>max_v:
+                max_v = valint
+    return min_v,max_v
 
 # %%
 def main():

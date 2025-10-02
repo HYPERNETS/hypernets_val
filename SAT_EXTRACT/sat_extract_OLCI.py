@@ -1,33 +1,9 @@
 #!/usr/bin/env python3
 # coding: utf-8
-"""
-Created on Tue Jul 8 12:02:40 2021
-Create extract from OLCI data as a NetCDF4 file
-@author: javier.concha
 
-Based on EUMETSAT MDB_Builder module (https://ocdb.readthedocs.io/en/latest/ocdb-MDB-user-manual.html)
+import zipfile as zp
+from shapely.geometry import Polygon
 
-Run as:
-
-python MDB_builder.py -c path_to_config_file
-
-"""
-import zipfile
-
-"""
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""
 # %% imports
 import os
 import sys
@@ -37,7 +13,7 @@ from netCDF4 import Dataset
 import numpy as np
 import numpy.ma as ma
 import math
-from datetime import datetime
+from datetime import datetime as dt
 from datetime import timedelta
 import configparser
 
@@ -48,240 +24,848 @@ sys.path.append(code_home)
 import BRDF.brdf_olci as brdf
 import COMMON.common_functions as cfs
 from COMMON.check_geo import CHECK_GEO
-from SAT_EXTRACT.sat_extract import SatExtract
+import SAT_EXTRACT.sat_extract as sextract
+
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'  # to avoid error "QXcbConnection: Could not connect to display"
 path2ncrcat = '/opt/local/bin/ncrcat'
 
-import argparse
+# import argparse
+#
+# parser = argparse.ArgumentParser(description="Create sat extract from Sentinel-3 OLCI original files.")
+# parser.add_argument("-d", "--debug", help="Debugging mode.", action="store_true")
+# parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
+# parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
+# parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
+# parser.add_argument('-site', "--sitename", help="Site name.", choices=['VEIT', 'BEFR', 'BSBE'])
+# parser.add_argument('-sat', "--satellite", help="Satellite sensor name.", choices=['OLCI', 'MSI'])
+# parser.add_argument('-c', "--config_file", help="Config File.")
+# parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
+# parser.add_argument('-o', "--output", help="Path to output")
+# parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
+# parser.add_argument('-nl', "--nolist",
+#                     help="Do not create initial satellite lists, checking day by day allowing download",
+#                     action="store_true")
+# parser.add_argument('-adownload', "--allow_download", help="Allow download", action="store_true")
+#
+# args = parser.parse_args()
 
-parser = argparse.ArgumentParser(description="Create sat extract from Sentinel-3 OLCI original files.")
-parser.add_argument("-d", "--debug", help="Debugging mode.", action="store_true")
-parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
-parser.add_argument('-sd', "--startdate", help="The Start Date - format YYYY-MM-DD ")
-parser.add_argument('-ed', "--enddate", help="The End Date - format YYYY-MM-DD ")
-parser.add_argument('-site', "--sitename", help="Site name.", choices=['VEIT', 'BEFR', 'BSBE'])
-parser.add_argument('-sat', "--satellite", help="Satellite sensor name.", choices=['OLCI', 'MSI'])
-parser.add_argument('-c', "--config_file", help="Config File.")
-parser.add_argument('-ps', "--path_to_sat", help="Path to satellite sources.")
-parser.add_argument('-o', "--output", help="Path to output")
-parser.add_argument('-res', "--resolution", help="Resolution OL_2: WRR or WFR (for OLCI)")
-parser.add_argument('-nl', "--nolist",
-                    help="Do not create initial satellite lists, checking day by day allowing download",
-                    action="store_true")
-parser.add_argument('-adownload', "--allow_download", help="Allow download", action="store_true")
+class SatExtractOLCI:
 
-args = parser.parse_args()
+    def __init__(self,verbose):
+        self.verbose = verbose
+        self.sat_type = 'OLCI'
 
+    def is_l3_product(self):
+        return False
 
-class SatExtractOLCI(SatExtract):
+    def get_extract_options(self,sat_extract_options):
+        options_out = sat_extract_options.get_satellite_options('OLCI')
+        if options_out is None:
+            return None
+        options_out['size_box'] = sat_extract_options.get_box_size()
+        other_bands = options_out['other_variables']
+        other_bands_dict = {}
+        for s in other_bands.split(','):
+            ss = s.split(':')
+            var_list = [x.strip() for x in ss[1].split(';')]
+            other_bands_dict[ss[0].strip()] = var_list
+        options_out['other_variables'] = other_bands_dict
 
-    def __init__(self, ofname, variable_list):
-        if ofname is not None:
-            SatExtract.__init__(self, ofname)
-        if variable_list is not None:
-            self.variable_list = variable_list
-        else:
-            self.variable_list = {}
-        self.sensor = 'olci'
-        self.n_bands = 16
-        self.wl_list = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.75, 681.25, 708.75, 753.75, 778.75, 865, 885,
-                        1020.5]
+        return options_out
 
-    def set_variable_list(self, path_source, extra_bands):
-        self.variable_list = {}
-        reflectance_bands = {
-            'Oa01': 0,
-            'Oa02': 1,
-            'Oa03': 2,
-            'Oa04': 3,
-            'Oa05': 4,
-            'Oa06': 5,
-            'Oa07': 6,
-            'Oa08': 7,
-            'Oa09': 8,
-            'Oa10': 9,
-            'Oa11': 10,
-            'Oa12': 11,
-            'Oa16': 12,
-            'Oa17': 13,
-            'Oa18': 14,
-            'Oa21': 15,
-        }
-        other_bands = {
-            'T865': {
-                'band': 'satellite_AOT_0865P50',
-                'description': 'Satellite Aerosol optical thickness'
-            },
-            'WQSF': {
-                'band': 'satellite_WQSF',
-                'description': 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
-            }
+    def get_files_day(self,datehere, input_path_info, sat_extract_options):
 
-        }
-        if extra_bands is not None:
-            for key in extra_bands:
-                other_bands[key] = {
-                    'band': f'satellite_{key}',
-                    'description': ''
+        extract_options = self.get_extract_options(sat_extract_options)
+
+        path_source = input_path_info['path_source']
+        org = input_path_info['org']
+        path_day = sextract.get_path_date(path_source, org, datehere, False)
+        if path_day is None:
+            return [None] * 2
+
+        timeliness = extract_options['timeliness']
+        if timeliness is None:
+            print(f'[ERROR] {timeliness} option is not valid. Choose among NR, NT or ANY')
+            return [None] * 2
+
+        platform = extract_options['platform']
+        collection = extract_options['collection']
+        tag_resolution = extract_options['tag_res']
+
+        list_files = {}
+
+        for name in os.listdir(path_day):
+            file_here = os.path.join(path_day,name)
+            s3source = SatSourceOlci(file_here,self.verbose)
+            if not s3source.valid:
+                continue
+            if s3source.platform!=platform:
+                continue
+            if s3source.collection!=collection:
+                continue
+            if s3source.tag_resolution!=tag_resolution:
+                continue
+            datetime = s3source.start_date.strftime('%Y%m%dT%H%M%S')
+            if datetime not in list_files.keys():
+                list_files[datetime]={
+                    'NR': None,
+                    'NT': None
                 }
-        extra_bands = other_bands
+            list_files[datetime][s3source.timeliness] = name
 
-        for name in os.listdir(path_source):
-            if not name.endswith('nc'):
-                continue
-            if name.startswith('tie'):
-                continue
-            fnc = os.path.join(path_source, name)
-            dataset = Dataset(fnc)
-            for name_var, variable in dataset.variables.items():
-                dims_names = variable.get_dims()
-                if len(dims_names) != 2:
+        satellite_time = []
+        ncfiles = []
+        for l in list_files:
+            satellite_time_here = dt.strptime(l, '%Y%m%dT%H%M%S')
+            nr_name = list_files[l]['NR']
+            nt_name = list_files[l]['NT']
+
+            if nr_name is not None and (timeliness == 'NR' or (timeliness == 'ANY' and dt_name is None)):
+                satellite_time.append(satellite_time_here)
+                ncfiles.append(os.path.join(path_day, nr_name))
+            elif nt_name is not None and (timeliness == 'NT' or timeliness == 'ANY'):
+                satellite_time.append(satellite_time_here)
+                ncfiles.append(os.path.join(path_day, nt_name))
+
+        # print(ncfiles,satellite_time)
+        if len(ncfiles) > 0:
+            return ncfiles, satellite_time
+        else:
+            return [None] * 2
+
+
+    def run_parallel_extract_day(self,params):
+        self.run_extract_day(params[0], params[1], params[2], params[3], params[4], params[5])
+
+    ##lat_array and lon_array are kept as parameteres for compability with other extracts
+    def run_extract_day(self,extract_options, extract_info, lat_array, lon_array, output_path, overwrite):
+        insitu_lat = extract_info['insitu_lat']
+        insitu_lon = extract_info['insitu_lon']
+        insitu_time = extract_info['insitu_time']
+        insitu_indices = extract_info['insitu_indices']
+
+
+        path_extract_output = extract_info['path_extract_output']
+        if not os.path.exists(path_extract_output):
+            few = open(path_extract_output, 'w')
+            few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
+        else:
+            few = open(path_extract_output, 'a')
+
+        if self.verbose:
+            print(f'[INFO] Output path extract list: {path_extract_output}')
+
+        ntimes = len(insitu_time)
+        list_files = extract_info['list_files']
+        sat_file_indices = [-1]*ntimes
+        geo_info_array = [None]*ntimes
+        unzip_path = extract_info['unzip_dir']
+        if self.verbose:
+            print(f'[INFO] Unzip path: {unzip_path}')
+
+        for ifile in range(len(list_files)):
+            if self.verbose:
+                print(f'[INFO] Checking file {list_files[ifile]}...')
+            olci_source = SatSourceOlci(list_files[ifile],self.verbose)
+            olci_source.unzip_path = unzip_path
+            if self.verbose:
+                print(f'[INFO] OLCI source was loaded')
+
+            lat_array, lon_array, oza_array,ySubsampling, xSubsampling = [None]*5
+            polygon = olci_source.get_polygon_from_manifest()
+            cgeo = CHECK_GEO()
+            cgeo.polygon_image = polygon
+
+            if self.verbose:
+                print(f'[INFO] Checking {ntimes} data points')
+
+            for itime in range(ntimes):
+                # print(f'[INFO] Checking point... {itime}')
+                contain_flag = cgeo.check_point_lat_lon(insitu_lat[itime],insitu_lon[itime])
+                if contain_flag!=1:
                     continue
-                if dims_names[0].name == 'rows' and dims_names[1].name == 'columns':
-                    apply = 0
-                    index_rrs = -1
-                    extract_band = ''
-                    desc = ''
-                    if name_var.endswith('_reflectance'):
-                        apply = 2
-                        band = name_var.split('_')[0]
-                        index_rrs = reflectance_bands[band]
-                        extract_band = 'satellite_Rrs'  # also defined using apply==2
-                    if name_var in extra_bands.keys():
-                        apply = 1
-                        extract_band = extra_bands[name_var]['band']
-                        desc = extra_bands[name_var]['description']
-                    self.variable_list[name_var] = {
-                        'path': name,
-                        'apply': apply,
-                        'index_rrs': index_rrs,
-                        'extract_band': extract_band,
-                        'description': desc
-                    }
-            dataset.close()
+                if lat_array is None:
+                    lat_array,lon_array,oza_array = olci_source.get_lat_lon_oza_arrays()
+                    ySubsampling,xSubsampling = olci_source.get_tie_geometries_subsampling()
 
-    def set_variable_data(self, path_source, window):
-        for name_var in self.variable_list:
+                if lat_array is None or lon_array is None or oza_array is None:
+                    print(f'[ERROR] lat, lon or oza arrays could not be retrieved from file {list_files[ifile]}. ')
+                    continue
 
-            if self.variable_list[name_var]['apply'] == 0:
-                continue
-            file_path = os.path.join(path_source, self.variable_list[name_var]['path'])
-            if not os.path.exists(file_path):
-                print(f'[WARNING] Path to variable: {file_path} not found. Data will not be available')
-                continue
+                limits,rc = sextract.get_geo_info(extract_options['size_box'], insitu_lat[itime], insitu_lon[itime],lat_array, lon_array)
 
-            if self.variable_list[name_var]['apply'] == 2:  ##satellite rrs band, it was already created
-                index_rrs = self.variable_list[name_var]['index_rrs']
-                if args.verbose:
-                    print(f'[INFO] Creating rrs band: {index_rrs}')
-                if 'satellite_Rrs' not in self.EXTRACT.variables:
-                    return False
-                extract_variable = self.EXTRACT.variables['satellite_Rrs']
-                dataset = Dataset(file_path, 'r')
-                rrs_array = dataset.variables[name_var][:]
-                dataset.close()
-                extract_variable[0, index_rrs, :, :] = ma.array(
-                    rrs_array[window[0]:window[1], window[2]:window[3]]) / np.pi
+                oza = None if rc is None else get_val_from_tie_point_grid(rc[0],rc[1],ySubsampling,xSubsampling,oza_array)
 
-            if self.variable_list[name_var]['apply'] == 1:  ##other bands, not previously created
-                extract_band = self.variable_list[name_var]['extract_band']
-                description = self.variable_list[name_var]['description']
-                dataset = Dataset(file_path, 'r')
-                var_atts = dataset.variables[name_var].ncattrs()
-                if len(description) == 0 and 'long_name' in var_atts:
-                    description = dataset.variables[name_var].long_name
-                if 'flag_masks' in var_atts and 'flag_meanings' in var_atts:
-                    if args.verbose:
-                        print(f'[INFO] Creating flag band: {extract_band}')
-                    flag_band = dataset.variables[name_var]
-                    self.create_flag_variable(extract_band, flag_band, description, flag_band.flag_masks,
-                                              flag_band.flag_meanings, window)
+
+                if ifile==0:
+                    geo_info_array[itime] = {'rc':rc,'limits':limits,'oza':oza}
+                    if rc is not None:
+                        sat_file_indices[itime] = 0
                 else:
-                    if args.verbose:
-                        print(f'[INFO] Creating band: {extract_band}')
-                    var_array = dataset.variables[name_var]
-                    # print(file_path)
-                    # print(name_var)
-                    # print(var_array.shape)
-                    extract_var = self.create_2D_variable_general(extract_band, var_array, window)
-                    extract_var.description = description
+                    if rc is not None:
+                        geo_info_prev = geo_info_array[itime]
 
-                dataset.close()
+                        update_geo_info = False
+                        if geo_info_prev['rc'] is None:
+                            update_geo_info = True
+                        elif geo_info_prev['oza'] is not None and oza is not None and oza<geo_info_prev['oza']:
+                            print('llega aqui dos en el mismo')
+                            update_geo_info = True
+                        if update_geo_info:
+                            geo_info_array[itime] = {'rc': rc, 'limits': limits, 'oza': oza}
+                            sat_file_indices[itime]= ifile
+
+        sat_file_indices_used = np.unique(sat_file_indices)
+        if np.max(sat_file_indices_used)==-1:
+            print(f'[ERROR] No source granules were found for the in situ data avaialable on {insitu_time[0].strftime("%Y-%m-%d")}')
+            return
+        geo_info_array = np.array(geo_info_array)
+        site_list = []
+        format_datetime = '%Y-%m-%dT%H:%M:%S'
+
+        for idx in range(len(sat_file_indices_used)):
+
+            ifile = sat_file_indices_used[idx]
+
+            olci_source = SatSourceOlci(list_files[ifile],self.verbose)
+            olci_source.unzip_path = unzip_path
+            if self.verbose:
+                print(f'[INFO] Working with OLCI source {list_files[ifile]}')
+            indices_here = np.where(sat_file_indices==ifile)[0]
+            ntimes_here = len(indices_here)
+            insitu_lat_h = insitu_lat[indices_here]
+            insitu_lon_h = insitu_lon[indices_here]
+            insitu_time_h = insitu_time[indices_here]
+            insitu_indices_h = insitu_indices[0][indices_here]
+            geo_info_array_here = geo_info_array[indices_here]
+            lat_array, lon_array = olci_source.get_lat_lon_arrays()
+
+            for itime in range(ntimes_here):
+                global_at = extract_info['global_at'].copy()
+                datehere_str = extract_info['satellite_time'][0].strftime('%Y%m%d')
+                rc = geo_info_array_here[itime]['rc']
+                
+                site = f'{sextract.get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+                ofname = os.path.join(output_path, f'extract_{site}.nc')
+
+                if os.path.exists(ofname) and not overwrite:
+                    few.write('\n')
+                    few.write(
+                        f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
+                    print(
+                        f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract extract_{site}.nc already exists. {itime + 1}/{ntimes} Skiping...')
+                    continue
+
+                if overwrite and site in site_list:
+                    few.write('\n')
+                    few.write(
+                        f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
+                    print(
+                        f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract for {site}  has been already done.  Skiping...')
+                    continue
+
+                if self.verbose:
+                    print(f'[INFO] Creating new extract: {ofname}')
+
+                global_at_here = sextract.add_insitu_global_atrib(global_at, site, insitu_lat_h[itime],
+                                                                     insitu_lon_h[itime], None)
+                window = geo_info_array_here[itime]['limits']
+                satellite_time = olci_source.get_satellite_time_for_row(rc[0])
+                if satellite_time is None:
+                    satellite_time = extract_info['satellite_time'][ifile]
+                extract_info_here = {
+                    'global_at': global_at_here,
+                    'limits': geo_info_array_here[itime]['limits'],
+                    'size_box': extract_options['size_box'],
+                    'lat_array': lat_array,
+                    'lon_array': lon_array,
+                    'satellite_time': [satellite_time],
+                    'n_bands': olci_source.n_bands
+                }
+
+                ##start extract: define dimension and global attributes and creates satellite latitude, longitude and time variables
+                newExtract = sextract.start_extract(ofname, extract_info_here,self.verbose)
+                if newExtract is None:
+                    print(f'[ERROR] satellite extract {ofname} could not be started')
+                    continue
+
+                ##wavelength
+                newExtract.create_satellite_bands_variable(olci_source.wl_list)
+
+                ##rrs variables
+                if not self.launch_create_rrs_variables(newExtract,olci_source,window):
+                    print(f'[ERROR] Error creating satellite Rrs variables. satellite extract {ofname} could not be created')
+                    newExtract.close_file()
+                    os.remove(ofname)
+                    continue
+
+                ##other_variables. It should include: w_aer:T865 and wqsf: WQSF
+                other_variables = extract_options['other_variables']
+                if other_variables is not None:
+                    if not self.launch_create_other_variables(other_variables,newExtract,olci_source,window):
+                        print(f'[ERROR] Error creating non spectral variables. satellite extract {ofname} could not be created')
+                        newExtract.close_file()
+                        os.remove(ofname)
+                        continue
+
+                ##geometry variables
+                if not self.launch_create_geometry_variables(olci_source,newExtract,window):
+                    print(
+                        f'[ERROR] Error creating non spectral variables. satellite extract {ofname} could not be created')
+                    newExtract.close_file()
+                    os.remove(ofname)
+                    continue
+
+                ##extract completed
+                newExtract.close_file()
+
+    def launch_create_rrs_variables(self,newExtract,olci_source,window):
+        newExtract.create_rrs_variable('OLCI')
+        newExtract.create_rrs_unc_variable('OLCI')
+        for iband in range(olci_source.n_bands):
+            rrs_array, rrs_unc_array = olci_source.get_rrs_arrays(iband,window)
+            if rrs_array is None and rrs_unc_array is None:
+                return False
+            newExtract.EXTRACT.variables['satellite_Rrs'][0,iband, :, :] = rrs_array[:,:]
+            newExtract.EXTRACT.variables['satellite_Rrs_unc'][0, iband, :, :] = rrs_unc_array[:,:]
 
         return True
 
-    def set_geometry_data(self, path_source, size_box, window):
-        if args.verbose:
-            print('Creating geometry variables...')
-        filepah = os.path.join(path_source, 'tie_geometries.nc')
+
+    def launch_create_other_variables(self,other_variables,newExtract,olci_source,window):
+        for name_file in other_variables:
+            list_variables = other_variables[name_file]
+            info_vars = olci_source.get_info_variables(name_file,list_variables,window)
+            if info_vars is None:
+                return False
+            if not newExtract.create_2D_variable_from_info_dict(info_vars,None):
+                return False
+        return True
+
+    def launch_create_geometry_variables(self,olci_source,newExtract,window):
+        newExtract.create_geometry_variables()
+        for var_name in newExtract.geometry_variables:
+            array = olci_source.get_geometry_array(var_name,window)
+            if array is not None:
+                newExtract.EXTRACT.variables[0,:,:] = array[:,:]
+            else:
+                return False
+        return True
+
+
+class SatSourceOlci:
+    def __init__(self,path_product,verbose):
+        self.verbose = verbose
+        self.path_product = path_product
+        self.valid = True
+        self.is_zipped = True if zp.is_zipfile(path_product) else False
+
+        if not self.is_zipped and (not os.path.isdir(self.path_product) or not self.path_product.endswith('.SEN3')):
+            self.valid = False
+
+        self.platform,self.start_date,self.end_date = [None]*3
+        name = os.path.basename(self.path_product)
+        try:
+            name_l = name.split('_')
+            self.platform = name_l[0]
+            self.tag_resolution = name_l[3]
+            self.start_date = dt.strptime(name_l[7], '%Y%m%dT%H%M%S')
+            self.end_date = dt.strptime(name_l[8], '%Y%m%dT%H%M%S')
+            self.timeliness = 'NR' if 'NR' in name_l else 'NT' if 'NT' in name_l else None
+            self.collection = name_l[-1][0:name_l[-1].index('.')]
+        except Exception as ex:
+            print(f'[ERROR] Error getting plaftorm, timeliness and sensing date times from Sentinel-3 OLCI file name: {ex}')
+            self.valid = False
+
+        if self.valid and not self.platform in ['S3A','S3B']:
+            self.valid = False
+
+        if self.timeliness is None:
+            self.valid = False
+
+        self.manifest = self.get_manifest()
+        if self.manifest is None:
+            self.valid = False
+
+        self.path_prod_u = None
+        self.unzip_path = None
+        self.n_bands = 16
+        self.wl_list = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.75, 681.25, 708.75, 753.75, 778.75, 865, 885,
+                        1020.5]
+        self.rrs_bands = ['Oa01','Oa02','Oa03','Oa04','Oa05','Oa06','Oa07','Oa08','Oa09','Oa10','Oa11','Oa12','Oa16','Oa17','Oa18','Oa21',]
+
+
+
+    def get_manifest(self):
+        if not self.valid:
+            return None
+
+        if self.is_zipped:
+            with zp.ZipFile(self.path_product, 'r') as zprod:
+                fname = self.path_product.split('/')[-1][0:-4]
+                if not fname.endswith('SEN3'):
+                    fname = fname + '.SEN3'
+                manifest = os.path.join(fname, 'xfdumanifest.xml')
+                if manifest in zprod.namelist():
+                    return manifest
+        else:
+            if os.path.isdir(self.path_product) and self.path_product.endswith('.SEN3'):
+                manifest = os.path.join(self.path_product, 'xfdumanifest.xml')
+                if os.path.isfile(manifest):
+                    return manifest
+        return None
+
+    def open_manifest(self):
+        if self.manifest is None:
+            return None
+        if self.is_zipped:
+            zprod = zp.ZipFile(self.path_product, 'r')
+            gc = zprod.open(self.manifest)
+            zprod.close()
+        else:
+            gc = open(self.manifest)
+        return gc
+
+    def close_manifest(self,gc):
+        if gc is not None:
+            gc.close()
+
+    def get_polygon_from_manifest(self):
+        gc = self.open_manifest()
+        polygon_image = None
+        for line in gc:
+            if self.is_zipped:
+                line_str = line.decode().strip()
+            else:
+                line_str = line.strip()
+            if line_str.startswith('<gml:posList>'):
+                clist = line_str[len('<gml:posList>'):line_str.index('</gml:posList>')].split()
+                coords = []
+                for i in range(0, len(clist), 2):
+                    coord_here = (float(clist[i + 1]), float(clist[i]))
+                    coords.append(coord_here)
+                #coords_image = coords
+                polygon_image = Polygon(coords)  # create polygon
+        self.close_manifest(gc)
+        return polygon_image
+
+    def retrieve_uncompressed_path(self):
+        if self.verbose:
+            print(f'[INFO] Retrieving uncompressed path...')
+        if self.is_zipped:
+            if self.unzip_path is not None:
+                name_base = self.path_product.split('/')[-1][0:-4]
+                path_prod_u = os.path.join(self.unzip_path, name_base)
+                if os.path.isdir(path_prod_u):
+                    self.path_prod_u = path_prod_u
+                else:
+                    with zp.ZipFile(self.path_product, 'r') as zprod:
+                        if self.verbose:
+                            print(f'[INFO] Unziping {name_base} to {self.unzip_path}')
+                        zprod.extractall(path=self.unzip_path)
+                    path_prod_u = os.path.join(self.unzip_path, name_base)
+                    if os.path.isdir(path_prod_u):
+                        self.path_prod_u = path_prod_u
+            else:
+                print(f'[ERROR] unzip_path is required but not defined in the configuration file (section file_path, option unzip_path')
+        else:
+            self.path_prod_u = self.path_product
+
+
+    def get_lat_lon_arrays(self):
+        if not self.valid:
+            return [None]*2
+        if self.path_prod_u is None:
+            self.retrieve_uncompressed_path()
+        if self.path_prod_u is None:
+            return [None]*2
+
+        coordinates_filename = 'geo_coordinates.nc'
+        filepah = os.path.join(self.path_prod_u, coordinates_filename)
+        nc_sat = Dataset(filepah, 'r')
+        lat_array = nc_sat.variables['latitude'][:]
+        lon_array = nc_sat.variables['longitude'][:]
+        nc_sat.close()
+
+        return lat_array,lon_array
+
+    def get_lat_lon_oza_arrays(self):
+        if not self.valid:
+            return [None]*3
+        if self.path_prod_u is None:
+            self.retrieve_uncompressed_path()
+
+
+
+        if self.path_prod_u is None:
+            return [None]*3
+
+
+        lat_array,lon_array = self.get_lat_lon_arrays()
+        filepah = os.path.join(self.path_prod_u, 'tie_geometries.nc')
+        nc_sat = Dataset(filepah, 'r')
+        oza_array = nc_sat.variables['OZA'][:]
+        nc_sat.close()
+
+        return lat_array, lon_array, oza_array
+
+    def get_tie_geometries_subsampling(self):
+        if not self.valid:
+            return [None]*2
+        if self.path_prod_u is None:
+            self.retrieve_uncompressed_path()
+        if self.path_prod_u is None:
+            return [None]*2
+        filepah = os.path.join(self.path_prod_u, 'tie_geometries.nc')
         nc_sat = Dataset(filepah, 'r')
         xsubsampling = nc_sat.getncattr('ac_subsampling_factor')
         ysubsampling = nc_sat.getncattr('al_subsampling_factor')
-        SZA = nc_sat.variables['SZA'][:]
-        SAA = nc_sat.variables['SAA'][:]
-        OZA = nc_sat.variables['OZA'][:]
-        OAA = nc_sat.variables['OAA'][:]
         nc_sat.close()
+        return ysubsampling,xsubsampling
 
-        start_idx_y = window[0]
-        start_idx_x = window[1]
-        for yy in range(size_box):
-            for xx in range(size_box):
-                yPos = start_idx_y + yy
-                xPos = start_idx_x + xx
-                self.EXTRACT.variables['satellite_SZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
-                                                                                                 ysubsampling,
-                                                                                                 xsubsampling, SZA)
-                self.EXTRACT.variables['satellite_SAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
-                                                                                                 ysubsampling,
-                                                                                                 xsubsampling, SAA)
-                self.EXTRACT.variables['satellite_OZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
-                                                                                                 ysubsampling,
-                                                                                                 xsubsampling, OZA)
-                self.EXTRACT.variables['satellite_OAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
-                                                                                                 ysubsampling,
-                                                                                                 xsubsampling, OAA)
+    def get_satellite_time_for_row(self,row):
+        if self.path_prod_u is None:
+            self.retrieve_uncompressed_path()
+        if self.path_prod_u is None:
+            print(f'[ERROR] Product path could not be started. Please review write permissions in unzip_path')
+            return None
+        filepath = os.path.join(self.path_prod_u, 'time_coordinates.nc')
+        if not os.path.isfile(filepath):
+            print(f'[ERROR] File {filepath} could not be found')
+            return None
+        nc_sat = Dataset(filepath,'r')
+        if not 'time_stamp' in nc_sat.variables:
+            print(f'[WARNING] Satellite time for row {row} could not be retrieved as time_stamp variable is not avaialable in {filepath}')
+            nc_sat.close()
+            return None
+        try:
+            ts = float(nc_sat.variables['time_stamp'][row])
+            date_row = dt(2000,1,1,0,0,0)+timedelta(microseconds=ts)
+            nc_sat.close()
+        except Exception as ex:
+            print(f'[WARNING] Satellite time for row {row} could not be retrieved. Error: {ex}')
+            return None
+        return date_row
 
-    def get_version(self, path_source):
-        # extract IFP-OL-2 version
-        proc_version_str = 'IPF-OL-2'
-        with open(os.path.join(path_source, 'xfdumanifest.xml'), 'r', encoding="utf-8") as read_obj:
-            check_version = False
-            for line in read_obj:
-                if 'IPF-OL-2' in line and check_version == False:
-                    IPF_OL_2_version = line.split('"')[3]
-                    proc_version_str = f'IPF-OL-2 version {IPF_OL_2_version}'
-                    if args.verbose:
-                        print(f'[INFO] Version: {proc_version_str}')
-                    check_version = True
-                    pass
-        return proc_version_str
+    def get_rrs_arrays(self,iband, window):
+        if self.path_prod_u is None:
+            self.retrieve_uncompressed_path()
+        if self.path_prod_u is None:
+            print(f'[ERROR] Product path could not be started. Please review write permissions in unzip_path')
+            return [None]*2
 
-    def get_global_atrib(self, path_source, options):
-        proc_version_str = self.get_version(path_source)
-        filename = path_source.split('/')[-1].replace('.', '_')
-        satellite = filename[0:2]
-        platform = filename[2]
+        rrs_band = self.rrs_bands[iband]
+        filepath = os.path.join(self.path_prod_u,f'{rrs_band}_reflectance.nc')
+        if not os.path.isfile(filepath):
+            print(f'[ERROR] Reflectance file {filepath} cuold not be found')
+            return [None]*2
+        nc_sat = Dataset(filepath,'r')
+        for var in nc_sat.variables:
+            print(filepath,var,rrs_band)
+        rrs_array = nc_sat.variables[f'{rrs_band}_reflectance'][window[0]:window[1], window[2]:window[3]]
+        rrs_array = rrs_array/np.pi
+        unc_rrs_array = ma.masked_all(rrs_array.shape,rrs_array.dtype)
+        if f'{rrs_band}_reflectance_err' in  nc_sat.variables:
+            unc_rrs_array = nc_sat.variables[f'{rrs_band}_reflectance_err'][window[0]:window[1], window[2]:window[3]]
+        elif f'{rrs_band}_reflectance_unc' in  nc_sat.variables:
+            unc_rrs_array = nc_sat.variables[f'{rrs_band}_reflectance_unc'][window[0]:window[1], window[2]:window[3]]
+        else:
+            print(f'[WARNING] Satellite Rrs uncentainty band ({rrs_band}_reflectance_err or {rrs_band}_reflectance_unc) was not found.')
+        unc_rrs_array = unc_rrs_array / np.pi
+        nc_sat.close()
+        
+        return rrs_array,unc_rrs_array
 
-        at = {'sensor': self.sensor, 'satellite': satellite, 'platform': platform, 'res': '',
-              'aco_processor': 'STANDARD', 'proc_version': proc_version_str, 'site': '', 'in_situ_lat': -999,
-              'in_situ_lon': -999}
-
-        if options is not None:
-            at['site'] = options['station_name']
-            at['in_situ_lat'] = options['in_situ_lat']
-            at['in_situ_lon'] = options['in_situ_lon']
-            at['res'] = options['resolution']
-
-        return at
-
-    def get_sat_time(self, path_source):
-        filepah = os.path.join(path_source, 'Oa01_reflectance.nc')
+    def get_geometry_array(self,geometry_band,window):
+        if geometry_band.startswith('satellite_'):
+            geometry_band = geometry_band.split('_')[1]
+        if self.path_prod_u is None:
+            self.retrieve_uncompressed_path()
+        if self.path_prod_u is None:
+            return None
+        filepah = os.path.join(self.path_prod_u, 'tie_geometries.nc')
+        if not os.path.isfile(filepah):
+            print(f'[ERROR] {filepah} is not avaiable. Geometry band can not be retrieved')
+            return None
         nc_sat = Dataset(filepah, 'r')
-        satellite_start_time = datetime.strptime(nc_sat.start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
+        geom_array = nc_sat.variables[geometry_band][:]
+        xsubsampling = nc_sat.getncattr('ac_subsampling_factor')
+        ysubsampling = nc_sat.getncattr('al_subsampling_factor')
         nc_sat.close()
-        return satellite_start_time
+        ypoints,xpoints = get_yx_points_from_window(window)
+        ny = window[1] - window[0]
+        nx = window[3] - window[2]
+        vals = get_val_from_tie_point_grid(ypoints,xpoints,ysubsampling,xsubsampling,geom_array)
+        array = vals.reshape((ny,nx))
+
+        return array
+
+    def get_info_variables(self,name_file,list_variables,window):
+        if self.path_prod_u is None:
+            self.retrieve_uncompressed_path()
+        if self.path_prod_u is None:
+            print(f'[ERROR] Product path could not be started. Please review write permissions in unzip_path')
+            return None
+        filepath = os.path.join(self.path_prod_u, f'{name_file}.nc')
+        if not os.path.isfile(filepath):
+            print(f'[ERROR] File {filepath} could not be found')
+            return None
+        nc_sat = Dataset(filepath,'r')
+        if len(list_variables)==1 and list_variables[0]=='*':
+            list_var = list(nc_sat.variables)
+        else:
+            list_var = list_variables
+        info_vars = {}
+        for var in list_var:
+            if not var in nc_sat.variables:
+                print(f'[ERROR] Variable {var} is not available in {filepath}')
+                return None
+            var_here = nc_sat.variables[var]
+            is_float = False
+
+            all_attrs = var_here.__dict__
+            valid_attrs = {}
+            for at in all_attrs:
+                if at=='add_offet' or at=='scale_factor':
+                    is_float = True
+                elif at=='_FillValue':
+                    continue
+                else:
+                    valid_attrs[at] = all_attrs[at]
+            if len(valid_attrs)==0:
+                valid_attrs = None
+            data_type = 'f4' if is_float else var_here.dtype
+            fill_value = -999.0 if is_float else var_here.get_fill_value()
+            try:
+                array = var_here[window[0]:window[1], window[2]:window[3]]
+            except:
+                print(f'[ERROR] Error getting window for variable {var}')
+                return None
+            if var.startswith('T865'):
+                var_name = var.replace('T865','satellite_AOT_0865P50')
+            else:
+                var_name = f'satellite_{var}'
+            info_vars[var_name]={
+                'data_type':data_type,
+                'fill_value':fill_value,
+                'attrs': valid_attrs,
+                'array':array
+            }
+
+        return info_vars if len(info_vars)>0 else None
+
+
+# class SatExtractOLCI_DEPRECATED(SatExtract):
+#
+#     def __init__(self, ofname, variable_list):
+#         if ofname is not None:
+#             SatExtract.__init__(self, ofname)
+#         if variable_list is not None:
+#             self.variable_list = variable_list
+#         else:
+#             self.variable_list = {}
+#         self.sensor = 'olci'
+#         self.n_bands = 16
+#         self.wl_list = [400, 412.5, 442.5, 490, 510, 560, 620, 665, 673.75, 681.25, 708.75, 753.75, 778.75, 865, 885,
+#                         1020.5]
+#
+#     def set_variable_list(self, path_source, extra_bands):
+#         self.variable_list = {}
+#         reflectance_bands = {
+#             'Oa01': 0,
+#             'Oa02': 1,
+#             'Oa03': 2,
+#             'Oa04': 3,
+#             'Oa05': 4,
+#             'Oa06': 5,
+#             'Oa07': 6,
+#             'Oa08': 7,
+#             'Oa09': 8,
+#             'Oa10': 9,
+#             'Oa11': 10,
+#             'Oa12': 11,
+#             'Oa16': 12,
+#             'Oa17': 13,
+#             'Oa18': 14,
+#             'Oa21': 15,
+#         }
+#         other_bands = {
+#             'T865': {
+#                 'band': 'satellite_AOT_0865P50',
+#                 'description': 'Satellite Aerosol optical thickness'
+#             },
+#             'WQSF': {
+#                 'band': 'satellite_WQSF',
+#                 'description': 'Satellite Level 2 WATER Product, Classification, Quality and Science Flags Data Set'
+#             }
+#
+#         }
+#         if extra_bands is not None:
+#             for key in extra_bands:
+#                 other_bands[key] = {
+#                     'band': f'satellite_{key}',
+#                     'description': ''
+#                 }
+#         extra_bands = other_bands
+#
+#         for name in os.listdir(path_source):
+#             if not name.endswith('nc'):
+#                 continue
+#             if name.startswith('tie'):
+#                 continue
+#             fnc = os.path.join(path_source, name)
+#             dataset = Dataset(fnc)
+#             for name_var, variable in dataset.variables.items():
+#                 dims_names = variable.get_dims()
+#                 if len(dims_names) != 2:
+#                     continue
+#                 if dims_names[0].name == 'rows' and dims_names[1].name == 'columns':
+#                     apply = 0
+#                     index_rrs = -1
+#                     extract_band = ''
+#                     desc = ''
+#                     if name_var.endswith('_reflectance'):
+#                         apply = 2
+#                         band = name_var.split('_')[0]
+#                         index_rrs = reflectance_bands[band]
+#                         extract_band = 'satellite_Rrs'  # also defined using apply==2
+#                     if name_var in extra_bands.keys():
+#                         apply = 1
+#                         extract_band = extra_bands[name_var]['band']
+#                         desc = extra_bands[name_var]['description']
+#                     self.variable_list[name_var] = {
+#                         'path': name,
+#                         'apply': apply,
+#                         'index_rrs': index_rrs,
+#                         'extract_band': extract_band,
+#                         'description': desc
+#                     }
+#             dataset.close()
+#
+#     def set_variable_data(self, path_source, window):
+#         for name_var in self.variable_list:
+#
+#             if self.variable_list[name_var]['apply'] == 0:
+#                 continue
+#             file_path = os.path.join(path_source, self.variable_list[name_var]['path'])
+#             if not os.path.exists(file_path):
+#                 print(f'[WARNING] Path to variable: {file_path} not found. Data will not be available')
+#                 continue
+#
+#             if self.variable_list[name_var]['apply'] == 2:  ##satellite rrs band, it was already created
+#                 index_rrs = self.variable_list[name_var]['index_rrs']
+#                 if args.verbose:
+#                     print(f'[INFO] Creating rrs band: {index_rrs}')
+#                 if 'satellite_Rrs' not in self.EXTRACT.variables:
+#                     return False
+#                 extract_variable = self.EXTRACT.variables['satellite_Rrs']
+#                 dataset = Dataset(file_path, 'r')
+#                 rrs_array = dataset.variables[name_var][:]
+#                 dataset.close()
+#                 extract_variable[0, index_rrs, :, :] = ma.array(
+#                     rrs_array[window[0]:window[1], window[2]:window[3]]) / np.pi
+#
+#             if self.variable_list[name_var]['apply'] == 1:  ##other bands, not previously created
+#                 extract_band = self.variable_list[name_var]['extract_band']
+#                 description = self.variable_list[name_var]['description']
+#                 dataset = Dataset(file_path, 'r')
+#                 var_atts = dataset.variables[name_var].ncattrs()
+#                 if len(description) == 0 and 'long_name' in var_atts:
+#                     description = dataset.variables[name_var].long_name
+#                 if 'flag_masks' in var_atts and 'flag_meanings' in var_atts:
+#                     if args.verbose:
+#                         print(f'[INFO] Creating flag band: {extract_band}')
+#                     flag_band = dataset.variables[name_var]
+#                     self.create_flag_variable(extract_band, flag_band, description, flag_band.flag_masks,
+#                                               flag_band.flag_meanings, window)
+#                 else:
+#                     if args.verbose:
+#                         print(f'[INFO] Creating band: {extract_band}')
+#                     var_array = dataset.variables[name_var]
+#                     # print(file_path)
+#                     # print(name_var)
+#                     # print(var_array.shape)
+#                     extract_var = self.create_2D_variable_general(extract_band, var_array, window)
+#                     extract_var.description = description
+#
+#                 dataset.close()
+#
+#         return True
+#
+#
+#
+#     def set_geometry_data(self, path_source, size_box, window):
+#         if args.verbose:
+#             print('Creating geometry variables...')
+#         filepah = os.path.join(path_source, 'tie_geometries.nc')
+#         nc_sat = Dataset(filepah, 'r')
+#         xsubsampling = nc_sat.getncattr('ac_subsampling_factor')
+#         ysubsampling = nc_sat.getncattr('al_subsampling_factor')
+#         SZA = nc_sat.variables['SZA'][:]
+#         SAA = nc_sat.variables['SAA'][:]
+#         OZA = nc_sat.variables['OZA'][:]
+#         OAA = nc_sat.variables['OAA'][:]
+#         nc_sat.close()
+#
+#         start_idx_y = window[0]
+#         start_idx_x = window[2]
+#         for yy in range(size_box):
+#             for xx in range(size_box):
+#                 yPos = start_idx_y + yy
+#                 xPos = start_idx_x + xx
+#                 self.EXTRACT.variables['satellite_SZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
+#                                                                                                  ysubsampling,
+#                                                                                                  xsubsampling, SZA)
+#                 self.EXTRACT.variables['satellite_SAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
+#                                                                                                  ysubsampling,
+#                                                                                                  xsubsampling, SAA)
+#                 self.EXTRACT.variables['satellite_OZA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
+#                                                                                                  ysubsampling,
+#                                                                                                  xsubsampling, OZA)
+#                 self.EXTRACT.variables['satellite_OAA'][0, yy, xx] = get_val_from_tie_point_grid(yPos, xPos,
+#                                                                                                  ysubsampling,
+#                                                                                                  xsubsampling, OAA)
+#
+#     def get_version(self, path_source):
+#         # extract IFP-OL-2 version
+#         proc_version_str = 'IPF-OL-2'
+#         with open(os.path.join(path_source, 'xfdumanifest.xml'), 'r', encoding="utf-8") as read_obj:
+#             check_version = False
+#             for line in read_obj:
+#                 if 'IPF-OL-2' in line and check_version == False:
+#                     IPF_OL_2_version = line.split('"')[3]
+#                     proc_version_str = f'IPF-OL-2 version {IPF_OL_2_version}'
+#                     if args.verbose:
+#                         print(f'[INFO] Version: {proc_version_str}')
+#                     check_version = True
+#                     pass
+#         return proc_version_str
+#
+#     def get_global_atrib(self, path_source, options):
+#         proc_version_str = self.get_version(path_source)
+#         filename = path_source.split('/')[-1].replace('.', '_')
+#         satellite = filename[0:2]
+#         platform = filename[2]
+#
+#         at = {'sensor': self.sensor, 'satellite': satellite, 'platform': platform, 'res': '',
+#               'aco_processor': 'STANDARD', 'proc_version': proc_version_str, 'site': '', 'in_situ_lat': -999,
+#               'in_situ_lon': -999}
+#
+#         if options is not None:
+#             at['site'] = options['station_name']
+#             at['in_situ_lat'] = options['in_situ_lat']
+#             at['in_situ_lon'] = options['in_situ_lon']
+#             at['res'] = options['resolution']
+#
+#         return at
+#
+#     def get_sat_time(self, path_source):
+#         filepah = os.path.join(path_source, 'Oa01_reflectance.nc')
+#         nc_sat = Dataset(filepah, 'r')
+#         satellite_start_time = datetime.strptime(nc_sat.start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
+#         nc_sat.close()
+#         return satellite_start_time
 
 
 def config_reader(FILEconfig):
@@ -371,7 +955,7 @@ def create_extracts_day_by_day_v2(date_list, path_out, wce, basic_options):
             basic_options['resolution'] = res_str
             extra_bands = basic_options['extra_bands']
             if variable_list is None:
-                solci = SatExtractOLCI(None, None)
+                solci = SatExtractOLCI_DEPRECATED(None, None)
                 solci.set_variable_list(path_product, extra_bands)
                 variable_list = solci.variable_list
             basic_options['variable_list'] = variable_list
@@ -737,20 +1321,36 @@ def get_val_from_tie_point_grid(yPoint, xPoint, ySubsampling, xSubsampling, data
     j1 = j0 + 1
     wi = fi - i0
     wj = fj - j0
-    x00 = dataset[j0, i0]
-    x10 = dataset[j0, i1]
-    x01 = dataset[j1, i0]
-    x11 = dataset[j1, i1]
+    if isinstance(yPoint,np.ndarray):
+        j0 = j0.astype(np.int16)
+        i0 = i0.astype(np.int16)
+        j1 = j1.astype(np.int16)
+        i1 = i1.astype(np.int16)
+        x00 = dataset[(j0, i0)]
+        x10 = dataset[(j0, i1)]
+        x01 = dataset[(j1, i0)]
+        x11 = dataset[(j1, i1)]
+    else:
+        x00 = dataset[j0, i0]
+        x10 = dataset[j0, i1]
+        x01 = dataset[j1, i0]
+        x11 = dataset[j1, i1]
     val = x00 + (wi * (x10 - x00)) + (wj * (x01 - x00)) + (wi * wj * (x11 + x00 - x01 - x10))
+
     return val
 
 
 def floor_and_crop(v, minV, maxV):
-    rv = math.floor(v)
-    if rv < minV:
-        return minV
-    if rv > maxV:
-        return maxV
+    if isinstance(v,np.ndarray):
+        rv = np.floor(v)
+        rv[rv<minV]=minV
+        rv[rv>maxV]=maxV
+    else:
+        rv = math.floor(v)
+        if rv < minV:
+            return minV
+        if rv > maxV:
+            return maxV
     return rv
 
 
@@ -1208,7 +1808,7 @@ def create_extractv2(path_product, path_output, options):
 
     if args.verbose:
         print(f'[INFO] Starting extract file: {ofname}')
-    newExtract = SatExtractOLCI(ofname, variable_list)
+    newExtract = SatExtractOLCI_DEPRECATED(ofname, variable_list)
     newExtract.create_dimensions(size_box, newExtract.n_bands)
     newExtract.set_global_attributes(newExtract.get_global_atrib(path_product, options))
     lat, lon = get_lat_long_arrays(path_product)
@@ -2109,6 +2709,24 @@ def remove_unzip_path(unzip_path):
         elif os.path.isfile(f):
             os.remove(f)
 
+def get_yx_points_from_window(window):
+    start_idx_y = window[0]
+    stop_idx_y = window[1]
+    start_idx_x = window[2]
+    stop_idx_x = window[3]
+    nrows = stop_idx_y-start_idx_y
+    ncols = stop_idx_x-start_idx_x
+    rpoints = np.arange(start_idx_y, stop_idx_y)
+    cpoints = np.arange(start_idx_x, stop_idx_x)
+    rall = np.repeat(rpoints,nrows)
+    call = np.stack((cpoints,)*ncols).flatten()
+    return rall,call
+
+
+
+
+
+
 
 def get_insitu_sites(options, path_out):
     in_situ_sites = {}
@@ -2297,7 +2915,7 @@ def main():
                 cgeo.start_polygon_from_prod_manifest_file(product)
                 basic_options['station_name'] = f'SHIPBORNE'  ##site is defined in a later step as row_col
                 extra_bands = basic_options['extra_bands']
-                solci = SatExtractOLCI(None, None)
+                solci = SatExtractOLCI_DEPRECATED(None, None)
                 solci.set_variable_list(product, extra_bands)
                 variable_list = solci.variable_list
                 basic_options['variable_list'] = variable_list
@@ -2489,7 +3107,7 @@ def main():
                 basic_options['resolution'] = res_str
                 extra_bands = basic_options['extra_bands']
                 if variable_list is None:
-                    solci = SatExtractOLCI(None, None)
+                    solci = SatExtractOLCI_DEPRECATED(None, None)
                     solci.set_variable_list(path_product, extra_bands)
                     variable_list = solci.variable_list
                 basic_options['variable_list'] = variable_list

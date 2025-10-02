@@ -1,4 +1,8 @@
 import numpy as np
+from datetime import datetime as dt
+from netCDF4 import Dataset
+import pytz,os
+
 class INSITUBASE:
 
     def __init__(self, mdb_options):
@@ -224,6 +228,126 @@ class INSITUBASE:
         self.new_MDB = None
 
 
+class Mini_MDB_Builder():
+
+    def __init__(self,mdb_options,verbose):
+        self.verbose = verbose
+        self.mdb_options = mdb_options
+        self.new_MDB = None
+
+    def start_mini_mdb(self, extract_path, ofile):
+        if self.verbose:
+            print(f'[INFO]->Starting mini MDB...')
+
+        self.new_MDB = copy_nc(extract_path, ofile)
+
+        # time_window = 2  # del mdb_options
+        # self.new_MDB.time_diff = f'{time_window * 60 * 60}'  # in seconds
+        self.new_MDB.time_diff = self.mdb_options['time_diff_match_up']
+        if self.mdb_options['time_diff_temporal_variability'] is not None:
+            self.new_MDB.time_diff_temporal_variability = self.mdb_options['time_diff_temporal_variability']
+
+        n_insitu_id = self.mdb_options['ninsitu_max']
+        n_insitu_bands = self.mdb_options['n_insitu_bands']
+        instrument_id_list = self.mdb_options['instrument_ids']
+        if not instrument_id_list[0]=='N/A':
+            instrument_id_list.insert(0,'N/A')
+        n_instrument_id = len(instrument_id_list)
+        self.new_MDB.createDimension('insitu_id', n_insitu_id)
+        #self.new_MDB.createDimension('insitu_original_bands',  n_insitu_bands)
+        self.new_MDB.createDimension('insitu_bands', n_insitu_bands)
+        self.new_MDB.createDimension('instrument_id',n_instrument_id)
+
+
+        ##TIME VARIABLE
+        insitu_time = self.new_MDB.createVariable('insitu_time', 'f8', ('satellite_id', 'insitu_id'), zlib=True,
+                                                  complevel=6,fill_value=-999.0)
+        insitu_time.units = "Seconds since 1970-01-01 00:00:00"
+        insitu_time.description = 'In situ time in ISO 8601 format (UTC).'
+
+        #INSTRUMENT_ID VARIABLE
+        instrument_id_var = self.new_MDB.createVariable('insitu_instrument_id','i2',('satellite_id', 'insitu_id'),fill_value=-999,zlib=True,complevel=6)
+        instrument_id_var.description = 'Instrument id'
+        instrument_id_var.flag_values = np.arange(n_instrument_id).tolist()
+        instrument_id_var.flag_meanings = " ".join(instrument_id_list)
+
+
+
+        # ORIGINAL BANDS VARIABLE
+        insitu_original_bands = self.new_MDB.createVariable('insitu_original_bands', 'f4', ('instrument_id','insitu_bands'),
+                                                            fill_value=-999, zlib=True, complevel=6)
+        insitu_original_bands.description = 'In situ bands in nm.'
+
+
+        # RRS VARIABLE
+        insitu_Rrs = self.new_MDB.createVariable('insitu_Rrs', 'f4', ('satellite_id', 'insitu_bands', 'insitu_id'),
+                                            fill_value=-999, zlib=True, complevel=6)
+        insitu_Rrs.description = 'In situ Rrs'
+
+        # TIME DIFFERENCE VARIABLE
+        time_difference = self.new_MDB.createVariable('time_difference', 'f4', ('satellite_id', 'insitu_id'),
+                                                 fill_value=-999,
+                                                 zlib=True, complevel=6)
+        time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
+        time_difference.units = "seconds"
+
+    def add_shipborne_variables(self):
+
+        if not 'insitu_spatial_index' in self.new_MDB.variables:
+            index_spatial = self.new_MDB.createVariable('insitu_spatial_index', 'i2', ('satellite_id', 'insitu_id')
+                                                        ,fill_value=-999 ,zlib=True, complevel=6)
+            index_spatial.long_name = "Distance to the central pixel starting from zero"
+
+        if not 'insitu_latitude' in self.new_MDB.variables:
+            insitu_latitude = self.new_MDB.createVariable('insitu_latitude', 'f8', ('satellite_id', 'insitu_id',), zlib=True, complevel=6, fill_value=-999)
+            insitu_latitude.long_name = "In situ latitude"
+
+        if not 'insitu_longitude' in self.new_MDB.variables:
+            insitu_longitude = self.new_MDB.createVariable('insitu_longitude', 'f8', ('satellite_id', 'insitu_id',)
+                                                           ,zlib=True ,complevel=6, fill_value=-999)
+            insitu_longitude.long_name = "In situ longitude"
+
+    def set_data_from_array(self, array, variable_out):
+        if not variable_out in self.new_MDB.variables:
+            print(f'[WARNING] {variable_out} is not set in the input file')
+            return False
+
+        try:
+            self.new_MDB.variables[variable_out][:] = array[:]
+            return True
+        except:
+            print(f'[WARNING] Array shape {array.shape} does not cast with variable {variable_out}')
+            return False
+
+    def close_mini_mdb_file(self):
+        self.new_MDB.close()
+        self.new_MDB = None
+
+def get_mini_mdb_file_path(extract_path,info):
+    time_min_diff = dt.fromtimestamp(info['time_min_diff']).astimezone(pytz.utc)
+    ref_time = time_min_diff.strftime('%Y%m%dT%H%M%S')
+    site = info['site'].replace(' ','_')
+    name = f'MDBm_{info["satellite"]}{info["platform"]}_{info["sensor"]}_{site}_{ref_time}.nc'
+    file_m = os.path.join(extract_path,name)
+    return file_m
+
+def copy_nc(ifile, ofile):
+
+    with Dataset(ifile) as src:
+        dst = Dataset(ofile, 'w', format='NETCDF4')
+        # copy global attributes all at once via dictionary
+        dst.setncatts(src.__dict__)
+        # copy dimensions
+        for name, dimension in src.dimensions.items():
+            dst.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+        # copy all file data except for the excluded
+        for name, variable in src.variables.items():
+            dst.createVariable(name, variable.datatype, variable.dimensions)
+             # copy variable attributes all at once via dictionary
+            dst[name].setncatts(src[name].__dict__)
+
+            dst[name][:] = src[name][:]
+    return dst
 
 def get_insitu_object(insitu_type,insitu_options,verbose):
     insituBase = None
@@ -231,6 +355,15 @@ def get_insitu_object(insitu_type,insitu_options,verbose):
         from MDB_builder.INSITU_multiplecsv import INSITU_MULTIPLE_CSV
         insituBase = INSITU_MULTIPLE_CSV(insitu_options,verbose)
     if insitu_type=='SINGLE_SEABASS':
-        from MDB_builder.INSITU_SeaBass import INSITU_SEABASS
+        try:
+            from INSITU_SeaBass import INSITU_SEABASS
+        except:
+            from MDB_builder.INSITU_SeaBass import INSITU_SEABASS
         insituBase = INSITU_SEABASS(insitu_options,verbose)
+    if insitu_type=='HYPSTAR_L2':
+        from MDB_builder.INSITU_hypernets import HYPSTAR_L2
+        insituBase = HYPSTAR_L2(insitu_options,verbose)
+
+    if insituBase is None:
+        print(f'[ERROR] In situ class for in situ data type {insitu_type} is not available. Please check method get_insitu_object() in INSITU_base.py')
     return insituBase

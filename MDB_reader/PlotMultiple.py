@@ -51,11 +51,12 @@ class PlotMultiple():
                                          subplot_kw={'projection': 'polar'})
 
     def set_text(self, x, y, s):
-        plt.text(x, y, s, fontsize=10, backgroundcolor='w')
+        self.fig.text(x, y, s, fontsize=10, backgroundcolor='w')
 
 
     def set_text_size(self, x, y, s,fontsize):
-        plt.text(x, y, s, fontsize=fontsize, backgroundcolor='w')
+        self.fig.text(x, y, s, fontsize=fontsize, backgroundcolor='w')
+
 
     def set_title(self,title,fontsize):
         self.fig.suptitle(title,fontsize=fontsize)
@@ -204,6 +205,11 @@ class PlotMultiple():
             plt.savefig(file_out, dpi=resolution, bbox_inches='tight', facecolor='white')
 
 
+
+    def plot_color_bar(self):
+        import matplotlib as mpl
+        self.fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(0, 1), cmap='jet'),
+                     ax=ax, orientation='horizontal', label='a colorbar label')
 
     def close_plot(self):
         plt.close()

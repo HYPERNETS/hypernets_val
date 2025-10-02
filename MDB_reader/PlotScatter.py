@@ -372,7 +372,8 @@ class PlotScatter():
     def set_rlabel_position(self,rpos):
         self.ax.set_rlabel_position(rpos)
 
-
+    def set_text_size(self, x, y, s,fontsize):
+        plt.text(x, y, s, fontsize=fontsize, backgroundcolor='w',transform=plt.gcf().transFigure)
 
 
     def save_fig(self, file_out):

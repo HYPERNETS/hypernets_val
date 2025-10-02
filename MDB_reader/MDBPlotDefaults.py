@@ -440,6 +440,25 @@ valid_stats = {
 
 }
 
+options_annotations ={
+    'anot_':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'anot_y_axis_':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'anot_x_axis_':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'anot_default_style':{
+        'default': ['12'],
+        'type': 'strlist'
+    }
+}
+
 options_legend = {
     'legend': {
         'default': True,
@@ -498,7 +517,12 @@ options_size = {
     }
 }
 
+
 options_multiple_plot = {
+    'multiple_files': {
+        'default': None,
+        'type': 'strlist'
+    },
     'multiple_plot': {
         'default': None,
         'type': 'str'
@@ -1464,6 +1488,8 @@ def get_options_spectraplots():
         options[op] = options_time[op]
     for op in options_axis:
         options[op] = options_axis[op]
+    for op in options_annotations:
+        options[op] = options_annotations[op]
     return options
 
 def get_options_spectraparam():
@@ -1478,6 +1504,14 @@ def get_options_spectraparam():
         options[op] = options_axis[op]
     for op in options_legend:
         options[op] = options_legend[op]
+    for op in options_annotations:
+        options[op] = options_annotations[op]
+    return options
+
+def get_options_multiple_plot():
+    options = options_multiple_plot
+    for op in options_annotations:
+        options[op] = options_annotations[op]
     return options
 
 def get_options_scatterplots():
@@ -1498,6 +1532,8 @@ def get_options_scatterplots():
         options[op] = options_select[op]
     for op in options_axis:
         options[op] = options_axis[op]
+    for op in options_annotations:
+        options[op] = options_annotations[op]
     return options
 
 
