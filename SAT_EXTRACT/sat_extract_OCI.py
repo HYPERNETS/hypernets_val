@@ -303,7 +303,7 @@ class SatExtractOCI:
         self.sat_type = 'PACE_OCI'
 
     def get_extract_options(self,sat_extract_options):
-        options_out = sat_extract_options.get_satellite_options('PACE_OCI')
+        options_out = sat_extract_options.get_satellite_options('OCI')
         if options_out is None:
             return None
         options_out['size_box'] = sat_extract_options.get_box_size()
