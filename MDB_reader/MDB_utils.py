@@ -1,29 +1,47 @@
 import argparse
 import os.path
-import shutil
+import shutil, os
 from datetime import timedelta
 from datetime import datetime as dt
 import numpy as np
 from netCDF4 import Dataset
 import warnings
+import COMMON.args_functions as arf
+import zipfile as zp
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
 parser = argparse.ArgumentParser(
-    description="Obtaining information for running MDB_builder.")
+    description="MDB Utilities")
 
 parser.add_argument('-m', "--mode", help='Mode option',
-                    choices=["insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
+                    choices=["unzip_s3","insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
                     required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
-parser.add_argument('-o', "--output", help="Output file.")
+parser.add_argument('-o', "--output", help="Output file or path")
 parser.add_argument('-s', "--source_path", help="Source path.", default="/dst04-data1/OC/OLCI/daily_v202311_bc")
 parser.add_argument('-p', "--param", help="Param for TEST")
+parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM-DD ")
+parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
 args = parser.parse_args()
 
 
 def main():
     print(f'[INFO] Started MDB_utils!')
+    if args.mode == 'unzip_s3':
+        if not args.input_path:
+            print(f'[ERROR] Input path is required')
+            return
+        if not os.path.isdir(args.input_path):
+            print(f'[ERROR] Input path is not available or is not a valid directory')
+            return
+        start_date,end_date = arf.get_start_end_date_from_args(args)
+        if start_date is None:
+            print(f'[ERROR] -sd (--start_date) and -ed (--end_date) are required')
+            return
+        output_path = args.input_path if not args.output else args.output
+        run_unzip_s3(input_path,output_path,start_date,end_date)
+
     if args.mode == 'insitu_brdf':
         if not check_required_params(['input_path']):
             return
@@ -72,6 +90,51 @@ def main():
         file_out  = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU_V3WL.nc')
         wl_list = [591,593,596,598,601,603,605,608,610]
         remove_wl_from_mu_variables(file_in,file_out,wl_list)
+
+
+def run_unzip_s3(input_path,output_path,start_date,end_date):
+    work_date = start_date
+    while work_date<=end_date:
+        input_path_date = os.path.join(input_path,work_date.strftime('%Y'),work_date.strftime('%j'))
+        output_path_date = os.path.join(output_path,work_date.strftime('%Y'),work_date.strftime('%j'))
+        if not os.path.isdir(output_path_date):
+            if not create_output_path_date(output_path,work_date):
+                print(f'[WARNING] Output path for date {work_date.strftime("%Y-%m-%d")}: {output_path_date} is not available and could not be created. Please review permisssions.')
+                work_date = work_date + timedelta(days=1)
+                continue
+        if os.path.isdir(input_path_date):
+            for name in os.listdir(input_path_date):
+                if name.startswith('S3') and name.endswith('.zip'):
+                    file_zip = os.path.join(input_path_date,name)
+                    if not zp.is_zipfile(file_zip):
+                        print(f'[WARNING] File {file_zip} is not a valid zip file. Skipping...')
+                        continue
+                    name_base = name[0:-4]
+                    path_prod_u = os.path.join(output_path_date, name_base)
+                    with zp.ZipFile(file_zip, 'r') as zprod:
+                        print(f'[INFO] Unziping {name_base} to {output_path_date}')
+                        zprod.extractall(path=output_path_date)
+
+                    if os.path.isdir(path_prod_u):
+                        os.remove(file_zip)
+
+        work_date = work_date + timedelta(days=1)
+
+def create_output_path_date(output_path,work_date):
+    output_path_year = os.path.join(output_path,work_date.strftime('%Y'))
+    if not os.path.isdir(output_path_year):
+        try:
+            os.mkdir(output_path_year)
+        except:
+            return False
+    output_path_date = os.path.join(output_path_year,work_date.strftime('%j'))
+    if not os.path.isdir(output_path_date):
+        try:
+            os.mkdir(output_path_date)
+        except:
+            return False
+    return True
+
 
 def run_insitu_brdf():
     import __init__
