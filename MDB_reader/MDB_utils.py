@@ -40,7 +40,7 @@ def main():
             print(f'[ERROR] -sd (--start_date) and -ed (--end_date) are required')
             return
         output_path = args.input_path if not args.output else args.output
-        run_unzip_s3(input_path,output_path,start_date,end_date)
+        run_unzip_s3(args.input_path,output_path,start_date,end_date)
 
     if args.mode == 'insitu_brdf':
         if not check_required_params(['input_path']):
