@@ -543,11 +543,14 @@ class SatExtractOCI:
                 newExtract.close_file()
                 # 'n_bands': extract_options['n_bands'],
                 # 'list_files': extract_info['list_files']
+                few.write('\n')
+                few.write(
+                    f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
 
 
 
 
-
+        few.close()
 
         # if len(list_files)==1:
         #     sat_file_indices = np.zeros(ntimes)
