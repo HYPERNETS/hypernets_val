@@ -1477,6 +1477,8 @@ class SatExtractBase:
         if self.verbose:
             print(f'[INFO] SH file: {file_out_sh} has been created.')
         if mp_options['slurm_sh_launch']:
+            if self.verbose:
+                print(f'[INFO] Ready to launch SH file...')
             import subprocess
             cmd = f'sh {file_out_sh}'
             prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
@@ -1484,7 +1486,7 @@ class SatExtractBase:
             if err:
                 print(f'[ERROR]Error lunching script: {err}')
             elif self.verbose:
-                pring(f'[INFO] CMD {file_out_sh} have been launched')
+                print(f'[INFO] CMD {file_out_sh} have been launched')
 
 
     # def create_sh_slurm_multiple_csv(self,options, output_path, mp_options):
