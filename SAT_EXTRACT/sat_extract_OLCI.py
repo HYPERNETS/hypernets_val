@@ -348,7 +348,7 @@ class SatExtractOLCI:
         for var_name in newExtract.geometry_variables:
             array = olci_source.get_geometry_array(var_name,window)
             if array is not None:
-                newExtract.EXTRACT.variables[0,:,:] = array[:,:]
+                newExtract.EXTRACT.variables[var_name][0,:,:] = array[:,:]
             else:
                 return False
         return True
@@ -561,8 +561,8 @@ class SatSourceOlci:
             print(f'[ERROR] Reflectance file {filepath} cuold not be found')
             return [None]*2
         nc_sat = Dataset(filepath,'r')
-        for var in nc_sat.variables:
-            print(filepath,var,rrs_band)
+        # for var in nc_sat.variables:
+        #     print(filepath,var,rrs_band)
         rrs_array = nc_sat.variables[f'{rrs_band}_reflectance'][window[0]:window[1], window[2]:window[3]]
         rrs_array = rrs_array/np.pi
         unc_rrs_array = ma.masked_all(rrs_array.shape,rrs_array.dtype)
@@ -626,17 +626,19 @@ class SatSourceOlci:
 
             all_attrs = var_here.__dict__
             valid_attrs = {}
+            prev_fill_value = None
             for at in all_attrs:
                 if at=='add_offet' or at=='scale_factor':
                     is_float = True
                 elif at=='_FillValue':
+                    prev_fill_value = var_here._FillValue
                     continue
                 else:
                     valid_attrs[at] = all_attrs[at]
             if len(valid_attrs)==0:
                 valid_attrs = None
             data_type = 'f4' if is_float else var_here.dtype
-            fill_value = -999.0 if is_float else var_here.get_fill_value()
+            fill_value = -999.0 if is_float else prev_fill_value
             try:
                 array = var_here[window[0]:window[1], window[2]:window[3]]
             except:
