@@ -1475,7 +1475,8 @@ class SatExtractBase:
         sbs.prepare_sh_script_with_multiple_sbatch(file_out_sh, sbatch_files, sbatch_log_files,mp_options['slurm_sh_max_cores'])
 
         if self.verbose:
-            print(f'[INFO] SH file: {file_out_sh} has been created.')
+            print(f'[INFO] SH file: {file_out_sh} has been created. ')
+            
         if mp_options['slurm_sh_launch']:
             if self.verbose:
                 print(f'[INFO] Ready to launch SH file...')
@@ -1488,7 +1489,9 @@ class SatExtractBase:
             elif self.verbose:
                 print(f'[INFO] CMD {file_out_sh} have been launched')
 
-
+        else:
+            if self.verbose:
+                print(f'[INFO] SH script has not been launched. To do it, use: sh {file_out_sh}')
     # def create_sh_slurm_multiple_csv(self,options, output_path, mp_options):
     #     import COMMON.sbatch_scripter as sbs
     #
