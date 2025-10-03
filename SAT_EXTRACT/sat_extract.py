@@ -1188,9 +1188,9 @@ def add_insitu_global_atrib(at, site, latitude, longitude, other):
 def get_satellite_ref(global_at):
     if 'satellite' in global_at.keys():
         if 'platform' in global_at.keys():
-            globat_at['satelliteplatform'] = f'{global_at["satellite"]}{global_at["platform"]}'
+            global_at['satelliteplatform'] = f'{global_at["satellite"]}{global_at["platform"]}'
         else:
-             globat_at['satelliteplatform'] = global_at['satellite']
+            global_at['satelliteplatform'] = global_at['satellite']
     ref_keys = ['satelliteplatform', 'sensor', 'res', 'aco_processor', 'proc_version']
     ref = None
     for key in ref_keys:
