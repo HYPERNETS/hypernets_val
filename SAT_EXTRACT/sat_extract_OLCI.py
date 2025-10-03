@@ -320,6 +320,10 @@ class SatExtractOLCI:
                 ##extract completed
                 newExtract.close_file()
 
+                few.write('\n')
+                few.write(
+                    f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
+        few.close()
     def launch_create_rrs_variables(self,newExtract,olci_source,window):
         newExtract.create_rrs_variable('OLCI')
         newExtract.create_rrs_unc_variable('OLCI')
