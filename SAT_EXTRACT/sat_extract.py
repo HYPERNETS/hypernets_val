@@ -1476,7 +1476,7 @@ class SatExtractBase:
 
         if self.verbose:
             print(f'[INFO] SH file: {file_out_sh} has been created. ')
-            
+
         if mp_options['slurm_sh_launch']:
             if self.verbose:
                 print(f'[INFO] Ready to launch SH file...')

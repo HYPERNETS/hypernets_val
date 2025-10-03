@@ -124,7 +124,7 @@ def download_cmems_data(file_metadata,input_path_info,options):
 
 
     fr = open(file_metadata)
-    utm_zones = []
+    already_download = [] ##refs to files already download, equal to date_utm or only data
     for line in fr:
         line_s = line.strip().split(',')
         datehere = dt.strptime(line_s[0], "%Y-%m-%d")
@@ -141,14 +141,18 @@ def download_cmems_data(file_metadata,input_path_info,options):
             lon_points = [region[2], region[3], region[2], region[3]]
             for lat_p,lon_p in zip(lat_points,lon_points):
                 utm_zone = sextract.get_utm_zone(lat_p,lon_p)
-                if utm_zone not in utm_zones:
+                ref = f'{datehere.strftime("%Y%m%d")}_{utm_zone}'
+                if ref not in already_download:
                     namefile = namefile_base.replace('$UTM$',utm_zone)
                     options['remote_name'] = namefile
                     launch_download_cmems(cdownload, options, input_path_info, datefile, utm_zone)
-                    utm_zones.append(utm_zone)
+                    already_download.append(ref)
         else:
-            options['remote_name'] = namefile
-            launch_download_cmems(cdownload,options,input_path_info, datefile,None)
+            ref = f'{datehere.strftime("%Y%m%d")}'
+            if ref not in already_download:
+                options['remote_name'] = namefile
+                launch_download_cmems(cdownload,options,input_path_info, datefile,None)
+                already_download.append(ref)
 
 
 
