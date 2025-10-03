@@ -219,7 +219,7 @@ class SatExtractOptions:
         return options
 
     def get_satellite_global_atrib(self):
-        attr_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version']
+        attr_keys = ['satellite', 'platform', 'sensor', 'res', 'aco_processor', 'proc_version','cmems_region']
         options_cfile = self.get_general_options('satellite_options')
         at = {}
         for key in attr_keys:

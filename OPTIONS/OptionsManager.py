@@ -108,7 +108,7 @@ class OptionsManager():
                     'default': default
                 }
                 if len(list) == 3:
-                    soptions[op]['list_values'] = [s.strip() for s in list[2].split(',')]
+                    soptions[op]['list_values'] = [s.strip() for s in list[2].split(';')]
         return soptions, required_list
 
     ##when type option is selected, then the rest of options are only applied if type_group=type
@@ -371,7 +371,8 @@ class OptionsManager():
 
         value = self.get_value_param(section, option, default, type_param)
 
-        if list_values is not None and  value not in list_values :
+        if list_values is not None and  value not in list_values:
+            print(f'[WARNING] Section/option {section}/{option}: {value} is not a valid value. It should be in the list: {list_values}')
             value = None
 
         return value
