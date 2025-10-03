@@ -300,7 +300,7 @@ class SatExtractOCI:
 
     def __init__(self, verbose):
         self.verbose = verbose
-        self.sat_type = 'PACE_OCI'
+        self.sat_type = 'OCI'
 
     def get_extract_options(self,sat_extract_options):
         options_out = sat_extract_options.get_satellite_options('OCI')
