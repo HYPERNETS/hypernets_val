@@ -136,6 +136,8 @@ class SatExtractCMEMS:
 
         return ncfiles, satellite_time
 
+    def run_parallel_extract_day(self,params):
+        self.run_extract_day(params[0], params[1], params[2], params[3], params[4], params[5])
 
     def run_extract_day(self,extract_options, extract_info, lat_array, lon_array, output_path, overwrite):
         insitu_lat = extract_info['insitu_lat']
