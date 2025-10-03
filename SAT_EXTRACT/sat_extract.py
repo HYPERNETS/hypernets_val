@@ -281,12 +281,18 @@ class SatExtract:
         platform = at['platform']
         sensor = at['sensor']
         res_str = at['res']
+        cmems_region = at['cmems_region']
         self.EXTRACT.satellite = satellite
         self.EXTRACT.platform = platform
         self.EXTRACT.sensor = sensor
+        if len(res_str)>0:
+            self.EXTRACT.resolution = res_str
+        if len(cmems_region)>0:
+            self.EXTRACT.cmems_region = cmems_region
         self.EXTRACT.description = f'{satellite}{platform} {sensor.upper()} {res_str} L2 extract'
         self.EXTRACT.satellite_aco_processor = at['aco_processor']  # 'Atmospheric Correction processor: xxx'
         self.EXTRACT.satellite_proc_version = at['proc_version']  # proc_version_str
+
 
         self.EXTRACT.site = at['site']
 

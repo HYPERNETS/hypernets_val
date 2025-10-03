@@ -284,11 +284,11 @@ class SatExtractCMEMS:
                             list_var = csource_here.get_list_nonspectral_variables()
                         self.create_non_spectral_variables(newExtract,extract_info_here,list_var,csource_here)
 
-
-
-
                 newExtract.close_file()
-
+                few.write('\n')
+                few.write(
+                    f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
+        few.close()
 
     def create_rrs_variables(self,newExtract,extract_info,options,cmems_source):
 
