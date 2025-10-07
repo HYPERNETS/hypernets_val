@@ -118,7 +118,6 @@ def download_cci_data(file_metadata,input_path_info):
     try:
         from html_download import OC_CCI_V6_Download
         cciDownload = OC_CCI_V6_Download()
-        cciDownload.overwritte = True
     except Exception as ex:
         print(f'[ERROR] cciDownload class could not be loaded: {ex}')
         return
