@@ -18,7 +18,7 @@ parser.add_argument('-c', "--config_file", help="Config File.", required=True)
 parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument('-insitu',"--insitu_type",help="In situ type")
-parser.add_argument('-sat', "--sat_type", help="Satellite data type to be donwloaded",choices=['PACE','OLCI','CMEMS'],default='PACE',required=True)
+parser.add_argument('-sat', "--sat_type", help="Satellite data type to be donwloaded",choices=['PACE','OLCI','CMEMS','CCI'],default='PACE',required=True)
 args = parser.parse_args()
 
 class DownloadOptions:
