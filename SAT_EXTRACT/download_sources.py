@@ -100,8 +100,41 @@ def main():
         if cmems_options is not None:
             download_cmems_data(file_metadata,input_path_info,cmems_options)
 
+    if sat_type=='CCI':
+        download_cci_data(file_metadata,input_path_info)
+
+
+
 
     #os.remove(file_metadata)
+
+def download_cci_data(file_metadata,input_path_info):
+    eistools_folder = os.path.join(os.path.dirname(code_home), 'eistools')
+    if not os.path.isdir(eistools_folder):
+        print(f'[ERROR] Donwload OLCI sources requires the package eistools')
+        print(f'[ERROR] {eistools_folder} is not avaiable')
+        return
+    sys.path.append(eistools_folder)
+    try:
+        from html_download import OC_CCI_V6_Download
+        cciDownload = OC_CCI_V6_Download()
+        cciDownload.overwritte = True
+    except Exception as ex:
+        print(f'[ERROR] cciDownload class could not be loaded: {ex}')
+        return
+    fr = open(file_metadata)
+    already_download = []  ##refs to files already download, equal to date_utm or only data
+    for line in fr:
+        line_s = line.strip().split(',')
+        datehere = dt.strptime(line_s[0], "%Y-%m-%d")
+        ref = f'{datehere.strftime("%Y%m%d")}'
+        if ref not in already_download:
+            status = cciDownload.download_date(datehere,input_path_info['path_source'])
+            if status==0 and cciDownload.check_file_date(input_path_info['path_source'],datehere):
+                already_download.append(ref)
+            else:
+                print(f'[ERROR] Error downloading OC-CCI file for date: {ref}')
+
 def download_cmems_data(file_metadata,input_path_info,options):
     eistools_folder = os.path.join(os.path.dirname(code_home), 'eistools')
     if not os.path.isdir(eistools_folder):
