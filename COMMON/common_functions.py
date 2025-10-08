@@ -131,8 +131,6 @@ def convert_DMS_to_decimal(DD, MM, SS, cardinal):
     return D
 
 
-
-
 def contain_location(lat, lon, in_situ_lat, in_situ_lon):
     if lat.min() <= in_situ_lat <= lat.max() and lon.min() <= in_situ_lon <= lon.max():
         contain_flag = 1
@@ -140,8 +138,6 @@ def contain_location(lat, lon, in_situ_lat, in_situ_lon):
         contain_flag = 0
 
     return contain_flag
-
-
 
 
 def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
@@ -255,6 +251,16 @@ def get_min_max_int_folders(input_path):
             if valint>max_v:
                 max_v = valint
     return min_v,max_v
+
+def get_name_for_date(name,date_formats,date_here):
+    if len(date_formats)==1 and '$DATE$' in name:
+        name = name.replace('$DATE$',date_here.strftime(date_formats[0]))
+        return name
+
+    for iformat, format in enumerate(date_formats):
+        name = name.replace(f'$DATE{iformat}$', date_here.strftime(format))
+
+    return name
 
 # %%
 def main():

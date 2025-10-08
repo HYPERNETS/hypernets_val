@@ -191,18 +191,32 @@ def download_cmems_data(file_metadata,input_path_info,options):
 def launch_download_cmems(cdownload,options,input_path_info,datefile,utm_zone):
     cdownload.make_cmems_download(options, True, input_path_info['path_source'], input_path_info['org'], False)
     if options['extra_dataset'] is not None:
-        options_extra = options.copy()
+
+
         for index in range(len(options['extra_dataset'])):
+            options_extra = options.copy()
             edataset = options['extra_dataset'][index]
             if options['extra_dataset_name_file'] is not None:
                 dataset_name_file_e = options['extra_dataset_name_file'][index]
             else:
                 dataset_name_file_e = f'$DATE$_{edataset}.nc'
+
+            if options['extra_bucket'] is not None:
+                ebucket = options['extra_bucket'][index].strip()
+                if ebucket.strip()!='*':
+                    options_extra['bucket'] = ebucket
+
+            if options['extra_tag'] is not None:
+                etag = options['extra_tag'][index].strip()
+                if etag!='*':
+                    options_extra['tag'] = etag
+            #print(options_extra)
             namefile_e = dataset_name_file_e.replace('$DATE$', datefile)
             if utm_zone is not None:
                 namefile_e = namefile_e.replace('$UTM$', utm_zone)
             options_extra['dataset'] = edataset
             options_extra['remote_name'] = namefile_e
+
             cdownload.make_cmems_download(options_extra, True, input_path_info['path_source'], input_path_info['org'],False)
 
 # def get_utm_zone(latitude,longitude):

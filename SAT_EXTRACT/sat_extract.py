@@ -482,6 +482,21 @@ class SatExtract:
             return None
         return var
 
+    def create_3D_variable_from_info_dict_impl(self,var_info,var_name):
+        try:
+            var = self.EXTRACT.createVariable(var_name,var_info['data_type'],('satellite_id','satellite_bands', 'rows', 'columns'),fill_value=var_info['fill_value'],zlib=True, complevel=6)
+            attrs = var_info['attrs']
+            if attrs is not None:
+                var.setncatts(attrs)
+            var_array = var_info['array']
+            var[0, :, :,:] = var_array[:,:,:]
+        except Exception as ex:
+            print(f'[ERROR] Variable {var_name} could not be created. Exception: {ex}')
+            return None
+        return var
+
+
+
 
     def create_2D_variable_general(self, var_name, var_array, window):
         start_idx_y = window[0]
@@ -1329,7 +1344,7 @@ class SatExtractBase:
                 print(f'[INFO] Working with date: {date_here.strftime("%Y-%m-%d")}')
             list_files,satellite_time = self.sat_extract_sensor.get_files_day(date_here, input_path_info,sat_extract_options)
             if list_files is None:
-                print(f'[WARNING] Data files could not be retrieved. Skipping...')
+                print(f'[WARNING] Data files for {date_here.strftime("%Y-%m-%d")}could not be retrieved. Skipping...')
                 continue
             if satellite_time is None:
                 print(f'[WARNING] Satellite time for date could not be defined. Skipping...')
@@ -1357,7 +1372,7 @@ class SatExtractBase:
                     'unzip_dir': input_path_info['unzip_dir']
             }
             if lat_array is None and lon_array is None and self.sat_extract_sensor.is_l3_product():
-                if self.sat_extract_sensor.sat_type=='CMEMS' and extract_options['is_utm']:
+                if self.sat_extract_sensor.sat_type=='CMEMS':
                     pass
                 else:
                     lat_array, lon_array = self.sat_extract_sensor.get_lat_lon_arrays(extract_options, list_files[0])

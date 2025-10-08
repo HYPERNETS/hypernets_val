@@ -351,6 +351,8 @@ class OptionsManager():
                     return None
                 if result[r] is None:
                     print(f'[ERROR] Option {section}/{r}  of the configuration file is required.')
+                    if poptions[r]['type_param']=='file' and self.options.has_option(section,r):
+                        print(f'[ERROR] {section}/{r}: {self.options[section][r]} does not exist or is not a valid file')
                     return None
 
         return result
