@@ -1223,7 +1223,7 @@ def get_satellite_ref(global_at):
     return ref
 
 def get_path_date(path_base,org,date_here,createIfNotExist):
-    if org is None:
+    if org is None or org.lower()=='none':
         path_date = path_base
     else:
         try:
