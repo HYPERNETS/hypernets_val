@@ -262,6 +262,16 @@ def get_name_for_date(name,date_formats,date_here):
 
     return name
 
+def get_attrs_variable(variable):
+    attrs = {}
+    for at in variable.ncattrs():
+        if at == '_FillValue' or at == 'scale_factor' or at == 'add_offset':
+            continue
+        attrs[at] = variable.getncattr(at)
+        if (at == 'valid_min' or at == 'valid_max') and 'scale_factor' in variable.ncattrs() and 'add_offset' in variable.ncattrs():
+            attrs[at] = (attrs[at] * variable.scale_factor) + variable.add_offset
+    return attrs
+
 # %%
 def main():
     print('common_functions.py loaded!')

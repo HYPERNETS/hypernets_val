@@ -469,7 +469,7 @@ class SatSourceCMEMS:
                 else:
                     array[iband,:,:] = nc_sat.variables[name_var][0,window[0]:window[1],window[2]:window[3]]
                 if attrs is None:
-                    attrs = get_attrs_variable(nc_sat.variables[name_var])
+                    attrs = cfs.get_attrs_variable(nc_sat.variables[name_var])
                 data_available  = True
 
         nc_sat.close()
@@ -494,7 +494,7 @@ class SatSourceCMEMS:
                 array = nc_sat.variables[name_var][window[0]:window[1], window[2]:window[3]]
             else:
                 array = nc_sat.variables[name_var][0,window[0]:window[1],window[2]:window[3]]
-            attrs = get_attrs_variable(nc_sat.variables[name_var])
+            attrs = cfs.get_attrs_variable(nc_sat.variables[name_var])
 
         nc_sat.close()
 
@@ -509,16 +509,8 @@ class SatSourceCMEMS:
             dims = nc_sat.variables[name_var].get_dims()
             if len(dims)==3 and dims[0].name==self.dim_time and dims[1].name==self.dim_lat and dims[2].name==self.dim_lon:
                 var_list.append(name_var)
-
+        nc_sat.close()
         return var_list
 
 
-def get_attrs_variable(variable):
-    attrs = {}
-    for at in variable.ncattrs():
-        if at == '_FillValue' or at == 'scale_factor' or at == 'add_offset':
-            continue
-        attrs[at] = variable.getncattr(at)
-        if (at == 'valid_min' or at == 'valid_max') and 'scale_factor' in variable.ncattrs() and 'add_offset' in variable.ncattrs():
-            attrs[at] = (attrs[at] * variable.scale_factor) + variable.add_offset
-    return attrs
+
