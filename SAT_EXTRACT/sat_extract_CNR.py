@@ -6,8 +6,6 @@ import numpy.ma as ma
 import numpy as np
 from multiprocessing import Pool
 
-from statsmodels.stats.rates import nonequivalence_poisson_2indep
-
 # import user defined functions from other .py
 import sat_extract as sextract
 
