@@ -198,12 +198,13 @@ class SatExtractOptions:
                 org = org.replace('mm', '%m')
                 org = org.replace('dd', '%d')
                 org = org.replace('jjj', '%j')
-            try:
 
-                dt.now().strftime(org)
-            except:
-                print(f'[ERROR] Satellite path date organization {org} is not valid')
-                return None
+            if org is not None:
+                try:
+                    dt.now().strftime(org)
+                except:
+                    print(f'[ERROR] Satellite path date organization {org} is not valid')
+                    return None
 
         input_path_info = {
             'path_source': path_source,
@@ -1223,7 +1224,7 @@ def get_satellite_ref(global_at):
     return ref
 
 def get_path_date(path_base,org,date_here,createIfNotExist):
-    if org is None or org.lower()=='none':
+    if org is None:
         path_date = path_base
     else:
         try:
