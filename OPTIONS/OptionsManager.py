@@ -108,7 +108,8 @@ class OptionsManager():
                     'default': default
                 }
                 if len(list) == 3:
-                    soptions[op]['list_values'] = [s.strip() for s in list[2].split(';')]
+                    soptions[op]['list_values'] = [s.strip() for s in list[2].split(',')]
+
         return soptions, required_list
 
     ##when type option is selected, then the rest of options are only applied if type_group=type
@@ -373,16 +374,18 @@ class OptionsManager():
 
         value = self.get_value_param(section, option, default, type_param)
 
-        if list_values is not None and  value not in list_values:
-            print(f'[WARNING] Section/option {section}/{option}: {value} is not a valid value. It should be in the list: {list_values}')
-            value = None
+        if list_values is not None:
+            if not value in list_values:
+                print(f'[WARNING] Section/option {section}/{option}: {value} is not a valid value. It should be in the list: {list_values}')
+                value = None
 
         return value
 
     def get_value(self, section, key):
         value = None
         if self.options.has_option(section, key):
-            value = self.options[section][key].strip()
+            value = self.options[section][key]
+            value = value.strip()
         return value
 
     def get_value_param(self, section, key, default, type):
@@ -390,6 +393,7 @@ class OptionsManager():
 
         if value is None:
             return default
+
 
         return self.get_value_param_impl(value,type,default)
 

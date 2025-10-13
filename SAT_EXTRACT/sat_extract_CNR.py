@@ -1,4 +1,4 @@
-import argparse, os, sys, shutil,pytz,__init__
+import argparse, os, sys, shutil,pytz,__init__,warnings
 import pandas as pd
 from netCDF4 import Dataset
 from datetime import datetime as dt
@@ -12,6 +12,7 @@ import sat_extract as sextract
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
 import COMMON.common_functions as cfs
+warnings.simplefilter("ignore",UserWarning)
 
 class SatExtractCNR:
     def __init__(self,verbose):

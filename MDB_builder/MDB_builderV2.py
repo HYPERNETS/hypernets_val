@@ -1063,7 +1063,6 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
             out, err = prog.communicate()
             if err:
                 print(f'[ERROR]{err}')
-        print()
         list_files_tmp.append(ncout_file)
         cmd = [f"ncrcat -O -h"] + list_files_tmp
         cmd = " ".join(cmd)
@@ -1087,8 +1086,6 @@ def concatenate_nc_impl(list_files, path_out, ncout_file):
         cmd = [f"ncrcat -O -h"] + list_files
         cmd = " ".join(cmd)
 
-        # print(f'CMD="{cmd}"')
-        # os.system(cmd)
         prog = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
         out, err = prog.communicate()
         if err:

@@ -1,5 +1,6 @@
 import os
 from datetime import datetime as dt
+from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
 try:
@@ -134,6 +135,8 @@ class INSITU_SEABASS():
         return True
 
     def get_rrs_unc_array(self):
+        if self.insitu_options['rrs_unc_format'] is None:
+            return False
         if self.rrs_unc_array is not None:
             return True
         if not self.check_data():
@@ -143,10 +146,10 @@ class INSITU_SEABASS():
                 return False
 
         self.rrs_unc_array = np.zeros((self.sb.length, self.nwl))
-        for iwl, band in enumerate(self.rrs_band_list):
+        for iwl, band in enumerate(self.rrs_unc_band_list):
             self.rrs_unc_array[:, iwl] = np.array(self.sb.data[band])
         if self.verbose:
-            print(f'[INFO] Rrs data were extracted')
+            print(f'[INFO] Rrs uncentainty data were extracted')
         return True
 
 
@@ -162,13 +165,9 @@ class INSITU_SEABASS():
             if self.rrs_band_list is None or self.wl_array is None:
                 return False
             self.nwl = len(self.wl_array)
+
             if self.verbose:
                 print(f'[INFO] {self.nwl} in situ Rrs bands identified in the SeaBass file')
-
-
-
-
-
 
 
         ##RRS UNCENTAINTY
@@ -187,7 +186,7 @@ class INSITU_SEABASS():
 
 
 
-        
+        return True
 
     def check_rrs_list(self,rrs_format,rrs_band_list,rrs_list,col_names):
         wl = []
@@ -370,6 +369,7 @@ class INSITU_SEABASS():
         df.to_csv(file_csv_out,sep=';',index=None)
 
     def get_metadata_arrays(self):
+
         if not self.check_data():
             return [None]*5
         var_date, var_time, var_lat, var_lon, format_date, format_time = self.get_seabass_options()
@@ -395,7 +395,9 @@ class INSITU_SEABASS():
                 print(
                     f'[ERROR] Plase review SEABASS_SELECTION/format_date in the config. file. Expected format: {self.sb.variables[var_date][1]}')
                 return [None] * 5
-
+            if self.start_date is not None and self.end_date is not None:
+                if date_here<self.start_date or date_here>self.end_date:
+                    continue
             lat_array.append(lat_array_orig[idx])
             lon_array.append(lon_array_orig[idx])
             indices_array.append(indices_orig[idx])
@@ -434,24 +436,149 @@ class INSITU_SEABASS():
         format_time = self.insitu_options['format_time']
         return var_date, var_time, var_lat, var_lon, format_date, format_time
 
-    def create_mini_mdb_files(self,mdb_options,extracts,time_extracts):
-        options = mdb_options.get_mdb_options()
+    def create_mini_mdb_files(self,options,extract_dir,extracts,time_extracts,overwrite):
         options['n_insitu_bands'] = self.nwl
-        extract_dir = options['output_dir']
+        fcsv = os.path.join(extract_dir,f'MDBm_{time_extracts[0].strftime("%Y%m%d")}.csv')
+        fw  = open(fcsv,'w')
+        started = False
+        dims = None
         for t in time_extracts:
             ref = t.strftime('%Y%m%dT%H%M%S')
             #print(ref,'-->',extracts[ref]['file'])
             file_out = ISb.get_mini_mdb_file_path(extract_dir,extracts[ref])
-            if os.path.exists(file_out):
-                print(f'[WARNING] Mini MDB file already exists. Skipping...')
+            write_line = False
+            if os.path.isfile(file_out) and  not overwrite:
+                print(f'[INFO] Mini MDB file {os.path.basename(file_out)} already exists. Skipping...')
+                write_line = True
             else:
                 if self.verbose:
                     print(f'[INFO] Creating mini MDB file {os.path.basename(file_out)}')
                 self.create_mini_mdb_file_impl(file_out,options,extracts[ref])
+                if os.path.isfile(file_out):
+                   write_line = True
+                else:
+                    print(f'[WARNING] File MDBm {os.path.basename(file_out)} could not be created. Skipping...')
+            if write_line:
+                fw,dims = self.add_line_csv_with_MDBm_info(fw,file_out,started)
+                started = True
+
+        fw.close()
+
+        return dims
+
+    def add_line_csv_with_MDBm_info(self,fw,file_nc,started):
+        if not started:
+            first_line = 'name;satellite_id;insitu_id;instrument_id;satellite_bands;insitu_bands;rows;columns'
+            fw.write(first_line)
+        dset  = Dataset(file_nc)
+        nsat = len(dset.dimensions['satellite_id'])
+        ninsitu = len(dset.dimensions['insitu_id'])
+        ninstrument = len(dset.dimensions['instrument_id'])
+        nwlsat = len(dset.dimensions['satellite_bands'])
+        nwlinsitu = len(dset.dimensions['insitu_bands'])
+        rows = len(dset.dimensions['rows'])
+        cols = len(dset.dimensions['columns'])
+        line = f'{os.path.basename(file_nc)};{nsat};{ninsitu};{ninstrument};{nwlsat};{nwlinsitu};{rows};{cols}'
+        dset.close()
+        fw.write('\n')
+        fw.write(line)
+        dims = np.array([nsat,ninsitu,ninstrument,nwlsat,nwlinsitu,rows,cols])
+
+        return fw,dims
+    def check_ninsitu_real(self,extract_info):
+        if not 'insitu_indices' in extract_info or extract_info['insitu_indices'] is None:
+            print(f'[ERROR] insitu_indices is required in the extract info')
+            return -1
+        ninsitu_real = len(extract_info['insitu_indices'])
+        if not 'insitu_lat' in extract_info or extract_info['insitu_lat'] is None:
+            print(f'[ERROR] insitu_lat is required in the extract info')
+            return -1
+        if not 'insitu_lon' in extract_info or extract_info['insitu_lon'] is None:
+            print(f'[ERROR] insitu_lon is required in the extract info')
+            return -1
+        if not 'insitu_time' in extract_info or extract_info['insitu_time'] is None:
+            print(f'[ERROR] insitu_time is required in the extract info')
+            return -1
+        if not 'time_diff' in extract_info or extract_info['time_diff'] is None:
+            print(f'[ERROR] time_diff is required in the extract info')
+            return -1
+
+        if len(extract_info['insitu_lat'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between insitu_lat {len(extract_info["insitu_lat"])} and insitu_indices {ninsitu_real}')
+            return -1
+        if len(extract_info['insitu_lon'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between insitu_lat {len(extract_info["insitu_lon"])} and insitu_indices {ninsitu_real}')
+            return -1
+        if len(extract_info['insitu_time'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between insitu_lat {len(extract_info["insitu_time"])} and insitu_indices {ninsitu_real}')
+            return -1
+        if len(extract_info['time_diff'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between time_diff {len(extract_info["time_diff"])} and insitu_indices {ninsitu_real}')
+            return -1
+
+        if 'insitu_spatial_index' in extract_info and extract_info['insitu_spatial_index'] is not None and len(extract_info['insitu_spatial_index'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between insitu_spatial_index {len(extract_info["insitu_spatial_index"])}and insitu_indices {ninsitu_real}')
+            return -1
+
+
+
+        return ninsitu_real
 
     def create_mini_mdb_file_impl(self,file_out,options,extract_info):
+        ninsitu_real = self.check_ninsitu_real(extract_info)
+        if ninsitu_real<0:
+            return
+        if ninsitu_real==0:
+            print(f'[WARNING] No in situ data found for {extract_info["file"]}')
+            return
+
+        if ninsitu_real>options['ninsitu_max']:
+            print(f'[WARNING] {ninsitu_real} is greater than the maximum number of in situ data points {options["ninsitu_max"]}. ')
+            return
+        if self.verbose:
+            print(f'[INFO] Number of in situ data points for the extract: {ninsitu_real}')
+
+
+        #insitu_indices = extract_info['insitu_indices']
         builder = ISb.Mini_MDB_Builder(options,self.verbose)
         builder.start_mini_mdb(extract_info['file'],file_out)
         builder.add_shipborne_variables()
-        print(extract_info.keys())
+        if self.insitu_options['rrs_unc_format'] is not None:
+            builder.add_rrs_uncentainty_variable()
+
+        building_error = False
+        if len(options['instrument_ids'])==1:
+            builder.set_insitu_wavelengths(0,self.wl_array)
+            builder.set_instrument_id(ninsitu_real,1)
+        #basic variables: insitu_lat,insitu_lon,insitu_time,time_diff,insitu_spatial_index
+
+        if not builder.set_insitu_basic_variables_from_dict(extract_info):
+            print(f'[ERROR] Error setting the basic variables. MDBm file could not be created')
+            building_error = True
+
+        indices = extract_info['insitu_indices']
+        if self.get_rrs_array():
+            rrs_here = np.ma.transpose(self.rrs_array[indices,:])
+            if not builder.set_spectral_variables('insitu_Rrs',rrs_here):
+                print(f'[ERROR] Error setting the in situ Rrs variable. MDBm file could not be created')
+                building_error = True
+        else:
+            print(f'[ERROR] Error retrieving the Rrs variable from the SeaBass file')
+            building_error = True
+
+        if self.insitu_options['rrs_unc_format'] is not None:
+            if self.get_rrs_unc_array():
+                rrs_unc_here = np.ma.transpose(self.rrs_unc_array[indices, :])
+                if not builder.set_spectral_variables('insitu_Rrs_unc', rrs_unc_here):
+                    print(f'[ERROR] Error setting the in situ Rrs unc variable. MDBm file could not be created')
+                    building_error = True
+
+            else:
+                print(f'[ERROR] Error retrieving the Rrs_unc variable from the SeaBass file')
+                building_error = True
+
+
+
         builder.close_mini_mdb_file()
+        if building_error:
+            os.remove(file_out)

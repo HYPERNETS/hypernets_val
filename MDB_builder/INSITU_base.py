@@ -250,11 +250,8 @@ class Mini_MDB_Builder():
         n_insitu_id = self.mdb_options['ninsitu_max']
         n_insitu_bands = self.mdb_options['n_insitu_bands']
         instrument_id_list = self.mdb_options['instrument_ids']
-        if not instrument_id_list[0]=='N/A':
-            instrument_id_list.insert(0,'N/A')
         n_instrument_id = len(instrument_id_list)
         self.new_MDB.createDimension('insitu_id', n_insitu_id)
-        #self.new_MDB.createDimension('insitu_original_bands',  n_insitu_bands)
         self.new_MDB.createDimension('insitu_bands', n_insitu_bands)
         self.new_MDB.createDimension('instrument_id',n_instrument_id)
 
@@ -268,7 +265,8 @@ class Mini_MDB_Builder():
         #INSTRUMENT_ID VARIABLE
         instrument_id_var = self.new_MDB.createVariable('insitu_instrument_id','i2',('satellite_id', 'insitu_id'),fill_value=-999,zlib=True,complevel=6)
         instrument_id_var.description = 'Instrument id'
-        instrument_id_var.flag_values = np.arange(n_instrument_id).tolist()
+        flag_values_array = np.arange(n_instrument_id)+1
+        instrument_id_var.flag_values = flag_values_array.tolist()
         instrument_id_var.flag_meanings = " ".join(instrument_id_list)
 
 
@@ -291,6 +289,11 @@ class Mini_MDB_Builder():
         time_difference.long_name = "Absolute time difference between satellite acquisition and in situ acquisition"
         time_difference.units = "seconds"
 
+    def add_rrs_uncentainty_variable(self):
+        insitu_Rrs = self.new_MDB.createVariable('insitu_Rrs_unc', 'f4', ('satellite_id', 'insitu_bands', 'insitu_id'),
+                                                 fill_value=-999, zlib=True, complevel=6)
+        insitu_Rrs.description = ('In situ Rrs uncentainties'
+                                  '')
     def add_shipborne_variables(self):
 
         if not 'insitu_spatial_index' in self.new_MDB.variables:
@@ -307,17 +310,86 @@ class Mini_MDB_Builder():
                                                            ,zlib=True ,complevel=6, fill_value=-999)
             insitu_longitude.long_name = "In situ longitude"
 
-    def set_data_from_array(self, array, variable_out):
-        if not variable_out in self.new_MDB.variables:
-            print(f'[WARNING] {variable_out} is not set in the input file')
+    def set_insitu_wavelengths(self,instrument_id,wl_array):
+        if not 'insitu_original_bands' in self.new_MDB.variables:
+            print(f'[ERROR] insitu_original_band is not set in the input MDB mini file')
             return False
+        var_wl = self.new_MDB.variables['insitu_original_bands']
+        if instrument_id>var_wl.shape[0]:
+            print(f'[ERROR] Instrument id {instrument_id}>{var_wl.shape[0]}. Wavelength array could not be set')
+            return False
+        if len(wl_array)!=var_wl.shape[1]:
+            print(f'[ERROR] Number of wavelengths retrieved from in situ file different from the expected ({len(wl_array)} != {var_wl.shape[1]})')
+            return False
+        var_wl[instrument_id,:] = wl_array[:]
 
-        try:
-            self.new_MDB.variables[variable_out][:] = array[:]
-            return True
-        except:
-            print(f'[WARNING] Array shape {array.shape} does not cast with variable {variable_out}')
+    def set_instrument_id(self,ninsitu_real,instrument_id):
+        if not 'insitu_instrument_id' in self.new_MDB.variables:
+            print(f'[ERROR] insitu_instrument_id is not set in the input  MDB mini file')
             return False
+        var = self.new_MDB.variables['insitu_instrument_id']
+        if ninsitu_real>var.shape[1]:
+            print(f'[ERROR] {ninsitu_real} is greater than the ninsitu_max set to {var.shape[1]}')
+            return False
+        var[0,0:ninsitu_real] = instrument_id
+
+    #Non-spectral variables include insitu_time,insitu_lat,insitu_lon,insitu_spatial_index,time_difference or other data variables
+    def set_non_spectral_variables(self,name_var,array):
+        if not name_var in self.new_MDB.variables:
+            print(f'[ERROR] {name_var} is not set in the input  MDB mini file')
+            return False
+        ninsitu_real = array.shape[0]
+        var = self.new_MDB.variables[name_var]
+        if ninsitu_real>var.shape[1]:
+            print(f'[ERROR] {ninsitu_real} is greater than the ninsitu_max set to {var.shape[1]}')
+            return False
+        var[0,0:ninsitu_real] = array[:]
+        return True
+    ##spectral variables include insitu_Rrs, insitu_Rrs_unc or other
+    def set_spectral_variables(self,name_var,array):
+        if not name_var in self.new_MDB.variables:
+            print(f'[ERROR] {name_var} is not set in the input  MDB mini file')
+            return False
+        nwl = array.shape[0]
+        ninsitu_real = array.shape[1]
+        var = self.new_MDB.variables[name_var]
+        if nwl != var.shape[1]:
+            print(f'[ERROR] Number of wavelengths in the data arrary {nwl} is different from the number of bands in the {name_var} variable({var.shape[1]})')
+            return False
+        if ninsitu_real>var.shape[2]:
+            print(f'[ERROR] {ninsitu_real} is greater than the n_insitu in the variable {name_var} ({var.shape[1]})')
+            return False
+        var[0,:,0:ninsitu_real] = array[:]
+        return True
+
+    def set_insitu_basic_variables_from_dict(self,arrays):
+        if 'insitu_time' in arrays:
+            if not self.set_non_spectral_variables('insitu_time',arrays['insitu_time']):
+                return False
+        if 'insitu_lat' in arrays:
+            if not self.set_non_spectral_variables('insitu_latitude',arrays['insitu_lat']):
+                return False
+        if 'insitu_lon' in arrays:
+            if not self.set_non_spectral_variables('insitu_longitude',arrays['insitu_lon']):
+                return False
+        if 'insitu_spatial_index' in arrays:
+            if not self.set_non_spectral_variables('insitu_spatial_index', arrays['insitu_spatial_index']):
+                return False
+        if 'time_diff' in arrays:
+            if not self.set_non_spectral_variables('time_difference', arrays['time_diff']):
+                return False
+        return True
+    # def set_data_from_array(self, array, variable_out):
+    #     if not variable_out in self.new_MDB.variables:
+    #         print(f'[WARNING] {variable_out} is not set in the input file')
+    #         return False
+    #
+    #     try:
+    #         self.new_MDB.variables[variable_out][:] = array[:]
+    #         return True
+    #     except:
+    #         print(f'[WARNING] Array shape {array.shape} does not cast with variable {variable_out}')
+    #         return False
 
     def close_mini_mdb_file(self):
         self.new_MDB.close()

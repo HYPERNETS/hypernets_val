@@ -99,3 +99,29 @@ class MDBBuilderOptions:
     def get_extract_path(self):
         options = self.get_mdb_options()
         return options['extract_dir'] if options is not None else None
+
+    def allow_partial_mdb(self):
+        options = self.get_mdb_options()
+        return options['allow_partial_mdb']
+
+    def overwrite(self):
+        options = self.get_general_options('file_path')
+        return options['overwrite']
+
+    def overwrite_mini(self):
+        options = self.get_mdb_options()
+        return options['overwrite_mini']
+
+    def delete_mini(self):
+        options = self.get_mdb_options()
+        return options['delete_mini']
+
+    def get_mdb_name(self,insitu_type,start_date,end_date):
+        insitu_options = self.get_insitu_options(insitu_type)
+        site = insitu_options['site'].replace(' ', '_')
+        info = self.get_general_options('satellite_options')
+        start = start_date.strftime("%Y%m%d")
+        end = end_date.strftime("%Y%m%d")
+        platform = '' if info['platform'] is None else info['platform']
+        name = f'MDB_{info["satellite"]}{platform}_{info["sensor"]}_{site}_{start}_{end}.nc'
+        return name

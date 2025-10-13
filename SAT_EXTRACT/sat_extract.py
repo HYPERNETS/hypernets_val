@@ -1302,7 +1302,7 @@ class SatExtractBase:
         if output_path is None:
             return
         if args.verbose:
-            print(f'[INFO] Ouput path: {output_path}')
+            print(f'[INFO] Output path: {output_path}')
 
         if args.verbose:
             print(f'[INFO] Preparing in situ data...')

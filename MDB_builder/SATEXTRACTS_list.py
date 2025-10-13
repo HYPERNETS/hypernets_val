@@ -359,8 +359,8 @@ class EXTRACT_LIST:
         self.extract_files_by_date = None
         self.csv_files_by_date = None
 
-    def prepare_extract_list(self,insituBase):
-        self.csv_files_by_date = self.check_csv_extract_files(insituBase)
+    def prepare_extract_list(self,insituBase,allow_partial_mdb):
+        self.csv_files_by_date = self.check_csv_extract_files(insituBase,allow_partial_mdb)
         if self.csv_files_by_date is None:
             pass ##self.extract_file_by_date should be prepare
 
@@ -382,14 +382,20 @@ class EXTRACT_LIST:
 
         info_extracts = {}
         time_extracts = []
+        key = date_here.strftime('%Y%m%d')
 
-        if self.csv_files_by_date is not None:
-            file_csv = self.csv_files_by_date[date_here.strftime('%Y%m%d')]
+        nall = 0
+
+
+        if self.csv_files_by_date is not None and key in self.csv_files_by_date:
+            file_csv = self.csv_files_by_date[key]
+
             df = pd.read_csv(file_csv,sep=';')
             extract_names_array = df['extract_file'][:]
             insitu_times_array = df['insitu_time'][:]
             insitu_times_array_ts = np.array([dt.strptime(x,'%Y-%m-%dT%H:%M:%S').replace(tzinfo=pytz.utc).timestamp() for x in insitu_times_array])
             extract_names = np.unique(extract_names_array)
+            nall = len(extract_names)
 
             for extract_name in extract_names:
                 file_extract = os.path.join(extract_path,extract_name)
@@ -403,10 +409,10 @@ class EXTRACT_LIST:
                         return [None]*2
                     if len(info)==0:
                         continue
-
                     info = self.check_attributes(info, sat_options, insituBase)
                     if info is None:
                         return [None]*2
+
 
                     nvalid = len(info['insitu_indices'])
                     if time_diff_tv>0 and nvalid<ninsitu_max and nvalid<len(insitu_indices_day[0]):
@@ -421,7 +427,7 @@ class EXTRACT_LIST:
         if len(time_extracts)>0:
             time_extracts.sort()
 
-        return info_extracts,time_extracts
+        return info_extracts,time_extracts,nall
 
     def check_insitu_variability_extract(self,info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day,time_diff_tv,ninsitu_max):
         time_diff_prev = info['time_diff'][:]
@@ -434,17 +440,14 @@ class EXTRACT_LIST:
         if pos_max>=len(insitu_indices_day):
             pos_max = len(insitu_indices_day)
         nvalid_new = pos_max-pos_min
-
-
         insitu_indices_new = insitu_indices_day[pos_min:pos_max]
-
         insitu_time_new = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in insitu_time_day[pos_min:pos_max]]).astype(np.float64)
-
         insitu_lat_new = insitu_lat_day[pos_min:pos_max]
         insitu_lon_new = insitu_lon_day[pos_min:pos_max]
         satellite_ts = info['satellite_time']
         time_diff_new = np.abs(satellite_ts-insitu_time_new)
         valid_new = time_diff_new<time_diff_tv
+
         insitu_spatial_index_new = np.zeros(nvalid_new)
         nc_sat  = Dataset(info['file'])
         lat_array = np.squeeze(nc_sat.variables['satellite_latitude'][:])
@@ -460,7 +463,6 @@ class EXTRACT_LIST:
                 valid_new[idx] = False
                 insitu_spatial_index_new[idx]=-1
             else:
-
                 insitu_spatial_index_new[idx] = max(abs(r-rc_center),abs(c-rc_center))
 
 
@@ -469,18 +471,17 @@ class EXTRACT_LIST:
         info['insitu_lon'] = insitu_lon_new[valid_new]
         info['insitu_indices'] = insitu_indices_new[valid_new]
         info['insitu_spatial_index'] = insitu_spatial_index_new[valid_new]
+
         info['time_diff'] = time_diff_new[valid_new]
 
-        tf = info['time_diff']
+        tf = info['time_diff'].copy()
         isi = info['insitu_spatial_index']
         tf[isi>0] = np.finfo(np.float32).max
         pos_min_tf = np.argmin(tf)
         time_min_diff = info['insitu_time'][pos_min_tf]
         if time_min_diff!=info['time_min_diff']:
-            print(f'[INFO] Incongruency in the in situ point with the minimal time difference.')
+            print(f'[INFO] Inconsistency in the in situ point with the minimal time difference.')
             return None
-
-
 
         return info
 
@@ -572,20 +573,34 @@ class EXTRACT_LIST:
 
 
 
-    def check_csv_extract_files(self,insituBase):
+    def check_csv_extract_files(self,insituBase,allow_partial_mdb):
 
         extract_path = self.mo.get_extract_path()
         if extract_path is None:
             return None
         date_list = insituBase.date_list
         files_csv = {}
+        nfiles_dates = 0
         for date_h in date_list:
             file_csv_here = os.path.join(extract_path, f'{insituBase.get_ref_date(date_h)}_extracts.csv')
             if os.path.exists(file_csv_here):
                 files_csv[date_h.strftime('%Y%m%d')] = file_csv_here
-            else:
-                print(f'[WARNING] CSV extract file for date {date_list[idate].strftime("%Y-%m-%d")} is not available')
-                return None
+                nfiles_dates = nfiles_dates+1
+            # else:
+            #     print(f'[WARNING] CSV extract file for date {date_h.strftime("%Y-%m-%d")} is not available')
 
+        if nfiles_dates==0:
+            print(f'[ERROR] CSV extract files are not available for the given data range.')
+            return files_csv
+        if nfiles_dates<len(date_list):
+            print(f'[WARNING] CSV extract files were only retrieved for {nfiles_dates} of {len(date_list)} dates')
+            if allow_partial_mdb:
+                print(f'[WARNING] MDB build will continue using only {nfiles_dates} dates')
+                return files_csv
+            else:
+                print(f'[ERROR] MDB builder was halted because CSV extract reference files were not available for all the potential dates.  Options:')
+                print(f' --> To obtain a MDB file with only the available dates, run the same script with the option mdb_options/allow_partial_mdb: True')
+                print(f' --> To create the CSV extract reference file for the missing dates, run the script with mdb_options/force_reference_csv: True')
+                return None
 
         return files_csv
