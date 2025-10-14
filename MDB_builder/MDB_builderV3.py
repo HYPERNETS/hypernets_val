@@ -26,9 +26,13 @@ def main():
         return
     start_date, end_date = arf.get_start_end_date_from_args(args)
     insituBase.start_date, insituBase.end_date = start_date,end_date
+    if args.verbose:
+        print(f'[INFO] Preparing in situ data...')
     if not insituBase.prepare_data():
         return
 
+    if args.verbose:
+        print(f'[INFO] Checking in situ Rrs and data variables...')
     if not insituBase.check_rrs_and_data_variables():
         return
 
@@ -58,6 +62,8 @@ def main():
     dims_mdb = None
 
     for date_here in insituBase.date_list:
+        if args.verbose:
+            print(f'[INFO] Checking valid extracts for date: {date_here.strftime("%Y-%m-%d")}****************************')
         extracts,time_extracts,nall = slist.get_valid_extracts_date(insituBase,date_here)
         if len(time_extracts)>0:
             dims = insituBase.create_mini_mdb_files(options,extract_dir,extracts,time_extracts,ow)

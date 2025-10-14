@@ -490,7 +490,7 @@ class EXTRACT_LIST:
         ##check the extract file. insitu_times is the timestamp of measurements inside the central pixel of the extract
         info = {}
         if self.verbose:
-            print(f'[INFO] Checking extract file: {file_extract}')
+            print(f'[INFO] -> Checking extract file using time difference with central pixel for extract {os.path.basename(file_extract)}')
         try:
             dataset = Dataset(file_extract)
         except:
@@ -516,13 +516,16 @@ class EXTRACT_LIST:
         min_ref = np.argmin(time_diff_valid)
         if nvalid > ninsitu_max:
             pos_min = min_ref-np.floor(ninsitu_max/2) if (min_ref-np.floor(ninsitu_max/2))>0 else 0
+            pos_min_abs = pos_min-ninsitu_max
+            pos_min = 0 if pos_min_abs<0 else pos_min_abs
             pos_max = pos_min + ninsitu_max
             insitu_time_valid = insitu_time_valid[pos_min:pos_max]
-            valid_ref[insitu_times<insitu_times_valid[0]]=False
-            valid_ref[insitu_times>insitu_times_valid[-1]]=False
+            valid_ref[insitu_time_extract<insitu_time_valid[0]]=False
+            valid_ref[insitu_time_extract>insitu_time_valid[-1]]=False
             time_diff_valid = time_diff[valid_ref]
             min_ref = np.argmin(time_diff_valid)
             nvalid = np.count_nonzero(valid_ref)
+            
 
         insitu_indices_valid = insitu_indices_extract[valid_ref]
         insitu_lat_valid = insitu_lat_extract[valid_ref]
