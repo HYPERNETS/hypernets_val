@@ -67,7 +67,7 @@ def main():
     min_date  = None
     max_date = None
     for date_here in  insituBase.date_list:
-        file_csv_mdbm = os.path.join(extract_dir,f'MDBm_{date_here.strftime('%Y%m%d')}.csv')
+        file_csv_mdbm = os.path.join(extract_dir,f'MDBm_{date_here.strftime("%Y%m%d")}.csv')
         if os.path.exists(file_csv_mdbm):
             df = pd.read_csv(file_csv_mdbm,sep=';')
             dims_min = df[['satellite_id','insitu_id','instrument_id','satellite_bands','insitu_bands','rows','columns']].min().to_numpy()
