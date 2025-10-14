@@ -134,12 +134,10 @@ class SatExtractCMEMS:
         insitu_time = extract_info['insitu_time']
         insitu_indices = extract_info['insitu_indices']
 
+        
         path_extract_output = extract_info['path_extract_output']
-        if not os.path.exists(path_extract_output):
-            few = open(path_extract_output, 'w')
-            few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
-        else:
-            few = open(path_extract_output, 'a')
+        few = open(path_extract_output, 'w')
+        few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
 
         ntimes = len(insitu_time)
         list_files = extract_info['list_files']

@@ -246,7 +246,7 @@ class SAT_EXTRACTS_LIST:
             if fname.find(res_name) > 0:
                 return res_name
             else:
-                print(f'[WARNING] Resulution set to {res_name} despite of not being defined in the extract file')
+                print(f'[WARNING] Resolution set to {res_name} despite of not being defined in the extract file')
                 return res_name
         else:
             if res_here.upper() == res_name.upper():
@@ -525,7 +525,7 @@ class EXTRACT_LIST:
             time_diff_valid = time_diff[valid_ref]
             min_ref = np.argmin(time_diff_valid)
             nvalid = np.count_nonzero(valid_ref)
-            
+
 
         insitu_indices_valid = insitu_indices_extract[valid_ref]
         insitu_lat_valid = insitu_lat_extract[valid_ref]

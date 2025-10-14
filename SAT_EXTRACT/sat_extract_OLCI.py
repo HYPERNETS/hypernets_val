@@ -147,11 +147,9 @@ class SatExtractOLCI:
 
 
         path_extract_output = extract_info['path_extract_output']
-        if not os.path.exists(path_extract_output):
-            few = open(path_extract_output, 'w')
-            few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
-        else:
-            few = open(path_extract_output, 'a')
+        few = open(path_extract_output, 'w')
+        few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
+
 
         if self.verbose:
             print(f'[INFO] Output path extract list: {path_extract_output}')
