@@ -434,6 +434,7 @@ class EXTRACT_LIST:
         pos_min_time_diff_prev = np.argmin(time_diff_prev)
         index_min_time_diff = info['insitu_indices'][pos_min_time_diff_prev]
 
+
         pos_ref = int(np.where(insitu_indices_day==index_min_time_diff)[0][0])
         pos_min = int(pos_ref - np.floor(ninsitu_max / 2)) if (pos_ref - np.floor(ninsitu_max / 2)) > 0 else 0
         pos_max = pos_min + ninsitu_max

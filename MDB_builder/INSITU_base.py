@@ -292,8 +292,18 @@ class Mini_MDB_Builder():
     def add_rrs_uncentainty_variable(self):
         insitu_Rrs = self.new_MDB.createVariable('insitu_Rrs_unc', 'f4', ('satellite_id', 'insitu_bands', 'insitu_id'),
                                                  fill_value=-999, zlib=True, complevel=6)
-        insitu_Rrs.description = ('In situ Rrs uncentainties'
-                                  '')
+        insitu_Rrs.description = 'In situ Rrs uncentainties'
+
+    def add_non_spectral_variable(self,var_name,attrs):
+        var = self.new_MDB.createVariable(var_name,'f4',('satellite_id', 'insitu_id'),fill_value=-999,zlib=True,complevel=6)
+        if attrs is not None:
+            for at in attrs:
+                value = attrs[at]
+                if value is not None:
+                    var.setncattr(at,value)
+
+
+
     def add_shipborne_variables(self):
 
         if not 'insitu_spatial_index' in self.new_MDB.variables:

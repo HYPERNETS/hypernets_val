@@ -479,7 +479,7 @@ class SatExtractOCI:
                     few.write(
                         f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
                     print(
-                        f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract extract_{site}.nc already exists. {itime + 1}/{ntimes} Skiping...')
+                        f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract extract_{site}.nc already exists. {itime + 1}/{ntimes} Skipping...')
                     continue
 
                 if overwrite and site in site_list:

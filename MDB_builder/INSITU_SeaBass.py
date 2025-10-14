@@ -38,6 +38,7 @@ class INSITU_SEABASS():
         self.rrs_unc_band_list = None
         self.rrs_array = None
         self.rrs_unc_array = None
+        self.non_spectral_vars = None
 
     def open_seabass(self):
         if not 'path_seabass' in self.insitu_options:
@@ -159,6 +160,7 @@ class INSITU_SEABASS():
 
         col_names = list(self.sb.variables.keys())
 
+
         ##RRS
         if self.insitu_options['rrs_format'] is not None: ##RRS info is available
             self.rrs_band_list, self.wl_array = self.check_rrs_list(self.insitu_options['rrs_format'],self.insitu_options['rrs_bandlist'],self.insitu_options['rrs_list'],col_names)
@@ -170,7 +172,7 @@ class INSITU_SEABASS():
                 print(f'[INFO] {self.nwl} in situ Rrs bands identified in the SeaBass file')
 
 
-        ##RRS UNCENTAINTY
+        ##RRS UNCERTAINTY
         if self.insitu_options['rrs_unc_format'] is not None:
             self.rrs_unc_band_list, wl_array_unc = self.check_rrs_list(self.insitu_options['rrs_unc_format'],self.insitu_options['rrs_unc_bandlist'],self.insitu_options['rrs_list'],col_names)
             if self.rrs_unc_band_list is None or wl_array_unc is None:
@@ -184,6 +186,17 @@ class INSITU_SEABASS():
             if self.verbose:
                 print(f'[INFO] {self.nwl} in situ Rrs uncentainty bands identified in the SeaBass file')
 
+        if self.insitu_options['non_spectral_variables'] is not None:
+            self.non_spectral_vars = {}
+            for var_name in self.insitu_options['non_spectral_variables']:
+                var_name = var_name.lower()
+                if var_name in col_names:
+                    try:
+                        self.non_spectral_vars[var_name] = self.sb.variables[var_name][1]
+                    except:
+                        self.non_spectral_vars[var_name] = None
+            if len(self.non_spectral_vars)==0:
+                self.non_spectral_vars = None
 
 
         return True
@@ -577,7 +590,14 @@ class INSITU_SEABASS():
                 print(f'[ERROR] Error retrieving the Rrs_unc variable from the SeaBass file')
                 building_error = True
 
-
+        if self.non_spectral_vars is not None:
+            for var_name in self.non_spectral_vars:
+                var_name_nc = f'insitu_{var_name}' if not var_name.startswith('insitu_') else var_name
+                attrs = {'units': self.non_spectral_vars[var_name]}
+                builder.add_non_spectral_variable(var_name_nc, attrs)
+                array = np.array(self.sb.data[var_name])
+                array = array[indices]
+                builder.set_non_spectral_variables(var_name_nc,array)
 
         builder.close_mini_mdb_file()
         if building_error:
