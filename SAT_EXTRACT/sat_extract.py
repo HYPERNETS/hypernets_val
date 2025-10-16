@@ -1068,10 +1068,10 @@ def get_geo_info(size_box,insitu_lat, insitu_lon, lat, lon):
     rc = None
     if cfs.contain_location(lat, lon, insitu_lat, insitu_lon) == 1:
         if lat.ndim == 1 and lon.ndim == 1:
-            r = np.argmin(np.abs(lat - insitu_lat))
-            c = np.argmin(np.abs(lon - insitu_lon))
+            r = np.argmin(np.abs(lat.astype(np.float64) - insitu_lat))
+            c = np.argmin(np.abs(lon.astype(np.float64) - insitu_lon))
         else:
-            r, c = cfs.find_row_column_from_lat_lon(lat, lon, insitu_lat, insitu_lon)
+            r, c = cfs.find_row_column_from_lat_lon(lat.astype(np.float64), lon.astype(np.float64), insitu_lat, insitu_lon)
 
 
         start_idx_x = (c - int(size_box / 2))  # lon

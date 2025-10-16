@@ -473,7 +473,7 @@ class EXTRACT_LIST:
             if not valid_new[idx]:
                 insitu_spatial_index_new[idx] = -1
                 continue
-            r, c = cfs.find_row_column_from_lat_lon(lat_array, lon_array, insitu_lat_new[idx], insitu_lon_new[idx])
+            r, c = cfs.find_row_column_from_lat_lon(lat_array.astype(np.float64), lon_array.astype(np.float64), insitu_lat_new[idx], insitu_lon_new[idx])
 
             #print(dt.fromtimestamp(insitu_time_new[idx]).astimezone(pytz.utc).strftime("%H:%M:%S"),insitu_lat_new[idx],insitu_lon_new[idx],r,c,rtemp,ctemp)
             if np.isnan(r) and np.isnan(c):
