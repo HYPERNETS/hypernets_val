@@ -134,7 +134,7 @@ class SatExtractCMEMS:
         insitu_time = extract_info['insitu_time']
         insitu_indices = extract_info['insitu_indices']
 
-        
+
         path_extract_output = extract_info['path_extract_output']
         few = open(path_extract_output, 'w')
         few.write('extract_file;insitu_index;insitu_time;insitu_lat;insitu_lon')
@@ -189,12 +189,29 @@ class SatExtractCMEMS:
             for itime in range(ntimes_here):
                 global_at = extract_info['global_at'].copy()
                 datehere_str = extract_info['satellite_time'][ifile].strftime('%Y%m%d')
-                limits, rc = sextract.get_geo_info(extract_options['size_box'], insitu_lat[itime], insitu_lon[itime],lat_array, lon_array)
+                limits, rc = sextract.get_geo_info(extract_options['size_box'], insitu_lat_h[itime], insitu_lon_h[itime],lat_array, lon_array)
                 if rc is None:
                     valid_h[itime]=0
                     continue
 
                 site = f'{sextract.get_satellite_ref(global_at)}_{datehere_str}_{rc[0]}_{rc[1]}'
+
+                # if site=='CMEMS_MSI_100m_HR-OC-L2_20240626_110_1093':
+                #     print('====================================================================================')
+                #     print('file: ',f'extract_{site}.nc')
+                #     print('Punto insitu:',insitu_lat[itime],insitu_lon[itime])
+                #     print('row columns in source:',rc)
+                #     print('limits from source: ',limits)
+                #     dataset = Dataset(os.path.join(output_path, f'extract_{site}.nc'))
+                #     lat_e = np.squeeze(dataset.variables['satellite_latitude'][:])
+                #     lon_e = np.squeeze(dataset.variables['satellite_longitude'][:])
+                #     dataset.close()
+                #     r, c = cfs.find_row_column_from_lat_lon(lat_e, lon_e, insitu_lat[itime],insitu_lon[itime])
+                #     print('Punto lat lon in source ',lat_array[rc[0]],lon_array[rc[1]])
+                #     print('Punto central in extract',lat_e[r,c],lon_e[r,c])
+                #     print('Coordenadas in extract:',r,c)
+                #     print('======================================================================================')
+
                 ofname = os.path.join(output_path, f'extract_{site}.nc')
 
                 if os.path.exists(ofname) and not overwrite:

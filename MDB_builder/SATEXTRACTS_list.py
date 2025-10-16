@@ -433,19 +433,30 @@ class EXTRACT_LIST:
         time_diff_prev = info['time_diff'][:]
         pos_min_time_diff_prev = np.argmin(time_diff_prev)
         index_min_time_diff = info['insitu_indices'][pos_min_time_diff_prev]
+        # index_first = info['insitu_indices'][0]
+        # index_last = info['insitu_indices'][-1]
+        # print('pos of min time diff', pos_min_time_diff_prev, ' with a index ', index_min_time_diff)
+        # for itime,time in enumerate(insitu_time_day):
+        #     print(itime,insitu_indices_day[itime],'->',time.strftime('%Y-%m-%d %H:%M:%S'))
 
 
         pos_ref = int(np.where(insitu_indices_day==index_min_time_diff)[0][0])
+        # pos_min = int(np.where(insitu_indices_day==index_first)[0][0])
+        # pos_max = int(np.where(insitu_indices_day == index_last)[0][0])
+        # print('pos ref in insitu indices days, should be 14',pos_ref)
+        # print('index min and max', index_first,index_last,'pos min and max: ',pos_min,pos_max)
         pos_min = int(pos_ref - np.floor(ninsitu_max / 2)) if (pos_ref - np.floor(ninsitu_max / 2)) > 0 else 0
         pos_max = pos_min + ninsitu_max
         if pos_max>=len(insitu_indices_day):
             pos_max = len(insitu_indices_day)
+        # print('pos min and pos max new, centrados en el min time diff: ',pos_min,pos_max)
         nvalid_new = pos_max-pos_min
         insitu_indices_new = insitu_indices_day[pos_min:pos_max]
         insitu_time_new = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in insitu_time_day[pos_min:pos_max]]).astype(np.float64)
         insitu_lat_new = insitu_lat_day[pos_min:pos_max]
         insitu_lon_new = insitu_lon_day[pos_min:pos_max]
         satellite_ts = info['satellite_time']
+        # print('satellite_ts',satellite_ts,dt.fromtimestamp(satellite_ts).astimezone(pytz.utc).strftime('%Y-%m-%d %H:%M:%S'))
         time_diff_new = np.abs(satellite_ts-insitu_time_new)
         valid_new = time_diff_new<time_diff_tv
 
@@ -466,20 +477,30 @@ class EXTRACT_LIST:
             else:
                 insitu_spatial_index_new[idx] = max(abs(r-rc_center),abs(c-rc_center))
 
+        # for itime,time in enumerate(insitu_time_new):
+        #
+        #     print(itime,insitu_indices_new[itime],'->',dt.fromtimestamp(time).astimezone(pytz.utc).strftime('%Y-%m-%d %H:%M:%S'),' ?  ',insitu_spatial_index_new[itime],insitu_lat_new[idx],insitu_lon_new[idx])
+
 
         info['insitu_time'] = insitu_time_new[valid_new]
         info['insitu_lat'] = insitu_lat_new[valid_new]
         info['insitu_lon'] = insitu_lon_new[valid_new]
         info['insitu_indices'] = insitu_indices_new[valid_new]
         info['insitu_spatial_index'] = insitu_spatial_index_new[valid_new]
-
         info['time_diff'] = time_diff_new[valid_new]
 
         tf = info['time_diff'].copy()
         isi = info['insitu_spatial_index']
+        # print(tf)
+        # print(isi)
         tf[isi>0] = np.finfo(np.float32).max
         pos_min_tf = np.argmin(tf)
         time_min_diff = info['insitu_time'][pos_min_tf]
+        # for t in info['insitu_time']:
+        #     print('in situ time que me quedan: ',dt.fromtimestamp(t).astimezone(pytz.utc).strftime('%H:%M:%S'))
+        # print('pos min tf deberia ser zero',pos_min_tf)
+        # print('previo time min diff:',dt.fromtimestamp(info['time_min_diff']).astimezone(pytz.utc).strftime('%H:%M:%S'))
+        # print('nuevo time min diff',dt.fromtimestamp(time_min_diff).astimezone(pytz.utc).strftime('%H:%M:%S'))
         if time_min_diff!=info['time_min_diff']:
             print(f'[INFO] Inconsistency in the in situ point with the minimal time difference.')
             return None
@@ -503,6 +524,16 @@ class EXTRACT_LIST:
 
         satellite_time = float(dataset.variables['satellite_time'][0])
         time_diff= np.abs(satellite_time-insitu_time_extract)
+
+        # print('=========================================================')
+        # lat_array = np.squeeze(dataset.variables['satellite_latitude'][:])
+        # lon_array = np.squeeze(dataset.variables['satellite_longitude'][:])
+        # print('file',file_extract)
+        # print('insitu: ',insitu_time_extract[0],insitu_lat_extract[0],insitu_lon_extract[0])
+        # print('punto central in extract',lat_array[12,12],lon_array[12,12])
+        # r, c = cfs.find_row_column_from_lat_lon(lat_array, lon_array, insitu_lat_extract[0], insitu_lon_extract[0])
+        # print('row,column in extract: ',r,c)
+        # print('=====================')
         valid_ref = time_diff<time_diff_mu
 
         nvalid = np.count_nonzero(valid_ref)
@@ -515,6 +546,8 @@ class EXTRACT_LIST:
         insitu_time_valid = insitu_time_extract[valid_ref]
         min_ref = np.argmin(time_diff_valid)
         if nvalid > ninsitu_max:
+            if self.verbose:
+                print(f'[INFO] Number of valid in situ data points is greater than the number of in situ points')
             pos_min = min_ref-np.floor(ninsitu_max/2) if (min_ref-np.floor(ninsitu_max/2))>0 else 0
             pos_min_abs = pos_min-ninsitu_max
             pos_min = 0 if pos_min_abs<0 else pos_min_abs

@@ -1345,7 +1345,7 @@ class SatExtractBase:
                 print(f'[INFO] Working with date: {date_here.strftime("%Y-%m-%d")}')
             list_files,satellite_time = self.sat_extract_sensor.get_files_day(date_here, input_path_info,sat_extract_options)
             if list_files is None:
-                print(f'[WARNING] Data files for {date_here.strftime("%Y-%m-%d")}could not be retrieved. Skipping...')
+                print(f'[WARNING] Data files for {date_here.strftime("%Y-%m-%d")} could not be retrieved. Skipping...')
                 continue
             if satellite_time is None:
                 print(f'[WARNING] Satellite time for date could not be defined. Skipping...')
