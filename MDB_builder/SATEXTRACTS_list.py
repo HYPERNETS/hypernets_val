@@ -369,7 +369,7 @@ class EXTRACT_LIST:
         sat_options = self.mo.get_general_options('satellite_options')
         extract_path = mdb_options['extract_dir']
         if extract_path is None:
-            return [None]*2
+            return [None]*3
         time_diff_mu = mdb_options['time_diff_match_up']
         time_diff_mu = time_diff_mu * 60 ##from minutes to seconds
         ninsitu_max = mdb_options['ninsitu_max']
@@ -406,19 +406,19 @@ class EXTRACT_LIST:
                     insitu_lon_extract = df['insitu_lon'][extract_names_array == extract_name].to_numpy()
                     info = self.check_extract_file(file_extract,insitu_indices_extract,insitu_times_extract,insitu_lat_extract,insitu_lon_extract,time_diff_mu,ninsitu_max)
                     if info is None:
-                        return [None]*2
+                        return [None]*3
                     if len(info)==0:
                         continue
                     info = self.check_attributes(info, sat_options, insituBase)
                     if info is None:
-                        return [None]*2
+                        return [None]*3
 
 
                     nvalid = len(info['insitu_indices'])
                     if time_diff_tv>0 and nvalid<ninsitu_max and nvalid<len(insitu_indices_day[0]):
                         info = self.check_insitu_variability_extract(info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day[0],time_diff_tv,ninsitu_max)
                         if info is None:
-                            return [None]*2
+                            return [None]*3
                     time_min_diff = dt.fromtimestamp(info['time_min_diff']).astimezone(pytz.utc)
                     ref = time_min_diff.strftime('%Y%m%dT%H%M%S')
                     info_extracts[ref] = info
@@ -466,11 +466,16 @@ class EXTRACT_LIST:
         lon_array = np.squeeze(nc_sat.variables['satellite_longitude'][:])
         rc_center = int(np.floor(lat_array.shape[0]/2))
         nc_sat.close()
+
+
+
         for idx in range(nvalid_new):
             if not valid_new[idx]:
                 insitu_spatial_index_new[idx] = -1
                 continue
             r, c = cfs.find_row_column_from_lat_lon(lat_array, lon_array, insitu_lat_new[idx], insitu_lon_new[idx])
+
+            #print(dt.fromtimestamp(insitu_time_new[idx]).astimezone(pytz.utc).strftime("%H:%M:%S"),insitu_lat_new[idx],insitu_lon_new[idx],r,c,rtemp,ctemp)
             if np.isnan(r) and np.isnan(c):
                 valid_new[idx] = False
                 insitu_spatial_index_new[idx]=-1

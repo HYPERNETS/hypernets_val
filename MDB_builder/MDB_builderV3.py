@@ -65,6 +65,9 @@ def main():
         if args.verbose:
             print(f'[INFO] Checking valid extracts for date: {date_here.strftime("%Y-%m-%d")}****************************')
         extracts,time_extracts,nall = slist.get_valid_extracts_date(insituBase,date_here)
+        if extracts is None or time_extracts is None:
+            print(f'[ERROR] Error retrieving extracts for date: {date_here.strftime("%Y-%m-%d")}, building is stopped. Launch again the extract only for that date before retrying the builder could solve the problem')
+            return
         if len(time_extracts)>0:
             dims = insituBase.create_mini_mdb_files(options,extract_dir,extracts,time_extracts,ow)
             if dims is not None:
