@@ -314,7 +314,7 @@ def download_pace_data(file_metadata,input_path_info,download_options):
         if args.verbose:
             print(f'[INFO] Getting granule list for {line_s[0]} in the area {region}')
 
-        list_aop_here = ndownload.get_list_date_with_options('PACE_AOP',None, region,None,None, date_here, False)
+        list_aop_here = ndownload.get_list_date_with_options(download_options,'PACE_AOP',None, region,None,None, date_here)
         if list_aop_here is None:
             fr.close()
             os.remove(file_metadata)
