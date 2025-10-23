@@ -14,12 +14,13 @@ parser = argparse.ArgumentParser(
     description="MDB Utilities")
 
 parser.add_argument('-m', "--mode", help='Mode option',
-                    choices=["unzip_s3","insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
+                    choices=["add_flag","unzip_s3","insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
                     required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file or path")
 parser.add_argument('-s', "--source_path", help="Source path.", default="/dst04-data1/OC/OLCI/daily_v202311_bc")
 parser.add_argument('-p', "--param", help="Param for TEST")
+parser.add_argument('-c', "--config_file",help="Config file" )
 parser.add_argument('-sd', "--start_date", help="The Start Date - format YYYY-MM-DD ")
 parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
@@ -28,6 +29,19 @@ args = parser.parse_args()
 
 def main():
     print(f'[INFO] Started MDB_utils!')
+    if args.mode == 'add_flag':
+        if not args.input_path:
+            print(f'[ERROR] Input path is required')
+            return
+        if not os.path.isfile(args.input_path):
+            print(f'[ERROR] Input path is not available or is not a valid file')
+            return
+        if not args.config_file:
+            print(f'[ERROR] Config path is required')
+            return
+        if not os.path.isfile(args.config_file):
+            print(f'[ERROR] Config file is not available or is not a valid file')
+            return
     if args.mode == 'unzip_s3':
         if not args.input_path:
             print(f'[ERROR] Input path is required')

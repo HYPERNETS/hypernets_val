@@ -35,6 +35,9 @@ class DownloadOptions:
     def get_cmems_download_options(self):
         return self.get_options('cmems_download')
 
+    def get_pace_download_options(self):
+        return self.get_options('pace_download')
+
     def get_options(self, section):
         if not self.is_valid:
             return None
@@ -89,7 +92,8 @@ def main():
 
 
     if sat_type=='PACE':
-        download_pace_data(file_metadata,input_path_info)
+        pace_options = doptions.get_pace_download_options()
+        download_pace_data(file_metadata,input_path_info,pace_options)
 
     if sat_type=='OLCI':
         eumetsat_options = doptions.get_eumetsat_download_options()
@@ -284,7 +288,7 @@ def download_olci_data(file_metadata,input_path_info,options):
             continue
         edownload.download_product(product, path_out, False)
 
-def download_pace_data(file_metadata,input_path_info):
+def download_pace_data(file_metadata,input_path_info,download_options):
     eistools_folder = os.path.join(os.path.dirname(code_home),'eistools')
     if not os.path.isdir(eistools_folder):
         print(f'[ERROR] Donwload PACE sources requires the package eistools')
@@ -309,7 +313,8 @@ def download_pace_data(file_metadata,input_path_info):
         region = [float(line_s[1]),float(line_s[2]),float(line_s[3]),float(line_s[4])]
         if args.verbose:
             print(f'[INFO] Getting granule list for {line_s[0]} in the area {region}')
-        list_aop_here = ndownload.get_list_date('PACE_AOP',None, region,None,None, date_here, False)
+
+        list_aop_here = ndownload.get_list_date_with_options('PACE_AOP',None, region,None,None, date_here, False)
         if list_aop_here is None:
             fr.close()
             os.remove(file_metadata)

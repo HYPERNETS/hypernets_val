@@ -3,9 +3,11 @@ import pytz
 try:
     from MDB_reader.MDBFile import MDBFile
     from MDB_reader.OptionsManager import OptionsManager
+    from MDB_builder.INSITU_SeaBass import INSITU_SEABASS
 except:
     from MDBFile import MDBFile
     from OptionsManager import OptionsManager
+    from INSITU_SeaBass import INSITU_SEABASS
 import os
 import numpy as np
 from datetime import datetime as dt
@@ -52,7 +54,7 @@ class FlagBuilder:
 
         # flag_insitu_spatial
         self.flag_options = {
-            'type': {'type_param': 'str', 'list_values': ['virtual_flag', 'spatial', 'temporal', 'ranges', 'csv']},
+            'type': {'type_param': 'str', 'list_values': ['virtual_flag', 'spatial', 'temporal', 'ranges', 'csv','seabass']},
             'typevirtual': {'type_param': 'str', 'list_values': ['spatial', 'temporal', 'flag', 'ranges', 'csv']},
             'level': {'type_param': 'str', 'list_values': ['l1', 'l2']},
             'var_limit_to_valid': {'type_param': 'str', 'default': None},
@@ -64,17 +66,17 @@ class FlagBuilder:
             'flag_spatial_index': {'type_group': ['spatial'], 'type_param': 'strlist'},
             'lat_variable': {'type_group': ['spatial'], 'type_param': 'str', 'default': 'insitu_latitude'},
             'lon_variable': {'type_group': ['spatial'], 'type_param': 'str', 'default': 'insitu_longitude'},
-            'time_variable': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'insitu_time'},
+            'time_variable': {'type_group': ['temporal','seabass'], 'type_param': 'str', 'default': 'insitu_time'},
             'time_flag_type': {'type_group': ['temporal'], 'type_param': 'str', 'default': 'single',
                                'list_values': ['single', 'ranges']},
             'time_ranges_index': {'type_group': ['temporal'], 'type_param': 'strlist'},
             'flag_ranges_indexm': {'type_group': ['ranges'], 'type_param': 'strlist'},
             'flag_indexm': {'type_group': ['flag'], 'type_param': 'strlist'},
             'path_csv': {'type_group': ['csv'], 'type_param': 'file', 'default': None},
-            'col_date': {'type_group': ['csv'], 'type_param': 'str', 'default': None},
-            'format_date': {'type_group': ['csv'], 'type_param': 'str', 'default': '%Y-%m-%d'},
-            'col_time': {'type_group': ['csv'], 'type_param': 'str', 'default': None},
-            'format_time': {'type_group': ['csv'], 'type_param': 'str', 'default': '%H:%M'},
+            'col_date': {'type_group': ['csv','seabass'], 'type_param': 'str', 'default': None},
+            'format_date': {'type_group': ['csv','seabass'], 'type_param': 'str', 'default': '%Y-%m-%d'},
+            'col_time': {'type_group': ['csv','seabass'], 'type_param': 'str', 'default': None},
+            'format_time': {'type_group': ['csv','seabass'], 'type_param': 'str', 'default': '%H:%M'},
             'col_flag': {'type_group': ['csv'], 'type_param': 'str'},
             'var_ref_time': {'type_group': ['csv'], 'type_param': 'str', 'default': 'insitu_time'},
             'flag_list': {'type_group': ['csv'], 'type_param': 'strlist'}
@@ -128,6 +130,9 @@ class FlagBuilder:
             array, dims, flag_names, flag_values = self.create_flag_array_csv(options_dict)
             if create_copy:
                 self.create_copy_with_flag_band(flag_ref, array, flag_names, flag_values, dims)
+
+        if type == 'seabass':
+            array, dims, flag_names, flag_values = self.create_flag_array_seabass(options_dict)
 
         if type == 'flag':
             array, dims, flag_names, flag_values = self.create_flag_array_flag(options_dict)
@@ -646,6 +651,22 @@ class FlagBuilder:
 
         return array, dims, flag_names, flag_values
 
+    def create_flag_array_seabass(self, options_dict):
+        if not self.VALID:
+            print(f'[ERROR] Flag builder instance is not valid')
+            return None
+
+        path_seabass = options_dict['path_seabass']
+        if path_seabass is None:
+            print(f'[ERROR] path_seabass is not available or does not exist. Review configuration file.')
+            return None
+        insitu_seabass = INSITU_SEABASS(path_seabass)
+        if options_dict['binary_flag']:
+            if options_dict['join_method']=='time':
+                time_variable = options_dict['time_variable']
+                time_array = self.mfile.get_full_array(var_time)
+
+        #col_date = options_dict['col_date']
     def create_flag_array_csv(self, options_dict):
         if not self.VALID:
             print(f'[ERROR] Flag builder instance is not valid')

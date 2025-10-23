@@ -1080,6 +1080,7 @@ class MDBFile:
     def prepare_df_validation(self):
         print('[INFO] Preparing DF for validation...')
         nbands = len(self.wlref)
+        print(f'[INFO] Number of bands: {nbands} Min.: {self.wlref[0]} Max.: {self.wlref[-1]}')
         ntot = nbands * self.n_mu_total
         self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
         index_tot = 0

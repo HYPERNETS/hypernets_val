@@ -4935,11 +4935,16 @@ def main():
         if not reader.mfile.VALID:
             return
         if not reader.mfile.check_repeated() and not allow_repeated:
-            print('[ERROR] To remove repeated satellite ids you could run:')
+            print(f'To allow repeated ids (e.g. if your are working with shipborne data) use --allow_repeated option with GENERATE_MU')
+            print(f'To remove repeated satellite ids before run GENERATE_MU,  you could run:')
             print(f'python MDB_readerV2.py -m REMOVEREP -i {input_path} -v')
+            return
+        if args.config_file and not os.path.exists(args.config_file):
+            print(f'[ERROR] {args.config_file} is not available')
             return
         wllist = None
         copy_with_wllist = False
+
         if args.config_file and os.path.exists(args.config_file):
             if args.verbose:
                 print(f'[INFO] Using file: {args.config_file} to set quality control options...')
@@ -5001,11 +5006,11 @@ def main():
 
 
         ##calling main function to create MDBr file
-        reader.mfile.qc_sat.set_apply_invalid_mask_wl(753.75,False)
-        reader.mfile.qc_sat.set_apply_invalid_mask_wl(778.75, False)
-        reader.mfile.qc_sat.set_apply_invalid_mask_wl(865.0, False)
-        reader.mfile.qc_sat.set_apply_invalid_mask_wl(885.0, False)
-        reader.mfile.qc_sat.set_apply_invalid_mask_wl(1020.0, False)
+        # reader.mfile.qc_sat.set_apply_invalid_mask_wl(753.75,False)
+        # reader.mfile.qc_sat.set_apply_invalid_mask_wl(778.75, False)
+        # reader.mfile.qc_sat.set_apply_invalid_mask_wl(865.0, False)
+        # reader.mfile.qc_sat.set_apply_invalid_mask_wl(885.0, False)
+        # reader.mfile.qc_sat.set_apply_invalid_mask_wl(1020.0, False)
 
         reader.create_mdb_results_file(output_path, reduce_mdbr)
 
