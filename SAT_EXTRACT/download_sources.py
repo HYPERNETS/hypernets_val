@@ -73,20 +73,25 @@ def main():
         print(f'[INFO] Satellite type: {sat_type}')
         print(f'[INFO] In situ type: {insitu_type}')
     insituBase = ibase.get_insitu_object(insitu_type,insitu_options,args.verbose)
-
     if insituBase is None:
         return
     input_path_info = options.get_input_path_info()
     if input_path_info is None:
         return
+    if args.verbose:
+        print(f'[INFO] Source directory: {input_path_info['path_source']}')
 
 
     now = dt.now().timestamp()
     file_metadata = os.path.join(input_path_info['path_source'],f'SourceDonwloadMetadata_{sat_type}_{insitu_type}_{now}.csv')
     insituBase.start_date, insituBase.end_date = arf.get_start_end_date_from_args(args)
 
-    if not insituBase.prepare_csv_metadata(file_metadata):
-        return
+    try:
+        if not insituBase.prepare_csv_metadata(file_metadata):
+            return
+    except:
+       print(f'[ERROR] Method prepare_csv_metadata is required for object {type(insituBase)}')
+       return
 
     doptions = DownloadOptions(args.config_file)
 

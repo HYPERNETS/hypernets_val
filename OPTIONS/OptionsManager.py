@@ -91,6 +91,7 @@ class OptionsManager():
             return [None] * 2
         soptions = {}
         required_list = None
+
         for op in slist:
             if op == 'required':
                 required_list = self.get_value_param(section, op, None, 'strlist')
@@ -108,7 +109,13 @@ class OptionsManager():
                     'default': default
                 }
                 if len(list) == 3:
-                    soptions[op]['list_values'] = [s.strip() for s in list[2].split(',')]
+                    #soptions[op]['list_values'] = [s.strip() for s in list[2].split(',')]
+                    if type_param.startswith('str'):##str or strlist:
+                        soptions[op]['list_values'] = self.get_value_param_impl(list[2],'strlist',None)
+                    elif type_param.startswith('int'):##int or intlist:
+                        soptions[op]['list_values'] = self.get_value_param_impl(list[2],'intlist',None)
+                    elif type_param.startswith('float'):##float or floatlist:
+                        soptions[op]['list_values'] = self.get_value_param_impl(list[2],'floatlist',None)
 
         return soptions, required_list
 
@@ -335,7 +342,14 @@ class OptionsManager():
 
 
 
+
     def get_options_as_dict(self,section,poptions,required):
+        if not self.is_valid():
+            return None
+        if poptions is None and required is None:
+            soptions, required = self.get_retrieve_options(section)
+            if soptions is None:
+                return None
         result = {}
         if not self.options.has_section(section):
             for option in poptions:
@@ -343,7 +357,6 @@ class OptionsManager():
         else:
             for option in poptions:
                 result[option] = self.get_option(section,option,poptions,None,None)
-
 
         if required is not None:
             for r in required:
@@ -390,7 +403,6 @@ class OptionsManager():
 
     def get_value_param(self, section, key, default, type):
         value = self.get_value(section, key)
-
         if value is None:
             return default
 
@@ -423,7 +435,14 @@ class OptionsManager():
         if type== 'input_path':
             input_path = value.strip(f'"')
             if not os.path.isdir(input_path):
-                return default
+                if default is not None and os.path.isdir(default):
+                    return default
+                else:
+                    try:
+                        os.mkdir(input_path)
+                        return input_path
+                    except:
+                        return None
             else:
                 return input_path
 

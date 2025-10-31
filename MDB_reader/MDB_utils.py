@@ -4,9 +4,11 @@ from datetime import datetime as dt
 import numpy as np
 from netCDF4 import Dataset
 import zipfile as zp
+from CommonMu import COMMON_MU
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
 import COMMON.args_functions as arf
+from MDB_builder.MDB_optionsV3 import MDBBuilderOptions
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -14,7 +16,7 @@ parser = argparse.ArgumentParser(
     description="MDB Utilities")
 
 parser.add_argument('-m', "--mode", help='Mode option',
-                    choices=["add_flag","unzip_s3","insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
+                    choices=["common_mu","add_flag","unzip_s3","insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
                     required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file or path")
@@ -29,6 +31,19 @@ args = parser.parse_args()
 
 def main():
     print(f'[INFO] Started MDB_utils!')
+    if args.mode == 'common_mu':
+        if not args.config_file:
+            print(f'[ERROR] Config path is required')
+            return
+        omanager = MDBBuilderOptions(args.config_file,args.verbose)
+        options = omanager.get_general_options('common_mu')
+        if options is None:
+            return
+        cmu = COMMON_MU(options)
+        cmu.run()
+
+
+
     if args.mode == 'add_flag':
         if not args.input_path:
             print(f'[ERROR] Input path is required')

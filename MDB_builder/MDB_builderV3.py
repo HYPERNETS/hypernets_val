@@ -18,14 +18,18 @@ def main():
     mo = MDBBuilderOptions(args.config_file,args.verbose)
     if not mo.is_valid:
         return
+
     insitu_options = mo.get_insitu_options(args.insitu_type)
+
     if insitu_options is None:
         return
     insituBase = ibase.get_insitu_object(args.insitu_type, insitu_options, args.verbose)
     if insituBase is None:
         return
+
     start_date, end_date = arf.get_start_end_date_from_args(args)
     insituBase.start_date, insituBase.end_date = start_date,end_date
+
     if args.verbose:
         print(f'[INFO] Preparing in situ data...')
     if not insituBase.prepare_data():

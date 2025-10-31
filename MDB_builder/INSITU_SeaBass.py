@@ -498,6 +498,7 @@ class INSITU_SEABASS():
         dims = np.array([nsat,ninsitu,ninstrument,nwlsat,nwlinsitu,rows,cols])
 
         return fw,dims
+
     def check_ninsitu_real(self,extract_info):
         if not 'insitu_indices' in extract_info or extract_info['insitu_indices'] is None:
             print(f'[ERROR] insitu_indices is required in the extract info')

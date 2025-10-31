@@ -181,6 +181,7 @@ class SatExtractOptions:
         org = options['sat_source_dir_organization']
         wce = options['wce']
         if path_source is None:
+            print(f'[ERROR] path_source')
             return None
 
 
@@ -1306,7 +1307,11 @@ class SatExtractBase:
 
         if args.verbose:
             print(f'[INFO] Preparing in situ data...')
-        if not insituBase.prepare_data():
+        try:
+            if not insituBase.prepare_data():
+                return
+        except:
+            print(f'[ERROR] prepare_data() method is not available in class {type(insituBase)}')
             return
         if args.verbose:
             print(f'[INFO] Preparing in situ data: Completed')
@@ -1353,10 +1358,15 @@ class SatExtractBase:
 
             #insitu_time,insitu_lat,insitu_lon,insitu_indices = insituBase.get_metadata_date(date_here)
             if insituBase.fixed_site:
-                insitu_time, insitu_lat, insitu_lon, insitu_indices = insituBase.get_metadata_date_basic(date_here)
+                try:
+                    insitu_time, insitu_lat, insitu_lon, insitu_indices = insituBase.get_metadata_date_basic(date_here)
+                except:
+                    print(f'[ERROR] Method get_metadata_date_basic is not available in class {type(insituBase)}')
             else:
+                #try:
                 insitu_time, insitu_lat, insitu_lon, insitu_indices = insituBase.get_metadata_date(date_here)
-
+                #except:
+                #    print(f'[ERROR] Method get_metadata_date is not available in class {type(insituBase)}')
 
             path_extract_output_here = os.path.join(output_path,f'{insituBase.get_ref_date(date_here)}_extracts.csv')
             if os.path.exists(path_extract_output_here):

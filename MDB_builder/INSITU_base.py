@@ -302,6 +302,14 @@ class Mini_MDB_Builder():
                 if value is not None:
                     var.setncattr(at,value)
 
+    def add_spectral_variable(self,var_name,attrs):
+        var = self.new_MDB.createVariable(var_name, 'f4', ('satellite_id', 'insitu_bands','insitu_id'), fill_value=-999, zlib=True,complevel=6)
+        if attrs is not None:
+            for at in attrs:
+                value = attrs[at]
+                if value is not None:
+                    var.setncattr(at, value)
+
 
 
     def add_shipborne_variables(self):
@@ -355,6 +363,7 @@ class Mini_MDB_Builder():
             return False
         var[0,0:ninsitu_real] = array[:]
         return True
+
     ##spectral variables include insitu_Rrs, insitu_Rrs_unc or other
     def set_spectral_variables(self,name_var,array):
         if not name_var in self.new_MDB.variables:
@@ -445,6 +454,12 @@ def get_insitu_object(insitu_type,insitu_options,verbose):
     if insitu_type=='HYPSTAR_L2':
         from MDB_builder.INSITU_hypernets import HYPSTAR_L2
         insituBase = HYPSTAR_L2(insitu_options,verbose)
+    if insitu_type=='SO_RAD':
+        try:
+            from INSITU_sorad import SO_RAD
+        except:
+            from MDB_builder.INSITU_sorad import SO_RAD
+        insituBase = SO_RAD(insitu_options,verbose)
 
     if insituBase is None:
         print(f'[ERROR] In situ class for in situ data type {insitu_type} is not available. Please check method get_insitu_object() in INSITU_base.py')

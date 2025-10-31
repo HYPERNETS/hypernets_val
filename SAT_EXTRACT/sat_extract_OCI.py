@@ -417,11 +417,14 @@ class SatExtractOCI:
             lat_array, lon_array, oza_array = oci_source.get_lat_lon_oza_arrays()
             if self.verbose:
                 print(f'[INFO] Latitude, longitude and oza arrays were obtained. Checking {ntimes} data points')
+                print(f'[INFO] Latitude range: {np.min(lat_array)} to {np.max(lat_array)}')
+                print(f'[INFO] Longitude range: {np.min(lon_array)} to {np.max(lon_array)}')
+
 
             for itime in range(ntimes):
                 # print(f'[INFO] Checking point... {itime}')
                 limits,rc = sextract.get_geo_info(extract_options['size_box'], insitu_lat[itime], insitu_lon[itime],lat_array, lon_array)
-
+                #print(insitu_lat[itime],insitu_lon[itime])
                 oza = None if rc is None else abs(oza_array[rc[0],rc[1]])
 
                 if ifile==0:
@@ -442,7 +445,8 @@ class SatExtractOCI:
                             sat_file_indices[itime]= ifile
 
 
-        sat_file_indices_used = np.unique(sat_file_indices)
+        sat_file_indices_used = np.unique(sat_file_indices[sat_file_indices!=-1])
+
         if np.max(sat_file_indices_used)==-1:
             print(f'[ERROR] No source granules were found for the in situ data avaialable on {insitu_time[0].strftime("%Y-%m-%d")}')
             return
@@ -476,7 +480,7 @@ class SatExtractOCI:
                     few.write(
                         f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
                     print(
-                        f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract extract_{site}.nc already exists. {itime + 1}/{ntimes} Skipping...')
+                        f'[INFO] [{itime + 1}/{ntimes}] Satellite extract extract_{site}.nc already exists. {itime + 1}/{ntimes} Skipping...')
                     continue
 
                 if overwrite and site in site_list:
@@ -484,7 +488,7 @@ class SatExtractOCI:
                     few.write(
                         f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
                     print(
-                        f'[WARNING] [{itime + 1}/{ntimes}] Satellite extract for {site}  has been already done.  Skiping...')
+                        f'[INFO] [{itime + 1}/{ntimes}] Satellite extract for {site}  has been already done.  SkiPping...')
                     continue
 
                 if self.verbose:
