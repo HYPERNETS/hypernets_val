@@ -79,7 +79,7 @@ def main():
     if input_path_info is None:
         return
     if args.verbose:
-        print(f'[INFO] Source directory: {input_path_info['path_source']}')
+        print(f'[INFO] Source directory: {input_path_info["path_source"]}')
 
 
     now = dt.now().timestamp()
