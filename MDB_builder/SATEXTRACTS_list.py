@@ -412,8 +412,6 @@ class EXTRACT_LIST:
                     info = self.check_attributes(info, sat_options, insituBase)
                     if info is None:
                         return [None]*3
-
-
                     nvalid = len(info['insitu_indices'])
                     if time_diff_tv>0 and nvalid<ninsitu_max and nvalid<len(insitu_indices_day[0]):
                         info = self.check_insitu_variability_extract(info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day[0],time_diff_tv,ninsitu_max)
@@ -557,7 +555,7 @@ class EXTRACT_LIST:
             pos_min_abs = pos_min-ninsitu_max
             pos_min = 0 if pos_min_abs<0 else pos_min_abs
             pos_max = pos_min + ninsitu_max
-            insitu_time_valid = insitu_time_valid[pos_min:pos_max]
+            insitu_time_valid = insitu_time_valid[int(pos_min):int(pos_max)]
             valid_ref[insitu_time_extract<insitu_time_valid[0]]=False
             valid_ref[insitu_time_extract>insitu_time_valid[-1]]=False
             time_diff_valid = time_diff[valid_ref]

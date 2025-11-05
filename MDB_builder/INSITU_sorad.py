@@ -277,7 +277,7 @@ class SO_RAD:
         return True
 
     def create_mini_mdb_files(self, options, extract_dir, extracts, time_extracts, overwrite):
-        print(options)
+        #print(options)
         fcsv = os.path.join(extract_dir, f'MDBm_{time_extracts[0].strftime("%Y%m%d")}.csv')
         fw = open(fcsv, 'w')
         started = False
