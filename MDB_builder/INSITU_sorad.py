@@ -309,6 +309,7 @@ class SO_RAD:
             write_line = False
             if os.path.isfile(file_out) and not overwrite:
                 print(f'[INFO] Mini MDB file {os.path.basename(file_out)} already exists. Skipping...')
+                print(f'[INFO] -----------------------')
                 write_line = True
             else:
                 if self.verbose:
@@ -318,6 +319,7 @@ class SO_RAD:
                     write_line = True
                 else:
                     print(f'[WARNING] File MDBm {os.path.basename(file_out)} could not be created. Skipping...')
+                print(f'[INFO] -----------------------')
             if write_line:
                 fw, dims = self.add_line_csv_with_MDBm_info(fw, file_out, started)
                 started = True
@@ -377,8 +379,6 @@ class SO_RAD:
             print(f'[ERROR] Error setting the basic variables. MDBm file could not be created')
             building_error = True
 
-
-
         if 'quality_control' in arrays_response:
             var_name_nc = 'insitu_quality_control'
             array = arrays_response['quality_control']
@@ -392,6 +392,7 @@ class SO_RAD:
             if not builder.set_non_spectral_variables(var_name_nc, array):
                 print(f'[ERROR] Error setting the {var_name_nc} variable. MDBm file could not be created')
                 building_error = True
+
 
         rrs_here = np.ma.transpose(self.rrs_array[indices, :])
         if not builder.set_spectral_variables('insitu_Rrs', rrs_here):
@@ -419,8 +420,6 @@ class SO_RAD:
                 if not builder.set_spectral_variables(var_name_nc,array_here):
                     print(f'[ERROR] Error setting the {var_name_nc} variable. MDBm file could not be created')
                     building_error = True
-
-
 
         if self.non_spectral_vars is not None:
             for var_name in self.non_spectral_vars:

@@ -384,18 +384,23 @@ class Mini_MDB_Builder():
     def set_insitu_basic_variables_from_dict(self,arrays):
         if 'insitu_time' in arrays:
             if not self.set_non_spectral_variables('insitu_time',arrays['insitu_time']):
+                print(f'[ERROR] Error setting variable insitu_time')
                 return False
         if 'insitu_lat' in arrays:
             if not self.set_non_spectral_variables('insitu_latitude',arrays['insitu_lat']):
+                print(f'[ERROR] Error setting variable insitu_lat')
                 return False
         if 'insitu_lon' in arrays:
             if not self.set_non_spectral_variables('insitu_longitude',arrays['insitu_lon']):
+                print(f'[ERROR] Error setting variable insitu_lon')
                 return False
         if 'insitu_spatial_index' in arrays:
             if not self.set_non_spectral_variables('insitu_spatial_index', arrays['insitu_spatial_index']):
+                print(f'[ERROR] Error setting variable insitu_spatial_index')
                 return False
         if 'time_diff' in arrays:
             if not self.set_non_spectral_variables('time_difference', arrays['time_diff']):
+                print(f'[ERROR] Error setting variable time_diff')
                 return False
         return True
     # def set_data_from_array(self, array, variable_out):
