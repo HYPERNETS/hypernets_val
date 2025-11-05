@@ -82,6 +82,7 @@ def main():
         print(f'[INFO] Source directory: {input_path_info["path_source"]}')
 
 
+
     now = dt.now().timestamp()
     file_metadata = os.path.join(input_path_info['path_source'],f'SourceDonwloadMetadata_{sat_type}_{insitu_type}_{now}.csv')
     insituBase.start_date, insituBase.end_date = arf.get_start_end_date_from_args(args)

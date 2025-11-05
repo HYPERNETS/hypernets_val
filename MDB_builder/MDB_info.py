@@ -2,14 +2,16 @@ import argparse
 import os.path
 from datetime import timedelta
 from datetime import datetime as dt
+from datetime import timezone
 
 import numpy as np
+import pandas as pd
 from netCDF4 import Dataset
 
 parser = argparse.ArgumentParser(
     description="Obtaining information for running MDB_builder.")
 
-parser.add_argument('-m', "--mode", help='Mode option', choices=["instrument_id", "match-up-info","TEST"], required=True)
+parser.add_argument('-m', "--mode", help='Mode option', choices=["instrument_id", "match-up-info","extract_info","TEST"], required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file.")
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
@@ -23,6 +25,22 @@ def main():
     if args.mode == 'TEST':
         make_test()
         return
+    if args.mode == 'extract_info':
+        if not check_required_params(['input_path', 'output']):
+            return
+        if not os.path.isdir(args.input_path):
+            print(f'[ERROR] Input path {args.input_path} is not a valid directory')
+            return
+        if not args.output.endswith('.csv'):
+            print(f'[ERROR] Output file {args.output} should be a CSV file')
+            return
+        try:
+            os.makedirs(os.path.dirname(args.output),exist_ok=True)
+        except Exception as ex:
+            print(f'[ERROR] {os.path_dirname(args.output)} is not a valid directory and could not be created')
+
+        get_extract_info(args.input_path,args.output)
+
     if args.mode == 'instrument_id':
         if not check_required_params(['input_path', 'start_date', 'end_date']):
             return
@@ -41,6 +59,36 @@ def main():
             print(f'[ERROR] {args.input_path} does not exist or is not a valid directory')
             return
         get_match_up_info(args.input_path)
+
+def get_extract_info(input_path,output_file):
+    print(f'[INFO] Starting getting info from extracts:')
+    df = None
+    for name in os.listdir(input_path):
+        if not name.endswith('.nc'):
+            continue
+        file_nc = os.path.join(input_path,name)
+        try:
+            dataset = Dataset(file_nc,'r')
+        except:
+            continue
+        print(f'[INFO] -->{name}')
+        vals = dataset.__dict__
+        dims = dataset.dimensions
+        for dim in dims:
+            vals[dim]=dims[dim].size
+        if 'satellite_time' in dataset.variables:
+            vals['sat_time'] = dt.fromtimestamp(float(dataset.variables['satellite_time'][0]),timezone.utc).strftime('%Y%m%dT%H%M%S')
+        df_extract = pd.DataFrame({key:[vals[key]] for key in vals},index=[name])
+        if df is None:
+            df = df_extract.copy()
+        else:
+            df = pd.concat([df,df_extract])
+        dataset.close()
+
+    print(f'[INFO] Saving to: {output_file}')
+    df.to_csv(output_file,sep=';')
+    print(f'[INFO] Completed')
+
 
 def get_match_up_info(input_file):
     dataset = Dataset(input_file)
