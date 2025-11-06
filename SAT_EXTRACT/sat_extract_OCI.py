@@ -408,6 +408,11 @@ class SatExtractOCI:
         sat_file_indices = [-1]*ntimes
         geo_info_array = [None]*ntimes
 
+        print('_______________')
+        print(extract_options)
+        print('---------------------')
+        print(extract_info)
+
         for ifile in range(len(list_files)):
             if self.verbose:
                 print(f'[INFO] Checking file...')
