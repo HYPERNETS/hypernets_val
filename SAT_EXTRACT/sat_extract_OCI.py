@@ -425,6 +425,9 @@ class SatExtractOCI:
                 # print(f'[INFO] Checking point... {itime}')
                 limits,rc = sextract.get_geo_info(extract_options['size_box'], insitu_lat[itime], insitu_lon[itime],lat_array, lon_array)
                 #print(insitu_lat[itime],insitu_lon[itime])
+                print(ifile,'/'/len(files))
+                print(limits)
+                print(rc)
                 oza = None if rc is None else abs(oza_array[rc[0],rc[1]])
 
                 if ifile==0:
