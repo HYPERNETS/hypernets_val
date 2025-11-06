@@ -145,7 +145,7 @@ def make_test():
     for time in times:
         time_obj = dt.strptime(time,'%Y%m%dT%H%M%S')
         name_dt = f'PACE_OCI.{time}.L2.OC_AOP.V3_0.nc'
-        name_nrt = f'PACE_OCI.{time}.L2.OC_AOP.V3_0.nc'
+        name_nrt = f'PACE_OCI.{time}.L2.OC_AOP.V3_0.NRT.nc'
         dir_out = os.path.join(dir_base,f'{time_obj.strftime("%Y")}',f'{time_obj.strftime("%j")}')
         os.makedirs(dir_out,exist_ok=True)
         file_out = os.path.join(dir_out,name_dt)
