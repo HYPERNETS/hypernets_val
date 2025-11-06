@@ -63,10 +63,21 @@ class SatSourceOCI():
         name_file = os.path.basename(self.path_source)
         name_file_geo = name_file.replace('OC_AOP','OC_GEO')
         file_geo = os.path.join(os.path.dirname(self.path_source),name_file_geo)
-        # if not os.path.exists(file_geo):
-        #     name_file_geo = name_file_geo.replace('V3_0','V3_1')
-        #     file_geo = os.path.join(os.path.dirname(self.path_source), name_file_geo)
         return file_geo if os.path.exists(file_geo) else None
+
+    def set_file_geo_from_options(self,work_date,name_format,name_format_date_file):
+        if work_date is None:
+            name_file = os.path.basename(self.path_source)
+            work_date_str = name_file.split('.')[1]
+            try:
+                work_date = dt.strptime(work_date_str,'%Y%m%dT%H%M%S')
+            except:
+                return
+            name_file_geo = name_format.replace('$DATE$', work_date.strftime(name_format_date_file))
+        else:
+            name_file_geo = name_format.replace('$DATE$',work_date.strftime(name_format_date_file))
+        file_geo = os.path.join(os.path.dirname(self.path_source),name_file_geo)
+        self.file_geo = file_geo if os.path.exists(file_geo) else None
 
     def get_lat_lon_oza_arrays(self):
         lat_array,lon_array =self.get_lat_long_arrays()
@@ -408,15 +419,14 @@ class SatExtractOCI:
         sat_file_indices = [-1]*ntimes
         geo_info_array = [None]*ntimes
 
-        print('_______________')
-        print(extract_options)
-        print('---------------------')
-        print(extract_info)
+
 
         for ifile in range(len(list_files)):
             if self.verbose:
                 print(f'[INFO] Checking file...')
             oci_source = SatSourceOCI(list_files[ifile])
+            if oci_source.file_geo is None:
+                oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
             if self.verbose:
                 print(f'[INFO] OCI source was loaded')
             lat_array, lon_array, oza_array = oci_source.get_lat_lon_oza_arrays()
@@ -429,10 +439,8 @@ class SatExtractOCI:
             for itime in range(ntimes):
                 # print(f'[INFO] Checking point... {itime}')
                 limits,rc = sextract.get_geo_info(extract_options['size_box'], insitu_lat[itime], insitu_lon[itime],lat_array, lon_array)
-                #print(insitu_lat[itime],insitu_lon[itime])
-                print(ifile,'/',len(list_files),' itime: ',itime)
-                print(limits)
-                print(rc)
+
+
                 oza = None if rc is None else abs(oza_array[rc[0],rc[1]])
 
                 if ifile==0:
