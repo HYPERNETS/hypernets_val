@@ -149,14 +149,17 @@ def make_test():
         dir_out = os.path.join(dir_base,f'{time_obj.strftime("%Y")}',f'{time_obj.strftime("%j")}')
         os.makedirs(dir_out,exist_ok=True)
         file_out = os.path.join(dir_out,name_dt)
+        if os.path.exists(file_out):
+            print(f'[INFO] File {file_out} already exist. Skipping...')
+            continue
         file_dt = os.path.join(dir_base,name_dt)
         file_nrt = os.path.join(dir_base, name_nrt)
         if os.path.exists(file_dt):
             print(f'[INFO] Moving DT file from {file_dt} to {file_out}')
-            #os.rename(file_dt,file_out)
+            os.rename(file_dt,file_out)
         elif os.path.exists(file_nrt):
             print(f'[INFO ]Moving NRT file from {file_nrt} to {file_out}')
-            #os.rename(file_nrt, file_out)
+            os.rename(file_nrt, file_out)
         else:
             print(f'[ERROR] File for {time} is not available')
 
