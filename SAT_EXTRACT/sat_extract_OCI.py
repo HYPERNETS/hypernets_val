@@ -426,6 +426,7 @@ class SatExtractOCI:
                 print(f'[INFO] Checking file...')
             oci_source = SatSourceOCI(list_files[ifile])
             if oci_source.file_geo is None:
+                print(extract_options)
                 oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
             if self.verbose:
                 print(f'[INFO] OCI source was loaded')
