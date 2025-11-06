@@ -135,6 +135,33 @@ def get_match_up_info(input_file):
     print(f'TOTAL: {ntotal[2]} {nvalid[2]} {porc[2]:.2f}')
 
 def make_test():
+
+    #file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TEMPORAL/info_extracts_v3_1.csv'
+    file_csv = ('/store3/IvanFarace/GaiaBlue/info_extracts_v3_1.csv')
+    df = pd.read_csv(file_csv,sep=';')
+    times = df['sat_time']
+    dir_base = '/store3/OC/OCI'
+
+    for time in times:
+        time_obj = dt.strptime(time,'%Y%m%dT%H%M%S')
+        name_dt = f'PACE_OCI.{time}.L2.OC_AOP.V3_0.nc'
+        name_nrt = f'PACE_OCI.{time}.L2.OC_AOP.V3_0.nc'
+        dir_out = os.path.join(dir_base,f'{time_obj.strftime("%Y")}',f'{time_obj.strftime("%j")}')
+        os.makedirs(dir_out,exist_ok=True)
+        file_out = os.path.join(dir_out,name_dt)
+        file_dt = os.path.join(dir_base,name_dt)
+        file_nrt = os.path.join(dir_base, name_nrt)
+        if os.path.exists(file_dt):
+            print(f'[INFO] Moving DT file from {file_dt} to {file_out}')
+            #os.rename(file_dt,file_out)
+        elif os.path.exists(file_nrt):
+            print(f'[INFO ]Moving NRT file from {file_nrt} to {file_out}')
+            #os.rename(file_nrt, file_out)
+        else:
+            print(f'[ERROR] File for {time} is not available')
+
+
+
     ##CHECK FLAGS
     # file_level_1_2 = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OLCI/VEIT/MDBs/HYPERNETS_W_VEIT_L2A_REF_20220809T1640_20230330T1309_v1.2.nc'
     # file_level_2_0 = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OLCI/VEIT/MDBs/HYPERNETS_W_VEIT_L2A_REF_20250103T1500_20250103T1624_090_v2.0.nc'
@@ -148,39 +175,39 @@ def make_test():
     # dataset.close()
 
     ##CHECK DATES
-    file_mdb = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OLCI/GAIT/MDBs/MDB_S3B_OLCI_WFR_STANDARD_20220609T000000_20241031T235959_HYPSTAR_GAIT.nc'
-    file_out = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OLCI/VEIT/MDBs/Temp.nc'
-    import pytz
-    date_1 = dt(2021, 4, 8).replace(tzinfo=pytz.utc).timestamp()
-    date_2 = dt(2023, 4, 25).replace(tzinfo=pytz.utc).timestamp()
-    date_3 = dt(2024, 1, 1).replace(tzinfo=pytz.utc).timestamp()
-    date_4 = dt(2024, 6, 4).replace(tzinfo=pytz.utc).timestamp()
-    date_5 = dt(2024, 10, 1).replace(tzinfo=pytz.utc).timestamp()
-    date_6 = dt(2025, 1, 31).replace(tzinfo=pytz.utc).timestamp()
-    dataset = Dataset(file_mdb)
-    qf = dataset.variables['insitu_quality_flag'][:]
-    site_flag = dataset.variables['insitu_site_flag'][:]
-
-    vals_valid = [0, 1, 2, 3, 268435456, 268435457, 268435458, 268435459]
-    site_flag[qf.mask] = np.ma.masked
-    n_non_masked = np.ma.count(site_flag)
-    for val in vals_valid:
-        site_flag[qf == val] = 1
-        # print(np.sum(site_flag))
-    n_valid_qf = np.sum(site_flag)
-    n_qf = n_non_masked - n_valid_qf
-
-    if 'insitu_epsilon' in dataset.variables:
-        epsilon = dataset.variables['insitu_epsilon'][:]
-        site_flag[epsilon < (-0.05)] = 0
-        site_flag[epsilon > 0.05] = 0
-        n_epsilon = (n_valid_qf - np.sum(site_flag))
-    else:
-        n_epsilon = 0
-    print(f'[INFO] N. Spectra: {n_non_masked}')
-    print(f'[INFO] N. QF: {n_qf}')
-    print(f'[INFO] N. EPSILON: {n_epsilon}')
-    print(f'[INFO] N. VALID: {np.sum(site_flag)}')
+    # file_mdb = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OLCI/GAIT/MDBs/MDB_S3B_OLCI_WFR_STANDARD_20220609T000000_20241031T235959_HYPSTAR_GAIT.nc'
+    # file_out = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OLCI/VEIT/MDBs/Temp.nc'
+    # import pytz
+    # date_1 = dt(2021, 4, 8).replace(tzinfo=pytz.utc).timestamp()
+    # date_2 = dt(2023, 4, 25).replace(tzinfo=pytz.utc).timestamp()
+    # date_3 = dt(2024, 1, 1).replace(tzinfo=pytz.utc).timestamp()
+    # date_4 = dt(2024, 6, 4).replace(tzinfo=pytz.utc).timestamp()
+    # date_5 = dt(2024, 10, 1).replace(tzinfo=pytz.utc).timestamp()
+    # date_6 = dt(2025, 1, 31).replace(tzinfo=pytz.utc).timestamp()
+    # dataset = Dataset(file_mdb)
+    # qf = dataset.variables['insitu_quality_flag'][:]
+    # site_flag = dataset.variables['insitu_site_flag'][:]
+    #
+    # vals_valid = [0, 1, 2, 3, 268435456, 268435457, 268435458, 268435459]
+    # site_flag[qf.mask] = np.ma.masked
+    # n_non_masked = np.ma.count(site_flag)
+    # for val in vals_valid:
+    #     site_flag[qf == val] = 1
+    #     # print(np.sum(site_flag))
+    # n_valid_qf = np.sum(site_flag)
+    # n_qf = n_non_masked - n_valid_qf
+    #
+    # if 'insitu_epsilon' in dataset.variables:
+    #     epsilon = dataset.variables['insitu_epsilon'][:]
+    #     site_flag[epsilon < (-0.05)] = 0
+    #     site_flag[epsilon > 0.05] = 0
+    #     n_epsilon = (n_valid_qf - np.sum(site_flag))
+    # else:
+    #     n_epsilon = 0
+    # print(f'[INFO] N. Spectra: {n_non_masked}')
+    # print(f'[INFO] N. QF: {n_qf}')
+    # print(f'[INFO] N. EPSILON: {n_epsilon}')
+    # print(f'[INFO] N. VALID: {np.sum(site_flag)}')
 
     # sat_time = dataset.variables['satellite_time'][:]
     # n_sat_time = sat_time.shape[0]
@@ -231,24 +258,24 @@ def make_test():
     #     print(f'{itime_obj.strftime("%Y-%m-%d")} {periods[iperiod]} {systems[isystem]} {sn[isn]} {processings[iproc]}')
 
     ##WRITTING OUPPUT DATASET
-    ncout = Dataset(file_out, 'w', format='NETCDF4')
-    # copy global attributes all at once via dictionary
-    ncout.setncatts(dataset.__dict__)
-    # copy dimensions
-    for name, dimension in dataset.dimensions.items():
-        ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
-
-    # copy variables
-    for name, variable in dataset.variables.items():
-        fill_value = None
-        if '_FillValue' in list(variable.ncattrs()):
-            fill_value = variable._FillValue
-        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True, complevel=6)
-        ncout[name].setncatts(dataset[name].__dict__)
-        if name=='insitu_site_flag':
-            ncout[name][:] = site_flag[:]
-        else:
-            ncout[name][:] = dataset[name][:]
+    # ncout = Dataset(file_out, 'w', format='NETCDF4')
+    # # copy global attributes all at once via dictionary
+    # ncout.setncatts(dataset.__dict__)
+    # # copy dimensions
+    # for name, dimension in dataset.dimensions.items():
+    #     ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+    #
+    # # copy variables
+    # for name, variable in dataset.variables.items():
+    #     fill_value = None
+    #     if '_FillValue' in list(variable.ncattrs()):
+    #         fill_value = variable._FillValue
+    #     ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True, complevel=6)
+    #     ncout[name].setncatts(dataset[name].__dict__)
+    #     if name=='insitu_site_flag':
+    #         ncout[name][:] = site_flag[:]
+    #     else:
+    #         ncout[name][:] = dataset[name][:]
 
     ##new flag variables
     # var = ncout.createVariable('flag_period','i2',('satellite_id',),fill_value=None,zlib=True,complevel=6)
@@ -271,13 +298,12 @@ def make_test():
     # var.flag_meanings = " ".join(processings)
     # var.flag_values = processings_v
 
-
-    ncout.close()
-
-
-    dataset.close()
-
-    os.rename(file_out,file_mdb)
+    # ncout.close()
+    #
+    #
+    # dataset.close()
+    #
+    # os.rename(file_out,file_mdb)
 
 
 def get_info_instrument_id(input_path, start_date, end_date):
