@@ -21,6 +21,8 @@ class OptionsManager():
         else:
             self.options = options
 
+    # def check_section(self,section):
+    #     return self.options.has_section(section)
 
     def add_section(self,new_section):
         if self.options is not None:
@@ -84,6 +86,34 @@ class OptionsManager():
         options = self.options.options(section)
         return options
 
+    def get_required_args(self,section):
+        req_args = self.get_value_param(section,'required_args',None,'dict')
+        #print(req_args)
+        required_args = {}
+        for arg in req_args:
+            val_list = [x.strip() for x in req_args[arg].split(';')]
+            required_args[arg]={
+                'type':val_list[0]
+            }
+            if len(val_list)>1:
+                pvalues = val_list[1:]
+                if val_list[0]=='str':
+                    required_args[arg]['potential_values'] = pvalues
+                elif val_list[0]=='int':
+                    try:
+                        required_args[arg]['potential_values'] = [int(x) for x in pvalues]
+                    except:
+                        print(f'[ERROR] Error getting int potential_values for argument {arg}')
+                elif val_list[0]=='float':
+                    try:
+                        required_args[arg]['potential_values'] = [float(x) for x in pvalues]
+                    except:
+                        print(f'[ERROR] Error getting float potential_values for argument {arg}')
+
+
+
+        return required_args
+
     def get_retrieve_options(self,section):
         slist = self.get_options_list(section)
         if slist is None:
@@ -95,13 +125,15 @@ class OptionsManager():
         for op in slist:
             if op == 'required':
                 required_list = self.get_value_param(section, op, None, 'strlist')
+            elif op == 'required_args':
+                continue
             else:
                 list = self.get_value_param(section, op, None, 'strlist')
 
                 type_param = list[0]
                 default = None if list[1].upper() == 'NONE' else list[1]
                 if default is not None:
-                    default = self.get_value_param_impl(default,type_param,None)
+                    default = get_value_param_impl(default,type_param,None)
 
 
                 soptions[op] = {
@@ -111,11 +143,11 @@ class OptionsManager():
                 if len(list) == 3:
                     #soptions[op]['list_values'] = [s.strip() for s in list[2].split(',')]
                     if type_param.startswith('str'):##str or strlist:
-                        soptions[op]['list_values'] = self.get_value_param_impl(list[2],'strlist',None)
+                        soptions[op]['list_values'] = get_value_param_impl(list[2],'strlist',None)
                     elif type_param.startswith('int'):##int or intlist:
-                        soptions[op]['list_values'] = self.get_value_param_impl(list[2],'intlist',None)
+                        soptions[op]['list_values'] = get_value_param_impl(list[2],'intlist',None)
                     elif type_param.startswith('float'):##float or floatlist:
-                        soptions[op]['list_values'] = self.get_value_param_impl(list[2],'floatlist',None)
+                        soptions[op]['list_values'] = get_value_param_impl(list[2],'floatlist',None)
 
         return soptions, required_list
 
@@ -260,33 +292,7 @@ class OptionsManager():
                         'flag_or_range': 'range'
                     })
 
-        ###DEPRECATED
-        # if len(values) == 3:
-        #     value_dict = {
-        #         'flag_var': values[0],
-        #         'flag_name': values[1],
-        #         'flag_value': fvalue,
-        #     }
-        # if len(values) >= 4:
-        #     try:
-        #         minV = float(values[2])
-        #     except:
-        #         minV = None
-        #     try:
-        #         maxV = float(values[3])
-        #     except:
-        #         maxV = None
-        #     value_dict = {
-        #         'is_default': False,
-        #         'flag_var': values[0],
-        #         'flag_name': values[1],
-        #         'flag_value': fvalue,
-        #         'min_range': minV,
-        #         'max_range': maxV,
-        #         'flag_condition': 'and'
-        #     }
-        #     if len(values) == 5:
-        #         value_dict['flag_condition'] = values[4]
+
         return value_dict
 
     def get_dict_flag_index(self, values, idx, use_pow2_flags):
@@ -339,8 +345,6 @@ class OptionsManager():
                 'flag_value': fvalue
             }
         return value_dict
-
-
 
 
     def get_options_as_dict(self,section,poptions,required):
@@ -407,84 +411,129 @@ class OptionsManager():
             return default
 
 
-        return self.get_value_param_impl(value,type,default)
+        return get_value_param_impl(value,type,default)
 
-    def get_value_param_impl(self,value,type,default):
 
-        if type == 'str':
-            return value.strip(f'"')
 
-        if type == 'file':
-            file = value.strip(f'"')
-            if not os.path.exists(file):
+
+
+def get_value_param_impl(value,type,default):
+
+    if type == 'str':
+        return value.strip(f'"')
+
+    if type == 'file' or type.startswith('input_file'):
+
+        type_check = type[11:] if type.startswith('input_file_') else None
+        file = value.strip(f'"')
+
+        if not os.path.exists(file):
+            if default is not None and os.path.exists(default):
                 return default
             else:
-                return file
-
-        if type == 'directory' or type=='output_path':
-            directory = value.strip(f'"')
-            if not os.path.isdir(directory):
-                try:
-                    os.mkdir(directory)
-                    return directory
-                except:
-                    return default
-            else:
-                return directory
-
-        if type== 'input_path':
-            input_path = value.strip(f'"')
-            if not os.path.isdir(input_path):
-                if default is not None and os.path.isdir(default):
-                    return default
+                print(f'[WARNING] Input file {file} is not a valid file.')
+                return None
+        else:
+            if type_check is not None:
+                if check_file(file,type_check):
+                    return file
                 else:
-                    try:
-                        os.mkdir(input_path)
-                        return input_path
-                    except:
-                        return None
+                    return None
+            return file
+
+    if type=='output_path': #type == 'directory' or
+        directory = value.strip(f'"')
+        try:
+            os.makedirs(directory,exist_ok=True)
+        except:
+            if default is not None and os.path.isdir(default):
+                print(f'[WARNING] Output path {directory} does not exist and could not be created. Using default output path: {default})')
             else:
-                return input_path
+                print(f'[WARNING] Output path {directory} does not exist and could not be created. Please review permissions')
+                return None
+        return directory
 
-        if type == 'int':
-            return int(value.strip(f'"'))
-
-        if type == 'float':
-            return float(value.strip(f'"'))
-
-        if type == 'boolean':
-            value = value.strip(f'"')
-            if value == '1' or value.upper() == 'TRUE':
-                return True
-            elif value == '0' or value.upper() == 'FALSE':
-                return False
+    if type== 'input_path':
+        input_path = value.strip(f'"')
+        if not os.path.isdir(input_path):
+            if default is not None and os.path.isdir(default):
+                return default
             else:
-                return True
+                print(f'[WARNING] Input path {input_path} is not a valid directory')
+                return None
+        else:
+            return input_path
 
-        if type == 'rrslist':
-            #list_str = value.split(',')
-            list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
-            list = []
-            for vals in list_str:
-                vals = vals.replace('.', '_')
-                list.append(f'RRS{vals}')
-            return list
+    if type == 'int':
+        return int(value.strip(f'"'))
 
-        if type == 'strlist':
-            list = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
+    if type == 'float':
+        return float(value.strip(f'"'))
 
-            return list
+    if type == 'boolean':
+        value = value.strip(f'"')
+        if value == '1' or value.upper() == 'TRUE':
+            return True
+        elif value == '0' or value.upper() == 'FALSE':
+            return False
+        else:
+            return True
 
-        if type == 'floatlist':
-            list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
-            list = []
-            for vals in list_str:
-                list.append(float(vals))
-            return list
+    if type == 'rrslist':
+        #list_str = value.split(',')
+        list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
+        list = []
+        for vals in list_str:
+            vals = vals.replace('.', '_')
+            list.append(f'RRS{vals}')
+        return list
 
-        if type == 'intlist':
-            list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
-            list = []
-            for vals in list_str:
-                list.append(int(vals))
-            return list
+    if type == 'strlist':
+        list = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
+        return list
+
+    if type == 'floatlist':
+        list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
+        list = []
+        for vals in list_str:
+            list.append(float(vals))
+        return list
+
+    if type == 'intlist':
+        list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
+        list = []
+        for vals in list_str:
+            list.append(int(vals))
+        return list
+
+    if type == 'dict':
+        list_str = [s.strip() for s in value.split(',')]
+        dict_h = {}
+        for vals in list_str:
+            list_h = [s.strip().strip('"') for s in re.split(r':(?=(?:[^"]*"[^"]*")*[^"]*$)', vals)]
+            if len(list_h)==2:
+                dict_h[list_h[0]]=list_h[1]
+            else:
+                return None
+        return dict_h
+
+
+def check_file(file,type_file):
+    if type_file=='nc':
+        try:
+            from netCDF4 import Dataset
+            dset = Dataset(file)
+            dset.close()
+        except Exception as ex:
+            print(f'[WARNING] File {file} is not a valid {type_file}. Exception: {ex}')
+            return False
+
+    if type_file=='ini':
+        try:
+            cp = configparser.ConfigParser()
+            cp.read(file)
+        except Exception as ex:
+            print(f'[WARNING] File {file} is not a valid {type_file}. Exception: {ex}')
+            return False
+
+    return True

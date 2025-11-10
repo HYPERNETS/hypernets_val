@@ -77,6 +77,7 @@ class SatSourceOCI():
         else:
             name_file_geo = name_format.replace('$DATE$',work_date.strftime(name_format_date_file))
         file_geo = os.path.join(os.path.dirname(self.path_source),name_file_geo)
+        print(file_geo)
         self.file_geo = file_geo if os.path.exists(file_geo) else None
 
     def get_lat_lon_oza_arrays(self):
@@ -429,6 +430,7 @@ class SatExtractOCI:
                 oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
             if self.verbose:
                 print(f'[INFO] OCI source was loaded')
+                print(f'[INFO] Geo info file: {oci_source.file_geo}')
             lat_array, lon_array, oza_array = oci_source.get_lat_lon_oza_arrays()
             if self.verbose:
                 print(f'[INFO] Latitude, longitude and oza arrays were obtained. Checking {ntimes} data points')

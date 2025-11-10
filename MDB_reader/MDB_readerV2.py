@@ -5076,8 +5076,8 @@ def main():
             ncout_file = os.path.join(input_path, 'MDBrc.nc')
 
         #ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'insitu_site_name']
-        ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'site']
-        flag_bands = ['flag_satellite', 'flag_sensor', 'flag_ac', 'flag_site']
+        ats_in = [['satellite', 'platform'], 'sensor', 'satellite_aco_processor', 'site','satellite_proc_version']
+        flag_bands = ['flag_satellite', 'flag_sensor', 'flag_ac', 'flag_site','flag_version']
 
         flag_lists = get_flag_lists(input_path, ats_in, flag_bands)
 

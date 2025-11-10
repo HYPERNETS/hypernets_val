@@ -10,7 +10,12 @@ from netCDF4 import Dataset
 
 from MDBFile import MDBFile
 from MDB_builder.INSITU_base import INSITUBASE
-import __init__
+import __init__,sys
+from COMMON import args_functions
+import MDBWritter
+from OPTIONS.OptionsManager import OptionsManager
+code_home = os.path.dirname(os.path.dirname(__init__.__file__))
+sys.path.append(code_home)
 
 warnings.simplefilter('ignore', UserWarning)
 warnings.simplefilter('ignore', RuntimeWarning)
@@ -21,7 +26,128 @@ parser.add_argument("-m", "--mode", help="Mode", choices=["CONFIGFILE", "CYANOFL
 parser.add_argument('-c', "--config_file", help="Config File.")
 parser.add_argument('-i', "--input_path", help="Input MDB path", required=True)
 parser.add_argument('-o', "--output", help="Path to output")
+parser.add_argument('-s', "--section",help="Section to be processed for CONFIGFILE mode")
 args = parser.parse_args()
+
+
+class AlgorithOptions:
+    def __init__(self,config_file,section,verbose):
+        self.verbose = verbose
+        self.omanager = None
+        self.gmanager = None
+
+        general_options_file = os.path.join(code_home, 'OPTIONS', 'algorithm_options.ini')
+        self.gmanager = OptionsManager(general_options_file, None)
+        self.omanager = OptionsManager(config_file, None)
+
+        self.is_valid = self.gmanager.is_valid() and self.omanager.is_valid()
+        self.section = None
+        if self.is_valid:
+            if section is None:
+                print(f'[ERROR] --section (-s) argument is required')
+                self.is_valid = False
+            else:
+                if not self.omanager.options.has_section(section):
+                    print(f'[ERROR] Section {section} is not available in the configuration file')
+                    self.is_valid = False
+                else:
+                    self.section = section
+
+
+
+
+    def get_general_options(self,section):
+        if not self.is_valid:
+            return None
+        soptions, required = self.gmanager.get_retrieve_options(section)
+
+        if soptions is not None:
+            options = self.omanager.get_options_as_dict(section, soptions,required)
+            return options
+        else:
+            return None
+
+    def get_options(self):
+        if not self.is_valid:
+            return None
+        soptions, required = self.gmanager.get_retrieve_options('GLOBAL')
+        if soptions is None:
+            return None
+        options_global = self.omanager.get_options_as_dict(self.section, soptions, required)
+        if not 'type_algo' in options_global:
+            return None
+        if options_global['type_algo'] is None:
+            return None
+        soptions, required = self.gmanager.get_retrieve_options(options_global['type_algo'])
+        options_specific = self.omanager.get_options_as_dict(self.section, soptions, required)
+        options_specific['required_args'] = self.gmanager.get_required_args(options_global['type_algo'])
+        if options_global is None or options_specific is None:
+            return None
+        return options_global | options_specific
+
+    def get_algo_types(self):
+        soptions, required = self.gmanager.get_retrieve_options('GLOBAL')
+        return soptions['type_algo']['list_values']
+
+class MDBProcessing:
+    def __init__(self,path_mdb):
+        self.path_mdb = path_mdb
+        self.mfile = MDBFile(path_mdb)
+
+    def close_mfile(self):
+        self.mfile.close()
+
+    def run(self,reference,options,output):
+        type_algo = options['type_algo']
+        if type_algo=='expression':
+            self.run_expression(reference,options,output)
+
+    def run_expression(self,reference,options,output):
+        expression = options['expression']
+        output_variable = reference if options['output_variable'] is None else options['output_variable']
+        vars = expression.split('$')
+        var_names = []
+        for var in vars:
+            if var in self.mfile.variables:
+                expression = expression.replace(f'${var}$',f"self.mfile.variables['{var}'][:]")
+                var_names.append(var)
+        dims = None
+        shape = None
+        if len(var_names)>0:
+            for var_name in var_names:
+                dims_h = self.mfile.variables[var_name].dimensions
+                shape_h = self.mfile.variables[var_name].shape
+                if dims is None:
+                    dims = dims_h
+                    shape = shape_h
+                else:
+                    if dims_h!=dims or shape_h!=shape:
+                        print(f'[WARNING] Inconsistency in the dimension and shape of the input variables:')
+                        print(f'[WARNING] ->Variable {var_name}: {dims_h}/{shape_h} but expected {dims}/{shape}')
+
+        print(f'[INFO] Evaluating expression:')
+        print(f'[INFO] {expression}')
+        try:
+            array = eval(expression)
+            if array.shape!=shape:
+                print(f'[ERROR] Inconsistency in the output array. Obtained shape: {array.shape} but expected {shape}')
+                return
+            print(f'[INFO] Output array shape: {array.shape} Dimensions: {dims}')
+        except Exception as ex:
+            print(f'[ERROR] Exception evaluating expression: {ex}')
+            return
+
+        if output is None:
+            self.close_mfile()
+            writer = MDBWritter.MDBWritter(None,self.path_mdb)
+        else:
+            MDBWritter.copy_nc(self.mfile.file_path,output)
+            writer = MDBWritter.MDBWritter(None, output)
+
+        print(f'[INFO] Output variable: {output_variable}')
+        writer.add_variable(output_variable, array, dims, None, None)
+        writer.close()
+
 
 
 def do_test():
@@ -189,11 +315,14 @@ def create_mdb_from_csv(sensor):
 
 
 def main():
-    if create_mdb_from_csv('OLCI'):
-        return
+    # if create_mdb_from_csv('OLCI'):
+    #     return
     # if do_test():
     #     return
     print('Started MDBAlgorithm')
+    if args.mode=='CONFIGFILE':
+        run_from_config_file()
+        return
     input_path = args.input_path
     if not os.path.exists(input_path):
         print(f'[ERROR] Input path {input_path} does not exist')
@@ -234,6 +363,17 @@ def main():
         bprocessor = BALTIC_202411_PROCESSOR(None, False)
         bprocessor.run_from_mdb_file(args.input_path,output_path)
         return
+
+def run_from_config_file():
+    algo_options = AlgorithOptions(args.config_file,args.section,args.verbose)
+    if not algo_options.is_valid:
+        return
+    options = algo_options.get_options()
+    args_d = args_functions.get_args_as_dict(args,options['required_args'],False)
+    if args_d is None:
+        return
+    mprocessing = MDBProcessing(args_d['input_path'])
+    mprocessing.run(args.section,options,args.output)
 
 def create_cyano_flag(input_path, output_path):
     if output_path is None:
