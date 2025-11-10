@@ -77,7 +77,6 @@ class SatSourceOCI():
         else:
             name_file_geo = name_format.replace('$DATE$',work_date.strftime(name_format_date_file))
         file_geo = os.path.join(os.path.dirname(self.path_source),name_file_geo)
-        print(file_geo)
         self.file_geo = file_geo if os.path.exists(file_geo) else None
 
     def get_lat_lon_oza_arrays(self):
@@ -92,6 +91,7 @@ class SatSourceOCI():
             print(f'[WARNING] {self.file_geo} is not a valid NetCDF dataset. OC_GEO file can not be used')
             return lat_array, lon_array,oza_array
         if 'sensor_zenith' in dataset.variables:
+            print(f'[INFO] Retrieving sensor zenith from OC_GEO file')
             oza_array = dataset.variables['sensor_zenith'][:]
         else:
             print(f'[WARNING] geolocation_data is not a valid group in NetCDF dataset {self.path_source}')
@@ -533,6 +533,8 @@ class SatExtractOCI:
                 newExtract.create_satellite_bands_variable(oci_source.wavelength)
                 ##rrs variables
                 if extract_options['main_file_tag']=='OC_AOP':
+                    if self.verbose:
+                        print(f'[INFO] Adding Rrs variables...')
                     rrs_t = oci_source.get_3D_subarray('geophysical_data', 'Rrs', window)
                     rrs_unc_t = oci_source.get_3D_subarray('geophysical_data', 'Rrs_unc', window)
                     brrs = self.create_rrs_oci_variables(newExtract,rrs_t, rrs_unc_t)
@@ -542,9 +544,13 @@ class SatExtractOCI:
                         os.remove(ofname)
                         continue
                 ##flag variable
+                if self.verbose:
+                    print(f'[INFO] Adding flag variable...')
                 array, attrs = oci_source.get_2D_subarray('geophysical_data', 'l2_flags', window)
                 self.create_l2_oci_flag_variable(newExtract,array, attrs)
                 ##geometry variables
+                if self.verbose:
+                    print(f'[INFO] Adding geometry variables...')
                 self.create_geometry_variables(oci_source,newExtract,window)
 
                 ##other variables
@@ -590,6 +596,7 @@ class SatExtractOCI:
         geom_variables = ['satellite_SZA','satellite_SAA','satellite_OZA','satellite_OAA']
         orig_variables = ['solar_zenith','solar_azimuth','sensor_zenith','sensor_azimuth']
         for var_geo,var_orig in zip(geom_variables,orig_variables):
+            print('sat_extract_oci 599',var_geo,var_orig)
             array, attrs = oci_source.get_geo_variable(var_orig,window)
             if array is not None:
                 self.create_2D_oci_variable(newExtract,var_geo,array,attrs)
