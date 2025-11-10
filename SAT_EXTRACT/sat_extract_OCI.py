@@ -475,6 +475,8 @@ class SatExtractOCI:
         for idx in range(len(sat_file_indices_used)):
             ifile = sat_file_indices_used[idx]
             oci_source = SatSourceOCI(list_files[ifile])
+            if oci_source.file_geo is None:
+                oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
             if self.verbose:
                 print(f'[INFO] Working with OCI source {list_files[ifile]}')
             indices_here = np.where(sat_file_indices==ifile)[0]
@@ -596,10 +598,8 @@ class SatExtractOCI:
         geom_variables = ['satellite_SZA','satellite_SAA','satellite_OZA','satellite_OAA']
         orig_variables = ['solar_zenith','solar_azimuth','sensor_zenith','sensor_azimuth']
         for var_geo,var_orig in zip(geom_variables,orig_variables):
-            print('sat_extract_oci 599',var_geo,var_orig)
             array, attrs = oci_source.get_geo_variable(var_orig,window)
             if array is not None:
-                print('me llega aqui o que')
                 self.create_2D_oci_variable(newExtract,var_geo,array,attrs)
 
     def create_rrs_oci_variables(self,newExtract,rrs_t,rrs_unc_t):
