@@ -599,6 +599,7 @@ class SatExtractOCI:
             print('sat_extract_oci 599',var_geo,var_orig)
             array, attrs = oci_source.get_geo_variable(var_orig,window)
             if array is not None:
+                print('me llega aqui o que')
                 self.create_2D_oci_variable(newExtract,var_geo,array,attrs)
 
     def create_rrs_oci_variables(self,newExtract,rrs_t,rrs_unc_t):
