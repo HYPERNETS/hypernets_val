@@ -1,14 +1,15 @@
 import math
 import os
 import sys
-from datetime import datetime
+from datetime import datetime as dt
+from datetime import timezone
 from datetime import timedelta
 
 from matplotlib import pyplot as plt
 from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
-import pytz
+
 
 code_home = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(code_home)
@@ -73,12 +74,14 @@ class MDBFile:
             if self.n_instrument > 0:
                 print(f'[INFO] Number of instruments (incluiding N/A): {self.n_instrument}')
 
-            self.sat_times = []
-            for st in self.variables['satellite_time']:
-                sat_time_here = datetime.utcfromtimestamp(float(st))
-                if sat_time_here.hour == 0 and sat_time_here.minute == 0 and sat_time_here.second == 0:
-                    sat_time_here = sat_time_here.replace(hour=11)
-                self.sat_times.append(sat_time_here)
+            self.sat_times = [dt.fromtimestamp(float(st)).astimezone(timezone.utc) for st in self.variables['satellite_time'][:]]
+            # self.sat_times = []
+            # for st in self.variables['satellite_time']:
+            #     sat_time_here = datetime.utcfromtimestamp(float(st))
+            #
+            #     if sat_time_here.hour == 0 and sat_time_here.minute == 0 and sat_time_here.second == 0:
+            #         sat_time_here = sat_time_here.replace(hour=11)
+            #     self.sat_times.append(sat_time_here)
             self.start_date = self.sat_times[0]
             self.end_date = self.sat_times[-1]
             self.insitu_bands = self.nc.variables['insitu_original_bands'][:]  # insitu_bands(insitu_bands)
@@ -621,11 +624,13 @@ class MDBFile:
 
 
         ##CHECK TIME DIFFERENCE
+        #print('check time difference')
         for idx in range(len(times_here)):
             itime = times_here[idx]
 
             if not np.ma.is_masked(itime) and not np.isnan(itime):
-                insitu_time_here = datetime.utcfromtimestamp(float(itime))
+                #insitu_time_here = dt.utcfromtimestamp(float(itime))
+                insitu_time_here = dt.fromtimestamp(float(itime)).astimezone(timezone.utc)
                 time_diff_here = abs((sat_time_here - insitu_time_here).total_seconds())
                 time_difference[idx] = time_diff_here
                 diff_time = abs(time_difference_prev[idx] - time_diff_here)
@@ -640,30 +645,36 @@ class MDBFile:
             else:
                 time_difference[idx] = np.ma.masked
 
+        #print('done time difference')
+
         if 'insitu_exact_wavelenghts' in self.variables:
             exact_wl = self.variables['insitu_exact_wavelenghts'][index_mu]
         else:
             exact_wl = self.variables['insitu_original_bands']
 
 
-
+        #print('655')
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = self.qc_insitu.get_finalspectrum_mu(
             index_mu, time_difference, exact_wl, self.wlref)
+        #print('658')
 
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
-            mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
+            #mu_insitu_time = dt.utcfromtimestamp(float(ins_time))
+            mu_insitu_time = dt.fromtimestamp(float(ins_time)).astimezone(timezone.utc)
         else:  ##aunque los datos sean invalidos (time dif>max time dif), obtenemos el mu_insitu_time como referencia
             ins_time_index = np.argmin(np.abs(time_difference))
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             if np.ma.is_masked(ins_time):  ##all the ins situ time is masked,we can do mu_insitu_time==mu_sat_time
                 mu_insitu_time = sat_time_here
             else:
-                mu_insitu_time = datetime.utcfromtimestamp(float(ins_time))
+                #mu_insitu_time = dt.utcfromtimestamp(float(ins_time))
+                mu_insitu_time = dt.fromtimestamp(float(ins_time)).astimezone(timezone.utc)
 
         return ins_time_index, mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_values
 
     def load_mu_datav2(self, index_mu):
+
 
         is_mu_valid = False
         load_info = {
@@ -676,14 +687,19 @@ class MDBFile:
             load_info['status'] = -1  # 'NO VALID MDB FILE'
             return is_mu_valid, load_info
 
+
+
         if index_mu < 0 or index_mu >= self.n_mu_total:
             load_info['status'] = -2  # f'NO VALID MATCH-UP INDEX:{index_mu}'
             return is_mu_valid, load_info
+
 
         if len(self.qc_sat.mu_invalid_list) > 0:
             if index_mu in self.qc_sat.mu_invalid_list:
                 load_info['status'] = -2
                 return is_mu_valid, load_info
+
+
 
         # Index match-up
         self.index_mu = index_mu
@@ -693,9 +709,12 @@ class MDBFile:
         if not self.qc_insitu.apply_nir_correction:
             name_variable_insitu = 'insitu_Rrs_nosc'
 
-        self.insitu_rrs = self.variables[name_variable_insitu][index_mu]
 
-        self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
+
+        # self.insitu_rrs = self.variables[name_variable_insitu][index_mu]
+        #
+        # self.satellite_rrs = self.variables['satellite_Rrs'][index_mu]
+
 
         # Sat and instrument time
         self.mu_sat_time = self.sat_times[index_mu]
@@ -722,7 +741,7 @@ class MDBFile:
                 rrs_ins_values_unc = rrs_ins_values.copy()
                 rrs_ins_values_unc[:] = -999.0
 
-        # print(self.valid_insitu)
+        #print(self.valid_insitu)
 
         if rrs_ins_values is not None and self.PI_DIVIDED:
             rrs_ins_values = rrs_ins_values / np.pi
@@ -733,14 +752,6 @@ class MDBFile:
             self.mu_curr_ins_rrs = []
             self.mu_curr_sat_rrs_mean = []
             load_info['status'] = -3  # f'IN SITU DATA OUT OF TIME WINDOW'
-
-            # print('---out of time error------------')
-            # print(self.ins_time_index)
-            # print(self.mu_insitu_time, ' versus ', self.mu_sat_time)
-            # print(self.qc_insitu.time_max)
-
-            # print('???????????????????????')
-
             return is_mu_valid, load_info
 
         if not valid_insitu:
@@ -755,7 +766,9 @@ class MDBFile:
             load_info['status'] = -5  # f'INCOMPLETE IN SITU SPECTRUM'
             return is_mu_valid, load_info
 
-        cond_min_pixels, cond_stats, valid_mu, sat_values, sat_values_unc = self.qc_sat.get_match_up_values(index_mu)
+        #print('improve in qc sat...')
+        cond_min_pixels, cond_stats, valid_mu, sat_values, sat_values_unc = self.qc_sat.get_match_up_values_v2(index_mu)
+        #print('fin improve qc sat')
 
         if not valid_mu:
             self.mu_curr_ins_rrs = []
@@ -763,6 +776,7 @@ class MDBFile:
             load_info['status'] = -6  # f'NO VALID SAT DATA'
             return is_mu_valid, load_info
 
+        #print('787')
         # Getting spectra for comparison
         mu_valid_bands = [False] * len(self.wlref_sat_indices)
         self.mu_curr_ins_rrs = []
@@ -781,10 +795,15 @@ class MDBFile:
                 if self.qc_sat.pi_divided[iband]:
                     sat_value_here = sat_value_here / np.pi
 
-                sat_value_unc_here = sat_values_unc[iref]
+                if sat_values_unc is not None:
+                    sat_value_unc_here = sat_values_unc[iref]
+                    self.mu_curr_sat_rrs_unc.append(sat_value_unc_here)
+                else:
+                    self.mu_curr_sat_rrs_unc.append(-999.0)
+
 
                 self.mu_curr_sat_rrs_mean.append(sat_value_here)
-                self.mu_curr_sat_rrs_unc.append(sat_value_unc_here)
+
                 self.mu_curr_ins_rrs.append(rrs_ins_values[iref])
                 self.mu_curr_ins_rrs_unc.append(rrs_ins_values_unc[iref])
                 mu_valid_bands[iref] = True
@@ -802,7 +821,7 @@ class MDBFile:
             load_info['spectrum_complete'] = False
             load_info['valid_bands'] = mu_valid_bands
             return is_mu_valid, load_info
-
+        #print('827')
     # Funcion to load data from a specific MU
     # def load_mu_data(self, index_mu):
     #     if not self.VALID:
@@ -1087,11 +1106,27 @@ class MDBFile:
         nmu_valid = 0
         nmu_valid_complete = 0
         status_error = [0] * 8
-        for index_mu in range(self.n_mu_total):
-            if index_mu % 100 == 0:
-                print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
 
-            mu_valid, info_mu = self.load_mu_datav2(index_mu)
+        print(f'[INFO] Checking in situ validity...')
+        self.qc_insitu.check_validity()
+        valid_mu_ins = np.sum(self.qc_insitu.insitu_valid_rrs,axis=1)
+        print(f'[INFO] Checking satellite validity....')
+        self.qc_sat.check_validity()
+
+        for index_mu in range(self.n_mu_total):
+            print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
+            if valid_mu_ins[index_mu]==0:
+                mu_valid = False
+                info_mu = {
+                    'status':-4,
+                    'valid_bands': [False] * len(self.wlref_sat_indices),
+                    'spectrum_complete': False
+                }
+                self.index_mu = index_mu
+                self.mu_sat_time = self.sat_times[index_mu]
+                self.mu_insitu_time =  dt.fromtimestamp(float(self.variables['insitu_time'][index_mu][0])).astimezone(timezone.utc)
+            else:
+                mu_valid, info_mu = self.load_mu_datav2(index_mu)
 
             if info_mu['status'] < 0:
                 spos = info_mu['status'] * (-1)
@@ -1111,9 +1146,7 @@ class MDBFile:
                 ins_lat = float(self.variables['insitu_latitude'][index_mu, self.ins_time_index])
                 ins_lon = float(self.variables['insitu_longitude'][index_mu, self.ins_time_index])
 
-            # if index_mu==0:
-            #     print(self.mu_insitu_time,self.mu_sat_time,time_diff)
-            # compability with old mdb
+
             key_site = 'site'
             if key_site not in self.info.keys() and 'insitu_site_name' in self.info.keys():
                 key_site = 'insitu_site_name'
@@ -1228,7 +1261,7 @@ class MDBFile:
         key_site = 'site'
         if key_site not in self.nc.ncattrs() and 'insitu_site_name' in self.nc.ncattrs():
             key_site = 'insitu_site_name'
-        print(key_site)
+
         df_valid.iloc[0].at['Site'] = self.nc.getncattr(key_site)
         df_valid.iloc[0].at['Total'] = self.n_mu_total
         df_valid.iloc[0].at['Valid'] = nmu_valid
@@ -1238,20 +1271,6 @@ class MDBFile:
             col_name = valid_options[idxl]
             sbase = f'# Invalid match-ups [{col_name}]: '
             df_valid.iloc[0].at[col_name] = status_error[idx]
-            # if idx == 1:
-            #     sbase = '# Invalid match-ups [NO VALID MDB FILE]: '
-            # if idx == 2:
-            #     sbase = '# Invalid match-ups [NO VALID MATCH-UP INDEX]: '
-            # if idx == 3:
-            #     sbase = '# Invalid match-ups [OUT OF TIME WINDOW]: '
-            # if idx == 4:
-            #         sbase = '# Invalid match-ups [INVALID IN SITU DATA]: '
-            # if idx == 5:
-            #         sbase = '# Invalid match-ups [INCOMPLETE IN SITU SPECTRUM]: '
-            # if idx == 6:
-            #         sbase = '# Invalid match-ups [INVALID SAT DATA]: '
-            # if idx == 7:
-            #         sbase = '# Invalid match-ups [INVALID IN SITU VALUES]: '
             if status_error[idx] > 0:
                 print(f'[INFO] -> {sbase}{status_error[idx]}')
 
@@ -1444,7 +1463,7 @@ class MDBFile:
         sat_time = None
         for v in val_list:
             try:
-                sat_time = datetime.strptime(v, '%Y%m%dT%H%M%S')
+                sat_time = dt.strptime(v, '%Y%m%dT%H%M%S').replace(tzinfo=timezone.utc)
                 break
             except ValueError:
                 continue
@@ -1907,7 +1926,7 @@ class MDBFile:
         satsensor = f'{sat.upper()}{sensor.upper()}'
         site = self.get_flag_name('flag_site', index_mu).upper()
         ac = self.get_flag_name('flag_ac', index_mu).upper()
-        # from datetime import datetime as dt
+
         date_here = self.sat_times[index_mu].strftime('%Y%m%d')
         return date_here, satsensor, site, ac
 
@@ -1915,15 +1934,16 @@ class MDBFile:
         ac = self.get_flag_name('flag_ac', index_mu).upper()
         sat_time = self.sat_times[index_mu].strftime('%Y%m%d')
         ins_time_array = np.array(self.variables['insitu_time'])
-        inst_time_here = datetime.utcfromtimestamp(float(ins_time_array[index_mu][0]))
+        #inst_time_here = dt.utcfromtimestamp(float(ins_time_array[index_mu][0]))
+        inst_time_here = dt.fromtimestamp(float(ins_time_array[index_mu][0])).astimezone(timezone.utc)
         ins_time = inst_time_here.strftime('%Y%m%d%H%M%S')
         return sat_time, ins_time, ac
 
     def get_metadata_mu(self, index_mu):
-        from datetime import datetime as dt
         sat_time = self.sat_times[index_mu]
 
-        ins_time = dt.utcfromtimestamp(float(self.variables['mu_ins_time'][index_mu]))
+        #ins_time = dt.utcfromtimestamp(float(self.variables['mu_ins_time'][index_mu]))
+        ins_time = dt.fromtimestamp(float(self.variables['mu_ins_time'][index_mu])).astimezone(timezone.utc)
         time_diff = self.variables['mu_time_diff'][index_mu]
         valid = self.variables['mu_valid'][index_mu]
         info = {

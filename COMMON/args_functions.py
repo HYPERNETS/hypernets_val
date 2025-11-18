@@ -47,11 +47,25 @@ def check_args_required_from_list(args,list_required):
             return False
     return True
 
+def check_arg_type(args,arg,type):
+    args_dict = vars(args)
+    if not arg in args_dict:
+        return False
+    arg_value = args_dict[arg]
+    return check_arg_type_impl(arg_value,type)
+
+def check_arg_type_impl(arg_value,type):
+    res = om.get_value_param_impl(arg_value, type, None)
+    if res is None:
+        return False
+    return True
+
 def get_args_as_dict(args,required_dict,include_dates):
     args_dict = vars(args)
     res = {}
     for arg in required_dict:
         if not arg in args_dict:
+            print(f'[ERROR] Argument {arg} is required. Please add it in your script call.')
             return None
         type = required_dict[arg]['type']
         pvalues = required_dict[arg]['type']['potential_values'] if 'potential_values' in required_dict[arg] else None

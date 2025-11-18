@@ -360,7 +360,15 @@ class OptionsManager():
                 result[option] = poptions[option]['default']
         else:
             for option in poptions:
-                result[option] = self.get_option(section,option,poptions,None,None)
+                if option.endswith('_'):
+                    index = 0
+                    while self.options.has_option(section,f'{option}{index}'):
+                        key = f'{option}{index}'
+                        poptions_key = {key:poptions[option]}
+                        result[key] = self.get_option(section,key,poptions_key,None,None)
+                        index = index + 1
+                else:
+                    result[option] = self.get_option(section,option,poptions,None,None)
 
         if required is not None:
             for r in required:
@@ -439,6 +447,36 @@ def get_value_param_impl(value,type,default):
                     return file
                 else:
                     return None
+            return file
+
+    if type=='output_file' or type.startswith('output_file'):
+        ext = type[12:] if type.startswith('output_file_') else None
+        file = value.strip(f'"')
+        check_default = False
+        if ext is not None and not file.endswith(f'.{ext}'):
+            print(f'[WARNING] Output file {file} does not have the correct extension, it should be {ext}')
+            check_default = True
+        output_dir = os.path.dirname(file)
+        try:
+            os.makedirs(output_dir,exist_ok=True)
+        except:
+            print(f'[WARNING] Output path {output_dir} does not exist and could not be created.')
+            check_default = True
+        if check_default:
+            if default is not None:
+                if ext is not None and not default.endswith(f'.{ext}'):
+                    print(f'[WARNING] Output default file {default} does not have the correct extension, it should be {ext}')
+                    return None
+                output_dir_default = os.path.dirname(default)
+                try:
+                    os.makedirs(output_dir_default, exist_ok=True)
+                except:
+                    print(f'[WARNING] Default output path {output_dir_default} does not exist and could not be created.')
+                    return None
+                return default
+            else:
+                return None
+        else:
             return file
 
     if type=='output_path': #type == 'directory' or

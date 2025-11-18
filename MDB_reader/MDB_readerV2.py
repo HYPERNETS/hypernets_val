@@ -1,5 +1,7 @@
 import datetime
-
+from datetime import datetime as dt
+from datetime import timedelta
+from datetime import timezone
 import matplotlib.pyplot as plt
 import numpy as np
 import pytz
@@ -66,12 +68,10 @@ class MDB_READER():
 
         if self.mfile.df_validation is None:
             nmu_valid, df_valid = self.mfile.prepare_df_validation()
+            foutcsv = fout.replace('.nc', '_summary.csv')
+            foutcsv = foutcsv.replace('MDBr', 'CSVr')
+            df_valid.to_csv(foutcsv, sep=';')
 
-
-
-        foutcsv = fout.replace('.nc', '_summary.csv')
-        foutcsv = foutcsv.replace('MDBr', 'CSVr')
-        df_valid.to_csv(foutcsv, sep=';')
 
         ibase = INSITUBASE(None)
 
@@ -189,48 +189,52 @@ class MDB_READER():
 
         self.mfile.df_mu.to_csv(foutcsv, sep=';')
 
+
         for new_var_name in new_variables_sat_mu:
-            new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],
-                                             ('satellite_id',),
-                                             zlib=True,
-                                             complevel=6)
+            print(f'[INFO] Creating new variable: {new_var_name}')
+            new_var = new_MDB.createVariable(new_var_name, new_variables_sat_mu[new_var_name]['type'],('satellite_id',),zlib=True,complevel=6)
+
             array = np.array(self.mfile.df_mu.loc[:, new_variables_sat_mu[new_var_name]['namedf']])
 
             if new_var_name == 'mu_valid':
                 array_status = np.array(self.mfile.df_mu.loc[:, 'status'])
+                array_status = array_status * -1
+                array[np.logical_and(array_status>=1,array_status<=2)]=-1
 
             if new_var_name == 'mu_sat_time' or new_var_name == 'mu_ins_time':
-                array_t = []
+                array_t = array.copy()
+                array = np.zeros(array_t.shape).astype(np.float64)
                 for idx in range(len(array)):
-                    val = array[idx]
                     try:
-                        valdt = datetime.datetime.strptime(val, '%Y-%m-%d %H:%M').replace(tzinfo=pytz.utc)
-                        array_t.append(float(valdt.timestamp()))
+                        array[idx]= float(dt.strptime(array_t[idx],'%Y-%m-%d %H:%M').replace(tzinfo=timezone.utc).timestamp())
                     except:
-                        array_t.append(-999.0)
-                array = np.array(array_t, dtype=np.float64)
+                        array[idx] = -999.0
 
             fillValue = new_variables_sat_mu[new_var_name]['fillvalue']
             if fillValue is not None:
-                array = ma.masked_array(array, mask=array == fillValue)
+                array = np.ma.masked_array(array, mask= array == fillValue)
 
-            for idx in range(self.mfile.n_mu_total):
 
-                if new_var_name == 'mu_valid':
-                    status_here = array_status[idx] * (-1)
-                    val = array[idx]
-                    if 3 >= status_here >= 1:
-                        val = -1
-                    new_var[idx] = [val]
-                else:
-                    # print(idx, '-->', array[idx])
-                    new_var[idx] = [array[idx]]
+            new_var[:] = array[:]
+            # for idx in range(self.mfile.n_mu_total):
+            #
+            #     if new_var_name == 'mu_valid':
+            #         array_status = np.array(self.mfile.df_mu.loc[:, 'status'])
+            #         status_here = array_status[idx] * (-1)
+            #         val = array[idx]
+            #         if 3 >= status_here >= 1:
+            #             val = -1
+            #         new_var[idx] = [val]
+            #     else:
+            #         if new_var_name=='mu_insitu_id':
+            #             print(type(idx),idx,type(array),array[idx])
+            #             new_var[idx] = [array[idx]]
 
         ##validitiy of spectrums
         if args.verbose:
             print('[INFO] Check validity spectra...')
-        new_var = new_MDB.createVariable('insitu_valid', 'i1', ('satellite_id', 'insitu_id'), zlib=True, complevel=6,
-                                         fill_value=-1)
+
+
         if reduce_mdbr:
             array_mu_insitu_id = np.array(self.mfile.df_mu.loc[:, new_variables_sat_mu['mu_insitu_id']['namedf']])
 
@@ -247,16 +251,22 @@ class MDB_READER():
                                                                   insitu_id_here]
 
         else:
-            for index_mu in range(self.mfile.n_mu_total):
-                if (index_mu % 100) == 0 and args.verbose:
-                    print(f'[INFO] Checking spectra validity for mu : {index_mu} of {self.mfile.n_mu_total}')
-                if 'insitu_instrument_id' in self.mfile.variables:
-                    self.mfile.qc_insitu.instrument_id_array = self.mfile.variables['insitu_instrument_id'][index_mu]
-                else:
-                    self.mfile.qc_insitu.instrument_id_array = None
+            if self.mfile.qc_insitu.insitu_valid_rrs is not None:
+                new_var = new_MDB.createVariable('insitu_valid', 'i1', ('satellite_id', 'insitu_id'), zlib=True,
+                                                 complevel=6, fill_value=-1)
+                validity_spectra = self.mfile.qc_insitu.insitu_valid_rrs.astype(np.int8)
+                new_var[:] = validity_spectra[:]
 
-                validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
-                new_var[index_mu] = validity_spectra[:]
+            # for index_mu in range(self.mfile.n_mu_total):
+            #     if (index_mu % 100) == 0 and args.verbose:
+            #         print(f'[INFO] Checking spectra validity for mu : {index_mu} of {self.mfile.n_mu_total}')
+            #     if 'insitu_instrument_id' in self.mfile.variables:
+            #         self.mfile.qc_insitu.instrument_id_array = self.mfile.variables['insitu_instrument_id'][index_mu]
+            #     else:
+            #         self.mfile.qc_insitu.instrument_id_array = None
+            #
+            #     validity_spectra = self.mfile.qc_insitu.check_validity_spectra_mu(index_mu)
+            #     new_var[index_mu] = validity_spectra[:]
 
         new_MDB.close()
         if args.verbose:
@@ -303,7 +313,7 @@ class MDB_READER():
     def create_csv_time_difference(self):
         if not self.mfile.VALID:
             return
-        from datetime import datetime as dt
+
         print(f'[INFO] Creating time csv...')
         satellite_time = self.mfile.variables['satellite_time'][:]
         insitu_time = self.mfile.variables['insitu_time'][:]
@@ -740,9 +750,6 @@ def creating_copy_adding_new_flag(input_file, output_file, new_flag):
 def creating_copy_correcting_sat_time(input_file, output_file):
     from netCDF4 import Dataset
     import numpy as np
-    from datetime import datetime as dt
-    # from datetime import timedelta
-    from datetime import timezone
     input_dataset = Dataset(input_file)
 
     insitu_time = np.array(input_dataset.variables['insitu_time'])
@@ -1472,7 +1479,6 @@ def creating_copy_region(input_file, region):
     input_dataset = Dataset(input_file)
     output_file = os.path.join(os.path.dirname(input_file), os.path.basename(input_file)[:-3] + '_' + region + '.nc')
     print(output_file)
-    from datetime import datetime as dt
     satellite_time = input_dataset.variables['satellite_time'][:]
     nsat = satellite_time.shape[0]
     indices_region_tf = np.zeros((nsat,))
@@ -1632,8 +1638,7 @@ def getting_common_matchups():
     mu = {}
     from netCDF4 import Dataset
     import numpy as np
-    from datetime import datetime as dt
-    from datetime import timedelta
+
     dataset = Dataset(file_in)
     sat_time = np.array(dataset.variables['satellite_time'][:])
     satellite = np.array(dataset.variables['flag_satellite'][:])
@@ -1703,8 +1708,7 @@ def getting_common_matchups():
 def getting_common_satellite_id(file_in, cm):
     from netCDF4 import Dataset
     import numpy as np
-    from datetime import datetime as dt
-    from datetime import timedelta
+
     dataset = Dataset(file_in)
     sat_time = np.array(dataset.variables['satellite_time'][:])
     satellite = np.array(dataset.variables['flag_satellite'][:])
@@ -1843,8 +1847,6 @@ def do_test():
     # print(ncommon_bysite)
     # from netCDF4 import Dataset
     # import numpy as np
-    # from datetime import datetime as dt
-    # from datetime import timedelta
     # file_data = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/MAFR/MDBrc_S2AB_MAFR_ACOLITE_MSI_20M.nc'
     # # file_data = '/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/BEFR/MDBrc_S2AB_BEFR_ACOLITE_MSI_20M.nc'
     # dataset = Dataset(file_data)
@@ -2063,7 +2065,7 @@ def do_add_new_flag(site):
 def do_check_times(site):
     from netCDF4 import Dataset
     import numpy as np
-    from datetime import datetime as dt
+
     dir_base = f'/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S2MSI/{site}'
     for name in os.listdir(dir_base):
         if name.startswith('MDBr_'):
@@ -2109,7 +2111,7 @@ def do_check_times(site):
 def do_check_times_S3(site):
     from netCDF4 import Dataset
     import numpy as np
-    from datetime import datetime as dt
+
     dir_base = f'/mnt/c/DATA_LUIS/HYPERNETS_WORK/WP7_FINAL_ANALYSIS/MDBs/S3OLCI/{site}'
     for name in os.listdir(dir_base):
         if name.startswith('MDBr_'):
@@ -2438,7 +2440,7 @@ def plot_distribution_times(date_here, title):
     file_out = os.path.join(dir_base, f'TimeDistribution_{date_here_str}.tif')
     from MDB_builder.INSITU_tara import INSITU_TARA
     itara = INSITU_TARA(None, True)
-    from datetime import timedelta
+
     date_ini = date_here - timedelta(hours=2)
     date_fin = date_here + timedelta(hours=2)
     date_ini = date_ini.replace(tzinfo=pytz.utc)
@@ -2497,7 +2499,7 @@ def plot_distribution_times(date_here, title):
 
 def convert_tara_files():
     import pandas as pd
-    from datetime import datetime as dt
+
     dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/insitu_data/HyperPro-Orig'
     dir_meta = '/mnt/c/DATA_LUIS/TARA_TEST/insitu_data/HyperPro_meta'
     dir_rad = '/mnt/c/DATA_LUIS/TARA_TEST/insitu_data/HyperPro-Rad'
@@ -2689,7 +2691,6 @@ def do_image_with_centro():
 
 def get_certo_dates_olci_step1():
     from netCDF4 import Dataset
-    from datetime import datetime as dt
     dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     certo_dates = {}
     for name in os.listdir(dir_base):
@@ -2732,7 +2733,7 @@ def get_certo_dates_olci_step1():
 
 
 def get_certo_dates_olci_step2():
-    from datetime import datetime as dt
+
     import subprocess
     dir_base = '/store3/DOORS/MDBs'
     dir_sources = '/store3/DOORS/CERTO_SOURCES'
@@ -2784,7 +2785,7 @@ def get_certo_dates_olci_step2():
 
 
 def get_certo_dates_msi():
-    from datetime import datetime as dt
+
     import subprocess
     dir_base = '/store3/DOORS/MDBs'
     dir_sources = '/store3/DOORS/CERTO_SOURCES'
@@ -2841,7 +2842,7 @@ def get_certo_dates_msi():
 
 
 def get_certo_dates_olci():
-    from datetime import datetime as dt
+
     import subprocess
     dir_base = '/store3/DOORS/MDBs'
     dir_sources = '/store3/DOORS/CERTO_SOURCES'
@@ -2902,7 +2903,7 @@ def get_certo_dates_olci():
 
 
 def set_certo_dates_olci_mdb():
-    from datetime import datetime as dt
+
     dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/OUT'
     file_new_dates = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/CERTO_OLCI_TIMES_OUT.csv'
@@ -2943,7 +2944,7 @@ def set_certo_dates_olci_mdb():
 
 
 def set_certo_dates_msi():
-    from datetime import datetime as dt
+
     dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/OUT'
     site = 'Section-7'
@@ -2978,7 +2979,7 @@ def set_certo_dates_msi():
 
 
 def set_certo_dates_extracts():
-    from datetime import datetime as dt
+
     ##olci
     # dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_olci'
     # dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/extracts_certo_olci_out'
@@ -3024,7 +3025,7 @@ def set_certo_dates_extracts():
 
 
 def check_dates():
-    from datetime import datetime as dt
+
     from netCDF4 import Dataset
     dir_base = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs'
     dir_out = '/mnt/c/DATA_LUIS/DOORS_WORK/MDBs/OUT'
@@ -3053,7 +3054,7 @@ def check_dates():
 
 def get_satellite_time_from_global_attributes(fproduct):
     from netCDF4 import Dataset
-    from datetime import datetime as dt
+
     dataset = Dataset(fproduct)
     if 'time_coverage_start' in dataset.ncattrs() and 'time_coverage_end' in dataset.ncattrs():
         try:
@@ -3525,7 +3526,7 @@ def make_map_stations():
 
 
 def prepare_map_cci_poster(window_size):
-    from datetime import datetime as dt
+
     from netCDF4 import Dataset
     window_size = int(window_size)
     #dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS'
@@ -3655,7 +3656,7 @@ def make_map_cci_poster(res):
     import cartopy.crs as ccrs
     import matplotlib.pyplot as plt
     from netCDF4 import Dataset
-    from datetime import datetime as dt
+
 
     dir_base = '/mnt/c/DATA_LUIS/TARA_TEST/OCEAN_OPTICS'
     res = int(res)
@@ -3847,8 +3848,7 @@ def remove_duplicated_insitu_hypstar(remove):
     remove = int(remove)
     if remove==1:
         print('REMOVED ACTIVATED')
-    from datetime import datetime as dt
-    from datetime import timedelta
+
     dir_orig = '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV/VEIT/2024'
     dir_out = '/store3/HYPERNETS/INSITU_HYPSTARv2.1.0_DEV_TEMP'
     date_here = dt(2024,1,1)
@@ -3976,8 +3976,7 @@ def make_plots_match_ups(site,dir_base,file_mdbr):
     print(f'[INFO] Completed')
 
 
-    # from datetime import datetime as dt
-    # from datetime import timedelta
+
     # from matplotlib.backends.backend_pdf import PdfPages
     # pdf = PdfPages(file_pdf)
     # date_here = dt(2024,3,5)
@@ -3997,7 +3996,7 @@ def make_plots_match_ups(site,dir_base,file_mdbr):
 
 def get_basic_metadata(input_path):
     from netCDF4 import Dataset
-    from datetime import datetime as dt
+
     dataset = Dataset(input_path)
     lat_array = dataset.variables['satellite_latitude'][:]
     lon_array = dataset.variables['satellite_longitude'][:]
@@ -4039,7 +4038,7 @@ def plot_test_time_series():
     ins_avw = ins_avw[np.isnan(sat_avw)==False]
     time = time[np.isnan(sat_avw)==False]
     sat_avw = sat_avw[np.isnan(sat_avw)==False]
-    from datetime import datetime as dt
+
     time_obj = [dt.utcfromtimestamp(x) for x in time]
     dd_mm = [f'{t.strftime("%m%d")}' for t  in time_obj]
 
@@ -4193,8 +4192,8 @@ def main():
         #         file_orig = os.path.join(v2folder,name)
         #         file_dest = os.path.join(folder_not_used,name)
         #         os.rename(file_orig,file_dest)
-        from datetime import datetime as dt
-        from datetime import timedelta
+
+
         from netCDF4 import Dataset
         source_folder = '/store3/OC/OCI'
         files_v2 = os.path.join(source_folder,'filesv2.csv')
@@ -4307,7 +4306,6 @@ def main():
         #     print(f'{iband}->{np.ma.min(rrs_band)} {np.ma.max(rrs_band)} {np.ma.mean(rrs_band)}')
         # file_mdb = '/mnt/c/DATA_LUIS/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/LAIT/MDB_PACE_OCI_1KM_L2GEN_20220701T000000_20240831T235959_MEDA_LAIT.nc'
         # from netCDF4 import Dataset
-        # from datetime import datetime as dt
         # dataset = Dataset(file_mdb)
         # lat_array = dataset.variables['satellite_latitude'][:]
         # lon_array = dataset.variables['satellite_longitude'][:]
@@ -4487,7 +4485,7 @@ def main():
         #         print('---------------> ', name)
         #         creating_copy_mdb_publication(file_in, file_out, 'S2')
 
-        # from datetime import datetime as dt
+
         # date_tal = dt(2023,4,5,10,18)
         # file_csv = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/SatelliteDates.csv'
         # file_out = '/mnt/c/DATA_LUIS/TARA_TEST/MDBs/SatelliteDates_out.csv'
@@ -4693,8 +4691,7 @@ def main():
         # mplot.mrfile.analyse_mu_temporal_flag(True, 'flag_ac',file_out)
 
         # compasions check
-        # from datetime import datetime as dt
-        # from datetime import timedelta
+
         # import pandas as pd
         # import numpy as np
         # from scipy import stats

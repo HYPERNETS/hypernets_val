@@ -1,8 +1,11 @@
-import os, pytz
+import os, pytz, sys, __init__
 import numpy as np
 from netCDF4 import Dataset
 from datetime import datetime as dt
-
+from datetime import timezone
+code_home = os.path.dirname(os.path.dirname(__init__.__file__))
+sys.path.append(code_home)
+import COMMON.common_functions as cfs
 
 class COMMON_MU:
 
@@ -13,6 +16,150 @@ class COMMON_MU:
     def run(self):
         if self.options['type_cmu'] == 'multiple_resolution':
             self.run_multiple_resolution()
+
+        if self.options['type_cmu'] == 'single_mdb':
+            self.run_single_mdb()
+
+    def run_single_mdb(self):
+        input_file = self.options['input_file']
+        flag_among = self.options['flag_among']
+        flag_among_values = self.options['flag_among_values']
+        reference = self.options['reference']
+        flag_array = None
+        sat_time_array  = None
+        sat_lat_array = None
+        sat_lon_array = None
+        rc_center = None
+
+        dataset = Dataset(input_file,'r')
+        if flag_among in dataset.variables:
+            flag_array = dataset.variables[flag_among][:]
+        if 'satellite_time' in dataset.variables:
+            sat_time_array = dataset.variables['satellite_time'][:]
+        if reference=='sat_time_lat_lon':
+            if 'satellite_latitude' in dataset.variables:
+                sat_lat_array = dataset.variables['satellite_latitude'][:]
+                rc_center = int(np.floor(sat_lat_array.shape[1] / 2))
+
+            if 'satellite_longitude' in dataset.variables:
+                sat_lon_array = dataset.variables['satellite_longitude'][:]
+
+        if flag_among_values is None:
+            flag_among_values = np.unique(flag_array).tolist()
+
+        dataset.close()
+
+        if flag_array is None or sat_time_array is None:
+            return
+
+        if reference == 'sat_time_lat_lon' and (sat_lat_array is None or sat_lon_array is None):
+            return
+
+
+        check_mu = {}
+        nflag_values = len(flag_array)
+
+        for idx in range(nflag_values):
+            refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%S')
+            if reference.startswith('sat_date'):
+                refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%d')
+            flag_value = flag_array[idx]
+            if flag_value in flag_among_values:
+                if not refidx in check_mu:
+                    check_mu[refidx] = {flag_value:[idx]}
+                else:
+                    if flag_value in check_mu[refidx]:
+                        check_mu[refidx][flag_value].append(idx)
+                    else:
+                        check_mu[refidx][flag_value] = [idx]
+
+        flag_value_ref = flag_among_values[0]
+        flag_value_comp = flag_among_values[1:]
+        index_used = [False]*nflag_values
+        common_mu_array = np.zeros(nflag_values)
+        index_common = 1
+        for idx in range(nflag_values):
+            flag_value = flag_array[idx]
+            if flag_value!=flag_value_ref:
+                continue
+            refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%S')
+            if reference.startswith('sat_date'):
+                refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%d')
+            ncomp = 0
+            for fv in flag_value_comp:
+                if fv in check_mu[refidx]:
+                    indices_fv = check_mu[refidx][fv]
+                    for index_fv in indices_fv:
+                        if index_used[index_fv]:
+                            continue
+                        if cfs.is_central_pixel(sat_lat_array[index_fv,:,:],sat_lon_array[index_fv,:,:],sat_lat_array[idx,rc_center,rc_center],sat_lon_array[idx,rc_center,rc_center]):
+                            common_mu_array[idx] = index_common
+                            common_mu_array[index_fv] = index_common
+                            index_used[idx] = True
+                            index_used[index_fv] = True
+                            ncomp = ncomp + 1
+                            break
+            if ncomp==len(flag_value_comp):
+                index_common = index_common + 1
+
+
+        print(f'[INFO] Number of common match-ups: {np.max(common_mu_array)} / {nflag_values}')
+
+
+        return common_mu_array
+
+
+
+    def get_mu_variable(self,common_var):
+        if self.options['mu_valid_variable'] is None:
+            print(f'[ERROR] mu_valid_variable is required if create_mu_variable is True')
+            return None
+        input_file = self.options['input_file']
+        dataset = Dataset(input_file, 'r')
+        if not common_var in dataset.variables:
+            print(f'[ERROR] {common_var} variable is required for getting the common mu valid array but is not available in {os.path.basename(input_file)}')
+            dataset.close()
+            return None
+        common_array = dataset.variables[common_var][:]
+        mu_valid_var = self.options['mu_valid_variable']
+        if not mu_valid_var in dataset.variables:
+            print(f'[ERROR] {mu_valid_var} variable is required for getting the common mu valid array  but is not available in {os.path.basename(input_file)}')
+            dataset.close()
+            return None
+        mu_valid_array = dataset.variables[mu_valid_var][:]
+        dataset.close()
+
+        output_array = np.zeros(mu_valid_array.shape).astype(np.int16)
+        used = np.zeros(mu_valid_array.shape)
+        output_array[:]=-1
+        ndata = output_array.shape[0]
+        nmu_x_index = -1
+        nmu_common = 0
+        for idx in range(ndata):
+            if used[idx]==1:
+                continue
+            index_common = common_array[idx]
+            if index_common<=0:
+                used[idx]=1
+                continue
+            indices = np.where(common_array==index_common)
+            nmu_x_index_here = len(indices[0])
+            if nmu_x_index==-1:
+                nmu_x_index = nmu_x_index_here
+            else:
+                if nmu_x_index!=nmu_x_index_here:
+                    print(f'[WARNING] Index common {index_common} show a different number of match-ups')
+                    continue
+            used[indices]=1
+            valid_indices = mu_valid_array[indices]
+            if np.sum(valid_indices)==nmu_x_index:
+                output_array[indices] = index_common
+                nmu_common = nmu_common + 1
+
+
+        print(f'[INFO] Number of valid match-ups: {nmu_common}')
+        return output_array
+
 
     def run_multiple_resolution(self):
         list_files = self.options['mdb_files']

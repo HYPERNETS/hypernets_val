@@ -153,6 +153,20 @@ def find_row_column_from_lat_lon(lat, lon, lat0, lon0):
         c = np.nan
     return r, c
 
+def get_spatial_index(lat_window,lon_window,lat_P,lonP):
+    lat_window = np.squeeze(lat_window)
+    lon_window = np.squeeze(lon_window)
+    rc_center = int(np.floor(lat_window.shape[0] / 2))
+    r, c = find_row_column_from_lat_lon(lat_window.astype(np.float64), lon_window.astype(np.float64),lat_P, lonP)
+    if np.isnan(r) and np.isnan(c):
+       return -1
+    else:
+        insitu_spatial_index = max(abs(r - rc_center), abs(c - rc_center))
+        return insitu_spatial_index
+
+def is_central_pixel(lat_window,lon_window,lat_P,lonP):
+    spatial_index = get_spatial_index(lat_window, lon_window, lat_P, lonP)
+    return True if spatial_index==0 else False
 
 def config_reader(FILEconfig):
     options = configparser.ConfigParser()

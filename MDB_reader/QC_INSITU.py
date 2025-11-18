@@ -56,6 +56,78 @@ class QC_INSITU:
         self.msibands = self.get_msi_bands_dict()
         self.olcibands = self.get_olci_bands_dict()
 
+        self.insitu_valid_rrs = None
+
+    def check_validity(self):
+        self.insitu_valid_rrs = np.ma.zeros((self.insitu_rrs.shape[0],self.insitu_rrs.shape[2]))
+        nconditions = 0
+
+        # checking flag: TO BE IMPLEMENTED
+        if len(self.check_flags) > 0:
+            for flag_name in self.check_flags:
+                flag_var = self.check_flags[flag_name]['variable']
+                oflag = self.check_flags[flag_name]['oflags']
+                if oflag is not None:
+                    nconditions = nconditions + 1
+                    flag_value = flag_var[:] #np.array(flag_var[index_mu, insitu_id])
+                    flag_list = self.check_flags[flag_name]['flag_list']
+                    m = oflag.Mask(flag_value, flag_list)
+                    if self.check_flags[flag_name]['remove_spectra'] and m > 0:
+                        check = False
+                    if not self.check_flags[flag_name]['remove_spectra'] and m == 0:
+                        check = False
+
+        # checking threshold other bands
+        if len(self.check_th_other_bands) > 0:
+            for band_name in self.check_th_other_bands:
+                nconditions = nconditions+1
+                val_here = self.check_th_other_bands[band_name]['variable'][:]
+                th_type = self.check_th_other_bands[band_name]['th_type']
+                val_min = self.check_th_other_bands[band_name]['value_min']
+                val_max = self.check_th_other_bands[band_name]['value_max']
+                is_angle = self.check_th_other_bands[band_name]['isangle']
+
+
+                if val_max >= val_min:
+                    check_condition = np.logical_and(val_min <= val_here,val_here<=val_max)
+                elif val_max < val_min and is_angle:
+                    check_condition = val_here >= val_min or val_here <= val_max
+
+                if th_type == 'keep':
+                    self.insitu_valid_rrs[check_condition==True]=self.insitu_valid_rrs[check_condition==True]+1
+                if th_type == 'remove':
+                    self.insitu_valid_rrs[check_condition==False]=self.insitu_valid_rrs[check_condition==False]+1
+
+        # checking rrs thresholds
+        if self.thersholds is not None:
+
+            for idx in range(len(self.wl_list)):
+                wl = self.wl_list[idx]
+                val = np.ma.squeeze(self.insitu_rrs[:,idx,:])
+                wls = str(wl)
+                if self.thersholds[wls]['min_th']['apply']:
+                    nconditions = nconditions + 1
+                    check_condition = val>=self.thersholds[wls]['min_th']['value']
+                    self.insitu_valid_rrs[check_condition == True] = self.insitu_valid_rrs[check_condition == True] + 1
+                if self.thersholds[wls]['max_th']['apply']:
+                    nconditions = nconditions + 1
+                    check_condition = val<=self.thersholds[wls]['max_th']['value']
+                    self.insitu_valid_rrs[check_condition == True] = self.insitu_valid_rrs[check_condition == True] + 1
+
+                # if self.thersholds[wls]['min_th']['apply'] and val < self.thersholds[wls]['min_th']['value']:
+                #     check = False
+                #     break
+                # if self.thersholds[wls]['max_th']['apply'] and val > self.thersholds[wls]['max_th']['value']:
+                #     check = False
+                #     break
+
+        print(f'[INFO]->Number of conditions analysed: {nconditions}')
+        self.insitu_valid_rrs = np.where(self.insitu_valid_rrs==nconditions,True,False)
+        print(f'[INFO]->Number of valid spectra: {np.ma.sum(self.insitu_valid_rrs)}')
+
+
+
+
     def get_olci_bands_dict(self):
         olcibands = {
             'Oa01': {'wl': 400, 'apply': False},
@@ -388,53 +460,98 @@ class QC_INSITU:
 
     def get_finalspectrum_mu(self, index_mu, dif_time_array, exact_wl_array, wl_ref):
 
+
         time_condition = False
         spectrum_complete = False
         valid_values = False
         id_min_time = -1
         rrs_values = None
-        spectra_with_time_condition = False
+        #spectra_with_time_condition = False
 
-        dif_time_good = dif_time_array[~dif_time_array.mask]
 
-        ngood = len(dif_time_good)
+        ngood = np.ma.count(dif_time_array)
+        if ngood<dif_time_array.shape[0]:
+            dif_time_good = dif_time_array[~dif_time_array.mask]
+        else:
+            dif_time_good = dif_time_array
+
 
         if ngood == 0:
             return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
-        if len(dif_time_good.shape) == 2:
-            dif_time_good = dif_time_array.flatten()
+
 
         indices_good = np.argsort(dif_time_good)
-        # print('number of spectra with time', ngood, dif_time_good.shape)
-        # print(indices_good)
 
-        for idx in indices_good:
-            id_min_time = idx
-            time_dif = dif_time_array[idx]
-            time_condition = time_dif < self.time_max
-            # print(idx,'-->',time_dif,self.time_max,time_condition)
 
-            if time_condition:
-                spectra_with_time_condition = True
-                rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
-                valid_bands_array = np.array(valid_bands, dtype=bool)
-                rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
-                valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
+        time_condition_array = dif_time_good[indices_good]<self.time_max
+        spectra_array = np.squeeze(self.insitu_rrs[index_mu, :, :])
+        spectra_validity = np.squeeze(self.insitu_valid_rrs[index_mu, :])
+        if ngood < dif_time_array.shape[0]:
+            spectra_array = spectra_array[:,~dif_time_array.mask]
+            spectra_validity = spectra_validity[~dif_time_array.mask]
+        spectra_array = spectra_array[:,indices_good]
+        spectra_validity = spectra_validity[indices_good]
 
-                spectrum_complete = np.sum(valid_bands_array) == len(self.wl_list)
-                if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
-                    if len(exact_wl_array.shape) == 1:
-                        exact_wl = exact_wl_array[indices]
-                    else:
-                        exact_wl = exact_wl_array[indices, id_min_time]
-                    rrs_values = bsc_qaa.bsc_qaa(rrs_values, exact_wl, wl_ref)
-                if valid_values:
-                    break
 
-        if not valid_values and spectra_with_time_condition:
-            time_condition = True
 
-        return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
+        indices = self.wl_indices[0, :]
+
+
+
+        rrs_values = spectra_array[indices,:]
+
+        n_valid_bands = np.sum(np.invert(ma.getmaskarray(rrs_values)),axis=0)
+        complete_spectra = n_valid_bands == len(self.wl_list)
+
+        all_valid = np.logical_and(time_condition_array,spectra_validity)
+        if self.only_complete_spectra:
+            all_valid = np.logical_and(all_valid,complete_spectra)
+
+        ins_valid = 0
+        if np.count_nonzero(all_valid)>0:
+            ins_valid = np.where(all_valid)[0][0]
+        id_min_time = indices_good[ins_valid]
+        rrs_values = rrs_values[:, id_min_time]
+
+
+        return id_min_time,time_condition_array[ins_valid],all_valid[ins_valid],complete_spectra[ins_valid],rrs_values
+
+
+        # if index_mu==0:
+        #     print(n_valid_bands)
+        #     print(complete_spectra)
+        # print('==================')
+
+
+
+
+        # for idx in indices_good:
+        #     id_min_time = idx
+        #     time_dif = dif_time_array[idx]
+        #     time_condition = time_dif < self.time_max
+        #
+        #
+        #     if time_condition:
+        #         spectra_with_time_condition = True
+        #         rrs_values, indices, valid_bands = self.get_spectrum_for_mu_and_index_insitu(index_mu, idx)
+        #         valid_bands_array = np.array(valid_bands, dtype=bool)
+        #         rrs_values = np.ma.masked_where(valid_bands_array == False, rrs_values)
+        #         valid_values = self.check_validity_spectrum(rrs_values, index_mu, idx)
+        #
+        #         spectrum_complete = np.sum(valid_bands_array) == len(self.wl_list)
+        #         if valid_values and self.apply_band_shift and exact_wl_array is not None and wl_ref is not None:
+        #             if len(exact_wl_array.shape) == 1:
+        #                 exact_wl = exact_wl_array[indices]
+        #             else:
+        #                 exact_wl = exact_wl_array[indices, id_min_time]
+        #             rrs_values = bsc_qaa.bsc_qaa(rrs_values, exact_wl, wl_ref)
+        #         if valid_values:
+        #             break
+        #
+        # if not valid_values and spectra_with_time_condition:
+        #     time_condition = True
+
+        #return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
 
     ##OPERATIONS WITH GOOD SPECTRA
     def compute_good_spectra_statistics(self):
@@ -499,7 +616,7 @@ class QC_INSITU:
             else:
                 iins = 0
                 if self.instrument_id_array is not None:
-                    iins = self.instrument_id_array[index_insitu]
+                    iins = self.instrument_id_array[index_mu,index_insitu]
                 if np.ma.is_masked(iins):
                     return None,None,None
                 indices = self.wl_indices[iins,:]

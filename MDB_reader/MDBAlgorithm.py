@@ -9,6 +9,7 @@ import pytz
 from netCDF4 import Dataset
 
 from MDBFile import MDBFile
+from CommonMu import COMMON_MU
 from MDB_builder.INSITU_base import INSITUBASE
 import __init__,sys
 from COMMON import args_functions
@@ -31,6 +32,7 @@ args = parser.parse_args()
 
 
 class AlgorithOptions:
+
     def __init__(self,config_file,section,verbose):
         self.verbose = verbose
         self.omanager = None
@@ -101,19 +103,109 @@ class MDBProcessing:
         type_algo = options['type_algo']
         if type_algo=='expression':
             self.run_expression(reference,options,output)
+        elif type_algo=='common_mu':
+            self.run_common_mu(reference,options,output)
+        elif type_algo=='subset':
+            self.run_subset(options,output)
+        else:
+            print(f'[ERROR] {type_algo} processing is not implemented yet. Please add the corresponding function in the run() method in the MDBProcessing.py class (file MDBAlgorithm.py)')
+
+    def run_subset(self,options,output):
+        type_subset = options['type_subset']
+        array_subset = None
+
+        if type_subset=='basic_filter':
+            if options['basic_filter'] is None:
+                print(f'[ERROR] basic_filter option with a valid expression is required for type_subset: basic_filter')
+                return array_subset
+            expression, dims, shape = self.get_expression_from_mfile(options['basic_filter'])
+            array_subset, dims = self.eval_expression(expression,{},dims,shape)
+
+        if array_subset is None:
+            return
+        if os.path.exists(output):
+            os.remove(output)
+        writer = MDBWritter.MDBWritter(self.mfile, output)
+        writer.create_subset(array_subset)
+
+
+    def run_common_mu(self,reference,options,output):
+        output_variable = reference if options['output_variable'] is None else options['output_variable']
+        output_variable_mu = f'{output_variable}_mu'
+        exist_output_variable = output_variable in self.mfile.variables
+        exist_output_variable_mu  = output_variable_mu in self.mfile.variables
+        self.close_mfile()##using path to mdb
+        options['type_cmu']='single_mdb'
+        options['input_file'] = self.path_mdb
+        if options['output_mode']=='subset_file' and not args_functions.check_arg_type_impl(output,'output_file_nc'):
+            print(f'[ERROR] Argument output should be a valid output NC file. Common mu processing stopped.')
+            return
+
+        #options['output'] = output
+
+
+        cmu = COMMON_MU(options)
+        if not exist_output_variable:
+            cmu_array = cmu.run_single_mdb()
+            self.write_output_variable(output,output_variable,cmu_array,None,'i2',-999)
+        else:
+            print(f'[WARNING] Output variable {output_variable} already exists. To repeat the process, please choose another output variable name')
+
+        if options['create_mu_variable']:
+            if not exist_output_variable_mu:
+                cmu_array_mu = cmu.get_mu_variable(output_variable)
+                self.write_output_variable(output, output_variable_mu, cmu_array_mu, None, 'i2', -999)
+            else:
+                print(
+                    f'[WARNING] Output mu variable {output_variable} already exists. To repeat the process, please choose another output variable name')
+
 
     def run_expression(self,reference,options,output):
-        expression = options['expression']
+        n_exp = 0
+        while f'expression_{n_exp}' in options:
+            if options[f'expression_{n_exp}'] is not None:
+
+                n_exp = n_exp + 1
+
+        if n_exp==0:
+            print(f'[ERROR] At least one valid expression is required for the "expression" processing.')
+            return
         output_variable = reference if options['output_variable'] is None else options['output_variable']
+        arrays = {}
+        dims = None
+        for i_exp in range(n_exp):
+            expression, dims, shape = self.get_expression_from_mfile(options[f'expression_{i_exp}'])
+            local_dict = {}
+            if i_exp>=1:
+                expression,local_dict = self.get_local_dict(expression,arrays)
+            arrays[i_exp],dims = self.eval_expression(expression, local_dict, dims, shape)
+
+        self.close_mfile()
+        array = arrays[n_exp-1]##last array
+        if array is None:
+            return
+        self.write_output_variable(output,output_variable,array,dims,None,-999.0)
+
+    def get_local_dict(self,expression,arrays):
+        loc_dict = locals()
+        for idx in range(0,len(arrays)):
+            r = expression.find(f'$result_{idx}$')
+            if r>=0:
+                expression = expression.replace(f'$result_{idx}$',f'result_{idx}')
+                loc_dict[f'result_{idx}'] = arrays[idx]
+
+        return expression,loc_dict
+
+    def get_expression_from_mfile(self,expression):
         vars = expression.split('$')
         var_names = []
         for var in vars:
             if var in self.mfile.variables:
-                expression = expression.replace(f'${var}$',f"self.mfile.variables['{var}'][:]")
+                expression = expression.replace(f'${var}$', f"self.mfile.variables['{var}']")
                 var_names.append(var)
         dims = None
         shape = None
-        if len(var_names)>0:
+        if len(var_names) > 0:
             for var_name in var_names:
                 dims_h = self.mfile.variables[var_name].dimensions
                 shape_h = self.mfile.variables[var_name].shape
@@ -121,27 +213,38 @@ class MDBProcessing:
                     dims = dims_h
                     shape = shape_h
                 else:
-                    if dims_h!=dims or shape_h!=shape:
+                    if dims_h != dims or shape_h != shape:
                         print(f'[WARNING] Inconsistency in the dimension and shape of the input variables:')
                         print(f'[WARNING] ->Variable {var_name}: {dims_h}/{shape_h} but expected {dims}/{shape}')
 
+
+        return expression, dims, shape
+
+    def eval_expression(self,expression,local_dict,dims,shape):
         print(f'[INFO] Evaluating expression:')
         print(f'[INFO] {expression}')
         try:
-            array = eval(expression)
-            if array.shape!=shape:
-                print(f'[ERROR] Inconsistency in the output array. Obtained shape: {array.shape} but expected {shape}')
-                return
-            print(f'[INFO] Output array shape: {array.shape} Dimensions: {dims}')
+            if len(local_dict)>0:
+                array = eval(expression,globals(),local_dict)
+            else:
+                array = eval(expression)
+            if isinstance(array,np.ndarray) and array.shape!=shape:
+                print(f'[WARNING] Inconsistency in the output array. Obtained shape: {array.shape} but expected {shape}')
+                return array,None
+            if isinstance(array, np.ndarray):
+                print(f'[INFO] Output array shape: {array.shape} Dimensions: {dims}')
+
+            return array,dims
         except Exception as ex:
             print(f'[ERROR] Exception evaluating expression: {ex}')
-            return
+            return None,None
 
+
+    def write_output_variable(self,output,output_variable,array,dims,dtype,fill_value):
         if output is None:
-            self.close_mfile()
-            writer = MDBWritter.MDBWritter(None,self.path_mdb)
+            writer = MDBWritter.MDBWritter(None, self.path_mdb)
         else:
-            MDBWritter.copy_nc(self.mfile.file_path,output)
+            MDBWritter.copy_nc(self.mfile.file_path, output)
             writer = MDBWritter.MDBWritter(None, output)
 
         print(f'[INFO] Output variable: {output_variable}')
@@ -367,8 +470,10 @@ def main():
 def run_from_config_file():
     algo_options = AlgorithOptions(args.config_file,args.section,args.verbose)
     if not algo_options.is_valid:
+        print(f'[ERROR] Problem retrieving algorithm options for {args.section}. Please review algorithm_options.ini')
         return
     options = algo_options.get_options()
+    print(options)
     args_d = args_functions.get_args_as_dict(args,options['required_args'],False)
     if args_d is None:
         return

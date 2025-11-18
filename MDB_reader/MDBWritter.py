@@ -1,6 +1,8 @@
 import os
 import shutil
 
+import numpy as np
+
 from MDBFile import MDBFile
 from netCDF4 import Dataset
 
@@ -15,7 +17,7 @@ class MDBWritter:
                 try:
                     self.input_dataset = Dataset(input_dataset,'r')
                 except:
-                    print(f'[ERROR] {input_dataset} is not a valid NetCDF fiel')
+                    print(f'[ERROR] {input_dataset} is not a valid NetCDF file')
 
         try:
             if os.path.exists(output_file):
@@ -38,20 +40,37 @@ class MDBWritter:
         if self.output_dataset is None or self.input_dataset is None:
             return
         # copy global attributes all at once via dictionary
+        print(f'[INFO] Copying global attributes...')
         self.output_dataset.setncatts(self.input_dataset.__dict__)
 
-    def copy_dimensions(self):
+    def copy_dimensions(self,changes):
         if self.output_dataset is None or self.input_dataset is None:
             return
         # copy dimensions
+        print(f'[INFO] Copying dimensions...')
         for name, dimension in self.input_dataset.dimensions.items():
-            self.output_dataset.createDimension(
-                name, (len(dimension) if not dimension.isunlimited() else None))
+            len_dimension = len(dimension) if not dimension.isunlimited() else None
+            if changes is not None and name in changes:
+                len_dimension = changes[name]
+            self.output_dataset.createDimension(name,len_dimension)
 
 
-    def copy_variables(self,variables_keep,variables_remove):
+    def copy_variables(self,variables_keep,variables_remove,array_subset):
         if self.output_dataset is None or self.input_dataset is None:
             return
+
+        if array_subset is not None and 'mu_satellite_id' in self.input_dataset.variables:
+            mu_sat_id = self.input_dataset.variables['mu_satellite_id'][:]
+            array_subset_mu = None
+            for index_s in array_subset:
+                indices_mu = np.where(mu_sat_id==index_s)
+                indices_mu_here = indices_mu[0]
+                if array_subset_mu is None:
+                    array_subset_mu = indices_mu_here
+                else:
+                    array_subset_mu = np.concat([array_subset_mu,indices_mu_here])
+            array_subset_mu = array_subset_mu.astype(np.int32)
+
         for name, variable in self.input_dataset.variables.items():
             if len(variables_keep) > 0:
                 if not name in variables_keep:
@@ -59,6 +78,7 @@ class MDBWritter:
             if len(variables_remove) > 0:
                 if name in variables_remove:
                     continue
+            print(f'[INFO] Copying variable: {name}')
             fill_value = None
             if '_FillValue' in list(variable.ncattrs()):
                 fill_value = variable._FillValue
@@ -68,7 +88,11 @@ class MDBWritter:
             # copy variable attributes all at once via dictionary
             self.output_dataset[name].setncatts(self.input_dataset[name].__dict__)
             # copy data
-            self.output_dataset[name][:] = self.input_dataset[name][:]
+
+            if array_subset is not None and variable.dimensions[0]=='satellite_id':
+                self.output_dataset[name][:] = self.input_dataset[name][array_subset]
+            else:
+                self.output_dataset[name][:] = self.input_dataset[name][:]
 
     def get_dims_from_shape(self,shape):
         if self.output_dataset is None:
@@ -98,6 +122,15 @@ class MDBWritter:
         except:
             print(f'[ERROR] Variable {var_name} could not be created')
             return
+
+    def create_subset(self,array_subset):
+        nsatellite_id = np.count_nonzero(array_subset)
+        self.copy_global_attributes()
+        self.copy_dimensions(changes={'satellite_id':nsatellite_id})
+        self.copy_variables([],[],array_subset)
+        self.close()
+        print(f'[INFO] Completed')
+
 
 
 def copy_nc(file_in,file_out):

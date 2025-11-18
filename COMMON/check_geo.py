@@ -115,3 +115,5 @@ class CHECK_GEO():
                       Point(west, south)]
         polygon_area = Polygon([[p.x, p.y] for p in point_list])
         return self.check_polygon(polygon_area)
+
+
