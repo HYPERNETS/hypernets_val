@@ -462,8 +462,10 @@ class SatExtractOCI:
                             geo_info_array[itime] = {'rc': rc, 'limits': limits, 'oza': oza}
                             sat_file_indices[itime]= ifile
 
-        print(sat_file_indices)
-        sat_file_indices_used = np.unique(sat_file_indices[sat_file_indices!=-1])
+        if len(sat_file_indices)==1:
+            sat_file_indices_used = sat_file_indices.copy()
+        else:
+            sat_file_indices_used = np.unique(sat_file_indices[sat_file_indices!=-1])
 
         if np.max(sat_file_indices_used)==-1:
             print(f'[ERROR] No source granules were found for the in situ data avaialable on {insitu_time[0].strftime("%Y-%m-%d")}')
