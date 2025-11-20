@@ -812,8 +812,8 @@ options_spectraplots = {
         'type': 'str'
     },
     'plot_spectra': {
-        'default': ['valid'],
-        'type': 'strlist',
+        'default': 'valid',
+        'type': 'str',
         'values': ['none', 'all', 'valid', 'invalid', 'selected']
     },
     'plot_stats': {

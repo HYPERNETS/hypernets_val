@@ -9,14 +9,14 @@ code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
 import COMMON.args_functions as arf
 from MDB_builder.MDB_optionsV3 import MDBBuilderOptions
-
+import MDBWritter
 warnings.filterwarnings("ignore", category=UserWarning)
 
 parser = argparse.ArgumentParser(
     description="MDB Utilities")
 
 parser.add_argument('-m', "--mode", help='Mode option',
-                    choices=["common_mu","add_flag","unzip_s3","insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "TEST"],
+                    choices=["common_mu","add_flag","unzip_s3","insitu_brdf","add_instrument_id", "hypstar_check", "correct_neg_values", "mdbr_to_mdb","TEST"],
                     required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file or path")
@@ -30,7 +30,17 @@ args = parser.parse_args()
 
 
 def main():
-    print(f'[INFO] Started MDB_utils!')
+    print(f'[INFO] Started MDB_utils with mode: {args.mode}')
+
+    if args.mode == 'mdbr_to_mdb':
+        if not args.input_path:
+            print(f'[ERROR] Input path is required')
+            return
+        if not os.path.isfile(args.input_path):
+            print(f'[ERROR] Input path is not available or is not a valid file')
+            return
+        run_mdbr_to_mdb(args.input_path)
+
     if args.mode == 'common_mu':
         if not args.config_file:
             print(f'[ERROR] Config path is required')
@@ -119,6 +129,22 @@ def main():
         file_out  = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU_V3WL.nc')
         wl_list = [591,593,596,598,601,603,605,608,610]
         remove_wl_from_mu_variables(file_in,file_out,wl_list)
+
+
+def run_mdbr_to_mdb(input_path):
+
+    name = os.path.basename(input_path)
+    if not name.startswith('MDBr'):
+        print(f'[ERROR] Name file {name} should be starts with: {name}')
+        return
+    output_name = name.replace('MDBr_','MDB')
+    output_file = os.path.join(os.path.dirname(input_path),output_name)
+    if os.path.exists(output_file):
+        print(f'[ERROR] MDB file {output_file} already exists. To make the conversion, remove or rename {input_path} and launch again')
+        return
+    print(f'[INFO] Output path: {output_file}')
+    writter = MDBWritter.MDBWritter(input_path, output_file)
+    writter.from_mdbr_to_mdb()
 
 
 def run_unzip_s3(input_path,output_path,start_date,end_date):

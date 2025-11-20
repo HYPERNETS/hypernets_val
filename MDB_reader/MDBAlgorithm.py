@@ -112,6 +112,8 @@ class MDBProcessing:
 
     def run_subset(self,options,output):
         type_subset = options['type_subset']
+
+
         array_subset = None
 
         if type_subset=='basic_filter':

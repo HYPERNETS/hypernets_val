@@ -462,7 +462,7 @@ class SatExtractOCI:
                             geo_info_array[itime] = {'rc': rc, 'limits': limits, 'oza': oza}
                             sat_file_indices[itime]= ifile
 
-
+        print(sat_file_indices)
         sat_file_indices_used = np.unique(sat_file_indices[sat_file_indices!=-1])
 
         if np.max(sat_file_indices_used)==-1:

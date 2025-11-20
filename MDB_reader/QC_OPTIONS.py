@@ -510,6 +510,7 @@ class QC_OPTIONS:
 
     def get_value_param(self, section, key, default, type):
         value = self.get_value(section, key)
+
         if value is None:
             return default
         if type == 'str':

@@ -244,25 +244,51 @@ class MDBPlot:
         return self.valid_stats
 
     def get_table_spectral_statistics(self,options_figure):
+        print(options_figure)
         wlvalues = options_figure['wlvalues']
         if wlvalues is None:
             wlvalues = list(np.unique(np.array(self.mrfile.nc.variables['mu_wavelength'])))
 
+        if options_figure['selectBy'] is not None:
+            by = options_figure['selectBy']
+            selectValues = options_figure['selectValues']
+            flag_list = self.get_flag_list(selectValues,options_figure[by]['flag_values'],options_figure[by]['flag_meanings'])
+
+            df = None
+            for isel,selValue in enumerate(selectValues):
+                df_here = self.get_table_spectral_statistics_impl(options_figure,wlvalues,by,selValue)
+                df_here.insert(0,by,[flag_list[isel]]*len(df_here.index))
+                # print(df_here.columns)
+                #print('================')
+                if df is None:
+                    df = df_here.copy()
+                else:
+                    df = pd.concat([df,df_here])
+
+
+
+        else:
+            df = self.get_table_spectral_statistics_impl(options_figure,wlvalues,None,None)
+        return df
+
+    def get_table_spectral_statistics_impl(self,options_figure,wlvalues,selectBy,selectValue):
         col_names = ['GLOBAL']
         for wl in wlvalues:
             col_names.append(self.get_wl_str_from_wl(wl))
         df = pd.DataFrame(index=list(self.valid_stats.keys()), columns=col_names)
 
-        #global
-        self.set_data_scatterplot(None,None,None,None,options_figure)
-        self.compute_statistics(False,False,'II')
+        # global
+        self.set_data_scatterplot(None, selectBy, selectValue, None, options_figure)
+        self.compute_statistics(False, False, 'II')
         self.valid_stats['NMU'] = int(self.valid_stats['N'] / len(wlvalues))
         df = self.assign_stats_to_table(df, 'GLOBAL')
 
-        for iwl,wl_value in enumerate(wlvalues):
-            self.set_data_scatterplot(None,None,-1,wl_value,options_figure)
+        selectValueHere = selectValue if selectValue is not None else -1
+        for iwl, wl_value in enumerate(wlvalues):
+            self.set_data_scatterplot(None, selectBy, selectValueHere, wl_value, options_figure)
             self.compute_statistics(False, False, 'II')
-            df = self.assign_stats_to_table(df, col_names[iwl+1])
+            df = self.assign_stats_to_table(df, col_names[iwl + 1])
+
         return df
 
     def get_table_match_up_statistics(self,options_figure):
@@ -1868,7 +1894,6 @@ class MDBPlot:
                 self.plot_general_scatterplot(options_figure)
 
         ##WORKING WITH SELECTED OPTIONS
-
         if options_figure['selectBy'] is not None and options_figure['individual_plots']:
 
             selectValues = options_figure['selectValues']
@@ -2796,31 +2821,77 @@ class MDBPlot:
         pspectra.close_plot()
 
     def plot_insitu_spectraplots(self, options_figure):
+
         ##GETTING DATA
         wavelength = self.mrfile.get_insitu_wl()
-        all_spectra, all_spectra_validity, spectra_stats = self.mrfile.get_all_insitu_spectra(
-            options_figure['scale_factor'], options_figure['use_rhow'], options_figure['plot_stats'])
+        all_spectra, all_spectra_validity, filter_spectra = self.mrfile.get_insitu_spectra(options_figure['scale_factor'], options_figure['use_rhow'])
+        tag_plot_spectra = options_figure['plot_spectra']
+
+        spectra_to_plot = None
+        plot_style  = None
+        if tag_plot_spectra == 'all':
+            spectra_to_plot = all_spectra[:,:]
+            plot_style = options_figure['all_line_style']
+        elif tag_plot_spectra=='valid':
+            spectra_to_plot = all_spectra[all_spectra_validity >= 1,:]
+            plot_style = options_figure['valid_line_style']
+        elif tag_plot_spectra=='selected':
+            spectra_to_plot = all_spectra[all_spectra_validity == 2, :]
+            plot_style = options_figure['selected_line_style']
+
+        if spectra_to_plot is not None:
+            print(f'[INFO] Tag: {tag_plot_spectra} {spectra_to_plot.shape[0]} will be plotted')
 
         from PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
-        pspectra.xdata = wavelength
-        for ps in options_figure['plot_spectra']:
-            if ps.lower() == 'none':
-                continue
-            if ps.lower() == 'valid':
-                spectra_valid = all_spectra[all_spectra_validity == 1]
-                for spectra in spectra_valid:
-                    pspectra.plot_data(spectra, options_figure['valid_line_style'])
+        pspectra.xdata = np.squeeze(wavelength)
 
+        if spectra_to_plot is not None:
+            pspectra.plot_data(np.transpose(spectra_to_plot), plot_style)
         pspectra.set_grid()
 
-        if options_figure['xlabel'] is not None: pspectra.set_xaxis_title(options_figure['xlabel'])
-        if options_figure['ylabel'] is not None: pspectra.set_yaxis_title(options_figure['ylabel'])
+        if options_figure['xlabel'] is not None:
+            pspectra.set_xaxis_title(options_figure['xlabel'])
+        if options_figure['ylabel'] is not None:
+            pspectra.set_yaxis_title(options_figure['ylabel'])
+
+        if options_figure['y_min'] is not None and options_figure['y_max'] is not None:
+            ymin = options_figure['y_min']
+            ymax = options_figure['y_max']
+            pspectra.set_y_range(ymin,ymax)
+
         pspectra.set_tigth_layout()
-        if options_figure['file_out'] is not None: pspectra.save_plot(options_figure['file_out'])
+        if options_figure['file_out'] is not None:
+            pspectra.save_plot(options_figure['file_out'])
+
         pspectra.close_plot()
-        # if not options_out['plot_stats']:
-        #     stats = None
+
+        # options_figure['plot_stats']
+
+
+
+        # all_spectra, all_spectra_validity, spectra_stats = self.mrfile.get_all_insitu_spectra(
+        #     options_figure['scale_factor'], options_figure['use_rhow'], options_figure['plot_stats'])
+        # from PlotSpectra import PlotSpectra
+        # pspectra = PlotSpectra()
+        # pspectra.xdata = wavelength
+        # for ps in options_figure['plot_spectra']:
+        #     if ps.lower() == 'none':
+        #         continue
+        #     if ps.lower() == 'valid':
+        #         spectra_valid = all_spectra[all_spectra_validity == 1]
+        #         for spectra in spectra_valid:
+        #             pspectra.plot_data(spectra, options_figure['valid_line_style'])
+        #
+        # pspectra.set_grid()
+        #
+        # if options_figure['xlabel'] is not None: pspectra.set_xaxis_title(options_figure['xlabel'])
+        # if options_figure['ylabel'] is not None: pspectra.set_yaxis_title(options_figure['ylabel'])
+        # pspectra.set_tigth_layout()
+        # if options_figure['file_out'] is not None: pspectra.save_plot(options_figure['file_out'])
+        # pspectra.close_plot()
+        # # if not options_out['plot_stats']:
+        # #     stats = None
 
     def plot_multiple_stats_plot(self, options_figure):
         if options_figure['type_point']=='wavelength':

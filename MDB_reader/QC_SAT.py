@@ -143,8 +143,9 @@ class QC_SAT:
 
     def check_validity(self):
 
-        print(self.satellite_rrs.shape)
+
         flag_mask,land = self.compute_flag_mask_array()
+
         print(f'[INFO]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
         print(f'[INFO]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
         mask_invalid = self.compute_invalid_masks_array()
@@ -154,12 +155,16 @@ class QC_SAT:
 
         final_mask = flag_mask + mask_invalid + mask_th
         final_mask[final_mask>0]=1
+
         print(f'[INFO]->Number of masked pixels in the final mask: {np.ma.sum(final_mask)}/{np.ma.count(final_mask)}')
+
+
 
 
         ntotal_by_mu = self.window_size*self.window_size
         nmasked_by_mu = np.ma.sum(np.ma.reshape(final_mask,(self.nmu,self.window_size*self.window_size)),axis=1)
         nvalid_by_mu = ntotal_by_mu-nmasked_by_mu
+
 
         min_valid_pixels = self.min_valid_pixels
 
@@ -172,6 +177,8 @@ class QC_SAT:
         min_pixel_condition = nvalid_by_mu >= min_valid_pixels
         print(f'[INFO] Number of match-ups filtered because the number of valid pixels is lower than the required one: {np.count_nonzero(min_pixel_condition==False)}')
         masks_rrs = self.get_masks_rrs(final_mask)
+
+
         macropixel_filter = self.do_check_macropixel(final_mask,masks_rrs)
 
         macropixel_condition = macropixel_filter==0
@@ -186,6 +193,8 @@ class QC_SAT:
             print(f'[WARNING] Mask with outliers is not available. Using mask without ouliers')
             mask_rrs = masks_rrs['without']
         reported_rrs = self.get_stat_rrs(self.stat_value,mask_rrs)
+
+
 
         reported_rrs_unc = None
         if self.satellite_rrs_unc is not None:
@@ -333,6 +342,7 @@ class QC_SAT:
         print(f'[INFO] Number of valid rrs values after masking (without ouliers): {nvalid_total} By band: {nvalid_by_band}')
 
 
+
         masks = {'without':rrs.mask.copy()}
 
         if self.apply_outliers:
@@ -350,7 +360,7 @@ class QC_SAT:
 
             dispersion_stat = self.outliers_info['dispersion_stat']
             if dispersion_stat=='std':
-                rrs_dispersion = np.ma.mean(rrs.reshape((self.nmu,self.nbands,self.window_size*self.window_size)),axis=2)
+                rrs_dispersion = np.ma.std(rrs.reshape((self.nmu,self.nbands,self.window_size*self.window_size)),axis=2)
             elif dispersion_stat=='iqr':
                 if factor<0:
                     ql = 25
@@ -360,6 +370,8 @@ class QC_SAT:
                     qh = 100 - factor
                 rrs_min_th = np.percentile(rrs.reshape((self.nmu,self.nbands,self.window_size*self.window_size)),ql,axis=2)
                 rrs_max_th = np.percentile(rrs.reshape((self.nmu, self.nbands, self.window_size * self.window_size)),qh, axis=2)
+
+
 
             if rrs_central is not None and rrs_dispersion is not None and rrs_min_th is None and rrs_max_th is None:
                 rrs_min_th = rrs_central  - (factor * rrs_dispersion)

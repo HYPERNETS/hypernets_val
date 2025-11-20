@@ -52,6 +52,8 @@ class MDBWritter:
             len_dimension = len(dimension) if not dimension.isunlimited() else None
             if changes is not None and name in changes:
                 len_dimension = changes[name]
+            if len_dimension is not None and len_dimension<0:
+                continue
             self.output_dataset.createDimension(name,len_dimension)
 
 
@@ -59,17 +61,25 @@ class MDBWritter:
         if self.output_dataset is None or self.input_dataset is None:
             return
 
+        array_subset_mu = None
+        new_mu_satellite_id = None
+
         if array_subset is not None and 'mu_satellite_id' in self.input_dataset.variables:
             mu_sat_id = self.input_dataset.variables['mu_satellite_id'][:]
-            array_subset_mu = None
-            for index_s in array_subset:
-                indices_mu = np.where(mu_sat_id==index_s)
-                indices_mu_here = indices_mu[0]
-                if array_subset_mu is None:
-                    array_subset_mu = indices_mu_here
-                else:
-                    array_subset_mu = np.concat([array_subset_mu,indices_mu_here])
-            array_subset_mu = array_subset_mu.astype(np.int32)
+            nmu = len(self.input_dataset.dimensions['mu_id'])
+            array_subset_mu = np.zeros(nmu).astype(np.bool)
+            new_mu_satellite_id = np.zeros(nmu).astype(np.int16)
+            new_index_mu = 0
+            for idx in range(array_subset.shape[0]):
+                if array_subset[idx]:
+                    indices_mu = np.where(mu_sat_id==idx)
+                    array_subset_mu[indices_mu]=True
+                    new_mu_satellite_id[indices_mu] = new_index_mu
+                    new_index_mu = new_index_mu + 1
+
+            new_mu_satellite_id = new_mu_satellite_id[array_subset_mu]
+
+        
 
         for name, variable in self.input_dataset.variables.items():
             if len(variables_keep) > 0:
@@ -91,8 +101,14 @@ class MDBWritter:
 
             if array_subset is not None and variable.dimensions[0]=='satellite_id':
                 self.output_dataset[name][:] = self.input_dataset[name][array_subset]
+            elif new_mu_satellite_id is not None and name=='mu_satellite_id':
+                self.output_dataset[name][:] = new_mu_satellite_id[:]
+            elif array_subset_mu is not None and variable.dimensions[0]=='mu_id':
+                self.output_dataset[name][:] = self.input_dataset[name][array_subset_mu]
             else:
                 self.output_dataset[name][:] = self.input_dataset[name][:]
+
+
 
     def get_dims_from_shape(self,shape):
         if self.output_dataset is None:
@@ -130,6 +146,21 @@ class MDBWritter:
         self.copy_variables([],[],array_subset)
         self.close()
         print(f'[INFO] Completed')
+
+    def from_mdbr_to_mdb(self):
+        if self.output_dataset is None or self.input_dataset is None:
+            return
+        exclude_variables = []
+        for name in self.input_dataset.variables:
+            if name.startswith('mu'):
+                exclude_variables.append(name)
+            if name=='insitu_valid':
+                exclude_variables.append(name)
+        self.copy_global_attributes()
+        self.copy_dimensions(changes={'satellite_id':None,'mu_id':-1})
+        self.copy_variables([], exclude_variables, None)
+        self.close()
+        print(f'[INFO] Completed mdbr_to_mdb')
 
 
 

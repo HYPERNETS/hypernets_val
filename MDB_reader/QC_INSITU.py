@@ -460,7 +460,6 @@ class QC_INSITU:
 
     def get_finalspectrum_mu(self, index_mu, dif_time_array, exact_wl_array, wl_ref):
 
-
         time_condition = False
         spectrum_complete = False
         valid_values = False
@@ -468,35 +467,29 @@ class QC_INSITU:
         rrs_values = None
         #spectra_with_time_condition = False
 
-
         ngood = np.ma.count(dif_time_array)
         if ngood<dif_time_array.shape[0]:
             dif_time_good = dif_time_array[~dif_time_array.mask]
         else:
             dif_time_good = dif_time_array
 
-
         if ngood == 0:
             return id_min_time, time_condition, valid_values, spectrum_complete, rrs_values
 
-
         indices_good = np.argsort(dif_time_good)
 
-
         time_condition_array = dif_time_good[indices_good]<self.time_max
+
         spectra_array = np.squeeze(self.insitu_rrs[index_mu, :, :])
         spectra_validity = np.squeeze(self.insitu_valid_rrs[index_mu, :])
         if ngood < dif_time_array.shape[0]:
             spectra_array = spectra_array[:,~dif_time_array.mask]
             spectra_validity = spectra_validity[~dif_time_array.mask]
+
         spectra_array = spectra_array[:,indices_good]
         spectra_validity = spectra_validity[indices_good]
 
-
-
         indices = self.wl_indices[0, :]
-
-
 
         rrs_values = spectra_array[indices,:]
 
@@ -507,14 +500,24 @@ class QC_INSITU:
         if self.only_complete_spectra:
             all_valid = np.logical_and(all_valid,complete_spectra)
 
-        ins_valid = 0
         if np.count_nonzero(all_valid)>0:
             ins_valid = np.where(all_valid)[0][0]
-        id_min_time = indices_good[ins_valid]
-        rrs_values = rrs_values[:, id_min_time]
+            tal = np.where(all_valid)[0]
+            ital = np.min(tal)
+            if ital!=ins_valid:
+                print('ojo',ital,ins_valid)
+            id_min_time = indices_good[ins_valid]
+            rrs_values = rrs_values[:, ins_valid]
+            insitu_valid = True
+        else:
+            ins_valid = 0
+            id_min_time = indices_good[ins_valid]
+            rrs_values = None
+            insitu_valid = False
 
 
-        return id_min_time,time_condition_array[ins_valid],all_valid[ins_valid],complete_spectra[ins_valid],rrs_values
+
+        return id_min_time,time_condition_array[ins_valid],insitu_valid,complete_spectra[ins_valid],rrs_values
 
 
         # if index_mu==0:
