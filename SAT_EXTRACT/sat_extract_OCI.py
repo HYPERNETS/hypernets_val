@@ -463,6 +463,7 @@ class SatExtractOCI:
                             geo_info_array[itime] = {'rc': rc, 'limits': limits, 'oza': oza}
                             sat_file_indices[itime]= ifile
 
+        print('sat file indices',sat_file_indices)
         if len(sat_file_indices)==1:
             sat_file_indices_used = sat_file_indices.copy()
         else:
