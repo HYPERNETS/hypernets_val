@@ -165,6 +165,8 @@ class PlotSpectra():
         if marker_size is not None:
             style['markersize'] = marker_size
 
+        style['mec'] = 'black'
+
         h = self.plot_data(ydata, style)
 
         return h
@@ -241,11 +243,12 @@ class PlotSpectra():
         return h
 
     def set_legend(self, str_legend):
-        print(self.legend_options)
+        #print(self.legend_options)
         plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'],
-                   framealpha=self.legend_options['framealpha'], ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'],fontsize=16)
+                   framealpha=self.legend_options['framealpha'], ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'],fontsize=14)
 
     def set_legend_h(self, handles, str_legend):
+
         plt.legend(handles, str_legend, loc=self.legend_options['loc'],
                    bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'],
                    ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'])
@@ -359,7 +362,7 @@ class PlotSpectra():
 
     def set_grid(self):
         # plt.grid(b=True, which='major', color='gray', linestyle='--')
-        plt.grid(which='major', color='gray', linestyle='--', axis='both')
+        plt.grid(which='major', color='lightgray', linestyle='--', axis='both')
 
     def set_grid_bars(self,width):
         # plt.grid(b=True, which='major', color='gray', linestyle='--')
@@ -430,6 +433,7 @@ class PlotSpectra():
         stat_central = self.stats_plot['central']  # avg or median
         stat_dispersion = self.stats_plot['dispersion']  # std o iqr
         # h = self.plot_data(stats['avg'][imin:imax], self.stats_style['central'])
+        print(self.stats_style['central'])
         h = self.plot_data(stats[stat_central][imin:imax], self.stats_style['central'])
 
         if stat_dispersion == 'std':

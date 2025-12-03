@@ -440,6 +440,7 @@ valid_stats = {
 
 }
 
+stats_abs_units = ['RMSD','BIAS','MdBIAS','XAVG','YAVG','XMEDIAN','YMEDIAN','YSTD','XSTD','CRMSE','MAD','MdAD','MIN_Y','MAX_Y','MIN_X','MAX_X','RANGE_X','RANGE_Y']
 options_annotations ={
     'anot_':{
         'default': None,
@@ -995,6 +996,10 @@ options_spectraparam = {
     'markeredgecolor':{
         'default': [None],
         'type': 'strlist'
+    },
+    'scale_factor': {
+        'default': 1,
+        'type': 'float'
     }
 }
 

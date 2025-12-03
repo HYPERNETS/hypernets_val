@@ -430,6 +430,12 @@ class QC_SAT:
         return result
 
     def get_stats_non_spectral(self,array,type_stat,mask):
+        if len(array.shape)==1:
+            if type_stat=='n_values':
+                result = np.array(array.mask).astype(np.int8)
+            else:
+                result = array[:]
+            return result
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
         array = array[:, r_s:r_e, c_s:c_e]
         array[mask==1] = np.ma.masked
@@ -632,8 +638,11 @@ class QC_SAT:
         for check_stat_here in self.check_statistics_norrs:
             name_band = check_stat_here['name_band']
             var_here = check_stat_here['variable']
-            var_here_array = var_here[index_mu, r_s:r_e, c_s:c_e]
-            var_here_valid = var_here_array[~var_here_array.mask]
+            if len(var_here.shape)==3:
+                var_here_array = var_here[index_mu, r_s:r_e, c_s:c_e]
+                var_here_valid = var_here_array[~var_here_array.mask]
+            elif len(var_here.shape)==1:
+                var_here_valid = var_here[index_mu]
 
             if not name_band in self.statistics_norrs:
                 self.statistics_norrs[name_band] = {

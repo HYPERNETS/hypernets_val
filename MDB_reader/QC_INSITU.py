@@ -33,6 +33,7 @@ class QC_INSITU:
 
         self.band_stats = None
 
+        self.wl_original = None
         self.wl_list = None
         self.wl_indices = None
 
@@ -58,6 +59,10 @@ class QC_INSITU:
 
         self.insitu_valid_rrs = None
 
+        # temporal for checking
+        self.insitu_time = None
+        self.sat_time = None
+
     def check_validity(self):
         self.insitu_valid_rrs = np.ma.zeros((self.insitu_rrs.shape[0],self.insitu_rrs.shape[2]))
         nconditions = 0
@@ -76,6 +81,7 @@ class QC_INSITU:
                         check = False
                     if not self.check_flags[flag_name]['remove_spectra'] and m == 0:
                         check = False
+
 
         # checking threshold other bands
         if len(self.check_th_other_bands) > 0:
@@ -100,19 +106,30 @@ class QC_INSITU:
 
         # checking rrs thresholds
         if self.thersholds is not None:
-
             for idx in range(len(self.wl_list)):
                 wl = self.wl_list[idx]
-                val = np.ma.squeeze(self.insitu_rrs[:,idx,:])
+                #val = np.ma.squeeze(self.insitu_rrs[:,idx,:])
+                rrs_min = None
+                rrs_max = None
                 wls = str(wl)
-                if self.thersholds[wls]['min_th']['apply']:
+                if self.thersholds[wls]['min_th']['apply'] or self.thersholds[wls]['max_th']['apply']:
+                    min_wl_real = self.thersholds[wls]['min_wl']
+                    max_wl_real = self.thersholds[wls]['max_wl']
+                    rrs_min,rrs_max = self.get_min_values_for_spectral_range(min_wl_real,max_wl_real)
+
+
+                if self.thersholds[wls]['min_th']['apply'] and rrs_min is not None:
                     nconditions = nconditions + 1
-                    check_condition = val>=self.thersholds[wls]['min_th']['value']
+                    check_condition = rrs_min>=self.thersholds[wls]['min_th']['value']
+                    print(f'[INFO] Condition: {nconditions} Wavelength: {wls} Lower thershold: {self.thersholds[wls]['min_th']['value']} Number of bad spectra: {np.ma.count(check_condition) - np.sum(check_condition)}')
                     self.insitu_valid_rrs[check_condition == True] = self.insitu_valid_rrs[check_condition == True] + 1
-                if self.thersholds[wls]['max_th']['apply']:
+
+                if self.thersholds[wls]['max_th']['apply'] and rrs_max is not None:
                     nconditions = nconditions + 1
-                    check_condition = val<=self.thersholds[wls]['max_th']['value']
+                    check_condition = rrs_max<=self.thersholds[wls]['max_th']['value']
+                    print(f'[INFO] Condition: {nconditions} Wavelength: {wls} Upper thershold: {self.thersholds[wls]['max_th']['value']} Number of bad spectra: {np.ma.count(check_condition)-np.sum(check_condition)}')
                     self.insitu_valid_rrs[check_condition == True] = self.insitu_valid_rrs[check_condition == True] + 1
+
 
                 # if self.thersholds[wls]['min_th']['apply'] and val < self.thersholds[wls]['min_th']['value']:
                 #     check = False
@@ -228,12 +245,15 @@ class QC_INSITU:
                 'max_th': {
                     'apply': False,
                     'value': 0
-                }
+                },
+                'min_wl': None,
+                'max_wl': None
             }
 
     def set_thershold(self, valuemin, valuemax, wlmin, wlmax):
         if self.thersholds is None:
             self.start_quality_control()
+
         for wl in self.wl_list:
             if wl < wlmin or wl > wlmax:
                 continue
@@ -244,6 +264,8 @@ class QC_INSITU:
             if valuemax is not None:
                 self.thersholds[wls]['max_th']['apply'] = True
                 self.thersholds[wls]['max_th']['value'] = valuemax
+            self.thersholds[wls]['min_wl'] = wlmin
+            self.thersholds[wls]['max_wl'] = wlmax
 
     def add_flag_expression(self, flag_band, flag_list, remove_spectra):
         if self.ncdataset is None:
@@ -382,6 +404,7 @@ class QC_INSITU:
                 break
         return val_array
 
+
     def get_insitu_index_instrument(self, wl, idx):
         if self.n_instrument == -1:
             all_wl = self.insitu_bands[:]
@@ -396,6 +419,24 @@ class QC_INSITU:
             if dif_wl[index] > self.maxdifwl:
                 index = -1
         return index, wl_index
+
+    def get_min_values_for_spectral_range(self,wl_min,wl_max):
+        insitu_bands = self.insitu_bands
+        if len(self.insitu_bands.shape)==1:
+            insitu_bands = np.expand_dims(self.insitu_bands,0)
+
+        insitu_rrs_min = None
+        insitu_rrs_max = None
+        if self.instrument_id_array is None:
+            all_wl = insitu_bands[0, :]
+            indices = np.where(np.logical_and(all_wl>=wl_min,all_wl<=wl_max))
+            insitu_rrs_indices = self.insitu_rrs[(np.arange(self.insitu_rrs.shape[0]),indices[0],np.arange(self.insitu_rrs.shape[2]))]
+            insitu_rrs_min = np.ma.min(insitu_rrs_indices,axis=1)
+            insitu_rrs_max = np.ma.max(insitu_rrs_indices,axis=1)
+
+        return insitu_rrs_min,insitu_rrs_max
+
+
 
     def get_insitu_index(self, wl):
         all_wl = self.insitu_bands[:]
@@ -478,6 +519,8 @@ class QC_INSITU:
 
         indices_good = np.argsort(dif_time_good)
 
+
+
         time_condition_array = dif_time_good[indices_good]<self.time_max
 
         spectra_array = np.squeeze(self.insitu_rrs[index_mu, :, :])
@@ -489,9 +532,24 @@ class QC_INSITU:
         spectra_array = spectra_array[:,indices_good]
         spectra_validity = spectra_validity[indices_good]
 
-        indices = self.wl_indices[0, :]
+        if self.instrument_id_array is not None:
+            instrument_valid = self.instrument_id_array[~dif_time_array.mask]
+            ins_here = np.unique(instrument_valid)
+            if len(ins_here==1):
+                indices = self.wl_indices[ins_here[0],:]
+                rrs_values = spectra_array[indices,:]
+            else:
+                n_bands = len(self.wl_indices[ins_here[0],:])
+                n_here = spectra_array.shape[1]
+                rrs_values = np.ma.masked_all((n_bands,n_here))
+                for ihere in range(n_here):
+                    indices = instrument_valid[ihere]
+                    rrs_values[:,ihere]= spectra_array[indices,ihere]
+        else:
+            indices = self.wl_indices[0, :]
+            rrs_values = spectra_array[indices,:]
 
-        rrs_values = spectra_array[indices,:]
+
 
         n_valid_bands = np.sum(np.invert(ma.getmaskarray(rrs_values)),axis=0)
         complete_spectra = n_valid_bands == len(self.wl_list)
@@ -502,10 +560,6 @@ class QC_INSITU:
 
         if np.count_nonzero(all_valid)>0:
             ins_valid = np.where(all_valid)[0][0]
-            tal = np.where(all_valid)[0]
-            ital = np.min(tal)
-            if ital!=ins_valid:
-                print('ojo',ital,ins_valid)
             id_min_time = indices_good[ins_valid]
             rrs_values = rrs_values[:, ins_valid]
             insitu_valid = True
@@ -515,7 +569,9 @@ class QC_INSITU:
             rrs_values = None
             insitu_valid = False
 
-
+        # if rrs_values is not None and rrs_values[-1]>0.005:
+        #     print(self.wl_list)
+        #     print('me llega aqui',index_mu,id_min_time,rrs_values[-1],rrs_values[-1]*1000)
 
         return id_min_time,time_condition_array[ins_valid],insitu_valid,complete_spectra[ins_valid],rrs_values
 
@@ -610,7 +666,6 @@ class QC_INSITU:
             indices, valid_bands = self.get_insitu_indices_mu(index_mu)
             rrs_values = spectra[indices]
             rrs_values[valid_bands == False] = np.ma.masked
-
         else:
             if self.n_instrument==-1:
                 indices = self.wl_indices
@@ -619,10 +674,12 @@ class QC_INSITU:
             else:
                 iins = 0
                 if self.instrument_id_array is not None:
-                    iins = self.instrument_id_array[index_mu,index_insitu]
+                    iins = self.instrument_id_array[index_insitu]
+                    #iins = self.instrument_id_array[index_mu,index_insitu]
                 if np.ma.is_masked(iins):
                     return None,None,None
                 indices = self.wl_indices[iins,:]
+
 
 
 

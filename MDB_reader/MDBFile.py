@@ -604,7 +604,6 @@ class MDBFile:
         return mask, cond_min_valid_pxs, NGP, NTP
 
     def retrieve_ins_info_mu_spectra(self, index_mu):
-
         time_difference_prev = self.variables['time_difference'][index_mu]
         time_difference = np.ma.copy(time_difference_prev)
         times_here = self.variables['insitu_time'][index_mu]
@@ -651,6 +650,9 @@ class MDBFile:
             exact_wl = self.variables['insitu_exact_wavelenghts'][index_mu]
         else:
             exact_wl = self.variables['insitu_original_bands']
+
+        self.qc_insitu.insitu_time = self.variables['insitu_time'][index_mu][:]
+        self.qc_insitu.sat_time = self.variables['satellite_time'][index_mu]
 
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = self.qc_insitu.get_finalspectrum_mu(
             index_mu, time_difference, exact_wl, self.wlref)
@@ -1139,9 +1141,13 @@ class MDBFile:
                 }
                 self.index_mu = index_mu
                 self.mu_sat_time = self.sat_times[index_mu]
-                self.mu_insitu_time =  dt.fromtimestamp(float(self.variables['insitu_time'][index_mu][0])).astimezone(timezone.utc)
+                try:
+                    self.mu_insitu_time =  dt.fromtimestamp(float(self.variables['insitu_time'][index_mu][0])).astimezone(timezone.utc)
+                except:
+                    self.mu_insitu_time = self.sat_times[index_mu]
             else:
                 mu_valid, info_mu = self.load_mu_datav2(index_mu)
+                #print('mu_valid',mu_valid,info_mu['status'])
 
 
             if info_mu['status'] < 0:

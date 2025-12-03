@@ -107,8 +107,27 @@ class MDBProcessing:
             self.run_common_mu(reference,options,output)
         elif type_algo=='subset':
             self.run_subset(options,output)
+        elif type_algo=='brdf':
+            self.run_brdf(options,output)
         else:
             print(f'[ERROR] {type_algo} processing is not implemented yet. Please add the corresponding function in the run() method in the MDBProcessing.py class (file MDBAlgorithm.py)')
+
+    def run_brdf(self,options,output):
+        brdf_model = options['brdf_model']
+        wl_var = options['wl_var']
+        rrs_var = options['rrs_var']
+        sza_var = options['sza_var']
+        vza_var = options['vza_var']
+        raa_var = options['raa_var']
+        vaa_var = options['vaa_var']
+        saa_var = optonss['saa_var']
+
+        # l = dset.variables['insitu_original_bands'][1, :]  # Wavelengths in nm
+        # Rrs = dset.variables['insitu_Rrs'][5, :, 0]  # Remote sensing reflectance
+        # print(l.shape, Rrs.shape)
+        # sza = dset.variables['insitu_solar_zenith_angle'][5, 0]
+        # vza = dset.variables['insitu_viewing_zenith_angle'][5, 0]
+        # raa = dset.variables['insitu_viewing_azimuth_angle'][5, 0] - dset.variables['insitu_solar_azimuth_angle'][5, 0]
 
     def run_subset(self,options,output):
         type_subset = options['type_subset']

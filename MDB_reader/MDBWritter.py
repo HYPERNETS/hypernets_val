@@ -139,6 +139,12 @@ class MDBWritter:
             print(f'[ERROR] Variable {var_name} could not be created')
             return
 
+    def update_data_variable(self,var_name,array):
+        try:
+            self.output_dataset[var_name][:] = array[:]
+        except Exception as ex:
+            print(f'[ERROR] Variable {var_name} could not be updated. Exception: {ex}')
+
     def create_subset(self,array_subset):
         nsatellite_id = np.count_nonzero(array_subset)
         self.copy_global_attributes()

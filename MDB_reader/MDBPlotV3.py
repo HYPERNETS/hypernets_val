@@ -41,7 +41,6 @@ class MDBPlot:
         self.mrfile.close()
 
     def compute_statistics(self, use_log_scale, use_rhow, type_regression):
-
         self.valid_stats['N'] = len(self.xdata)
         if self.valid_stats['N'] == 0:
             for key in self.valid_stats:
@@ -588,6 +587,11 @@ class MDBPlot:
         markercolor = markercolors[iseries] if iseries< len(markercolors) else markercolors[0]
 
         #pspectra.plot_single_line(ydata, color, linestyle, linewidth, marker,markersize)
+        if options_figure['scale_factor'] is not None and stat in defaults.stats_abs_units:
+            scale_factor = options_figure['scale_factor']
+            ydata = np.array(ydata)
+            ydata = ydata * scale_factor
+
         pspectra.plot_single_linev2(ydata, color, linestyle, linewidth, marker,markersize,markercolor)
 
     def close_spectra_params(self,options_figure, pspectra, stat, wl_stats):
@@ -603,6 +607,11 @@ class MDBPlot:
             wl_col = [f'{x}' for x in xdata_plot]
             pspectra.set_xticks(xdata_plot, wl_col, 0, xticks_size)
         else:
+            try:
+                if wl_col.index('665')+2 == wl_col.index('681.25'):
+                    wl_col[wl_col.index('665')+1]=''
+            except:
+                pass
             pspectra.set_xticks(wl_values, wl_col, 90, xticks_size)
 
         pspectra.set_grid()
@@ -615,10 +624,14 @@ class MDBPlot:
         pspectra.set_xaxis_title('Wavelength (nm)')
 
         if options_figure['legend']:
-            pspectra.legend_options['markerscale']=2
+            pspectra.legend_options['markerscale']=1.5
             pspectra.legend_options['loc']='lower center'
-            pspectra.legend_options['ncols'] = len(options_figure['legend_values'])
-            pos = (0.50,-0.40)
+            pspectra.legend_options['ncols'] = 1#len(options_figure['legend_values'])
+            #pos = (0.50,-0.40)
+            #pos = (0.15, 0.75)
+            #pos = (0.85, 0.75)
+            pos = (0.85, 0.10)
+            pspectra.legend_options['framealpha'] = 1.0
             pspectra.legend_options['bbox_to_anchor'] = pos
             pspectra.set_legend(options_figure['legend_values'])
 
@@ -2053,12 +2066,13 @@ class MDBPlot:
 
     # MAIN FUNCTION TO PLOT SCATTERPLOT
     def plot_scatter_plot(self, options, plot, index, wl, index_col_adjust):
+        print('-------------------------------------------------------------------------------------->llega aqui')
         ##compute statistics if neeed
         use_rhow = options['use_rhow']
         if options['include_stats'] or options['regression_line']:
             use_log_scale = options['log_scale']
             self.compute_statistics(use_log_scale, use_rhow, options['type_regression'])
-            #print(self.valid_stats)
+
         # check groups and get legend if applicable
         ngroup = 1
         str_legend = []
@@ -2489,7 +2503,7 @@ class MDBPlot:
         wl_col = [self.get_wl_str_from_wl(x) for x in wl_list]
 
         #CHANGE LYNE STYLE LINE FOR POSTER.
-        #pspectra.stats_style['central']['linewidth']=2
+        pspectra.stats_style['central']['linewidth']=1.5
 
         pspectra.xdata = xdata_plot
         h_legend = []
@@ -2498,23 +2512,29 @@ class MDBPlot:
         pspectra.stats_style['central']['color'] = color
         pspectra.stats_style['central']['marker'] = 'o'
         pspectra.stats_style['central']['markersize'] = 5
+        #pspectra.stats_style['central']['mec'] = 'black'
         if len(wl_col) > 100:
             pspectra.stats_style['central']['markersize'] = 0.5
-        pspectra.stats_style['fill']['color'] = color
+        pspectra.stats_style['fill']['color'] = None
         pspectra.stats_style['fill']['framealpha'] = 0.5
+        pspectra.stats_style['dispersion']['color'] = color
+        pspectra.stats_style['dispersion']['linewidth'] = 0.75
+        pspectra.stats_style['dispersion']['linestyle'] = '--'
         hlineinsitu = pspectra.plot_stats(insitu_stats, imin, imax)
         h_legend.append(hlineinsitu[0])
 
-        colors = ['blue','red']
+        colors = ['red','blue']
         if len(sat_stats_array)==2:
-            colors = ['blue','red']
+            colors = ['red','blue']
 
         for igroup,sat_stats in enumerate(sat_stats_array):
             pspectra.stats_style['central']['color'] = colors[igroup]
+            #pspectra.stats_style['central']['mec'] = 'black'
             # pspectra.stats_style['dispersion']['color'] = colors[igroup]
-            # pspectra.stats_style['dispersion']['linewidth'] = 1
+            pspectra.stats_style['dispersion']['linewidth'] = 0
             # pspectra.stats_style['dispersion']['linestyle'] = '--'
             pspectra.stats_style['fill']['color'] = colors[igroup]
+            pspectra.stats_style['fill']['framealpha'] = 0.5
             hlinesat = pspectra.plot_stats(sat_stats, imin, imax)
             h_legend.append(hlinesat[0])
 
@@ -2552,6 +2572,8 @@ class MDBPlot:
         pspectra.legend_options['bbox_to_anchor'] = (0.65, 1.0)
         pspectra.legend_options['framealpha'] = 1
         if options_figure['legend']: ##FOR POSTER, ADD FONTSIZE=14 IN set_legend_h
+            if options_figure['legend_values'] is not None and len(options_figure['legend_values'])==len(str_legend):
+                str_legend = options_figure['legend_values']
             pspectra.set_legend_h(h_legend, str_legend)
         pspectra.set_tigth_layout()
         file_out = options_figure['file_out']
@@ -2603,8 +2625,28 @@ class MDBPlot:
         wl_col = [self.get_wl_str_from_wl(x) for x in wl_list]
 
         pspectra.xdata = xdata_plot
+        # print('----------------------')
+        # if flag_value==1:
+        #     file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/GAIA_BLUE/MDBsV3/COMMON_VALID/spectra_stats_v3_0.csv'
+        # else:
+        #     file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/GAIA_BLUE/MDBsV3/COMMON_VALID/spectra_stats_v3_1.csv'
+        #
+        # dftal = pd.DataFrame(index=np.arange(172),columns=['wl_array','sat_median','sat_p25','sat_p75','ins_median','ins_p25','ins_p75'])
+        # dftal['wl_array'] = xdata_plot[:]
+        #
+        # dftal['ins_median']=insitu_stats['median']
+        # dftal['ins_p25']=insitu_stats['p25']
+        # dftal['ins_p75']=insitu_stats['p75']
+        # dftal['sat_median'] = sat_stats['median']
+        # dftal['sat_p25'] = sat_stats['p25']
+        # dftal['sat_p75'] = sat_stats['p75']
+        # dftal = dftal.transpose()
+        # dftal.to_csv(file_csv,sep=';')
+        # print('-----------------------')
 
         color = 'red'
+        #color  = 'gray'
+        pspectra.stats_style['central']['linewidth'] = 1.5
         pspectra.stats_style['central']['color'] = color
         pspectra.stats_style['central']['marker'] = 'o'
         pspectra.stats_style['central']['markersize'] = 5
@@ -2615,6 +2657,8 @@ class MDBPlot:
         hlineinsitu = pspectra.plot_stats(insitu_stats, imin, imax)
 
         color = 'blue'
+        #color = 'red'
+        pspectra.stats_style['central']['linewidth'] = 1.5
         pspectra.xdata = wlvalues[imin:imax]
         pspectra.stats_style['central']['color'] = color
         pspectra.stats_style['central']['marker'] = 'o'
@@ -2668,8 +2712,30 @@ class MDBPlot:
         pspectra.close_plot()
 
     def plot_mu_spectraplot(self, options_figure, index_mu):
+
+        if 'common_match_ups_col' in self.mrfile.variables:
+            cmu = self.mrfile.variables['common_match_ups_col'][:]
+            index_ref = cmu[index_mu]
+            indices_mu = np.where(cmu==index_ref)[0]
+            color_insitu = 'darkgray'
+            color_sat = ['red','blue']
+        else:
+            indices_mu = [index_mu]
+            color_insitu = 'red'
+            color_sat = 'blue'
+
         wl, insitu_spectra, sat_spectra, insitu_spectra_unc, sat_spectra_unc = self.mrfile.get_mu_spectra_insitu_and_sat(
-            index_mu, options_figure['scale_factor'])
+            indices_mu[0], options_figure['scale_factor'])
+
+        if len(indices_mu)>1:
+            for imu in range(1,len(indices_mu)):
+                wl, insitu_spectra, sat_spectra_here, insitu_spectra_unc, sat_spectra_unc_here = self.mrfile.get_mu_spectra_insitu_and_sat(
+                    indices_mu[imu], options_figure['scale_factor'])
+                sat_spectra = np.stack([sat_spectra,sat_spectra_here],axis=0)
+                if sat_spectra_unc_here is not None and sat_spectra_unc is not None:
+                    sat_spectra_unc = np.stack([sat_spectra_unc,sat_spectra_unc_here])
+            print(f'[INFO] Mu common indices: {indices_mu}')
+
 
         if wl is None:
             return
@@ -2682,12 +2748,25 @@ class MDBPlot:
         else:
             wlt = wl
             wls = self.mrfile.get_sat_wl_as_strlist(wl)
+            try:
+                if wls.index('665')+2 == wls.index('681.25'):
+                    wls[wls.index('665')+1]=''
+            except:
+                pass
 
-        pspectra.set_xticks(wlt, wls, 0, 12)
+        if len(wls)>10:
+            pspectra.set_xticks(wlt, wls, 90, 12)
+        else:
+            pspectra.set_xticks(wlt, wls, 0, 12)
 
+        hlines = []
         if options_figure['type_rrs'] == 'mu_comparison':
-            hline1 = pspectra.plot_single_line(insitu_spectra, 'red', 'solid', 2, '.', 0)
-            hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 2, '.', 0)
+            hline = pspectra.plot_single_line(insitu_spectra, color_insitu, 'solid', 2, 'o', 5)
+            hlines.append(hline[0])
+            for idx in range(len(indices_mu)):
+                hline = pspectra.plot_single_line(sat_spectra[idx,:], color_sat[idx], 'solid', 2, 'o', 5)
+                hlines.append(hline[0])
+
             if insitu_spectra_unc is not None:
                 insitu_min = insitu_spectra.copy()
                 insitu_max = insitu_spectra.copy()
@@ -2695,16 +2774,20 @@ class MDBPlot:
                     ~insitu_spectra_unc.mask]
                 insitu_max[~insitu_spectra_unc.mask] = insitu_spectra[~insitu_spectra_unc.mask] + insitu_spectra_unc[
                     ~insitu_spectra_unc.mask]
-                pspectra.plot_iqr_basic(insitu_min, insitu_max, 'red')
+                pspectra.plot_iqr_basic(insitu_min, insitu_max, color_insitu)
 
-            if sat_spectra_unc is not None:
-                sat_min = sat_spectra.copy()
-                sat_max = sat_spectra.copy()
-                sat_min[~sat_spectra_unc.mask] = sat_spectra[~sat_spectra_unc.mask] - sat_spectra_unc[
-                    ~sat_spectra_unc.mask]
-                sat_max[~sat_spectra_unc.mask] = sat_spectra[~sat_spectra_unc.mask] + sat_spectra_unc[
-                    ~sat_spectra_unc.mask]
-                pspectra.plot_iqr_basic(sat_min, sat_max, 'blue')
+            # if sat_spectra_unc is not None:
+            #     for idx in range(len(indices_mu)):
+            #         sat_spectra_here = sat_spectra[idx,:]
+            #         sat_spectra_unc_here = sat_spectra_unc[idx,:]
+            #         sat_min = sat_spectra_here.copy()
+            #         sat_max = sat_spectra_here.copy()
+            #         sat_min[~sat_spectra_unc_here.mask] = sat_spectra_here[~sat_spectra_unc_here.mask] - sat_spectra_unc_here[~sat_spectra_unc_here.mask]
+            #         sat_max[~sat_spectra_unc_here.mask] = sat_spectra_here[~sat_spectra_unc_here.mask] + sat_spectra_unc_here[~sat_spectra_unc_here.mask]
+            #         pspectra.plot_iqr_basic(sat_min, sat_max, color_sat[idx])
+
+
+
         if options_figure['type_rrs'] == 'mu_sat':
             hline2 = pspectra.plot_single_line(sat_spectra, 'blue', 'solid', 1, '.', 10)
         if options_figure['type_rrs'] == 'mu_ins':
@@ -2718,11 +2801,13 @@ class MDBPlot:
         if options_figure['title'] is not None:
             title_here = options_figure['title'] + f' MU: {index_mu}'
             pspectra.set_title(title_here)
-        if options_figure['type_rrs'] == 'mu_comparison':
-            pspectra.legend_options['loc'] = 'lower center'
-            pspectra.legend_options['bbox_to_anchor'] = (0.5, -0.25)
-            pspectra.legend_options['ncols'] = 2
-            #pspectra.set_legend_h([hline1[0], hline2[0]], ['In situ Rrs', 'Satellite Rrs'])
+        if options_figure['type_rrs'] == 'mu_comparison' and options_figure['legend'] and options_figure['legend_values'] is not None:
+            pspectra.legend_options['loc'] = 'upper center'
+            pspectra.legend_options['bbox_to_anchor'] = (0.85, 0.95)
+            pspectra.legend_options['ncols'] = 1
+            pspectra.legend_options['framealpha'] = 1
+            pspectra.legend_options['markerscale'] = 1.5
+            pspectra.set_legend_h(hlines, options_figure['legend_values'])
 
 
         ### TEMPORAL FOR PRESENTATION VALIDATIION PACE (also comment lines 2521, 2530, 2557)

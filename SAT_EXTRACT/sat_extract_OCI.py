@@ -403,6 +403,7 @@ class SatExtractOCI:
 
     ##lat_array and lon_array are kept as parameteres for compability with other extracts
     def run_extract_day(self,extract_options, extract_info, lat_array, lon_array, output_path, overwrite):
+        print(extract_info)
         insitu_lat = extract_info['insitu_lat']
         insitu_lon = extract_info['insitu_lon']
         insitu_time = extract_info['insitu_time']
@@ -489,6 +490,9 @@ class SatExtractOCI:
             insitu_indices_h = insitu_indices[0][indices_here]
             geo_info_array_here = geo_info_array[indices_here]
             lat_array, lon_array = oci_source.get_lat_long_arrays()
+
+            if self.verbose:
+                print(f'[INFO] Number of in situ spectra: {ntimes_here}')
 
             for itime in range(ntimes_here):
                 global_at = extract_info['global_at'].copy()

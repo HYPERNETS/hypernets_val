@@ -4057,15 +4057,18 @@ def plot_test_time_series():
 
 
 def make_oci_matchups():
-    file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/Match-ups.csv'
+    #file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/Match-ups.csv'
+    file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OLCI/Match-ups.csv'
     df = pd.read_csv(file_csv,sep=';')
     print(df.columns)
     sites = list(df['Site'])
     sites.reverse()
 
     pot = df['Potential']
-    v2 = df['V2']
-    v3 = df['V3']
+    # v2 = df['V2']
+    # v3 = df['V3']
+    v2 = df['Col_3']
+    v3 = df['Col_4']
     com = df['Common']
     file_out = os.path.join(os.path.dirname(file_csv),'Match-ups.png')
     hfig, ax = plt.subplots()
@@ -4075,8 +4078,8 @@ def make_oci_matchups():
     xticks_pos_minor = []
     nseriesplot = 4
     colors = ['blue','salmon','purple','green']
-    colors = ['brown', 'blue', 'red', 'olive']
-    legend = ['Potential match-ups','V2 match-ups','V3 match-ups','Common match-ups']
+    colors = ['brown', 'red', 'blue', 'olive']
+    legend = ['Potential match-ups','Col. 3 match-ups','Col. 4 match-ups','Common match-ups']
 
     heightbyseries = height / nseriesplot
     handles = []

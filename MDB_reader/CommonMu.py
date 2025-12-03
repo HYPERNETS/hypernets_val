@@ -60,7 +60,7 @@ class COMMON_MU:
         nflag_values = len(flag_array)
 
         for idx in range(nflag_values):
-            refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%S')
+            refidx = dt.fromtimestamp(np.int64(sat_time_array[idx])).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%S')
             if reference.startswith('sat_date'):
                 refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%d')
             flag_value = flag_array[idx]
@@ -82,7 +82,7 @@ class COMMON_MU:
             flag_value = flag_array[idx]
             if flag_value!=flag_value_ref:
                 continue
-            refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%S')
+            refidx = dt.fromtimestamp(np.int64(sat_time_array[idx])).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%S')
             if reference.startswith('sat_date'):
                 refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%d')
             ncomp = 0
