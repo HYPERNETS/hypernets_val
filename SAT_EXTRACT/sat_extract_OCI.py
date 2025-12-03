@@ -474,7 +474,7 @@ class SatExtractOCI:
         geo_info_array = np.array(geo_info_array)
         site_list = []
         format_datetime = '%Y-%m-%dT%H:%M:%S'
-
+        print('---------------------------------------------->',sat_file_indices_used)
         for idx in range(len(sat_file_indices_used)):
             ifile = sat_file_indices_used[idx]
             oci_source = SatSourceOCI(list_files[ifile])
