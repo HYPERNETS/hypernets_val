@@ -417,7 +417,7 @@ class SatExtractOCI:
 
         ntimes = len(insitu_time)
         list_files = extract_info['list_files']
-        sat_file_indices = [-1]*ntimes
+        sat_file_indices = np.array([-1]*ntimes)
         geo_info_array = [None]*ntimes
 
         for ifile in range(len(list_files)):
