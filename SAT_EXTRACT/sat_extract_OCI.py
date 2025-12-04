@@ -481,7 +481,8 @@ class SatExtractOCI:
             if self.verbose:
                 print(f'[INFO] Working with OCI source {list_files[ifile]}')
             print('tal',sat_file_indices,sat_file_indices_used,ifile)
-            indices_here = np.where(sat_file_indices==ifile)[0]
+
+            indices_here = np.where(sat_file_indices==ifile)#[0]
             print('-->',indices_here)
             ntimes_here = len(indices_here)
             insitu_lat_h = insitu_lat[indices_here]
