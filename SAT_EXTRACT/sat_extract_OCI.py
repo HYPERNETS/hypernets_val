@@ -403,7 +403,6 @@ class SatExtractOCI:
 
     ##lat_array and lon_array are kept as parameteres for compability with other extracts
     def run_extract_day(self,extract_options, extract_info, lat_array, lon_array, output_path, overwrite):
-        print(extract_info)
         insitu_lat = extract_info['insitu_lat']
         insitu_lon = extract_info['insitu_lon']
         insitu_time = extract_info['insitu_time']
@@ -420,8 +419,6 @@ class SatExtractOCI:
         list_files = extract_info['list_files']
         sat_file_indices = [-1]*ntimes
         geo_info_array = [None]*ntimes
-
-
 
         for ifile in range(len(list_files)):
             if self.verbose:
@@ -463,7 +460,7 @@ class SatExtractOCI:
                             geo_info_array[itime] = {'rc': rc, 'limits': limits, 'oza': oza}
                             sat_file_indices[itime]= ifile
 
-        print('sat file indices',sat_file_indices)
+
         if len(sat_file_indices)==1:
             sat_file_indices_used = sat_file_indices.copy()
         else:
@@ -483,7 +480,9 @@ class SatExtractOCI:
                 oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
             if self.verbose:
                 print(f'[INFO] Working with OCI source {list_files[ifile]}')
+            print('tal',sat_file_indices,sat_file_indices_used,ifile)
             indices_here = np.where(sat_file_indices==ifile)[0]
+            print('-->',indices_here)
             ntimes_here = len(indices_here)
             insitu_lat_h = insitu_lat[indices_here]
             insitu_lon_h = insitu_lon[indices_here]
