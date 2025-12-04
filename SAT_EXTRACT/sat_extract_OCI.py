@@ -472,7 +472,7 @@ class SatExtractOCI:
         geo_info_array = np.array(geo_info_array)
         site_list = []
         format_datetime = '%Y-%m-%dT%H:%M:%S'
-        print('---------------------------------------------->',sat_file_indices_used)
+
         for idx in range(len(sat_file_indices_used)):
             ifile = sat_file_indices_used[idx]
             oci_source = SatSourceOCI(list_files[ifile])
@@ -480,13 +480,10 @@ class SatExtractOCI:
                 oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
             if self.verbose:
                 print(f'[INFO] Working with OCI source {list_files[ifile]}')
-            print('tal',sat_file_indices,sat_file_indices_used,ifile)
-            if len(sat_file_indices)==1 and sat_file_indices[0]==ifile:
-                print('este es el caso')
-                indices_here = np.where(sat_file_indices == ifile)[0]
-            else:
-                indices_here = np.where(sat_file_indices==ifile)[0]
-            print('-->',indices_here)
+
+
+            indices_here = np.where(sat_file_indices==ifile)[0]
+            
             ntimes_here = len(indices_here)
             insitu_lat_h = insitu_lat[indices_here]
             insitu_lon_h = insitu_lon[indices_here]
