@@ -92,24 +92,50 @@ class INSITU_SINGLE_CSV():
         col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = self.get_csv_options()
         df = pd.read_csv(file_csv, sep=col_sep)
         only_date_array, time_list = self.get_date_list_from_dataframe(df, col_date, format_date, col_time, format_time)
-        #only_date_array = np.array(only_date_array)
         if len(only_date_array)==0:
             print(f'[ERROR] No valid dates retrieved from the CSV file.')
             return False
-        print('98')
         only_date_array_unique = np.unique(only_date_array).tolist()
-        print('100')
         if len(only_date_array_unique) == 0:
             print(f'[ERROR] No valid dates retrieved from the CSV file.')
             return False
-        print('76')
         for date_ts in only_date_array_unique:
             self.file_list[date_ts] = file_csv
             self.date_list.append(dt.strptime(date_ts,'%Y-%m-%d'))
-
         if len(self.date_list)==0:
             print(f'[ERROR] No valid dates were retrieved from CSV files')
             return False
         self.date_list.sort()
-        print('85')
         return True
+
+    def get_metadata_date(self,datehere):
+        date_ts = datehere.strftime('%Y-%m-%d')
+        file_csv = self.file_list[date_ts]
+        col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = self.get_csv_options()
+        df = pd.read_csv(file_csv,sep=col_sep)
+        only_date_array, insitu_time = self.get_date_list_from_dataframe(df, col_date, format_date, col_time, format_time)
+        insitu_lat = np.ma.array(df[col_lat])
+        insitu_lon = np.ma.array(df[col_lon])
+        insitu_time = np.array(insitu_time)
+
+        insitu_indices = np.where(np.array(only_date_array) == date_ts)
+
+        if len(insitu_indices[0])>1:
+            insitu_time_here = insitu_time[insitu_indices]
+            sorted_indices_here = np.argsort(insitu_time_here)
+            sorted_indices = insitu_indices[0][sorted_indices_here]
+            insitu_indices = (sorted_indices,)
+
+        insitu_time = insitu_time[insitu_indices]
+        insitu_lat = insitu_lat[insitu_indices]
+        insitu_lon = insitu_lon[insitu_indices]
+
+
+
+        return insitu_time,insitu_lat,insitu_lon,insitu_indices
+
+    def get_ref_date(self, datehere):
+        path_s = self.insitu_options['path_csv']
+        name = os.path.basename(path_s)
+        name_ref = f'{name[0:name.rfind(".")]}_{datehere.strftime("%Y%m%d")}'
+        return name_ref

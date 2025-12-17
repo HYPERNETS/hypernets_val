@@ -1364,10 +1364,10 @@ class SatExtractBase:
                 except:
                     print(f'[ERROR] Method get_metadata_date_basic is not available in class {type(insituBase)}')
             else:
-                #try:
-                insitu_time, insitu_lat, insitu_lon, insitu_indices = insituBase.get_metadata_date(date_here)
-                #except:
-                #    print(f'[ERROR] Method get_metadata_date is not available in class {type(insituBase)}')
+                try:
+                    insitu_time, insitu_lat, insitu_lon, insitu_indices = insituBase.get_metadata_date(date_here)
+                except Exception as ex:
+                    print(f'[ERROR] Method get_metadata_date is not available in class {type(insituBase)}. Exception: {ex}')
 
             path_extract_output_here = os.path.join(output_path,f'{insituBase.get_ref_date(date_here)}_extracts.csv')
             if os.path.exists(path_extract_output_here):
