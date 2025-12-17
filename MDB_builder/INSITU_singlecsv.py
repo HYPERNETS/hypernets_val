@@ -338,10 +338,14 @@ class INSITU_SINGLE_CSV():
         col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = self.get_csv_options()
         df = pd.read_csv(file_csv, sep=col_sep)
         only_date_array, time_list = self.get_date_list_from_dataframe(df, col_date, format_date, col_time, format_time)
-
+        lat_array = np.ma.array(df[col_lat][:])
+        lon_array = np.ma.array(df[col_lon][:])
         fw = open(output_file, 'w')
         started = False
+        only_date_array = np.array(only_date_array)
         date_array_unique = np.unique(only_date_array)
+
+
         for date_ts in date_array_unique:
             date_here = dt.strptime(date_ts,'%Y-%m-%d')
             if self.start_date is not None and self.end_date is not None:
@@ -352,6 +356,7 @@ class INSITU_SINGLE_CSV():
             if self.verbose:
                 print(f'[INFO][singlecsv] Getting metadata for date: {date_ts}')
             indices = np.where(only_date_array == date_ts)
+
             insitu_lat = lat_array[indices]
             insitu_lon = lon_array[indices]
             lat_min = np.ma.min(insitu_lat) - 0.001
