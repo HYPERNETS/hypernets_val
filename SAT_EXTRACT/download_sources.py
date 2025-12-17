@@ -90,8 +90,9 @@ def main():
     try:
         if not insituBase.prepare_csv_metadata(file_metadata):
             return
-    except:
+    except Exception as ex:
        print(f'[ERROR] Method prepare_csv_metadata is required for object {type(insituBase)}')
+       print(f'[ERROR] Exception: {ex}')
        return
 
     doptions = DownloadOptions(args.config_file)
