@@ -552,7 +552,6 @@ class INSITU_SEABASS():
         if self.verbose:
             print(f'[INFO] Number of in situ data points for the extract: {ninsitu_real}')
 
-
         #insitu_indices = extract_info['insitu_indices']
         builder = ISb.Mini_MDB_Builder(options,self.verbose)
         builder.start_mini_mdb(extract_info['file'],file_out)

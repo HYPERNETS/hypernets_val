@@ -252,7 +252,8 @@ class Mini_MDB_Builder():
         instrument_id_list = self.mdb_options['instrument_ids']
         n_instrument_id = len(instrument_id_list)
         self.new_MDB.createDimension('insitu_id', n_insitu_id)
-        self.new_MDB.createDimension('insitu_bands', n_insitu_bands)
+        if n_insitu_bands>0:
+            self.new_MDB.createDimension('insitu_bands', n_insitu_bands)
         self.new_MDB.createDimension('instrument_id',n_instrument_id)
 
 
@@ -270,17 +271,14 @@ class Mini_MDB_Builder():
         instrument_id_var.flag_meanings = " ".join(instrument_id_list)
 
 
+        if n_insitu_bands>0:
+            # ORIGINAL BANDS VARIABLE
+            insitu_original_bands = self.new_MDB.createVariable('insitu_original_bands', 'f4', ('instrument_id','insitu_bands'),fill_value=-999, zlib=True, complevel=6)
+            insitu_original_bands.description = 'In situ bands in nm.'
 
-        # ORIGINAL BANDS VARIABLE
-        insitu_original_bands = self.new_MDB.createVariable('insitu_original_bands', 'f4', ('instrument_id','insitu_bands'),
-                                                            fill_value=-999, zlib=True, complevel=6)
-        insitu_original_bands.description = 'In situ bands in nm.'
-
-
-        # RRS VARIABLE
-        insitu_Rrs = self.new_MDB.createVariable('insitu_Rrs', 'f4', ('satellite_id', 'insitu_bands', 'insitu_id'),
-                                            fill_value=-999, zlib=True, complevel=6)
-        insitu_Rrs.description = 'In situ Rrs'
+            # RRS VARIABLE
+            insitu_Rrs = self.new_MDB.createVariable('insitu_Rrs', 'f4', ('satellite_id', 'insitu_bands', 'insitu_id'),fill_value=-999, zlib=True, complevel=6)
+            insitu_Rrs.description = 'In situ Rrs'
 
         # TIME DIFFERENCE VARIABLE
         time_difference = self.new_MDB.createVariable('time_difference', 'f4', ('satellite_id', 'insitu_id'),

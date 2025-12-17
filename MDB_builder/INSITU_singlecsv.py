@@ -1,8 +1,12 @@
 import os
 import pandas as pd
 import numpy as np
+from netCDF4 import Dataset
 from datetime import datetime as dt
-
+try:
+    import INSITU_base as ISb
+except:
+    import MDB_builder.INSITU_base as ISb
 
 class INSITU_SINGLE_CSV():
 
@@ -17,6 +21,7 @@ class INSITU_SINGLE_CSV():
         self.start_date = None
         self.end_date = None
         print(insitu_options)
+        self.non_spectral_vars = None
 
     def get_csv_options(self):
         col_date = self.insitu_options['col_date']
@@ -139,3 +144,187 @@ class INSITU_SINGLE_CSV():
         name = os.path.basename(path_s)
         name_ref = f'{name[0:name.rfind(".")]}_{datehere.strftime("%Y%m%d")}'
         return name_ref
+
+    def check_rrs_and_data_variables(self):
+        if not self.check_data():
+            return False
+        file_csv = self.insitu_options['path_csv']
+        col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = self.get_csv_options()
+        df = pd.read_csv(file_csv, sep=col_sep)
+        col_names = df.columns.to_list()
+        if self.insitu_options['non_spectral_variables'] is not None:
+            self.non_spectral_vars = []
+            for var_name in self.insitu_options['non_spectral_variables']:
+                if var_name in col_names:
+                    self.non_spectral_vars.append(var_name)
+                else:
+                    print(f'[ERROR] {var_name} is not included in the variable list')
+                    return False
+            if len(self.non_spectral_vars)==0:
+                self.non_spectral_vars = None
+        return True
+
+    def create_mini_mdb_files(self,options,extract_dir,extracts,time_extracts,overwrite):
+        options['n_insitu_bands'] = 0
+        fcsv = os.path.join(extract_dir,f'MDBm_{time_extracts[0].strftime("%Y%m%d")}.csv')
+        fw  = open(fcsv,'w')
+        started = False
+        dims = None
+        for t in time_extracts:
+            ref = t.strftime('%Y%m%dT%H%M%S')
+            #print(ref,'-->',extracts[ref]['file'])
+            file_out = ISb.get_mini_mdb_file_path(extract_dir,extracts[ref])
+            write_line = False
+            if os.path.isfile(file_out) and  not overwrite:
+                print(f'[INFO] Mini MDB file {os.path.basename(file_out)} already exists. Skipping...')
+                write_line = True
+            else:
+                if self.verbose:
+                    print(f'[INFO] Creating mini MDB file {os.path.basename(file_out)}')
+                self.create_mini_mdb_file_impl(file_out,options,extracts[ref])
+                if os.path.isfile(file_out):
+                   write_line = True
+                else:
+                    print(f'[WARNING] File MDBm {os.path.basename(file_out)} could not be created. Skipping...')
+            if write_line:
+                fw,dims = self.add_line_csv_with_MDBm_info(fw,file_out,started)
+                started = True
+
+        fw.close()
+
+        return dims
+
+    def add_line_csv_with_MDBm_info(self,fw,file_nc,started):
+        if not started:
+            first_line = 'name;satellite_id;insitu_id;instrument_id;satellite_bands;insitu_bands;rows;columns'
+            fw.write(first_line)
+        dset  = Dataset(file_nc)
+        nsat = len(dset.dimensions['satellite_id'])
+        ninsitu = len(dset.dimensions['insitu_id'])
+        ninstrument = len(dset.dimensions['instrument_id'])
+        nwlsat = len(dset.dimensions['satellite_bands']) if 'satellite_bands' in dset.dimensions else 0
+        nwlinsitu = len(dset.dimensions['insitu_bands']) if 'insitu_bands' in dset.dimensions else 0
+        rows = len(dset.dimensions['rows'])
+        cols = len(dset.dimensions['columns'])
+        line = f'{os.path.basename(file_nc)};{nsat};{ninsitu};{ninstrument};{nwlsat};{nwlinsitu};{rows};{cols}'
+        dset.close()
+        fw.write('\n')
+        fw.write(line)
+        dims = np.array([nsat,ninsitu,ninstrument,nwlsat,nwlinsitu,rows,cols])
+
+        return fw,dims
+
+    def check_ninsitu_real(self,extract_info):
+        if not 'insitu_indices' in extract_info or extract_info['insitu_indices'] is None:
+            print(f'[ERROR] insitu_indices is required in the extract info')
+            return -1
+        ninsitu_real = len(extract_info['insitu_indices'])
+        if not 'insitu_lat' in extract_info or extract_info['insitu_lat'] is None:
+            print(f'[ERROR] insitu_lat is required in the extract info')
+            return -1
+        if not 'insitu_lon' in extract_info or extract_info['insitu_lon'] is None:
+            print(f'[ERROR] insitu_lon is required in the extract info')
+            return -1
+        if not 'insitu_time' in extract_info or extract_info['insitu_time'] is None:
+            print(f'[ERROR] insitu_time is required in the extract info')
+            return -1
+        if not 'time_diff' in extract_info or extract_info['time_diff'] is None:
+            print(f'[ERROR] time_diff is required in the extract info')
+            return -1
+
+        if len(extract_info['insitu_lat'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between insitu_lat {len(extract_info["insitu_lat"])} and insitu_indices {ninsitu_real}')
+            return -1
+        if len(extract_info['insitu_lon'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between insitu_lat {len(extract_info["insitu_lon"])} and insitu_indices {ninsitu_real}')
+            return -1
+        if len(extract_info['insitu_time'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between insitu_lat {len(extract_info["insitu_time"])} and insitu_indices {ninsitu_real}')
+            return -1
+        if len(extract_info['time_diff'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between time_diff {len(extract_info["time_diff"])} and insitu_indices {ninsitu_real}')
+            return -1
+
+        if 'insitu_spatial_index' in extract_info and extract_info['insitu_spatial_index'] is not None and len(extract_info['insitu_spatial_index'])<ninsitu_real:
+            print(f'[ERROR] Discrepancy in the number of in situ data points between insitu_spatial_index {len(extract_info["insitu_spatial_index"])}and insitu_indices {ninsitu_real}')
+            return -1
+
+
+
+        return ninsitu_real
+
+    def create_mini_mdb_file_impl(self,file_out,options,extract_info):
+        ninsitu_real = self.check_ninsitu_real(extract_info)
+        if ninsitu_real<0:
+            return
+        if ninsitu_real==0:
+            print(f'[WARNING] No in situ data found for {extract_info["file"]}')
+            return
+
+        if ninsitu_real>options['ninsitu_max']:
+            print(f'[WARNING] {ninsitu_real} is greater than the maximum number of in situ data points {options["ninsitu_max"]}. ')
+            return
+        if self.verbose:
+            print(f'[INFO] Number of in situ data points for the extract: {ninsitu_real}')
+
+        file_csv = self.insitu_options['path_csv']
+        col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = self.get_csv_options()
+        df = pd.read_csv(file_csv, sep=col_sep)
+
+
+        #insitu_indices = extract_info['insitu_indices']
+        builder = ISb.Mini_MDB_Builder(options,self.verbose)
+        builder.start_mini_mdb(extract_info['file'],file_out)
+        builder.add_shipborne_variables()
+        if options['n_insitu_bands']>0  and self.insitu_options['rrs_unc_format'] is not None:
+            builder.add_rrs_uncentainty_variable()
+
+        building_error = False
+        if len(options['instrument_ids'])==1:
+            if options['n_insitu_bands'] > 0:
+                builder.set_insitu_wavelengths(0,self.wl_array)
+            builder.set_instrument_id(ninsitu_real,1)
+        #basic variables: insitu_lat,insitu_lon,insitu_time,time_diff,insitu_spatial_index
+
+        if not builder.set_insitu_basic_variables_from_dict(extract_info):
+            print(f'[ERROR] Error setting the basic variables. MDBm file could not be created')
+            building_error = True
+
+        indices = extract_info['insitu_indices']
+
+        ##RRS and RRS_UNC NOT IMPLEMENTED FOR INSITU_singlecsv
+        if options['n_insitu_bands'] > 0:
+            if self.get_rrs_array():
+                rrs_here = np.ma.transpose(self.rrs_array[indices,:])
+                if not builder.set_spectral_variables('insitu_Rrs',rrs_here):
+                    print(f'[ERROR] Error setting the in situ Rrs variable. MDBm file could not be created')
+                    building_error = True
+            else:
+                print(f'[ERROR] Error retrieving the Rrs variable')
+                building_error = True
+
+            if self.insitu_options['rrs_unc_format'] is not None:
+                if self.get_rrs_unc_array():
+                    rrs_unc_here = np.ma.transpose(self.rrs_unc_array[indices, :])
+                    if not builder.set_spectral_variables('insitu_Rrs_unc', rrs_unc_here):
+                        print(f'[ERROR] Error setting the in situ Rrs unc variable. MDBm file could not be created')
+                        building_error = True
+                else:
+                    print(f'[ERROR] Error retrieving the Rrs_unc variable from the SeaBass file')
+                    building_error = True
+
+        if self.non_spectral_vars is not None:
+            for var_name in self.non_spectral_vars:
+                var_name_nc = f'insitu_{var_name}' if not var_name.startswith('insitu_') else var_name
+                #attrs = {'units': self.non_spectral_vars[var_name]}
+                attrs = None##non implemented a method
+                builder.add_non_spectral_variable(var_name_nc, attrs)
+                array = np.array(df[var_name][:])
+                array = array[indices]
+                # array = np.array(self.sb.data[var_name])
+                # array = array[indices]
+                builder.set_non_spectral_variables(var_name_nc,array)
+
+        builder.close_mini_mdb_file()
+        if building_error:
+            os.remove(file_out)
