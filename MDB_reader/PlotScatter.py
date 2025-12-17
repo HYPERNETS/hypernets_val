@@ -14,7 +14,7 @@ class PlotScatter():
         self.index_col = 0
         self.nrow = 1
         self.ncol = 1
-        self.ax = None
+        self.ax_multiple = None
         self.start_plot()
 
         self.style_default = {
@@ -75,13 +75,13 @@ class PlotScatter():
         self.nrow = nrow
         self.ncol = ncol
         #self.fig, self.ax = plt.subplots(nrow, ncol,figsize=(7,7),gridspec_kw={'wspace':0.1,'hspace':0.1})
-        self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(7, 4), gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
+        self.fig, self.ax_multiple = plt.subplots(nrow, ncol, figsize=(7, 4), gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
 
     def start_multiple_plot_advanced(self,nrow,ncol,xfigsize,yfigsize,widthspace,heightspace):
         self.nrow = nrow
         self.ncol = ncol
         # self.fig, self.ax = plt.subplots(nrow, ncol,figsize=(7,7),gridspec_kw={'wspace':0.1,'hspace':0.1})
-        self.fig, self.ax = plt.subplots(nrow, ncol, figsize=(xfigsize, yfigsize), gridspec_kw={'wspace': widthspace, 'hspace': heightspace})
+        self.fig, self.ax_multiple = plt.subplots(nrow, ncol, figsize=(xfigsize, yfigsize), gridspec_kw={'wspace': widthspace, 'hspace': heightspace})
 
     def close_plot(self):
         plt.close()
@@ -89,20 +89,21 @@ class PlotScatter():
     def set_axhere(self):
         self.ax = self.ax
         if self.nrow > 1 and self.ncol == 1:
-            self.ax = self.ax[self.index_row]
+            self.ax = self.ax_multiple[self.index_row]
         elif self.nrow == 1 and self.ncol > 1:
-            self.ax = self.ax[self.index_col]
+            self.ax = self.ax_multiple[self.index_col]
         elif self.nrow > 1 and self.ncol > 1:
-            self.ax = self.ax[self.index_row, self.index_col]
+            self.ax = self.ax_multiple[self.index_row, self.index_col]
 
     def set_axhere_rc(self,index_row,index_col):
-        self.ax = self.ax[index_row,index_col]
+        self.ax = self.ax_multiple[index_row,index_col]
 
     def set_axhere_index(self,index):
         index_row = np.floor(index/self.ncol)
         index_col = index-(index_row*self.ncol)
         self.index_row = int(index_row)
         self.index_col = int(index_col)
+        #print(index,self.index_row,self.index_col)
         self.set_axhere_rc(self.index_row,self.index_col)
 
     def set_log_scale(self):
@@ -213,9 +214,8 @@ class PlotScatter():
             self.fig.legend(str_legend, fontsize=11, loc='lower center', ncol=4, markerscale=1.5,
                             bbox_to_anchor=(0.5, -0.015))
         else:
-
-            self.fig.legend(str_legend, fontsize=11, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.5, -0.015))
-
+            #self.fig.legend(str_legend, fontsize=11, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.5, -0.015))
+            self.fig.legend(str_legend, fontsize=11, loc='lower center', ncol=len(str_legend), markerscale=1.5,bbox_to_anchor=(0.5, 0.015))
     def set_title(self, title):
         if self.ax is None:
             self.set_axhere()

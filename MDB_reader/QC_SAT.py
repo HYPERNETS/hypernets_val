@@ -229,7 +229,6 @@ class QC_SAT:
 
     def compute_flag_mask_array_impl(self,flag_band):
         land = None
-        flag_mask = None
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
         satellite_flag = self.info_flag[flag_band]['variable']
         if satellite_flag is None:
@@ -266,6 +265,7 @@ class QC_SAT:
             flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
             flag_mask[np.where(flag_mask != 0)] = 1
 
+
         flag_land = self.info_flag[flag_band]['flag_land']
         if flag_land is not None and flag_land.strip().lower() == 'none':
             flag_land = None
@@ -291,9 +291,13 @@ class QC_SAT:
             sat_index_str = str(sat_index)
             if self.invalid_mask[sat_index_str]['apply_mask']:
                 bands_to_check.append(sat_index)
+
+
         rrs_here = self.satellite_rrs[:,bands_to_check,r_s:r_e, c_s:c_e]
+        print(self.satellite_rrs.shape,rrs_here.shape)
         for iband in bands_to_check:
-            rrs_here_band = np.squeeze(rrs_here[:,iband,:,:])
+            index_rrs_here = bands_to_check.index(iband)
+            rrs_here_band = np.squeeze(rrs_here[:,index_rrs_here,:,:])
             n_masked = np.ma.count_masked(rrs_here_band)
             self.invalid_mask[str(iband)]['n_masked'] = n_masked
             if n_masked > 0:
@@ -779,19 +783,20 @@ class QC_SAT:
         land = self.compute_flag_masks(index_mu)
 
         nv = self.NTP - np.sum(self.flag_mask)
-        #
-        # if index_mu==6:
+
+        # if index_mu==362:
         #     print('After flag mask: ',nv)
+
         self.compute_invalid_masks(index_mu)
         nv = self.NTP - np.sum(self.flag_mask)
 
-        # if index_mu == 6:
+        # if index_mu == 362:
         #     print('After Invalid: ', nv)
 
         self.compute_th_masks(index_mu)
         self.NVP = self.NTP - np.sum(self.flag_mask)
         self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
-        # if index_mu == 6:
+        # if index_mu == 362:
         #     print('After th: ',self.NVP)
         #     print(index_mu,'After th: ', self.NVP)
         #     print(f'[INFO] Index mu: {index_mu}')

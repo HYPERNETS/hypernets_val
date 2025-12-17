@@ -450,7 +450,7 @@ class MDBPlot:
             else:
                 ext = os.path.basename(file_out)[os.path.basename(file_out).index('.'):]
                 file_here = os.path.join(os.path.dirname(file_out),f'{name}{ext}')
-                print(file_here)
+                print(file_here,os.path.exists(file_here))
                 if os.path.exists(file_here):
                     files_multiple.append(file_here)
 
@@ -2066,7 +2066,7 @@ class MDBPlot:
 
     # MAIN FUNCTION TO PLOT SCATTERPLOT
     def plot_scatter_plot(self, options, plot, index, wl, index_col_adjust):
-        print('-------------------------------------------------------------------------------------->llega aqui')
+        #print('-------------------------------------------------------------------------------------->llega aqui')
         ##compute statistics if neeed
         use_rhow = options['use_rhow']
         if options['include_stats'] or options['regression_line']:
@@ -2603,6 +2603,7 @@ class MDBPlot:
                 pspectra.set_std_as_stats_plot(factor)
 
 
+        print(f'[INFO] Getting stats for {flag_name} {flag_value}')
         sat_stats, insitu_stats = self.mrfile.get_all_spectra_insitu_sat_with_wlvalues(options_figure['scale_factor'],
                                                                                        wlvalues, flag_name, flag_value, flag_array)
 
@@ -3424,6 +3425,7 @@ class MDBPlot:
                 select_array = np.array(self.mrfile.nc.variables[selectBy])
             if len(select_array) == len(mu_valid_satelliteid):
                 select_array = self.get_array_muid_from_array_satelliteid(id_mu, select_array)
+
             valid_all[select_array != valSelect] = 0
 
         self.xdata = rrs_ins[valid_all == 1]

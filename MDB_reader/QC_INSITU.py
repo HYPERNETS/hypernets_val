@@ -535,8 +535,11 @@ class QC_INSITU:
         if self.instrument_id_array is not None:
             instrument_valid = self.instrument_id_array[~dif_time_array.mask]
             ins_here = np.unique(instrument_valid)
-            if len(ins_here==1):
-                indices = self.wl_indices[ins_here[0],:]
+            if len(ins_here)==1:
+                if self.wl_indices.shape[0]==1:
+                    indices = self.wl_indices[0,:]
+                else:
+                    indices = self.wl_indices[ins_here[0],:]
                 rrs_values = spectra_array[indices,:]
             else:
                 n_bands = len(self.wl_indices[ins_here[0],:])

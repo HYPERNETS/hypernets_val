@@ -1310,8 +1310,9 @@ class SatExtractBase:
         try:
             if not insituBase.prepare_data():
                 return
-        except:
-            print(f'[ERROR] prepare_data() method is not available in class {type(insituBase)}')
+        except Exception as ex:
+            print(f'[ERROR] prepare_data() method is not available or not valid in class {type(insituBase)}')
+            print(f'[ERROR] Exception: {ex}')
             return
         if args.verbose:
             print(f'[INFO] Preparing in situ data: Completed')

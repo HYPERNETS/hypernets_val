@@ -466,6 +466,13 @@ def get_insitu_object(insitu_type,insitu_options,verbose):
             from MDB_builder.INSITU_sorad import SO_RAD
         insituBase = SO_RAD(insitu_options,verbose)
 
+    if insitu_type=='SINGLE_CSV':
+        try:
+            from INSITU_singlecsv import INSITU_SINGLE_CSV
+        except:
+            from MDB_builder.INSITU_singlecsv import INSITU_SINGLE_CSV
+        insituBase = INSITU_SINGLE_CSV(insitu_options,verbose)
+
     if insituBase is None:
         print(f'[ERROR] In situ class for in situ data type {insitu_type} is not available. Please check method get_insitu_object() in INSITU_base.py')
     return insituBase

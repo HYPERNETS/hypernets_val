@@ -762,6 +762,9 @@ class MDBFile:
 
         #print('improve in qc sat...')
         cond_min_pixels, cond_stats, valid_mu, sat_values, sat_values_unc = self.qc_sat.get_match_up_values_v2(index_mu)
+        # if index_mu>=360 and index_mu<=375:
+        #     print(index_mu,'-->',cond_min_pixels,'-->',cond_stats,'--->',valid_mu)
+
         #print('fin improve qc sat')
 
 
@@ -1119,7 +1122,8 @@ class MDBFile:
 
 
         for index_mu in range(self.n_mu_total):
-            print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
+            if (index_mu%100)==0:
+                print(f'[INFO] MU: {index_mu} of {self.n_mu_total}')
             if mu_invalid_list is not None and index_mu in mu_invalid_list:
                 print(f'[WARNING] Match-up {index_mu} was manually excluded from analysis')
                 mu_valid = False
@@ -1774,6 +1778,7 @@ class MDBFile:
                     if flag_array[index_mu] != flag_value:
                         return None, None
                 else:
+                    #print(flag_name,self.nc.variables[flag_name][index_mu],index_mu,flag_value)
                     if self.nc.variables[flag_name][index_mu] != flag_value:
                         return None, None
 
