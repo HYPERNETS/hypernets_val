@@ -339,8 +339,6 @@ class INSITU_SEABASS():
                 started = True
             fw.write(line)
 
-
-
         fw.close()
         if not started:
             print(f'[WARNING][SeaBass] No data were found for the given data range in the SeaBass dataset.')

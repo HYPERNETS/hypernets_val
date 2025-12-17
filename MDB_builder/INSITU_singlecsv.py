@@ -328,3 +328,47 @@ class INSITU_SINGLE_CSV():
         builder.close_mini_mdb_file()
         if building_error:
             os.remove(file_out)
+
+    def prepare_csv_metadata(self, output_file):
+
+        if not self.check_data():
+            return False
+
+        file_csv = self.insitu_options['path_csv']
+        col_date, col_time, col_lat, col_lon, format_date, format_time, col_sep = self.get_csv_options()
+        df = pd.read_csv(file_csv, sep=col_sep)
+        only_date_array, time_list = self.get_date_list_from_dataframe(df, col_date, format_date, col_time, format_time)
+
+        fw = open(output_file, 'w')
+        started = False
+        date_array_unique = np.unique(only_date_array)
+        for date_ts in date_array_unique:
+            date_here = dt.strptime(date_ts,'%Y-%m-%d')
+            if self.start_date is not None and self.end_date is not None:
+                if date_here<self.start_date or date_here>self.end_date:
+                    if self.verbose:
+                        print(f'[INFO][singlecsv] Skipping date {date_here.strftime("%Y-%m-%d")} as it not in the range: {self.start_date.strftime("%Y-%m-%d")} to {self.end_date.strftime("%Y-%m-%d")}')
+                    continue
+            if self.verbose:
+                print(f'[INFO][singlecsv] Getting metadata for date: {date_ts}')
+            indices = np.where(only_date_array == date_ts)
+            insitu_lat = lat_array[indices]
+            insitu_lon = lon_array[indices]
+            lat_min = np.ma.min(insitu_lat) - 0.001
+            lat_max = np.ma.max(insitu_lat) + 0.001
+            lon_min = np.ma.min(insitu_lon) - 0.001
+            lon_max = np.ma.max(insitu_lon) + 0.001
+            line = f'{date_ts},{lat_min},{lat_max},{lon_min},{lon_max}'
+            if started:
+                fw.write('\n')
+            if not started:
+                started = True
+            fw.write(line)
+
+        fw.close()
+        if not started:
+            print(f'[WARNING][singlecsv] No data were found for the given data range in the singlecsv dataset.')
+            os.remove(output_file)
+            return False
+        else:
+            return True
