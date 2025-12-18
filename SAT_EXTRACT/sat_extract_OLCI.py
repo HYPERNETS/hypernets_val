@@ -340,6 +340,7 @@ class SatExtractOLCI:
             info_vars = olci_source.get_info_variables(name_file,list_variables,window)
             if info_vars is None:
                 return False
+
             if not newExtract.create_2D_variable_from_info_dict(info_vars,None):
                 return False
         return True
@@ -649,6 +650,8 @@ class SatSourceOlci:
                 var_name = var.replace('T865','satellite_AOT_0865P50')
             else:
                 var_name = f'satellite_{var}'
+                if var_name.endswith('_err'):
+                    var_name = f'{var_name[:-4]}_unc'
             info_vars[var_name]={
                 'data_type':data_type,
                 'fill_value':fill_value,

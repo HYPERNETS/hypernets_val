@@ -4275,7 +4275,16 @@ def main():
 
     if args.mode == 'TEST':
 
-        make_oci_matchups()
+        #make_oci_matchups()
+
+        dir_concatenate = '/mnt/c/DATA/MDBm'
+        dir_out = '/mnt/c/DATA'
+        file_out = '/mnt/c/DATA/output.nc'
+        list_files = []
+        for name in os.listdir(dir_concatenate):
+            list_files.append(os.path.join(dir_concatenate,name))
+        concatenate_nc_impl(list_files,dir_out,file_out)
+
 
         ##correctins resto files
         # dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/TRIT'
