@@ -650,8 +650,8 @@ class SatSourceOlci:
                 var_name = var.replace('T865','satellite_AOT_0865P50')
             else:
                 var_name = f'satellite_{var}'
-                if var_name.endswith('_err'):
-                    var_name = f'{var_name[:-4]}_unc'
+            if var_name.endswith('_err'):
+                var_name = f'{var_name[:-4]}_unc'
             info_vars[var_name]={
                 'data_type':data_type,
                 'fill_value':fill_value,
