@@ -207,7 +207,6 @@ class SatExtractOLCI:
                         if geo_info_prev['rc'] is None:
                             update_geo_info = True
                         elif geo_info_prev['oza'] is not None and oza is not None and oza<geo_info_prev['oza']:
-                            print('llega aqui dos en el mismo')
                             update_geo_info = True
                         if update_geo_info:
                             geo_info_array[itime] = {'rc': rc, 'limits': limits, 'oza': oza}
@@ -321,6 +320,7 @@ class SatExtractOLCI:
                 few.write(
                     f'extract_{site}.nc;{insitu_indices_h[itime]};{insitu_time_h[itime].strftime(format_datetime)};{insitu_lat_h[itime]};{insitu_lon_h[itime]}')
         few.close()
+
     def launch_create_rrs_variables(self,newExtract,olci_source,window):
         newExtract.create_rrs_variable('OLCI')
         newExtract.create_rrs_unc_variable('OLCI')
@@ -629,7 +629,7 @@ class SatSourceOlci:
             valid_attrs = {}
             prev_fill_value = None
             for at in all_attrs:
-                if at=='add_offet' or at=='scale_factor':
+                if at=='add_offset' or at=='scale_factor':
                     is_float = True
                 elif at=='_FillValue':
                     prev_fill_value = var_here._FillValue
