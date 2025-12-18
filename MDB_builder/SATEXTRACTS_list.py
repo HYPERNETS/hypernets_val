@@ -397,14 +397,19 @@ class EXTRACT_LIST:
             extract_names = np.unique(extract_names_array)
             nall = len(extract_names)
 
+
+
             for extract_name in extract_names:
+
                 file_extract = os.path.join(extract_path,extract_name)
                 if os.path.exists(file_extract):
+
                     insitu_times_extract = insitu_times_array_ts[extract_names_array==extract_name]
                     insitu_indices_extract = df['insitu_index'][extract_names_array == extract_name].to_numpy()
                     insitu_lat_extract = df['insitu_lat'][extract_names_array == extract_name].to_numpy()
                     insitu_lon_extract = df['insitu_lon'][extract_names_array == extract_name].to_numpy()
                     info = self.check_extract_file(file_extract,insitu_indices_extract,insitu_times_extract,insitu_lat_extract,insitu_lon_extract,time_diff_mu,ninsitu_max)
+
                     if info is None:
                         return [None]*3
                     if len(info)==0:
@@ -417,18 +422,21 @@ class EXTRACT_LIST:
                     nvalid = len(info['insitu_indices'])
 
                     if time_diff_tv>0 and nvalid<ninsitu_max and nvalid<len(insitu_indices_day[0]):
+
                         info = self.check_insitu_variability_extract(info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day[0],time_diff_tv,ninsitu_max)
                         if info is None:
                             return [None]*3
 
-
                     time_min_diff = dt.fromtimestamp(info['time_min_diff']).astimezone(pytz.utc)
                     ref = time_min_diff.strftime('%Y%m%dT%H%M%S')
+
                     info_extracts[ref] = info
                     time_extracts.append(time_min_diff)
 
         if len(time_extracts)>0:
             time_extracts.sort()
+
+
 
         return info_extracts,time_extracts,nall
 

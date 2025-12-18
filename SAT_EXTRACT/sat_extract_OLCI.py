@@ -195,8 +195,7 @@ class SatExtractOLCI:
 
                 oza = None if rc is None else get_val_from_tie_point_grid(rc[0],rc[1],ySubsampling,xSubsampling,oza_array)
 
-
-                if ifile==0:
+                if geo_info_array[itime] is None:
                     geo_info_array[itime] = {'rc':rc,'limits':limits,'oza':oza}
                     if rc is not None:
                         sat_file_indices[itime] = 0
