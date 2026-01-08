@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument("-m", "--mode", help="Mode",
                     choices=["GENERATEMU", "GENERATEMU_S", "CONCATENATE", "REMOVEREP", "PLOT", "PLOT_CSV", "COMMONMU",
-                             "COMMONMU_NOSAT",
+                             "COMMONMU_NOSAT","CONCATENATE_SINGLE",
                              "COMMONMU_INS", "CHECK_WL", "UPDATE_SAT_WL", "UPDATE_INSITU_WL", "CHECK_SAT_TIME",
                              "CHECK_PROTOCOLS", "TEST", "ADDFLAGBAND","COMBINE_MATCH_UPS_PLOT","BASIC_METADATA","CHECK_MISSING_PACE_V2"],
                     required=True)
@@ -68,6 +68,7 @@ class MDB_READER():
 
         if self.mfile.df_validation is None:
             nmu_valid, df_valid = self.mfile.prepare_df_validation()
+            #nmu_valid, df_valid = self.mfile.prepare_df_validtion_new()
             foutcsv = fout.replace('.nc', '_summary.csv')
             foutcsv = foutcsv.replace('MDBr', 'CSVr')
             df_valid.to_csv(foutcsv, sep=';')
@@ -5065,6 +5066,29 @@ def main():
             reader.create_mdb_results_single(output_path)
             reader.mfile.qc_single.close_dataset()
             reader.mfile.close()
+
+    if args.input_path and args.output and mode == 'CONCATENATE_SINGLE':
+        input_path = args.input_path
+        if not os.path.exists(input_path):
+            print(f'[ERROR] {input_path} does not exist')
+        if not os.path.isdir(input_path):
+            print(f'[ERROR] {input_path} should be a directory')
+            return
+        if os.path.isdir(args.output):
+            output_folder = args.output
+            ncout_file = os.path.join(output_folder, 'MDBrc.nc')
+        else:
+            ncout_file = args.output
+        list_files = []
+        for name in os.listdir(input_path):
+            if name.endswith('.nc'):
+                list_files.append(os.path.join(input_path,name))
+
+        if len(list_files)==0:
+            print(f'[ERROR] No *nc files were found in {input_path}')
+            return
+        list_files = [f'"{x}"' for x in list_files]
+        concatenate_nc_impl(list_files, input_path, f'"{ncout_file}"')
 
     ##CONCATENATING MDB READER FILES INCLUDING FLAGS BANDS FOR SATELLITE+PLATFORM, SENSOR, AC, SITE
     if args.input_path and mode == 'CONCATENATE':

@@ -462,8 +462,9 @@ class MDBPlot:
         # for idx, file in enumerate(files_multiple):
         #     print(idx, file)
 
-        if ntot != len(files_multiple):
+        if ntot < len(files_multiple):
             return
+        print(f'[INFO] Start plot multiple')
         pm = PlotMultiple()
         xfigsize = options_figure['xfigsize']
         yfigsize = options_figure['yfigsize']
@@ -473,7 +474,10 @@ class MDBPlot:
         index = 0
         for irow in range(nrow):
             for icol in range(ncol):
-                pm.plot_image(files_multiple[index], irow, icol)
+                if index>=len(files_multiple):
+                    pm.plot_blank(irow,icol)
+                else:
+                    pm.plot_image(files_multiple[index], irow, icol)
                 index = index + 1
 
         #pm.plot_color_bar()
@@ -2335,7 +2339,11 @@ class MDBPlot:
 
         # stats
         if options['include_stats'] and options['stat_list'] is not None:
-            str0 = self.get_str_stats(options, wl)
+            if 'WL' in options:
+                wl_stats = options['WL'] if wl==-1 else wl
+            else:
+                wl_stats = -1
+            str0 = self.get_str_stats(options, wl_stats)
             xpos = options['stats_xpos']
             ypos = options['stats_ypos']
             plot.plot_text_options['fontsize'] = options['fontsizestats']

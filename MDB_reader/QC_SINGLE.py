@@ -18,6 +18,7 @@ class QC_SINGLE:
             except:
                 self.dataset = None
         self.satellite_variable = satellite_variable
+        self.satellite_variable_band = -1
         self.insitu_variable = insitu_variable
 
         self.window_size = 3
@@ -70,6 +71,11 @@ class QC_SINGLE:
             return False
         var_sat = self.dataset.variables[self.satellite_variable]
         if len(var_sat.shape) == 3:
+            self.nmu = var_sat.shape[0]
+        elif len(var_sat.shape) == 4: ##spectral variable, sateliite_variable_band must be greater than 0 and less than var_sat.shape[1]
+            if self.satellite_variable_band<0:
+                print(f'[ERROR] Using a spectral satellite variable ({self.satellite_variable}), you must include the band index in the parameter satellite_variable_band (number of bands: {var_sat.shape[1]})')
+                return False
             self.nmu = var_sat.shape[0]
         else:
             print(f'[ERROR] Satellite variable {self.satellite_variable} should have 3 dimensions')
@@ -274,7 +280,10 @@ class QC_SINGLE:
 
     def compute_invalid_mask(self, index_mu):
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
-        datahere = np.ma.squeeze(self.dataset[self.satellite_variable][index_mu, r_s:r_e, c_s:c_e])
+        if len(self.dataset[self.satellite_variable].shape)==4:
+            datahere = np.ma.squeeze(self.dataset[self.satellite_variable][index_mu,self.satellite_variable_band, r_s:r_e, c_s:c_e])
+        else:
+            datahere = np.ma.squeeze(self.dataset[self.satellite_variable][index_mu, r_s:r_e, c_s:c_e])
         mask_invalid = np.zeros(datahere.shape, dtype=np.uint64)
         mask_invalid[datahere.mask] = 1
         self.n_masked_invalid = np.sum(mask_invalid)
@@ -311,7 +320,10 @@ class QC_SINGLE:
 
     def compute_statistics(self, index_mu):
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
-        data_here = self.dataset.variables[self.satellite_variable][index_mu, r_s:r_e, c_s:c_e]
+        if len(self.dataset[self.satellite_variable].shape) == 4:
+            data_here = self.dataset.variables[self.satellite_variable][index_mu, self.satellite_variable_band,r_s:r_e, c_s:c_e]
+        else:
+            data_here = self.dataset.variables[self.satellite_variable][index_mu, r_s:r_e, c_s:c_e]
         data_valid = data_here[self.flag_mask == 0]
         stats = self.compute_statistics_impl(self.statistics['without_outliers'], data_valid)
         self.statistics['without_outliers'] = stats
@@ -449,8 +461,9 @@ class QC_SINGLE:
 
     def get_dimensions(self):
         # Dimensions
-        nrows = self.dataset[self.satellite_variable].shape[1]
-        ncols = self.dataset[self.satellite_variable].shape[2]
+
+        nrows = self.dataset[self.satellite_variable].shape[-2]
+        ncols = self.dataset[self.satellite_variable].shape[-1]
         central_r = int(np.floor(nrows / 2))
         central_c = int(np.floor(ncols / 2))
         r_s = central_r - int(np.floor(self.window_size / 2))  # starting row

@@ -22,6 +22,7 @@ class QC_OPTIONS:
             return None
         options_qcsingle = {
             'satellite_variable': {'valid': 0, 'value': None, 'type': 'str'},
+            'satellite_variable_band': {'valid':0,'value':-1,'type': 'int'},
             'insitu_variable': {'valid': 0, 'value': None, 'type': 'str'},
             'window_size': {'valid': 0, 'value': None, 'type': 'int'},
             'min_valid_pixels': {'valid': 0, 'value': None, 'type': 'int'},
@@ -90,9 +91,14 @@ class QC_OPTIONS:
         insitu_variable = options_qcsingle['insitu_variable']['value']
         from QC_SINGLE import QC_SINGLE
         qc_single = QC_SINGLE(file_path,satellite_variable,insitu_variable)
+
+        qc_single.satellite_variable_band = options_qcsingle['satellite_variable_band']['value']
+
         if qc_single.check_sat_insitu_variables():
             for option in options_qcsingle:
                 if options_qcsingle[option]['valid'] == 0:
+                    continue
+                elif option == 'satellite_variable_band':
                     continue
                 elif option == 'window_size':
                     qc_single.set_window_size(options_qcsingle[option]['value'])

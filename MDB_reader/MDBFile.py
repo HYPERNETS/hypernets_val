@@ -356,6 +356,15 @@ class MDBFile:
         if not variable_sat in self.variables:
             print(f'[ERROR] Satellite variable {variable_sat} is not available in input dataset {self.file_path}')
             return False
+
+        if len(self.variables[variable_sat].shape)==4 and self.qc_single.satellite_variable_band>=0:
+            if 'satellite_bands' in self.variables:
+                suffix_new = f'{self.variables['satellite_bands'][self.qc_single.satellite_variable_band]:.2f}'
+                if suffix_new.endswith('.00'):
+                    suffix_new = suffix_new[:-3]
+            else:
+                suffix_new = f'{self.qc_single.satellite_variable_band}'
+
         variable_sat_mu, create_sat, skip_sat = self.get_name_mu_single_variable(new_MDB, variable_sat, overwrite,
                                                                                  add_new, suffix_new)
 
@@ -364,6 +373,7 @@ class MDBFile:
         if not variable_ins in self.variables:
             print(f'[ERROR] In situ variable {variable_ins} is not available in input dataset {self.file_path}')
             return False
+        suffix_new = None
         variable_ins_mu, create_ins, skip_ins = self.get_name_mu_single_variable(new_MDB, variable_ins, overwrite,
                                                                                  add_new, suffix_new)
 
@@ -411,9 +421,11 @@ class MDBFile:
                                                    complevel=6,
                                                    fill_value=fill_value)
 
-        if not len(self.variables[variable_sat].shape) == 3:
-            print(
-                f'[ERROR] Single satellite variable {variable_sat} should hava three dimensions: satellite_id, row, column')
+        if not len(self.variables[variable_sat].shape) >= 3:
+            if len(self.variables[variable_sat].shape) == 4 and self.qc_single.satellite_variable_band<0:
+                print(f'[ERROR] index_band should be indicated with spectral bands')
+                return False
+            print(f'[ERROR] Single satellite variable {variable_sat} should have three or four dimensions: satellite_id, row, column; satellite_id, satellite_bands,row, column')
             return False
         if not len(self.variables[variable_ins].shape) == 2:
             print(
@@ -1096,6 +1108,80 @@ class MDBFile:
         array_out = (array - min_value) / (max_value - min_value)
 
         return array_out
+
+    def prepare_df_validtion_new(self):
+        print('[INFO] Preparing spectral validation...')
+        nbands = len(self.wlref)
+        print(f'[INFO] Number of bands: {nbands} Min.: {self.wlref[0]} Max.: {self.wlref[-1]}')
+        ntot = nbands * self.n_mu_total
+        self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
+        self.delta_t = self.qc_insitu.time_max
+        index_tot = 0
+        nmu_valid = 0
+        nmu_valid_complete = 0
+        status_error = [0] * 8
+
+        print(f'[INFO] Checking in situ validity...')
+        self.qc_insitu.check_validity()
+        valid_mu_ins = np.where(np.sum(self.qc_insitu.insitu_valid_rrs, axis=1)>0,1,0)
+        print(f'[INFO] Number of valid in situ spectra: {np.sum(self.qc_insitu.insitu_valid_rrs)} in {np.sum(valid_mu_ins)}/{self.n_mu_total} match-ups')
+        print(f'[INFO] Checking satellite validity....')
+        self.qc_sat.check_validity()
+
+        # print('-----')
+        # min_pixel_condition = self.qc_sat.qc_sat_results['min_pixel_condition']
+        # macropixel_condition = self.qc_sat.qc_sat_results['macropixel_condition']
+        # all_conditions = self.qc_sat.qc_sat_results['all_conditions']
+        # reported_rrs = self.qc_sat.qc_sat_results['reported_rrs']
+        # print(min_pixel_condition.shape)
+        # print(macropixel_condition.shape)
+        # print(all_conditions.shape,np.sum(all_conditions))
+        # print(reported_rrs.shape)
+        # print('-------------------------------')
+        # print(self.qc_insitu.insitu_valid_rrs.shape,valid_mu_ins.shape)
+
+        ##time difference condition
+        satellite_time = self.variables['satellite_time'][:]
+        insitu_time = self.variables['insitu_time'][:]
+        satellite_time = np.repeat(satellite_time,self.n_insitu_day).reshape(insitu_time.shape)
+        time_diff_computed = np.abs(satellite_time-insitu_time)
+        time_diff_var = self.variables['time_difference'][:]
+        check_time_diff = (time_diff_computed==time_diff_var).all()
+        if not check_time_diff:
+            print(f'[WARNING] Unexpected unconsistencies between the computed time difference and the time difference variable. Using the computed time difference')
+        time_diff_valid = np.where(time_diff_computed<=self.delta_t,1,0)
+        time_diff_valid_mu = np.where(np.sum(time_diff_valid>0,axis=1),1,0)
+        print(f'[INFO] Number of in situ spectra with a time difference lower than {self.delta_t} seconds: {np.sum(time_diff_valid)}/{np.ma.count(time_diff_computed)} in {np.sum(time_diff_valid_mu)}/{self.n_mu_total} match-ups')
+        time_diff_valid[self.qc_insitu.insitu_valid_rrs==0]=0
+        time_diff_valid_mu[valid_mu_ins==0]=0
+        print(f'[INFO] Number of valid in situ spectra with a time difference lower than {self.delta_t} seconds: {np.sum(time_diff_valid)}/{np.ma.sum(self.qc_insitu.insitu_valid_rrs)} in {np.sum(time_diff_valid_mu)}/{self.n_mu_total} match-ups')
+
+
+        valid_mu_sat = self.qc_sat.qc_sat_results['all_conditions'].astype(np.byte)
+        valid_mu_sat_ins = valid_mu_sat*valid_mu_ins
+        print(f'[INFO] Number of valid match-ups (valid satellite and in situ data): {np.sum(valid_mu_sat_ins)}')
+        valid_mu_final = time_diff_valid_mu*valid_mu_sat_ins
+        print(f'[INFO] Final number of valid match-ups (valid satellite and in situ data + time difference condition): {np.sum(valid_mu_final)}')
+
+        time_diff_computed[self.qc_insitu.insitu_valid_rrs == 0] = self.delta_t * 2
+        min_insitu_id = np.ma.argmin(time_diff_computed, axis=1)
+        min_insitu_id_valid = min_insitu_id[valid_mu_final==1]
+
+
+        insitu_rrs_valid = np.moveaxis(self.variables['insitu_Rrs'][:],1,2)
+
+        insitu_rrs_valid = insitu_rrs_valid[valid_mu_final==1,min_insitu_id_valid,:]
+
+
+
+        # self.qc_sat_results = {
+        #     'min_pixel_condition': min_pixel_condition,
+        #     'macropixel_condition': macropixel_condition,
+        #     'all_conditions': all_conditions,
+        #     'reported_rrs': reported_rrs,
+        #     'reported_rrs_unc': reported_rrs_unc
+        # }
+
 
     def prepare_df_validation(self):
         print('[INFO] Preparing DF for validation...')

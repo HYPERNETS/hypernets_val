@@ -216,11 +216,14 @@ class SatExtractOLCI:
         if np.max(sat_file_indices_used)==-1:
             print(f'[ERROR] No source granules were found for the in situ data avaialable on {insitu_time[0].strftime("%Y-%m-%d")}')
             return
+        print('sat files indices used: ',sat_file_indices_used)
         geo_info_array = np.array(geo_info_array)
         site_list = []
         format_datetime = '%Y-%m-%dT%H:%M:%S'
 
         for idx in range(len(sat_file_indices_used)):
+            if sat_file_indices_used[idx]==-1:
+                continue
 
             ifile = sat_file_indices_used[idx]
 

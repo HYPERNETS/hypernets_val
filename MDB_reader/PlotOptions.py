@@ -331,7 +331,12 @@ class PlotOptions:
             stat_list = options_out['stat_list']
             for stat in stat_list:
                 if stat.upper() == 'WL':
-                    continue
+                    wlstr = os.path.basename(options_out['file_out'])[:-4].split('_')[-1]
+                    try:
+                        options_out['WL'] = int(wlstr)
+                    except:
+                        continue
+
                 elif stat.upper() == 'EQUATION':
                     type_regression = options_out['type_regression'].upper()
 

@@ -1691,6 +1691,7 @@ def get_label_scatterplot(type_label, type_rrs, use_rhow, scale_factor):
         quantity = 'Kd'
         units = units_default['kd']
 
+
     scale_factor_str = get_scale_factor_str(scale_factor)
 
     if len(units) > 0:
