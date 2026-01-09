@@ -448,7 +448,7 @@ class EXTRACT_LIST:
         print('line 448: pos_min_time_diff_prev (expected 4):',pos_min_time_diff_prev)
         index_min_time_diff = info['insitu_indices'][pos_min_time_diff_prev]
         print('line 450: index_min_time_diff: excpected 981',index_min_time_diff)
-        print('in situ indices day: ',index_indices_day)
+        print('in situ indices day: ',insitu_indices_day)
         pos_ref = int(np.where(insitu_indices_day==index_min_time_diff)[0][0])
         print('pos ref in situ indices day: ', pos_ref)
         pos_min = int(pos_ref - np.floor(ninsitu_max / 2)) if (pos_ref - np.floor(ninsitu_max / 2)) > 0 else 0
