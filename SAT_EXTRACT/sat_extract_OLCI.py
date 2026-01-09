@@ -186,7 +186,6 @@ class SatExtractOLCI:
                     continue
                 if lat_array is None:
                     lat_array,lon_array,oza_array = olci_source.get_lat_lon_oza_arrays()
-                    print('Line 189', ifile, np.min(lat_array), np.max(lat_array), np.min(lon_array), np.max(lon_array))
                     ySubsampling,xSubsampling = olci_source.get_tie_geometries_subsampling()
 
                 if lat_array is None or lon_array is None or oza_array is None:
@@ -200,7 +199,7 @@ class SatExtractOLCI:
                 if geo_info_array[itime] is None:
                     geo_info_array[itime] = {'rc':rc,'limits':limits,'oza':oza}
                     if rc is not None:
-                        sat_file_indices[itime] = 0
+                        sat_file_indices[itime] = ifile
                 else:
                     if rc is not None:
                         geo_info_prev = geo_info_array[itime]
@@ -214,9 +213,8 @@ class SatExtractOLCI:
                             geo_info_array[itime] = {'rc': rc, 'limits': limits, 'oza': oza}
                             sat_file_indices[itime]= ifile
 
-        print('--> sat_file_indices',sat_file_indices)
+
         sat_file_indices_used = np.unique(sat_file_indices)
-        print('--> sat_file_indices_used',sat_file_indices_used)
         if np.max(sat_file_indices_used)==-1:
             print(f'[ERROR] No source granules were found for the in situ data avaialable on {insitu_time[0].strftime("%Y-%m-%d")}')
             return
@@ -230,7 +228,6 @@ class SatExtractOLCI:
                 continue
 
             ifile = sat_file_indices_used[idx]
-            print('233-> working with ifile',ifile)
 
             olci_source = SatSourceOlci(list_files[ifile],self.verbose)
             olci_source.unzip_path = unzip_path
@@ -244,7 +241,6 @@ class SatExtractOLCI:
             insitu_indices_h = insitu_indices[0][indices_here]
             geo_info_array_here = geo_info_array[indices_here]
             lat_array, lon_array = olci_source.get_lat_lon_arrays()
-            print('Line 247', ifile, np.min(lat_array), np.max(lat_array), np.min(lon_array), np.max(lon_array))
             for itime in range(ntimes_here):
                 global_at = extract_info['global_at'].copy()
                 datehere_str = extract_info['satellite_time'][0].strftime('%Y%m%d')
