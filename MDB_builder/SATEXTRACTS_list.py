@@ -475,13 +475,13 @@ class EXTRACT_LIST:
         lon_array = np.squeeze(nc_sat.variables['satellite_longitude'][:])
         rc_center = int(np.floor(lat_array.shape[0]/2))
         nc_sat.close()
-
+        print(np.min(lat_array),np.max(lat_array),np.min(lon_array),np.max(lon_array))
         for idx in range(nvalid_new):
             if not valid_new[idx]:
                 insitu_spatial_index_new[idx] = -1
                 continue
             r, c = cfs.find_row_column_from_lat_lon(lat_array.astype(np.float64), lon_array.astype(np.float64), insitu_lat_new[idx], insitu_lon_new[idx])
-            print(idx,r,c)
+            print(idx,insitu_lat_new[idx],insitu_lon_new[idx],r,c)
             if np.isnan(r) and np.isnan(c):
                 valid_new[idx] = False
                 insitu_spatial_index_new[idx]=-1
