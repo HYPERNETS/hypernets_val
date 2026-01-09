@@ -443,6 +443,8 @@ class EXTRACT_LIST:
 
     def check_insitu_variability_extract(self,info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day,time_diff_tv,ninsitu_max):
 
+        print(info)
+
         time_diff_prev = info['time_diff'][:]
         pos_min_time_diff_prev = np.argmin(time_diff_prev)
         index_min_time_diff = info['insitu_indices'][pos_min_time_diff_prev]
