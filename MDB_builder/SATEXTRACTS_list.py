@@ -496,6 +496,10 @@ class EXTRACT_LIST:
         tf = info['time_diff'].copy()
         isi = info['insitu_spatial_index']
 
+        print('temporal checking printing')
+        print(tf)
+        print(isi)
+        print('temporal checking printing......')
         tf[isi>0] = np.finfo(np.float32).max
         pos_min_tf = np.argmin(tf)
 
