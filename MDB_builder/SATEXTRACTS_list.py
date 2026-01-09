@@ -471,6 +471,8 @@ class EXTRACT_LIST:
         satellite_ts = info['satellite_time']
 
         time_diff_new = np.abs(satellite_ts-insitu_time_new)
+        print(time_diff_new)
+        print(time_diff_tv)
         valid_new = time_diff_new<time_diff_tv
 
         insitu_spatial_index_new = np.zeros(nvalid_new)
