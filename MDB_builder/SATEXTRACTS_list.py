@@ -481,7 +481,7 @@ class EXTRACT_LIST:
                 insitu_spatial_index_new[idx] = -1
                 continue
             r, c = cfs.find_row_column_from_lat_lon(lat_array.astype(np.float64), lon_array.astype(np.float64), insitu_lat_new[idx], insitu_lon_new[idx])
-
+            print(idx,r,c)
             if np.isnan(r) and np.isnan(c):
                 valid_new[idx] = False
                 insitu_spatial_index_new[idx]=-1
