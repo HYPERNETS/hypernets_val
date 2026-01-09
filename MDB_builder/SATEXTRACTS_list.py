@@ -445,35 +445,29 @@ class EXTRACT_LIST:
 
         time_diff_prev = info['time_diff'][:]
         pos_min_time_diff_prev = np.argmin(time_diff_prev)
-        print('line 448: pos_min_time_diff_prev (expected 4):',pos_min_time_diff_prev)
         index_min_time_diff = info['insitu_indices'][pos_min_time_diff_prev]
-        print('line 450: index_min_time_diff: excpected 981',index_min_time_diff)
-        print('in situ indices day: ',insitu_indices_day)
         pos_ref = int(np.where(insitu_indices_day==index_min_time_diff)[0][0])
-        print('pos ref in situ indices day: ', pos_ref)
         pos_min = int(pos_ref - np.floor(ninsitu_max / 2)) if (pos_ref - np.floor(ninsitu_max / 2)) > 0 else 0
         pos_max = pos_min + ninsitu_max
-        print('pos_min and pos_max',pos_min,pos_max)
         if pos_max>=len(insitu_indices_day):
             pos_max = len(insitu_indices_day)
             pos_min = pos_max - ninsitu_max
             if pos_min<0:
                 pos_min=0
-        print('pos_min and pos_max t', pos_min, pos_max)
+
 
         nvalid_new = pos_max-pos_min
-        print('nvalid_new',nvalid_new)
         insitu_indices_new = insitu_indices_day[pos_min:pos_max]
-        print('insitu_indices_new', insitu_indices_new)
         insitu_time_new = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in insitu_time_day[pos_min:pos_max]]).astype(np.float64)
         insitu_lat_new = insitu_lat_day[pos_min:pos_max]
         insitu_lon_new = insitu_lon_day[pos_min:pos_max]
         satellite_ts = info['satellite_time']
 
         time_diff_new = np.abs(satellite_ts-insitu_time_new)
-        print(time_diff_new)
-        print(time_diff_tv)
         valid_new = time_diff_new<time_diff_tv
+
+        print('-------')
+        print(valid_new,np.sum(valid_new),nvalid_new)
 
         insitu_spatial_index_new = np.zeros(nvalid_new)
         nc_sat  = Dataset(info['file'])
@@ -505,10 +499,7 @@ class EXTRACT_LIST:
         tf = info['time_diff'].copy()
         isi = info['insitu_spatial_index']
 
-        print('temporal checking printing')
-        print(tf)
-        print(isi)
-        print('temporal checking printing......')
+
         tf[isi>0] = np.finfo(np.float32).max
         pos_min_tf = np.argmin(tf)
 
