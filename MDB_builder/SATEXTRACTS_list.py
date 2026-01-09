@@ -443,23 +443,28 @@ class EXTRACT_LIST:
 
     def check_insitu_variability_extract(self,info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day,time_diff_tv,ninsitu_max):
 
-        print(info)
-
         time_diff_prev = info['time_diff'][:]
         pos_min_time_diff_prev = np.argmin(time_diff_prev)
+        print('line 448: pos_min_time_diff_prev (expected 4):',pos_min_time_diff_prev)
         index_min_time_diff = info['insitu_indices'][pos_min_time_diff_prev]
+        print('line 450: index_min_time_diff: excpected 981',index_min_time_diff)
+        print('in situ indices day: ',index_indices_day)
         pos_ref = int(np.where(insitu_indices_day==index_min_time_diff)[0][0])
+        print('pos ref in situ indices day: ', pos_ref)
         pos_min = int(pos_ref - np.floor(ninsitu_max / 2)) if (pos_ref - np.floor(ninsitu_max / 2)) > 0 else 0
         pos_max = pos_min + ninsitu_max
+        print('pos_min and pos_max',pos_min,pos_max)
         if pos_max>=len(insitu_indices_day):
             pos_max = len(insitu_indices_day)
             pos_min = pos_max - ninsitu_max
             if pos_min<0:
                 pos_min=0
+        print('pos_min and pos_max t', pos_min, pos_max)
 
         nvalid_new = pos_max-pos_min
+        print('nvalid_new',nvalid_new)
         insitu_indices_new = insitu_indices_day[pos_min:pos_max]
-
+        print('insitu_indices_new', insitu_indices_new)
         insitu_time_new = np.array([x.replace(tzinfo=pytz.utc).timestamp() for x in insitu_time_day[pos_min:pos_max]]).astype(np.float64)
         insitu_lat_new = insitu_lat_day[pos_min:pos_max]
         insitu_lon_new = insitu_lon_day[pos_min:pos_max]
