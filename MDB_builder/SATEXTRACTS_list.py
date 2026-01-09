@@ -488,6 +488,7 @@ class EXTRACT_LIST:
             else:
                 insitu_spatial_index_new[idx] = max(abs(r-rc_center),abs(c-rc_center))
 
+        print(insitu_spatial_index_new)
 
         info['insitu_time'] = insitu_time_new[valid_new]
         info['insitu_lat'] = insitu_lat_new[valid_new]
