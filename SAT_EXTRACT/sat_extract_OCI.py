@@ -66,6 +66,10 @@ class SatSourceOCI():
         return file_geo if os.path.exists(file_geo) else None
 
     def set_file_geo_from_options(self,work_date,name_format,name_format_date_file):
+        if name_format is None or name_format_date_file is None:
+            self.file_geo = None
+            return
+
         if work_date is None:
             name_file = os.path.basename(self.path_source)
             work_date_str = name_file.split('.')[1]
@@ -425,8 +429,10 @@ class SatExtractOCI:
             if self.verbose:
                 print(f'[INFO] Checking file: {list_files[ifile]}. In situ points to be checked: {ntimes}')
             if oci_source.file_geo is None:
-                print(extract_options)
                 oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
+            if oci_source.file_geo is None:
+                print(f'[WARNING] Geo info could not retrieved. Skipping file...')
+                continue
             if self.verbose:
                 print(f'[INFO] OCI source was loaded')
                 print(f'[INFO] Geo info file: {oci_source.file_geo}')
