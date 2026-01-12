@@ -421,9 +421,9 @@ class SatExtractOCI:
         geo_info_array = [None]*ntimes
 
         for ifile in range(len(list_files)):
-            if self.verbose:
-                print(f'[INFO] Checking file...')
             oci_source = SatSourceOCI(list_files[ifile])
+            if self.verbose:
+                print(f'[INFO] Checking file: {list_files[ifile]}. In situ points to be checked: {ntimes}')
             if oci_source.file_geo is None:
                 oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
             if self.verbose:
