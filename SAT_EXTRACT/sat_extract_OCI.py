@@ -425,6 +425,7 @@ class SatExtractOCI:
             if self.verbose:
                 print(f'[INFO] Checking file: {list_files[ifile]}. In situ points to be checked: {ntimes}')
             if oci_source.file_geo is None:
+                print(extract_options)
                 oci_source.set_file_geo_from_options(None,extract_options['geo_file'],extract_options['geo_file_date_format'])
             if self.verbose:
                 print(f'[INFO] OCI source was loaded')
