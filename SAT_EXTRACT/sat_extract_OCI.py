@@ -443,7 +443,7 @@ class SatExtractOCI:
 
                 oza = None if rc is None else abs(oza_array[rc[0],rc[1]])
 
-                if ifile==0:
+                if geo_info_array[itime] is None:
                     geo_info_array[itime] = {'rc':rc,'limits':limits,'oza':oza}
                     if rc is not None:
                         sat_file_indices[itime] = ifile
@@ -461,19 +461,18 @@ class SatExtractOCI:
                             sat_file_indices[itime]= ifile
 
 
-        if len(sat_file_indices)==1:
-            sat_file_indices_used = sat_file_indices.copy()
-        else:
-            sat_file_indices_used = np.unique(sat_file_indices[sat_file_indices!=-1])
+        sat_file_indices_used = np.unique(sat_file_indices)
 
         if np.max(sat_file_indices_used)==-1:
-            print(f'[ERROR] No source granules were found for the in situ data avaialable on {insitu_time[0].strftime("%Y-%m-%d")}')
+            print(f'[ERROR] No source granules were found for the in situ data available on {insitu_time[0].strftime("%Y-%m-%d")}')
             return
         geo_info_array = np.array(geo_info_array)
         site_list = []
         format_datetime = '%Y-%m-%dT%H:%M:%S'
 
         for idx in range(len(sat_file_indices_used)):
+            if sat_file_indices_used[idx]==-1:
+                continue
             ifile = sat_file_indices_used[idx]
             oci_source = SatSourceOCI(list_files[ifile])
             if oci_source.file_geo is None:
