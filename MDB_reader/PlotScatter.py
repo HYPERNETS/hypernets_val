@@ -115,7 +115,7 @@ class PlotScatter():
         self.ax.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
 
     def plot_data(self, xdata, ydata, marker, markersize, color, edgecolor, linewidth):
-        if len(color.split(';'))==3:
+        if isinstance(color,str) and len(color.split(';'))==3:
             color = tuple([float(x.strip()) for x in color.split(';')])
         style = self.style_default
         if marker is not None:

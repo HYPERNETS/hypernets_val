@@ -15,9 +15,12 @@ code_home = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(code_home)
 import COMMON.Class_Flags_OLCI as flag
 from COMMON import common_functions as cfs
-
-from QC_INSITU import QC_INSITU
-from QC_SAT import QC_SAT
+try:
+    from MDB_reader.QC_INSITU import QC_INSITU
+    from MDB_reader.QC_SAT import QC_SAT
+except:
+    from QC_INSITU import QC_INSITU
+    from QC_SAT import QC_SAT
 
 # from skimage import exposure
 from matplotlib.colors import ListedColormap
@@ -794,6 +797,10 @@ class MDBFile:
         self.mu_curr_sat_rrs_mean = []
         self.mu_curr_sat_rrs_unc = []
 
+
+
+
+
         for iref in range(len(self.wlref_sat_indices)):
 
 
@@ -1109,6 +1116,83 @@ class MDBFile:
 
         return array_out
 
+    def check_ins_rrs_variability(self,nstd_min):
+        #nstd_min = 9
+
+        spatial_index_max = int(np.floor(self.qc_sat.window_size/2))
+        if 'insitu_spatial_index' in self.qc_insitu.check_th_other_bands:
+            del self.qc_insitu.check_th_other_bands['insitu_spatial_index']
+        self.qc_insitu.check_validity()
+        mu_valid = self.variables['mu_valid'][:]
+        wl_indices = self.qc_insitu.wl_indices[0]
+        insitu_rrs = self.variables['insitu_Rrs'][mu_valid==1,wl_indices,:]
+        valid_rrs  = self.qc_insitu.insitu_valid_rrs[mu_valid==1,:]
+        spatial_index  = self.variables['insitu_spatial_index'][mu_valid==1,:]
+        insitu_time = self.variables['insitu_time'][mu_valid==1,:]
+        insitu_id = self.variables['mu_insitu_id'][mu_valid==1]
+        nvalid = insitu_rrs.shape[0]
+        nbands = insitu_rrs.shape[1]
+        n_satellite_id = len(self.dimensions['satellite_id'])
+
+        spectral_rrs_std = np.zeros((nvalid,nbands))
+        spectral_rrs_cv = np.zeros((nvalid,nbands))
+        spectral_nvalues = np.zeros(nvalid)
+        spectral_max_time_difference = np.zeros(nvalid)
+        spectral_max_spatial_index = np.zeros(nvalid)
+
+        for idx in range(nvalid):
+            valid_rrs_here = valid_rrs[idx,:]
+            if np.sum(valid_rrs_here)>1:
+                insitu_id_here = insitu_id[idx]
+                spatial_index_here = spatial_index[idx,valid_rrs_here==1]
+                valid_spatial_index = spatial_index_here <= spatial_index_max * valid_rrs_here
+                tdiff = np.abs(insitu_time[idx,valid_rrs_here==1]-insitu_time[idx,insitu_id_here])
+                time_diff_max = 15 * 60
+                valid_time_diff = tdiff <= time_diff_max * valid_rrs_here
+                valid_all = valid_spatial_index * valid_time_diff
+                if np.sum(valid_all)<nstd_min:
+                    for itime in range(30,121,15):
+                        time_diff_max = itime*60
+                        valid_time_diff = tdiff<=time_diff_max * valid_rrs_here
+                        valid_all = valid_spatial_index * valid_time_diff
+                        if np.sum(valid_all)>=nstd_min:
+                            break
+                if np.sum(valid_all)<nstd_min:
+                    for itime in range(30, 121, 15):
+                        for isi in range(spatial_index_max+1,np.max(spatial_index_here)+1):
+                            valid_spatial_index = spatial_index_here <= isi * valid_rrs_here
+                            time_diff_max = itime * 60
+                            valid_time_diff = tdiff <= time_diff_max * valid_rrs_here
+                            valid_all = valid_spatial_index * valid_time_diff
+                            if np.sum(valid_all) >= nstd_min:
+                                break
+
+                insitu_rrs_here = insitu_rrs[idx, :, valid_all == 1]
+                spectral_rrs_std[idx,:] = np.std(insitu_rrs_here, axis=0)
+                avg = np.mean(insitu_rrs_here,axis=0)
+                spectral_rrs_cv[idx,:] = (spectral_rrs_std[idx,:] / np.abs(avg)) * 100
+                spectral_max_spatial_index[idx] = np.max(spatial_index_here[valid_all==1])
+                spectral_max_time_difference[idx] = np.max(tdiff[valid_all==1])
+                spectral_nvalues[idx] = np.sum(valid_all)
+
+
+        nmu = n_satellite_id * nbands
+        mu_ins_rrs_std = np.ma.masked_all(nmu)
+        mu_ins_rrs_cv = np.ma.masked_all(nmu)
+        mu_ins_rrs_nvalues = np.ma.masked_all(n_satellite_id)
+        mu_ins_max_time_difference = np.ma.masked_all(n_satellite_id)
+        mu_ins_max_spatial_index = np.ma.masked_all(n_satellite_id)
+
+        mu_valid_f = np.repeat(mu_valid,nbands)
+
+        mu_ins_rrs_std[np.where(mu_valid_f==1)] = spectral_rrs_std.flatten()[:]
+        mu_ins_rrs_cv[np.where(mu_valid_f == 1)] = spectral_rrs_cv.flatten()[:]
+        mu_ins_rrs_nvalues[np.where(mu_valid == 1)] = spectral_nvalues[:]
+        mu_ins_max_time_difference[np.where(mu_valid == 1)] = spectral_max_time_difference[:]
+        mu_ins_max_spatial_index[np.where(mu_valid == 1)] = spectral_max_spatial_index[:]
+
+        return mu_ins_rrs_std,mu_ins_rrs_cv,mu_ins_rrs_nvalues,mu_ins_max_time_difference,mu_ins_max_spatial_index
+
     def prepare_df_validtion_new(self):
         print('[INFO] Preparing spectral validation...')
         nbands = len(self.wlref)
@@ -1195,7 +1279,9 @@ class MDBFile:
         status_error = [0] * 8
 
         print(f'[INFO] Checking in situ validity...')
+
         self.qc_insitu.check_validity()
+
         valid_mu_ins = np.sum(self.qc_insitu.insitu_valid_rrs,axis=1)
         print(f'[INFO] Checking satellite validity....')
         self.qc_sat.check_validity()

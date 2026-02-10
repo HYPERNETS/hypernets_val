@@ -213,7 +213,46 @@ class PlotOptions:
         if type == 'scatterplot':
             options_out = self.get_options_scatterplot(section, options_out)
 
+        if type == 'spectralstatstable':
+            options_out = self.add_stat_options(section,options_out)
 
+        return options_out
+
+    def add_stat_options(self,section,options_out):
+        stat_list = options_out['stat_list']
+        if stat_list is None:
+            stat_list = defaults.valid_stats
+        for stat in stat_list:
+            if stat.upper() == 'WL':
+                wlstr = os.path.basename(options_out['file_out'])[:-4].split('_')[-1]
+                try:
+                    options_out['WL'] = int(wlstr)
+                except:
+                    continue
+            elif stat.upper() == 'EQUATION':
+                type_regression = options_out['type_regression'].upper()
+
+                val_format_slope = self.get_value(section, f'SLOPE_{type_regression}_FORMAT')
+                if val_format_slope is None:
+                    val_format_slope = defaults.valid_stats[f'SLOPE_{type_regression}']['format']
+                options_out[f'SLOPE_{type_regression}_FORMAT'] = val_format_slope.strip()
+
+                val_format_offset = self.get_value(section, f'OFFSET_{type_regression}_FORMAT')
+                if val_format_offset is None:
+                    val_format_offset = defaults.valid_stats[f'OFFSET_{type_regression}']['format']
+                options_out[f'OFFSET_{type_regression}_FORMAT'] = val_format_offset.strip()
+            else:
+                val_format = self.get_value(section, f'{stat}_FORMAT')
+                val_nameplot = self.get_value(section, f'{stat}_NAMEPLOT')
+                if val_format is None:
+                    val_format = defaults.valid_stats[stat.upper()]['format']
+                if val_nameplot is None:
+                    val_nameplot = stat.upper()
+                    if 'name_plot' in defaults.valid_stats[stat.upper()]:
+                        val_nameplot = defaults.valid_stats[stat.upper()]['name_plot']
+
+                options_out[f'{stat.upper()}_FORMAT'] = val_format.strip()
+                options_out[f'{stat.upper()}_NAMEPLOT'] = val_nameplot.strip()
 
         return options_out
 

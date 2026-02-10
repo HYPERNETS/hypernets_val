@@ -224,7 +224,7 @@ class QC_INSITU:
         for idx in range(n_check):
             for iwl, wl in enumerate(self.wl_list):
                 index, wl_index = self.get_insitu_index_instrument(wl, idx)
-                if index > 0:
+                if index >= 0:
                     self.wl_indices[idx, iwl] = index
                     for b in self.msibands:
                         if abs(wl - self.msibands[b]['wl']) < 10:
@@ -232,6 +232,7 @@ class QC_INSITU:
                     for b in self.olcibands:
                         if abs(wl - self.olcibands[b]['wl']) < 2:
                             self.olcibands[b]['apply'] = True
+
 
     def start_quality_control(self):
         self.thersholds = {}
@@ -538,6 +539,7 @@ class QC_INSITU:
             if len(ins_here)==1:
                 if self.wl_indices.shape[0]==1:
                     indices = self.wl_indices[0,:]
+                    #print('--->',indices.shape,indices[0:10])
                 else:
                     indices = self.wl_indices[ins_here[0],:]
                 rrs_values = spectra_array[indices,:]

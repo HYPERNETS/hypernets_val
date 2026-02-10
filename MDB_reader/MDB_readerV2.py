@@ -14,9 +14,13 @@ import pandas as pd
 warnings.simplefilter('ignore', UserWarning)
 warnings.simplefilter('ignore', RuntimeWarning)
 
-from MDBFile import MDBFile
-from MDB_builder.INSITU_base import INSITUBASE
 
+
+try:
+    from MDB_reader.MDBFile import MDBFile
+except:
+    from MDBFile import MDBFile
+from MDB_builder.INSITU_base import INSITUBASE
 
 
 parser = argparse.ArgumentParser(
@@ -24,7 +28,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument("-m", "--mode", help="Mode",
                     choices=["GENERATEMU", "GENERATEMU_S", "CONCATENATE", "REMOVEREP", "PLOT", "PLOT_CSV", "COMMONMU",
-                             "COMMONMU_NOSAT","CONCATENATE_SINGLE",
+                             "COMMONMU_NOSAT","CONCATENATE_SINGLE","ADD_MU_STD",
                              "COMMONMU_INS", "CHECK_WL", "UPDATE_SAT_WL", "UPDATE_INSITU_WL", "CHECK_SAT_TIME",
                              "CHECK_PROTOCOLS", "TEST", "ADDFLAGBAND","COMBINE_MATCH_UPS_PLOT","BASIC_METADATA","CHECK_MISSING_PACE_V2"],
                     required=True)
@@ -61,6 +65,11 @@ class MDB_READER():
             self.path_mdb = path_mdb
             if start_mdb:
                 self.mfile = MDBFile(path_mdb)
+
+
+
+
+
 
     def create_mdb_results_file(self, fout, reduce_mdbr):
         if not self.mfile.VALID:
@@ -340,6 +349,112 @@ class MDB_READER():
 
         fw.close()
         print(f'[INFO] Complete')
+
+    def get_mu_spatio_temporal_variability_variables(self):
+        if not self.mfile.VALID:
+            return
+        print(f'[INFO] Getting satellite variability variables...')
+        sat_rrs_std,sat_rrs_cv,sat_rrs_nvalues = self.mfile.qc_sat.check_rrs_variability()
+        print(f'[INFO] Getting in situ variability variables...')
+        mu_ins_rrs_std, mu_ins_rrs_cv, mu_ins_rrs_nvalues, mu_ins_max_time_difference, mu_ins_max_spatial_index = self.mfile.check_ins_rrs_variability(9)
+
+        mu_id_variables = {
+            'mu_sat_std':sat_rrs_std.flatten(),
+            'mu_sat_cv': sat_rrs_cv.flatten(),
+            'mu_sat_nvalues': sat_rrs_nvalues.flatten(),
+            'mu_ins_std': mu_ins_rrs_std,
+            'mu_ins_cv': mu_ins_rrs_cv,
+        }
+        satellite_id_variables = {
+            'mu_ins_nvalues':mu_ins_rrs_nvalues,
+            'mu_ins_max_time_difference': mu_ins_max_time_difference,
+            'mu_ins_max_spatial_index':mu_ins_max_spatial_index
+        }
+
+        return mu_id_variables,satellite_id_variables
+
+        # spatial_index_max = int(np.floor(self.mfile.qc_sat.window_size/2))
+        # nstd_min = 9
+        # if 'insitu_spatial_index' in self.mfile.qc_insitu.check_th_other_bands:
+        #     del self.mfile.qc_insitu.check_th_other_bands['insitu_spatial_index']
+        # self.mfile.qc_insitu.check_validity()
+        # mu_valid = self.mfile.variables['mu_valid'][:]
+        # wl_indices = self.mfile.qc_insitu.wl_indices[0]
+        # insitu_rrs = self.mfile.variables['insitu_Rrs'][mu_valid==1,wl_indices,:]
+        # valid_rrs  = self.mfile.qc_insitu.insitu_valid_rrs[mu_valid==1,:]
+        # spatial_index  = self.mfile.variables['insitu_spatial_index'][mu_valid==1,:]
+        # insitu_time = self.mfile.variables['insitu_time'][mu_valid==1,:]
+        # insitu_id = self.mfile.variables['mu_insitu_id'][mu_valid==1]
+        # nvalid = insitu_rrs.shape[0]
+        # nbands = insitu_rrs.shape[1]
+        # n_satellite_id = len(self.mfile.dimensions['satellite_id'])
+        #
+        # spectral_rrs_std = np.zeros((nvalid,nbands))
+        # spectral_rrs_cv = np.zeros((nvalid,nbands))
+        # spectral_nvalues = np.zeros(nvalid)
+        # spectral_max_time_difference = np.zeros(nvalid)
+        # spectral_max_spatial_index = np.zeros(nvalid)
+        #
+        # for idx in range(nvalid):
+        #     valid_rrs_here = valid_rrs[idx,:]
+        #     if np.sum(valid_rrs_here)>1:
+        #         insitu_id_here = insitu_id[idx]
+        #         spatial_index_here = spatial_index[idx,valid_rrs_here==1]
+        #         valid_spatial_index = spatial_index_here <= spatial_index_max * valid_rrs_here
+        #         tdiff = np.abs(insitu_time[idx,valid_rrs_here==1]-insitu_time[idx,insitu_id_here])
+        #         time_diff_max = 15 * 60
+        #         valid_time_diff = tdiff <= time_diff_max * valid_rrs_here
+        #         valid_all = valid_spatial_index * valid_time_diff
+        #         if np.sum(valid_all)<nstd_min:
+        #             for itime in range(30,121,15):
+        #                 time_diff_max = itime*60
+        #                 valid_time_diff = tdiff<=time_diff_max * valid_rrs_here
+        #                 valid_all = valid_spatial_index * valid_time_diff
+        #                 if np.sum(valid_all)>=nstd_min:
+        #                     break
+        #         if np.sum(valid_all)<nstd_min:
+        #             for itime in range(30, 121, 15):
+        #                 for isi in range(spatial_index_max+1,np.max(spatial_index_here)+1):
+        #                     valid_spatial_index = spatial_index_here <= isi * valid_rrs_here
+        #                     time_diff_max = itime * 60
+        #                     valid_time_diff = tdiff <= time_diff_max * valid_rrs_here
+        #                     valid_all = valid_spatial_index * valid_time_diff
+        #                     if np.sum(valid_all) >= nstd_min:
+        #                         break
+        #
+        #         insitu_rrs_here = insitu_rrs[idx, :, valid_all == 1]
+        #         spectral_rrs_std[idx,:] = np.std(insitu_rrs_here, axis=0)
+        #         avg = np.mean(insitu_rrs_here,axis=0)
+        #         spectral_rrs_cv[idx,:] = (spectral_rrs_std[idx,:] / np.abs(avg)) * 100
+        #         spectral_max_spatial_index[idx] = np.max(spatial_index_here[valid_all==1])
+        #         spectral_max_time_difference[idx] = np.max(tdiff[valid_all==1])
+        #         spectral_nvalues[idx] = np.sum(valid_all)
+        #
+        # nmu = n_satellite_id * nbands
+        # mu_ins_rrs_std = np.ma.masked_all(nmu)
+        # mu_ins_rrs_cv = np.ma.masked_all(nmu)
+        # mu_ins_rrs_nvalues = np.ma.masked_all(n_satellite_id)
+        # mu_ins_max_time_difference = np.ma.masked_all(n_satellite_id)
+        # mu_ins_max_spatial_index = np.ma.masked_all(n_satellite_id)
+        #
+        # mu_valid_f = np.repeat(mu_valid,nbands)
+        # mu_ins_rrs_std[mu_valid_f==1] = spectral_rrs_std.flatten()
+        # mu_ins_rrs_cv[mu_valid_f == 1] = spectral_rrs_cv.flatten()
+        # mu_ins_rrs_nvalues[mu_valid == 1] = spectral_nvalues[:]
+        # mu_ins_max_time_difference[mu_valid == 1] = spectral_max_time_difference[:]
+        # mu_ins_max_spatial_index[mu_valid == 1] = spectral_max_spatial_index[:]
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def get_mdb_output_path(input_path, output_folder):
@@ -1282,6 +1397,34 @@ def creating_copy_with_eight_bands(reader, file_out):
     reader.mfile.close()
     return True
 
+
+def getting_copy(reader, file_out):
+    from netCDF4 import Dataset
+    import numpy as np
+    ncout = Dataset(file_out, 'w', format='NETCDF4')
+
+    # copy global attributes all at once via dictionary
+    ncout.setncatts(reader.mfile.nc.__dict__)
+
+    # copy dimensions
+    for name, dimension in reader.mfile.nc.dimensions.items():
+        ncout.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
+
+    # copy variables
+    for name, variable in reader.mfile.nc.variables.items():
+        fill_value = None
+        if '_FillValue' in list(reader.mfile.nc.ncattrs()):
+            fill_value = variable._FillValue
+
+        ncout.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True,
+                             shuffle=True, complevel=6)
+        # copy variable attributes all at once via dictionary
+        ncout[name].setncatts(reader.mfile.nc[name].__dict__)
+
+
+        ncout[name][:] = reader.mfile.nc[name][:]
+
+    return ncout
 
 def creating_copy_with_valid_indices(reader, file_out, indices_sat_valid):
     from netCDF4 import Dataset
@@ -4155,6 +4298,23 @@ def make_oci_matchups():
         plt.savefig(file_out, dpi=300)
     plt.close(hfig)
 
+def add_mu_spatio_temporal_variability_variables(file_nc,mu_id_variables,satellite_id_variables):
+    from netCDF4 import Dataset
+    ncout = Dataset(file_nc,'a')
+    for var_name in mu_id_variables:
+        print(f'[INFO] Adding (mu_id,) variable {var_name}')
+        ncout.createVariable(var_name,'f4',('mu_id',),fill_value=-999.0, zlib=True,complevel=6)
+        array = mu_id_variables[var_name]
+        ncout[var_name][:] = array[:]
+
+    for var_name in satellite_id_variables:
+        print(f'[INFO] Adding (satellite_id,) variable {var_name}')
+        ncout.createVariable(var_name, 'f4', ('satellite_id',), fill_value=-999.0, zlib=True, complevel=6)
+        array = satellite_id_variables[var_name]
+        ncout[var_name][:] = array[:]
+
+    ncout.close()
+    print(f'[INFO] Completed.')
 def main():
     mode = args.mode
     print(f'Started MDBReader with mode: {mode}')
@@ -4271,8 +4431,6 @@ def main():
         fw_v3.close()
 
         return
-
-
 
     if args.mode == 'TEST':
 
@@ -4994,9 +5152,9 @@ def main():
             if 'satellite_Rrs_unc' in reader.mfile.variables:
                 reader.mfile.qc_sat.satellite_rrs_unc = reader.mfile.variables['satellite_Rrs_unc']
 
+
             reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
             reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu,wllist)
-
 
             if 'insitu_Rrs_unc' in reader.mfile.variables:
                 reader.mfile.qc_insitu.insitu_rrs_unc = reader.mfile.variables['insitu_Rrs_unc']
@@ -5021,6 +5179,7 @@ def main():
         # reader.mfile.qc_sat.set_apply_invalid_mask_wl(865.0, False)
         # reader.mfile.qc_sat.set_apply_invalid_mask_wl(885.0, False)
         # reader.mfile.qc_sat.set_apply_invalid_mask_wl(1020.0, False)
+
 
         reader.create_mdb_results_file(output_path, reduce_mdbr)
 
@@ -5067,6 +5226,52 @@ def main():
             reader.mfile.qc_single.close_dataset()
             reader.mfile.close()
 
+    if mode == 'ADD_MU_STD' and args.input_path and args.config_file:
+        if not os.path.exists(args.input_path):
+            print(f'[ERROR] {args.input_path} does not exist')
+            return
+        if not os.path.exists(args.config_file):
+            print(f'[ERROR] Flags configuration file: {args.config_file} does not exist.')
+            return
+        reader = MDB_READER(args.input_path, True)
+        import configparser
+        from QC_OPTIONS import QC_OPTIONS
+        options = configparser.ConfigParser()
+        options.read(args.config_file)
+        qco = QC_OPTIONS(options)
+        wllist = qco.get_wllist()
+
+        if wllist is None:  ##taking all the satellite bands
+            wllist = reader.mfile.satellite_bands
+
+
+        wllist_r = reader.mfile.check_bands_insitu(wllist, 2.5)
+        if wllist_r is not None:
+            print(
+                f'[WARNING] Reducing number of satellite bands from {len(wllist)} to {len(wllist_r)} to use only those to be associated with in situ data')
+            wllist = wllist_r
+
+        if len(wllist) < 20:
+            print(f'[INFO] Set wavelength list to: {wllist}')
+
+        reader.mfile.set_wl_ref(wllist)
+        reader.mfile.qc_sat.ncdataset = reader.mfile.nc
+        reader.mfile.qc_sat = qco.get_qcsat(reader.mfile.qc_sat, reader.mfile.nc)
+        reader.mfile.qc_sat.wl_ref = wllist
+
+        reader.mfile.qc_insitu.ncdataset = reader.mfile.nc
+        reader.mfile.qc_insitu = qco.get_qc_insitu(reader.mfile.qc_insitu, wllist)
+
+        if reader.mfile.qc_insitu is None:
+            return
+
+
+        mu_id_variables,satellite_id_variables = reader.get_mu_spatio_temporal_variability_variables()
+        reader.mfile.close()
+        add_mu_spatio_temporal_variability_variables(args.input_path,mu_id_variables,satellite_id_variables)
+
+        return
+    
     if args.input_path and args.output and mode == 'CONCATENATE_SINGLE':
         input_path = args.input_path
         if not os.path.exists(input_path):

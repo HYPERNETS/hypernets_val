@@ -123,12 +123,15 @@ def main():
         #     year = int(args.param)
         # run_test(year)
         #make_test()
-        site = 'TRIT'
-        path_base = f'/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/{site}'
-        file_in = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU.nc')
-        file_out  = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU_V3WL.nc')
-        wl_list = [591,593,596,598,601,603,605,608,610]
-        remove_wl_from_mu_variables(file_in,file_out,wl_list)
+        # site = 'TRIT'
+        # path_base = f'/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/ITALIAN_SITES_VALIDATION_PUBLICATION/OCI/{site}'
+        # file_in = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU.nc')
+        # file_out  = os.path.join(path_base,f'MDB_rc_PACE_OCI_1KM_HYPSTAR_{site}_COMMONMU_V3WL.nc')
+        # wl_list = [591,593,596,598,601,603,605,608,610]
+        # remove_wl_from_mu_variables(file_in,file_out,wl_list)
+
+        dir_pace = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK/MDBsV3/PACE_OCI'
+        file_pace = os.path.join(dir_pace,'MDBr__PACE_OCI_TARA_20240323_20240821.nc')
 
 
 def run_mdbr_to_mdb(input_path):

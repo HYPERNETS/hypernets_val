@@ -256,16 +256,25 @@ class MDBPlot:
             df = None
             for isel,selValue in enumerate(selectValues):
                 df_here = self.get_table_spectral_statistics_impl(options_figure,wlvalues,by,selValue)
-                df_here.insert(0,by,[flag_list[isel]]*len(df_here.index))
-                # print(df_here.columns)
-                #print('================')
+                df_here.insert(1,by,[flag_list[isel]]*len(df_here.index))
                 if df is None:
                     df = df_here.copy()
                 else:
                     df = pd.concat([df,df_here])
 
-
-
+            if options_figure['alternate_groups']:
+                stat_list = options_figure['stat_list']
+                metrics =  [defaults.valid_stats[stat.upper()]['name'] for stat in stat_list]
+                df_new = None
+                for metric in metrics:
+                    for isel,selValue in enumerate(selectValues):
+                        flag_value = flag_list[isel]
+                        row = df.loc[(df['metric']==metric) & (df[by]==flag_value)]
+                        if df_new is None:
+                            df_new = row
+                        else:
+                            df_new = pd.concat([df_new,row],ignore_index=True)
+                df = df_new.copy()
         else:
             df = self.get_table_spectral_statistics_impl(options_figure,wlvalues,None,None)
         return df
@@ -280,6 +289,7 @@ class MDBPlot:
         self.set_data_scatterplot(None, selectBy, selectValue, None, options_figure)
         self.compute_statistics(False, False, 'II')
         self.valid_stats['NMU'] = int(self.valid_stats['N'] / len(wlvalues))
+
         df = self.assign_stats_to_table(df, 'GLOBAL')
 
         selectValueHere = selectValue if selectValue is not None else -1
@@ -287,6 +297,17 @@ class MDBPlot:
             self.set_data_scatterplot(None, selectBy, selectValueHere, wl_value, options_figure)
             self.compute_statistics(False, False, 'II')
             df = self.assign_stats_to_table(df, col_names[iwl + 1])
+
+
+        if options_figure['stat_list'] is not None:
+            stat_list = options_figure['stat_list']
+            indices = [defaults.valid_stats[stat.upper()]['name'] for stat in stat_list]
+            df = df.loc[indices]
+
+        df.insert(0,'metric', df.index,True)
+        ndata = len(df.index)
+        df.index = np.arange(ndata)
+
 
         return df
 
@@ -591,12 +612,18 @@ class MDBPlot:
         markercolor = markercolors[iseries] if iseries< len(markercolors) else markercolors[0]
 
         #pspectra.plot_single_line(ydata, color, linestyle, linewidth, marker,markersize)
+
         if options_figure['scale_factor'] is not None and stat in defaults.stats_abs_units:
             scale_factor = options_figure['scale_factor']
             ydata = np.array(ydata)
             ydata = ydata * scale_factor
 
+
+
         pspectra.plot_single_linev2(ydata, color, linestyle, linewidth, marker,markersize,markercolor)
+
+        if len(wl_values) == 168 and wl_values[93] == 588 and wl_values[94] == 613:
+            pspectra.fill_vertical_area(588, 613, options_figure['y_min'], options_figure['y_max'], 'lightgrey', 0.75)
 
     def close_spectra_params(self,options_figure, pspectra, stat, wl_stats):
         wl_values = list(wl_stats.keys())
@@ -619,6 +646,15 @@ class MDBPlot:
             pspectra.set_xticks(wl_values, wl_col, 90, xticks_size)
 
         pspectra.set_grid()
+
+        if options_figure['y_min'] is not None and options_figure['y_max'] is not None:
+            pspectra.set_y_range(options_figure['y_min'],options_figure['y_max'])
+
+        if options_figure['y_ticks'] is not None:
+            y_ticks = [str(x) for x in options_figure['y_ticks']]
+            pspectra.set_yticks(options_figure['y_ticks'],y_ticks,0,12)
+
+
 
         file_out = options_figure['file_out']
         if options_figure['ylabel'] is not None:
@@ -688,6 +724,11 @@ class MDBPlot:
 
         pspectra.set_yaxis_title(stat)
         pspectra.set_xaxis_title('Wavelength (nm)')
+
+
+
+
+
         pspectra.set_tigth_layout()
         if file_out is not None:
             file_out = f'{file_out[:file_out.rindex(".")]}_{stat}{file_out[file_out.rindex("."):]}'
@@ -797,12 +838,33 @@ class MDBPlot:
 
     def plot_spectral_stats_table(self,options_figure):
         df = self.get_table_spectral_statistics(options_figure)
+        if options_figure['formatted']:
+            df = self.get_formatted_statistics(df,options_figure)
+        if options_figure['invert']:
+            df = df.transpose()
+
+
         if options_figure['file_out'] is not None:
             file_out = options_figure['file_out']
             ext = file_out[file_out.rfind('.'):]
             file_out = file_out.replace(ext,'.csv')
-            df.to_csv(file_out,sep=';')
+            df.to_csv(file_out,sep=';',index=None)
 
+    def get_formatted_statistics(self,df,options_figure):
+        df_formatted = df.copy()
+        by = options_figure['selectBy']
+        cols = []
+        for x in df.columns:
+            if x!='metric' and x!=by:
+                cols.append(x)
+        print('--->',cols)
+        for idx in df.index:
+            vals = df.loc[idx,cols]
+            metric = defaults.get_internal_stat_name(df.loc[idx,'metric'])
+            format_complete = options_figure[f'{metric.upper()}_FORMAT']
+            res = {c:self.get_str_stat_table(vals[c],format_complete,options_figure['units']) for c in cols}
+            df_formatted.loc[idx,cols] = res
+        return df_formatted
 
     def plot_matchups_stats_table(self,options_figure):
         df = self.get_table_match_up_statistics(options_figure)
@@ -2331,6 +2393,9 @@ class MDBPlot:
 
         # legend
         if options['legend'] and len(str_legend) > 0 and index == -1:
+            # plot.legend_options['loc'] = 'lower center'
+            # plot.legend_options['bbox_to_anchor'] = (0.5,-0.40)
+            # plot.legend_options['ncols'] = 4
             plot.set_legend(str_legend)
 
         # identity liine
@@ -2342,10 +2407,15 @@ class MDBPlot:
             if 'WL' in options:
                 wl_stats = options['WL'] if wl==-1 else wl
             else:
-                wl_stats = -1
+                wl_stats = wl
+
+
             str0 = self.get_str_stats(options, wl_stats)
             xpos = options['stats_xpos']
             ypos = options['stats_ypos']
+            if index==11:
+                xpos=0.55
+                ypos=0.10
             plot.plot_text_options['fontsize'] = options['fontsizestats']
             plot.plot_text(xpos, ypos, str0)
 
@@ -2597,6 +2667,7 @@ class MDBPlot:
         wlvalues = options_figure['wlvalues']
         if wlvalues is None:
             wlvalues = list(np.unique(np.array(self.mrfile.nc.variables['mu_wavelength'])))
+
         self.mrfile.var_mu_valid = self.mu_valid_variable
         from PlotSpectra import PlotSpectra
         pspectra = PlotSpectra()
@@ -2634,24 +2705,8 @@ class MDBPlot:
         wl_col = [self.get_wl_str_from_wl(x) for x in wl_list]
 
         pspectra.xdata = xdata_plot
-        # print('----------------------')
-        # if flag_value==1:
-        #     file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/GAIA_BLUE/MDBsV3/COMMON_VALID/spectra_stats_v3_0.csv'
-        # else:
-        #     file_csv = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/GAIA_BLUE/MDBsV3/COMMON_VALID/spectra_stats_v3_1.csv'
-        #
-        # dftal = pd.DataFrame(index=np.arange(172),columns=['wl_array','sat_median','sat_p25','sat_p75','ins_median','ins_p25','ins_p75'])
-        # dftal['wl_array'] = xdata_plot[:]
-        #
-        # dftal['ins_median']=insitu_stats['median']
-        # dftal['ins_p25']=insitu_stats['p25']
-        # dftal['ins_p75']=insitu_stats['p75']
-        # dftal['sat_median'] = sat_stats['median']
-        # dftal['sat_p25'] = sat_stats['p25']
-        # dftal['sat_p75'] = sat_stats['p75']
-        # dftal = dftal.transpose()
-        # dftal.to_csv(file_csv,sep=';')
-        # print('-----------------------')
+        if len(wlvalues)==168 and wlvalues[93]==588 and wlvalues[94]==613:
+            pspectra.fill_vertical_area(588,613,-1,9,'lightgrey',0.75)
 
         color = 'red'
         #color  = 'gray'
@@ -2702,6 +2757,9 @@ class MDBPlot:
         pspectra.set_yticks(None, None, None, 12)
 
         pspectra.set_y_range(ymin, ymax)
+
+
+
 
         pspectra.set_xaxis_title(options_figure['xlabel'])
         ylabel = options_figure['ylabel'] if options_figure['ylabel'] is not None else defaults.ylabel_rrs_scaled
@@ -3571,6 +3629,66 @@ class MDBPlot:
             return wl_sat_value_str[:-1]
         else:
             return wl_sat_value_str
+
+    def get_str_stat_table(self, val, format_complete, units):
+        val_str = None
+        format = format_complete.split('+')[0]
+        type_scale = 0
+        scale_factor_str = ''
+        if len(format_complete.split('+'))>=2:
+            scale_info = format_complete.split('+')[1].split(':')
+            if len(scale_info)==2 and scale_info[0].strip().lower()=='vis':
+                type_scale = 1
+            elif len(scale_info) == 2 and scale_info[0].strip().lower() == 'hid':
+                type_scale = 2
+            if type_scale>0:
+                try:
+                    scale_factor_int = int(scale_info[1].strip())
+                    scale_factor_str = f'10$^{scale_factor_int}$'
+                    scale_factor_int = scale_factor_int * (-1)
+                    scale_factor = float(f'1e{scale_factor_int}')
+                    val = val * scale_factor
+                except:
+                    type_scale = 0
+
+        if format == 'f0' or format == 'i' or format == 'e0':
+            val_str = f'{val:.0f}'
+        elif format == 'f1':
+            val_str = f'{val:.1f}'
+        elif format == 'f2':
+            val_str = f'{val:.2f}'
+        elif format == 'f3':
+            val_str = f'{val:.3f}'
+        elif format == 'f4':
+            val_str = f'{val:.4f}'
+        elif format == 'f5':
+            val_str = f'{val:.5f}'
+        elif format == 'f6':
+            val_str = f'{val:.6f}'
+        elif format == 'e1':
+            val_str = f'{val:.1e}'
+        elif format == 'e2':
+            val_str = f'{val:.2e}'
+        elif format == 'e3':
+            val_str = f'{val:.3e}'
+        elif format == 'e4':
+            val_str = f'{val:.4e}'
+        elif format == 'e5':
+            val_str = f'{val:.5e}'
+        elif format == 'e6':
+            val_str = f'{val:.6e}'
+
+        if type_scale==1:
+            val_str = f'{val_str} {scale_factor_str}'
+
+        if len(format_complete.split('+')) >= 2:
+            if format_complete.split('+')[-1].lower() == 'units' and len(units)>0:
+                val_str = f'{val_str} {units}'
+            elif format_complete.split('+')[-1].lower() == 'percent':
+                val_str = f'{val_str}%'
+
+
+        return val_str
 
     def get_str_stat(self, val, format_complete, units):
         format = format_complete.split('+')[0]

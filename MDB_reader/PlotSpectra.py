@@ -242,6 +242,22 @@ class PlotSpectra():
         h = plt.bar(self.xdata, ydata, width, color=color, linewidth=linewidth, edgecolor='k',bottom=bottom)
         return h
 
+    #if ygroup is not none, it should be the same size than iday with values idx from 0 to n to plot the bar with color[idx]
+    #if ygroup is none, colors should be a single color
+    def plot_bar_series_bottom_advanced(self,ydata, ygroup,colors,bottom,width=1,offset=0,linewidth=0,edgecolor='k'):
+        if ygroup is None:
+            h = plt.bar(self.xdata+offset, ydata, width, color=colors, linewidth=linewidth, edgecolor=edgecolor, bottom=bottom)
+            return h
+        else:
+            handles = []
+            for icolor in range(len(colors)):
+                xdata_here = self.xdata[ygroup == icolor]
+                ydata_here = ydata[ygroup == icolor]
+                if len(xdata_here) > 0:
+                    h = plt.bar(xdata_here + offset, ydata_here, width, color=colors[icolor], linewidth=linewidth,edgecolor=edgecolor,bottom=bottom)
+                    handles.append(h[0])
+            return handles
+
     def set_legend(self, str_legend):
         #print(self.legend_options)
         plt.legend(str_legend, loc=self.legend_options['loc'], bbox_to_anchor=self.legend_options['bbox_to_anchor'],
@@ -462,6 +478,14 @@ class PlotSpectra():
     def plot_iqr_basic(self, y1, y2, color):
 
         plt.fill_between(self.xdata, y1, y2, facecolor=color, alpha=0.5)
+
+    def fill_vertical_area(self,xmin,xmax,ymin,ymax,color,alpha):
+        if ymin is None and ymax is None:
+            ymin,ymax = plt.gca().get_ylim()
+        #print(type(self.xdata),ymin,ymax)
+        print(ymin,ymax)
+        xdata_here = [xmin,xmax]
+        plt.fill_between(xdata_here,ymin,ymax,facecolor=color,alpha=alpha)
 
     def get_ymin_ymax_from_stats(self, stats, imin, imax):
         y1 = stats['avg'][imin:imax] - (2 * stats['std'][imin:imax])

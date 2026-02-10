@@ -234,6 +234,8 @@ type_list = ['scatterplot', 'statswlplot', 'spectraplot', 'multipleplot', 'flagp
              'sequence', 'angleplot', 'mapplot', 'imageplot', 'singlestatstable','multipleboundingbox','spectraparam',
              'spectralstatstable','matchupsstatstable','multiplestatsplot']
 
+
+
 valid_stats = {
     'N': {
         'name': 'N',
@@ -1407,6 +1409,18 @@ options_spectral_stats_table = {
     'wl_max': {
         'default': None,
         'type': 'float'
+    },
+    'stat_list':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'alternate_groups':{
+        'default': False,
+        'type': 'boolean'
+    },
+    'units': {
+        'default': units_default['rrs'],
+        'type': 'str'
     }
 }
 options_matchups_stats_table = {
@@ -1736,3 +1750,9 @@ def get_color_list(n):
         return colors_default[0:n]
     else:
         return colors_default[0]
+
+def get_internal_stat_name(metric):
+    for stat in valid_stats:
+        if valid_stats[stat]['name']==metric:
+            return stat
+    return stat
