@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(description="Algorithms implementations from MD
 parser.add_argument("-v", "--verbose", help="Verbose mode.", action="store_true")
 parser.add_argument("-m", "--mode", help="Mode", choices=["CONFIGFILE", "CYANOFLAG","BALMLP202411"])
 parser.add_argument('-c', "--config_file", help="Config File.")
-parser.add_argument('-i', "--input_path", help="Input MDB path", required=True)
+parser.add_argument('-i', "--input_path", help="Input MDB path")
 parser.add_argument('-o', "--output", help="Path to output")
 parser.add_argument('-s', "--section",help="Section to be processed for CONFIGFILE mode")
 args = parser.parse_args()
@@ -109,9 +109,23 @@ class MDBProcessing:
             self.run_subset(options,output)
         elif type_algo=='brdf':
             self.run_brdf(options,output)
+        elif type_algo=='bal_chl':
+            self.run_bal_chl(options,output)
         else:
             print(f'[ERROR] {type_algo} processing is not implemented yet. Please add the corresponding function in the run() method in the MDBProcessing.py class (file MDBAlgorithm.py)')
 
+    def run_bal_chl(self,options,output_path):
+        try:
+            from  baltic_202411 import BALTIC_202411_PROCESSOR
+        except:
+            print(f'[ERROR] baltic_202411 code is not available')
+        if output_path is None:
+            input_dir = os.path.dirname(args.input_path)
+            name = os.path.basename(args.input_path)[:-3]+'_BAL202411.nc'
+            output_path = os.path.join(input_dir,name)
+            print(f'[INFO] Output path set to: {output_path}')
+        bprocessor = BALTIC_202411_PROCESSOR(None, False)
+        bprocessor.run_from_mdb_file(args.input_path,output_path)
     def run_brdf(self,options,output):
         brdf_model = options['brdf_model']
         wl_var = options['wl_var']
@@ -489,6 +503,8 @@ def main():
         return
 
 def run_from_config_file():
+    print(f'[INFO] Working from configuration file: {args.config_file}')
+    print(f'[INFO] Section: {args.section}')
     algo_options = AlgorithOptions(args.config_file,args.section,args.verbose)
     if not algo_options.is_valid:
         print(f'[ERROR] Problem retrieving algorithm options for {args.section}. Please review algorithm_options.ini')
