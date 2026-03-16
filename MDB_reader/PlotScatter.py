@@ -69,6 +69,8 @@ class PlotScatter():
         self.fig, self.ax = plt.subplots(figsize=(8,8))
 
     def start_plot_polar(self):
+        if self.fig is not None:
+            plt.close(self.fig)
         self.fig, self.ax = plt.subplots(figsize=(6, 6), subplot_kw={'projection': 'polar'})
 
     def start_multiple_plot(self,nrow,ncol):
@@ -370,6 +372,11 @@ class PlotScatter():
         if convert_to_rad:
             pticks = np.deg2rad(pticks)
         self.ax.set_xticks(pticks)
+
+    def set_polar_ticks_and_labels(self,pticks,plabels,convert_to_rad):
+        if convert_to_rad:
+            pticks = np.deg2rad(pticks)
+        self.ax.set_xticks(pticks,plabels)
 
     def set_rlabel_position(self,rpos):
         self.ax.set_rlabel_position(rpos)

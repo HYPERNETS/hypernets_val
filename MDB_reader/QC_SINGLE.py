@@ -1,10 +1,10 @@
-import os
-
-import pytz
+import os, math
+from datetime import datetime as dt
+from datetime import timezone
 from netCDF4 import Dataset
 import numpy as np
 import COMMON.Class_Flags_OLCI as flag
-import math
+
 
 
 class QC_SINGLE:
@@ -416,19 +416,15 @@ class QC_SINGLE:
         data_ins_mu = self.dataset.variables[self.insitu_variable][index_mu]
 
         if 'satellite_time' in self.dataset.variables and 'insitu_time' in self.dataset.variables:
-            from datetime import datetime as dt
+
             satellite_time = self.dataset.variables['satellite_time'][index_mu]
             insitu_time = self.dataset.variables['insitu_time'][index_mu]
             if self.fix_time_sat:
-                satellite_time_day = dt.utcfromtimestamp(float(satellite_time)).strftime('%Y-%m-%d')
-                satellite_time = dt.strptime(f'{satellite_time_day}T{self.fix_time_sat}','%Y-%m-%dT%H:%M').replace(tzinfo=pytz.utc).timestamp()
-                #print('-->',dt.utcfromtimestamp(satellite_time))
-            # ##temporal, change satellite time
-            # satellite_time_r = dt.utcfromtimestamp(float(satellite_time))
-            # satellite_time_r = satellite_time_r.replace(hour=13,tzinfo = pytz.UTC)
-            # #print('estamos aqui...',satellite_time_r)
-            # satellite_time = satellite_time_r.timestamp()
-            # ##fin temporal
+                satellite_time_day = dt.fromtimestamp(float(satellite_time)).astimezone(timezone.utc).strftime('%Y-%m-%d')
+                satellite_time = dt.strptime(f'{satellite_time_day}T{self.fix_time_sat}','%Y-%m-%dT%H:%M').replace(tzinfo=timezone.utc).timestamp()
+                #print(dt.fromtimestamp(float(satellite_time)).astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
+
+
 
             nid = insitu_time.shape[0]
             satellite_time_n = np.ma.repeat(satellite_time,nid)

@@ -958,6 +958,8 @@ def create_mdb_hypernets(mo,extract_list):
             ihd.create_mdb_insitu_extract(extract_list[extract]['path'], ofile)
             idx = 0
             for insitu_file in insitu_files:
+                if args.verbose:
+                    print(f'[INFO] Getting in situ data from file: {ofile}')
                 b = ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
                 ihd.set_quality_control_site(insitu_file,idx)
                 if b:

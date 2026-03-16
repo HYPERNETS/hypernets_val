@@ -67,6 +67,7 @@ def get_args_as_dict(args,required_dict,include_dates):
         if not arg in args_dict or args_dict[arg] is None:
             print(f'[ERROR] Argument {arg} is required. Please add it in your script call.')
             return None
+
         type = required_dict[arg]['type']
         pvalues = required_dict[arg]['type']['potential_values'] if 'potential_values' in required_dict[arg] else None
         arg_value = args_dict[arg]

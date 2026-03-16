@@ -320,7 +320,7 @@ valid_stats = {
     },
     'MdBIAS': {
         'name': 'MdBIAS',
-        'name_plot': 'bias',
+        'name_plot': 'MdBias',
         'desc': 'Median bias value',
         'format': 'f3+units'
     },
@@ -336,11 +336,13 @@ valid_stats = {
     },
     'MdAPD': {
         'name': 'MdAPD',
+        'name_plot': 'MdAPD',
         'desc': 'Median absolute percent difference',
         'format': 'i'
     },
     'MdRPD': {
         'name': 'MdRPD',
+        'name_plot': 'MdRPD',
         'desc': 'Median relative percent difference',
         'format': 'i'
     },
@@ -406,6 +408,7 @@ valid_stats = {
     },
     'MdAD': {
         'name': 'MdAD',
+        'name_plot': 'MdAD',
         'desc': 'Median absolute deviation',
         'format': 'f3+units'
     },
@@ -777,8 +780,27 @@ options_scatterplots = {
     'wl_max': {
         'default': None,
         'type': 'float'
+    },
+    'density_color_map':{
+        'default': 'jet',
+        'type': 'str'
+    },
+    'filter_':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'xy_filter_':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'flag_filter_':{
+        'default': None,
+        'type': 'strlist'
+    },
+    'label_':{
+        'default': None,
+        'type': 'strlist'
     }
-
 }
 
 options_spectraplots = {

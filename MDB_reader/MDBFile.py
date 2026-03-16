@@ -41,6 +41,7 @@ class MDBFile:
         global ATRIB_NAMES
         self.file_path = file_path
         self.VALID = True
+        self.VALID_NC = True
         file_name = file_path.split('/')[-1]
         print(f'[INFO] Starting MDBFile: {file_name}')
         try:
@@ -54,6 +55,7 @@ class MDBFile:
 
         except Exception as e:
             self.VALID = False
+            self.VALID_NC = False
             print(f'[ERROR] Exception starting NetCDF file: {e}')
             return
 
@@ -448,7 +450,7 @@ class MDBFile:
                     value_prev = value
                     if value_prev != -999.0:
                         value = np.power(10, value_prev)
-                    print(value_prev, '->', value)
+                    #print(value_prev, '->', value)
                 new_var_sat[index_mu] = value
             if not skip_ins or not skip_ins_id:
                 time_diff_array, insitu_id, time_diff, value = self.qc_single.get_ins_value(index_mu)
@@ -457,6 +459,13 @@ class MDBFile:
                 var_time_diff[index_mu] = time_diff_array
                 if not skip_ins: new_var_ins[index_mu] = value
                 if not skip_ins_id: new_var_ins_id[index_mu] = insitu_id
+
+        data_sat = new_MDB.variables[variable_sat_mu][:]
+        data_ins = new_MDB.variables[variable_ins_mu][:]
+        print(f'[INFO] Number of valid satellite data points: {np.ma.count(data_sat)}')
+        print(f'[INFO] Number of valid in situ data points: {np.ma.count(data_ins)}')
+        print(f'[INFO] Number of valid match-ups: {np.count_nonzero(np.logical_and(data_sat.mask==False,data_ins.mask==False))}')
+
 
         return True
 
@@ -2058,9 +2067,11 @@ class MDBFile:
         index_here = 0
         for index_mu in range(self.n_mu_total):
             # wl, insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat(index_mu, scale_factor)
-            insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat_withwlvalues(index_mu, wlvalues,
-                                                                                            scale_factor, flag_name,
-                                                                                            flag_value, flag_array)
+            insitu_spectrum, sat_spectrum = self.get_mu_spectra_insitu_and_sat_withwlvalues(index_mu, wlvalues,scale_factor, flag_name,flag_value, flag_array)
+            # if insitu_spectrum is not None:
+            #     print(insitu_spectrum[5])
+            #     if insitu_spectrum[5]>10:
+            #         insitu_spectrum = None
             if insitu_spectrum is not None and sat_spectrum is not None:
                 insitu_spectra_good[index_here, :] = insitu_spectrum[:]
                 sat_spectra_good[index_here, :] = sat_spectrum[:]

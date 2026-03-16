@@ -110,6 +110,7 @@ def rmse(predictions, targets):
     return np.sqrt(((np.asarray(predictions) - np.asarray(targets)) ** 2).mean())
 
 
+
 def bias(yarray, xarray):
     return (np.asarray(yarray) - np.asarray(xarray)).mean()
 

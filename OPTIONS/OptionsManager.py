@@ -90,6 +90,7 @@ class OptionsManager():
         req_args = self.get_value_param(section,'required_args',None,'dict')
         #print(req_args)
         required_args = {}
+
         for arg in req_args:
             val_list = [x.strip() for x in req_args[arg].split(';')]
             required_args[arg]={
@@ -119,6 +120,7 @@ class OptionsManager():
         if slist is None:
             print(f'[ERROR] Retrieve options were not found for section {section}')
             return [None] * 2
+
         soptions = {}
         required_list = None
 

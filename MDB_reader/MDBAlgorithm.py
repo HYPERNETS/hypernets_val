@@ -56,8 +56,6 @@ class AlgorithOptions:
                     self.section = section
 
 
-
-
     def get_general_options(self,section):
         if not self.is_valid:
             return None
@@ -124,8 +122,14 @@ class MDBProcessing:
             name = os.path.basename(args.input_path)[:-3]+'_BAL202411.nc'
             output_path = os.path.join(input_dir,name)
             print(f'[INFO] Output path set to: {output_path}')
+
+        version = options['version']
         bprocessor = BALTIC_202411_PROCESSOR(None, False)
-        bprocessor.run_from_mdb_file(args.input_path,output_path)
+        if version=='202411' or version=='BOTH':
+            bprocessor.run_from_mdb_file(args.input_path,output_path)
+        if version=='202211' or version=='BOTH':
+            bprocessor.run_from_mdb_file_202211(args.input_path,output_path)
+
     def run_brdf(self,options,output):
         brdf_model = options['brdf_model']
         wl_var = options['wl_var']

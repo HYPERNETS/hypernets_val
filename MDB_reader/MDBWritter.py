@@ -121,6 +121,13 @@ class MDBWritter:
         except:
             return None
 
+    def add_attrs_to_variable(self,var_name,attrs):
+        if self.output_dataset is None:
+            return
+        if var_name not in self.output_dataset.variables:
+            return
+        self.output_dataset.variables[var_name].setncatts(attrs)
+
     def add_variable(self,var_name,array,dims,dtype,fill_value):
         if self.output_dataset is None:
             return
@@ -129,7 +136,7 @@ class MDBWritter:
         if dims is None:
             dims = self.get_dims_from_shape(array.shape)
         if var_name in self.output_dataset.variables:
-            print(f'[ERROR] Ouput variable {var_name} already exists')
+            print(f'[ERROR] Output variable {var_name} already exists')
             return
         try:
             # create variable
@@ -147,6 +154,7 @@ class MDBWritter:
 
     def create_subset(self,array_subset):
         nsatellite_id = np.count_nonzero(array_subset)
+        print(f'[INFO] Starting subset from {array_subset.shape[0]} to {nsatellite_id} data points')
         self.copy_global_attributes()
         self.copy_dimensions(changes={'satellite_id':nsatellite_id})
         self.copy_variables([],[],array_subset)

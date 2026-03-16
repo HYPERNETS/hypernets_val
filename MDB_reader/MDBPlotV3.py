@@ -30,6 +30,7 @@ class MDBPlot:
         self.xregress = []
         self.xdata = []
         self.ydata = []
+        self.satellite_id = []
         self.valid_stats = {}
         for s in defaults.valid_stats:
             self.valid_stats[defaults.valid_stats[s]['name']] = 0.0
@@ -40,7 +41,221 @@ class MDBPlot:
     def close_mdb_file(self):
         self.mrfile.close()
 
-    def compute_statistics(self, use_log_scale, use_rhow, type_regression):
+    def get_filter_info(self,options,filter_here):
+        #filter_here = options['filter'][ifilter]
+        name_filter = filter_here[0]
+        index_filter = int(name_filter[name_filter.rfind('_') + 1:])
+        type_filter = name_filter[0:name_filter.rfind('_')]
+        if type_filter in options.keys() and index_filter in options[type_filter]:
+            filter_info = options[type_filter][index_filter]
+        else:
+            filter_info = None
+            print(f'[WARNING] {name_filter} is not available. Filter will not be applied')
+
+        return type_filter,filter_info
+    def compute_statistics(self, use_log_scale, use_rhow, type_regression, options_plot = None):
+
+
+        if len(self.xdata) == 0:
+            for key in self.valid_stats:
+                self.valid_stats[key] = np.nan
+            self.valid_stats['N'] = 0
+
+            return
+
+
+
+        xdata_stats = self.xdata
+        ydata_stats = self.ydata
+
+        # xyfilter = options_plot['xy_filter']
+        # if xyfilter is not None and (xyfilter[0]=='include' or xyfilter[0]=='exclude'):
+        #     xdata_stats,ydata_stats = self.filter_values(xyfilter,xdata_stats,ydata_stats)
+
+        self.valid_stats['N'] = len(xdata_stats)
+        self.valid_stats['NMU'] = self.valid_stats['N']
+        self.valid_stats['NGROUP'] = self.valid_stats['N']
+
+        xdatal = xdata_stats
+        ydatal = ydata_stats
+        if use_log_scale:
+            xdatal = np.log10(xdata_stats[np.logical_and(xdata_stats>0,ydata_stats>0)])
+            ydatal = np.log10(ydata_stats[np.logical_and(xdata_stats>0,ydata_stats>0)])
+        else:
+            if use_rhow:
+                xdatal = xdata_stats * np.pi
+                ydatal = ydata_stats * np.pi
+        minxy = min(np.min(xdatal),np.min(ydatal))
+        maxxy = max(np.max(xdatal),np.max(ydatal))
+
+        # # Generated linear fit
+        # xdatal = []
+        # ydatal = []
+        # maxxy = None
+        # minxy = None
+        # for x, y in zip(self.xdata, self.ydata):
+        #     if use_log_scale:
+        #         if x > 0 and y > 0:
+        #             xdatal.append(math.log10(x))
+        #             ydatal.append(math.log10(y))
+        #     else:
+        #         if use_rhow:
+        #             x = x * np.pi
+        #             y = y * np.pi
+        #         xdatal.append(x)
+        #         ydatal.append(y)
+        #     if minxy is None and maxxy is None:
+        #         if x <= y:
+        #             minxy = x
+        #             maxxy = y
+        #         else:
+        #             minxy = y
+        #             maxxy = x
+        #     else:
+        #         if x < minxy: minxy = x
+        #         if y < minxy: minxy = y
+        #         if x > maxxy: maxxy = x
+        #         if y > maxxy: maxxy = y
+
+        ##REGRESSION I
+        slope, intercept, r_value, p_value, std_err = stats.linregress(xdatal, ydatal)
+        self.valid_stats['slope_I'] = slope
+        self.valid_stats['intercept_I'] = intercept
+        self.valid_stats['PCC(r)'] = r_value
+        self.valid_stats['p_value'] = p_value
+        self.valid_stats['std_err_I'] = std_err
+
+        ##REGRESSION II
+
+        reg_2_valid = True
+        try:
+            from pylr2 import regress2
+            results = regress2(np.array(xdatal, dtype=np.float64), np.array(ydatal, dtype=np.float64),
+                               _method_type_2="reduced major axis")
+            slope_II = results['slope']
+            intercept_II = results['intercept']
+            self.valid_stats['slope_II'] = slope_II
+            self.valid_stats['intercept_II'] = intercept_II
+            self.valid_stats['std_slope_II'] = results['std_slope']
+            self.valid_stats['std_intercept_II'] = results['std_intercept']
+        except:
+            reg_2_valid = False
+
+        if not reg_2_valid:
+            type_regression = 'I'
+
+        if type_regression == 'I':
+            self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope, intercept, minxy, maxxy)
+        elif type_regression == 'II':
+            if reg_2_valid:
+                self.xregress, self.yregress = self.get_regression_line(xdatal, ydatal, slope_II, intercept_II, minxy,
+                                                                        maxxy)
+
+        ref_obs = np.asarray(xdata_stats, dtype=np.float64)
+        sat_obs = np.asarray(ydata_stats, dtype=np.float64)
+        if use_rhow:
+            sat_obs = sat_obs * np.pi
+            ref_obs = ref_obs * np.pi
+
+        if use_log_scale:
+            valid_array = np.logical_and(sat_obs > 0, ref_obs > 0)
+            nvalid = np.count_nonzero(valid_array)
+            self.valid_stats['N'] = nvalid
+            self.valid_stats['NMU'] = nvalid
+            self.valid_stats['NGROUP'] = nvalid
+            sat_obs = sat_obs[valid_array]
+            ref_obs = ref_obs[valid_array]
+            self.xregress = np.pow(10, np.array(self.xregress))
+            self.yregress = np.pow(10, np.array(self.yregress))
+
+        # the mean of relative (signed) percent differences
+        rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)
+        self.valid_stats['RPD'] = np.mean(rel_diff)
+        #  the mean of absolute (unsigned) percent differences
+        self.valid_stats['APD'] = np.mean(np.abs(rel_diff))
+
+        # the median of relative (signed) percent differences
+        rel_diff = 100 * ((sat_obs - ref_obs) / ref_obs)
+        self.valid_stats['MdRPD'] = np.median(rel_diff)
+        #  the median of absolute (unsigned) percent differences
+        self.valid_stats['MdAPD'] = np.median(np.abs(rel_diff))
+
+        self.valid_stats['MIN_Y'] = np.ma.min(sat_obs)
+        self.valid_stats['MAX_Y'] = np.ma.max(sat_obs)
+        self.valid_stats['MIN_X'] = np.ma.min(ref_obs)
+        self.valid_stats['MAX_X'] = np.ma.max(ref_obs)
+        self.valid_stats['RANGE_Y'] = self.valid_stats['MAX_Y'] - self.valid_stats['MIN_Y']
+        self.valid_stats['RANGE_X'] = self.valid_stats['MAX_X'] - self.valid_stats['MIN_X']
+
+        if use_log_scale:
+            sat_obs = np.log10(sat_obs)
+            ref_obs = np.log10(ref_obs)
+
+        self.valid_stats['RMSD'] = cfs.rmse(sat_obs, ref_obs)
+        ref_mean = np.mean(ref_obs)
+        sat_mean = np.mean(sat_obs)
+        self.valid_stats['XAVG'] = ref_mean
+        self.valid_stats['YAVG'] = sat_mean
+        self.valid_stats['XMEDIAN'] = np.median(ref_obs)
+        self.valid_stats['YMEDIAN'] = np.median(sat_obs)
+        # CPRMSE
+        xdiff = ref_obs - ref_mean
+        ydiff = sat_obs - sat_mean
+        cprmse = cfs.rmse(ydiff, xdiff)
+        self.valid_stats['CRMSE'] = cprmse
+        # bias (average)
+        bias = np.mean(sat_obs - ref_obs)
+        self.valid_stats['BIAS'] = bias
+        # bias (median)
+        meBias = np.median(sat_obs - ref_obs)
+        self.valid_stats['MdBIAS'] = meBias
+
+        # mad
+        mad = np.mean(np.abs(sat_obs - ref_obs))
+        self.valid_stats['MAD'] = mad
+
+        # mdad
+        mdad = np.median(np.abs(sat_obs - ref_obs))
+        self.valid_stats['MdAD'] = mdad
+
+        # deter(r2)
+        self.valid_stats['DETER(r2)'] = r_value * r_value
+
+        # joliff statistics
+        std_x = np.std(ref_obs)
+        std_y = np.std(sat_obs)
+        sig_std = -1 if (std_y - std_x) > 0 else 1
+        norm_std = std_y / std_x
+        nuRMSD = np.ma.sqrt(1 + norm_std ** 2 - (2 * norm_std * r_value))
+        nBias = np.ma.mean(sat_obs - ref_obs) / std_x
+        suRMSD = sig_std * nuRMSD
+        self.valid_stats['XSTD'] = std_x
+        self.valid_stats['YSTD'] = std_y
+        self.valid_stats['NORMSTD'] = norm_std
+        self.valid_stats['nBIAS'] = nBias
+        self.valid_stats['nuRMSD'] = nuRMSD
+        self.valid_stats['suRMSD'] = suRMSD
+
+        if use_log_scale:
+            ##convert statistict to linear scale again
+            stats_to_convert = ['RMSD', 'XAVG', 'YAVG', 'XMEDIAN', 'YMEDIAN', 'CRMSE', 'MAD', 'MdAD','BIAS','MdBIAS']
+            for stat in stats_to_convert:
+                self.valid_stats[stat] = np.power(10, self.valid_stats[stat])
+                self.valid_stats[stat] = self.valid_stats[stat]-1
+
+
+            # sign_stats_to_convert = ['BIAS', 'MdBIAS']
+            # for stat in sign_stats_to_convert:
+            #     self.valid_stats[stat] = self.valid_stats - 1
+
+            # for stat in sign_stats_to_convert:
+            #     bias_neg = self.valid_stats[stat] < 0
+            #     self.valid_stats[stat] = np.power(10, np.abs(self.valid_stats[stat]))
+            #     if bias_neg:
+            #         self.valid_stats[stat] = self.valid_stats[stat] * (-1)
+
+
+    def compute_statistics_old_version(self, use_log_scale, use_rhow, type_regression):
         self.valid_stats['N'] = len(self.xdata)
         if self.valid_stats['N'] == 0:
             for key in self.valid_stats:
@@ -49,6 +264,9 @@ class MDBPlot:
 
         self.valid_stats['NMU'] = self.valid_stats['N']
         self.valid_stats['NGROUP'] = self.valid_stats['N']
+
+
+
 
         # Generated linear fit
         xdatal = []
@@ -204,16 +422,21 @@ class MDBPlot:
 
 
         if use_log_scale:
+
             ##convert statistict to linear scale again
             stats_to_convert = ['RMSD', 'XAVG', 'YAVG', 'XMEDIAN','YMEDIAN','CRMSE', 'MAD','MdAD']
             for stat in stats_to_convert:
                 self.valid_stats[stat] = np.power(10, self.valid_stats[stat])
+
+
             sign_stats_to_convert = ['BIAS','MdBIAS']
             for stat in sign_stats_to_convert:
                 bias_neg = self.valid_stats[stat] < 0
                 self.valid_stats[stat] = np.power(10, np.abs(self.valid_stats[stat]))
                 if bias_neg:
                     self.valid_stats[stat] = self.valid_stats[stat] * (-1)
+
+
 
         # print(self.valid_stats)
 
@@ -503,8 +726,8 @@ class MDBPlot:
 
         #pm.plot_color_bar()
         ##annotations
-        if not options_figure['anot_y_axis_'] is None:
-            anots = options_figure['anot_y_axis_']
+        if not options_figure['anot_y_axis'] is None:
+            anots = options_figure['anot_y_axis']
             style = options_figure['anot_default_style']
             fontsize = int(style[0])
             for anot in anots:
@@ -518,8 +741,8 @@ class MDBPlot:
                     print(xpos, ypos, text, fontsize)
                     pm.set_text_size(xpos, ypos, text, fontsize)
 
-        if not options_figure['anot_'] is None:
-            anots = options_figure['anot_']
+        if not options_figure['anot'] is None:
+            anots = options_figure['anot']
             style = options_figure['anot_default_style']
             fontsize = int(style[0])
             for anot in anots:
@@ -777,6 +1000,7 @@ class MDBPlot:
         plt.figure(figsize=(8, 5.5))
 
         for idx, var in enumerate(vars):
+            print(f'[INFO][BOXPLOTS] Working with var: {var}')
             series_name = var
             array = self.mrfile.nc.variables[var][:]
             data_boxplot = []
@@ -786,6 +1010,7 @@ class MDBPlot:
                 color = colors[idx]
 
             for igroup, group in enumerate(options_figure['groups']):
+
                 values = [x.strip() for x in options_figure['groupsValues'][igroup].split(';')]
                 options_figure['selectBy'] = group
                 options_figure['selectValues'] = values
@@ -793,6 +1018,7 @@ class MDBPlot:
                 options_figure = self.check_gs_options_impl(options_figure, 'selectBy', 'selectType', 'selectValues')
                 select_array, all_select_values, all_select_meanings = self.get_flag_array(options_figure, 'selectBy')
                 for val_s in values:
+                    print(f'[INFO][BOXPLOTS] --> Group: {group} Value: {val_s}')
                     val_n = all_select_values[all_select_meanings.index(val_s)]
                     data_here = array[select_array == val_n]
                     data_boxplot.append(data_here)
@@ -1975,10 +2201,16 @@ class MDBPlot:
         ##WORKING WITH SELECTED OPTIONS
         if options_figure['selectBy'] is not None and options_figure['individual_plots']:
 
+            if options_figure['multiple_plot'] is not None and options_figure['type_scatterplot'] != 'rrs':
+                self.plot_multiple_general_scatterplots_single_file(options_figure)
+                return
+
             selectValues = options_figure['selectValues']
 
             file_out_base = options_figure['file_out']
             title_base = options_figure['title']
+
+
             for svalue in selectValues:
                 #print('-->',svalue)
                 options_figure['selectValues'] = svalue
@@ -2038,6 +2270,73 @@ class MDBPlot:
         self.set_data_scatterplot(options_figure['groupBy'], options_figure['selectBy'], options_figure['selectValues'],
                                   None, options_figure)
         self.plot_scatter_plot(options_figure, None, -1, -1, -1)
+
+    def plot_multiple_general_scatterplots_single_file(self, options_figure):
+        file_out_final = options_figure['file_out']
+        title_base = options_figure['title']
+        from PlotScatter import PlotScatter
+        rc = options_figure['multiple_plot'].split(',')
+        nrow = int(rc[0].strip())
+        ncol = int(rc[1].strip())
+        ntot = nrow * ncol
+
+        index = 0
+        plot_here = PlotScatter()
+        plot_here.nrow = nrow
+        plot_here.ncol = ncol
+        plot_here.index_row = 0
+        plot_here.index_col = 0
+        plot_here.xtitle_options['fontsize'] = options_figure['fontsizelabels']
+        plot_here.ytitle_options['fontsize'] = options_figure['fontsizelabels']
+        plot_here.plot_text_options['fontsize'] = options_figure['fontsizestats']
+
+        plot_here.start_multiple_plot_advanced(nrow, ncol, options_figure['xfigsize'],
+                                               options_figure['yfigsize'], options_figure['widthspace'],
+                                               options_figure['heightspace'])
+        print(f'[INFO] Starting multiple plot with {nrow} rows and {ncol} cols')
+        selectValues = options_figure['selectValues']
+        nblank = ntot - len(selectValues)
+        if nblank >= nrow:
+            print(f'[ERROR] Number of total axis {plot_here.nrow}x{plot_here.ncol} is higher than number of scatterplots:{len(selectValues)}')
+            plot_here.close_plot()
+            return
+        print(f'[INFO] Number of total axis {plot_here.nrow}x{plot_here.ncol} Blank plots: {nblank}')
+        index_col_adjust = plot_here.ncol - nblank if nblank > 0 else -1
+
+
+
+        for svalue in selectValues:
+            print('-->',svalue)
+            options_figure['selectValues'] = svalue
+            flag = self.get_str_select_value(options_figure, svalue)
+
+            self.set_data_scatterplot_general(options_figure['groupBy'], options_figure['selectBy'],svalue, options_figure)
+
+            if len(self.xdata) > 0 and len(self.ydata) > 0:
+                options_figure['title'] = self.get_title(title_base, None, flag, None)
+                print(f'[INFO] Plotting scatter plot for flag {flag} with ({len(self.xdata)} points)')
+                options_figure['file_out'] = None
+                self.plot_scatter_plot(options_figure, plot_here, index,-1, index_col_adjust)
+
+                plot_here.index_col = plot_here.index_col + 1
+                if plot_here.index_col == plot_here.ncol:
+                    plot_here.index_col = 0
+                    plot_here.index_row = plot_here.index_row + 1
+                index = index + 1
+            else:
+                print(f'[WARNING] No data for flag {flag}')
+
+        for index_blank in range(index, ntot):
+            plot_here.plot_blanck(index_blank)
+
+        if options_figure['legend']:
+            str_legend = self.get_str_legend(options_figure)
+            if len(str_legend) > 0:
+                plot_here.set_global_legend(str_legend)
+
+        plot_here.save_fig(file_out_final)
+        plot_here.close_plot()
+
 
     def plot_multiple_wavelength_scatterplots_single_file(self, options_figure):
         file_out_final = options_figure['file_out']
@@ -2130,14 +2429,113 @@ class MDBPlot:
             else:
                 print(f'[WARNING] No data for wavelength: {wl} nm')
 
+
+    def filter_values(self,filter,xhere,yhere):
+        type = filter[0].lower()
+        condition = filter[1].lower()
+
+        ##xvalues
+        minx_val = None
+        maxx_val = None
+        if filter[2].lower()!='none' and filter[3].lower()!='none':
+            if filter[2].lower()!='abs':
+                try:
+                    minx_val = float(filter[2].strip())
+                except:
+                    print(f'[WARNING] Min. x value {filter[2]} filter is not a valid numerical value')
+                    return xhere,yhere
+            if filter[3].lower()!='abs':
+                try:
+                    maxx_val = float(filter[3].strip())
+                except:
+                    print(f'[WARNING] Max. x value {filter[3]} filter is not a valid numerical value')
+                    return xhere,yhere
+
+
+        ##yvalues
+        miny_val = None
+        maxy_val = None
+        if filter[4].lower() != 'none' and filter[5].lower() != 'none':
+            if filter[4].lower() != 'abs':
+                try:
+                    miny_val = float(filter[4].strip())
+                except:
+                    print(f'[WARNING] Min. y value {filter[4]} filter is not a valid numerical value')
+                    return xhere, yhere
+            if filter[5].lower() != 'abs':
+                try:
+                    maxy_val = float(filter[5].strip())
+                except:
+                    print(f'[WARNING] Max. y value {filter[5]} filter is not a valid numerical value')
+                    return xhere, yhere
+
+
+
+        is_filtered = np.zeros(xhere.shape)
+
+        xapplied = True
+        if minx_val is None and maxx_val is not None:
+            is_filtered[np.where(xhere<maxx_val)]  = is_filtered[np.where(xhere<maxx_val)] + 1
+        elif minx_val is not None and maxx_val is None:
+            is_filtered[np.where(xhere > minx_val)] = is_filtered[np.where(xhere > minx_val)] + 1
+        elif minx_val is not None and maxx_val is not None:
+            is_filtered[np.where(np.logical_and(xhere > minx_val,xhere < maxx_val))] = is_filtered[np.where(np.logical_and(xhere > minx_val,xhere < maxx_val))] +1
+        else:
+            xapplied = False
+
+        yapplied = True
+        if miny_val is None and maxy_val is not None:
+            is_filtered[np.where(yhere<maxy_val)]  = is_filtered[np.where(yhere<maxy_val)] + 2
+        elif miny_val is not None and maxy_val is None:
+            is_filtered[np.where(yhere > miny_val)] = is_filtered[np.where(yhere > miny_val)] + 2
+        elif miny_val is not None and maxy_val is not None:
+            is_filtered[np.where(np.logical_and(yhere > miny_val,yhere < maxy_val))] = is_filtered[np.where(np.logical_and(yhere > miny_val,yhere < maxy_val))] +2
+        else:
+            yapplied = False
+
+
+        if np.sum(is_filtered)==0:
+            return xhere,yhere
+
+        if not xapplied and not yapplied:
+            return xhere,yhere
+
+
+
+        if xapplied and not yapplied:
+            is_filtered[is_filtered == 1] = 3
+        if not xapplied and yapplied:
+            is_filtered[is_filtered == 2] = 3
+
+        xfinal,yfinal = [],[]
+        if type=='include' or type=='show':
+            if condition=='and':
+                xfinal = xhere[is_filtered==3]
+                yfinal = yhere[is_filtered==3]
+            elif condition=='or':
+                xfinal = xhere[is_filtered > 0]
+                yfinal = yhere[is_filtered > 0]
+        elif type=='exclude' or type=='hide':
+            if condition=='and':
+                xfinal = xhere[is_filtered<3]
+                yfinal = yhere[is_filtered<3]
+            elif condition=='or':
+                xfinal = xhere[is_filtered == 0]
+                yfinal = yhere[is_filtered == 0]
+
+        if len(xfinal)==0 or len(yfinal)==0:
+            return xhere,yhere
+
+        return xfinal,yfinal
+
     # MAIN FUNCTION TO PLOT SCATTERPLOT
     def plot_scatter_plot(self, options, plot, index, wl, index_col_adjust):
-        #print('-------------------------------------------------------------------------------------->llega aqui')
-        ##compute statistics if neeed
+
         use_rhow = options['use_rhow']
         if options['include_stats'] or options['regression_line']:
             use_log_scale = options['log_scale']
-            self.compute_statistics(use_log_scale, use_rhow, options['type_regression'])
+            self.compute_statistics(use_log_scale, use_rhow, options['type_regression'],options_plot=options)
+            #print(self.valid_stats)
 
         # check groups and get legend if applicable
         ngroup = 1
@@ -2241,6 +2639,15 @@ class MDBPlot:
             xhere = np.asarray(self.xdata, dtype=np.float64)
             yhere = np.asarray(self.ydata, dtype=np.float64)
 
+            # if options['xy_filter'] is not None:
+            #     xhere, yhere = self.filter_values(options['xy_filter'],xhere,yhere)
+
+            if options['filter'] is not None:
+                for ifilter in options['filter']:
+                    type_filter,filter_info = self.get_filter_info(options,options['filter'][ifilter])
+                    print('======================>',type_filter,filter_info)
+
+
             # Density
             if options['apply_density']:
                 if options['log_scale']:
@@ -2263,8 +2670,9 @@ class MDBPlot:
                     idx = z.argsort()
                     xhere, yhere, z = xhere[idx], yhere[idx], z[idx]
                     print(f'[INFO] Density values were sorted.')
-                    plot.set_cmap('jet')
 
+                    #plot.set_cmap('jet')
+                    plot.set_cmap(options['density_color_map'])
 
                     hscatter = plot.plot_data(xhere, yhere, marker, markersize, z, None, 0)
 
@@ -2413,11 +2821,33 @@ class MDBPlot:
             str0 = self.get_str_stats(options, wl_stats)
             xpos = options['stats_xpos']
             ypos = options['stats_ypos']
-            if index==11:
-                xpos=0.55
-                ypos=0.10
             plot.plot_text_options['fontsize'] = options['fontsizestats']
             plot.plot_text(xpos, ypos, str0)
+
+        if options['label'] is not None:
+            plot.plot_text_options['fontsize'] = options['fontsizestats']
+            for l in options['label']:
+                label = options['label'][l]
+                if len(label)==5:
+                    plot.plot_text_options['fontsize'] = int(label[4])
+                str0 = None
+                if label[2]=='VALUE':
+                    str0 = label[3].strip()
+                    value_list = str0.split(';')
+                    print('===>',index,value_list)
+                    if 0 <= index < len(value_list):
+                        str0 = value_list[index]
+
+                if str0 is not None:
+                    try:
+                        ypos = float(label[0].strip())
+                        xpos = float(label[1].strip())
+                        plot.plot_text(xpos,ypos,str0)
+                    except:
+                        print(f'[WARNING] Positions for y ({ypos}) or x({xpos}) are not valid float values')
+
+
+
 
         # regression lines
         if options['log_scale']:
@@ -2459,8 +2889,8 @@ class MDBPlot:
         #plot.prepare_poster()
 
         ##annotations
-        if not options['anot_'] is None:
-            anots = options['anot_']
+        if not options['anot'] is None:
+            anots = options['anot']
             style = options['anot_default_style']
             fontsize = int(style[0])
             for anot in anots:
@@ -3746,11 +4176,12 @@ class MDBPlot:
 
                 str0 = f'{str0}y = {val_slope.strip()}x {sign} {val_offset.strip()}'
             else:
-                val = self.valid_stats[defaults.valid_stats[stat.upper()]['name']]
-                # print(stat.upper(), val)
+                vstats = {x.upper(): defaults.valid_stats[x] for x in defaults.valid_stats}
+                #val = self.valid_stats[defaults.valid_stats[stat.upper()]['name']]
+                val = self.valid_stats[vstats[stat.upper()]['name']]
 
                 valstr = self.get_str_stat(val, options[f'{stat.upper()}_FORMAT'], options['units'])
-                if stat.upper() == 'APD' or stat.upper() == 'RPD':
+                if stat.upper().endswith('APD') or stat.upper().endswith('RPD'):
                     valstr = f'{valstr}%'
                 name_plot = options[f'{stat.upper()}_NAMEPLOT']
                 str0 = f'{str0}{name_plot} = {valstr}'

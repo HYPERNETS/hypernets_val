@@ -201,7 +201,7 @@ class PlotOptions:
                     index_option = index_option+1
                     option_here = f'{option}{index_option}'
 
-                options_out[option] = vals
+                options_out[option[:-1]] = vals
 
 
             else:
@@ -242,14 +242,18 @@ class PlotOptions:
                     val_format_offset = defaults.valid_stats[f'OFFSET_{type_regression}']['format']
                 options_out[f'OFFSET_{type_regression}_FORMAT'] = val_format_offset.strip()
             else:
+                vstats = {x.upper():defaults.valid_stats[x] for x in defaults.valid_stats}
                 val_format = self.get_value(section, f'{stat}_FORMAT')
                 val_nameplot = self.get_value(section, f'{stat}_NAMEPLOT')
                 if val_format is None:
-                    val_format = defaults.valid_stats[stat.upper()]['format']
+                    #val_format = defaults.valid_stats[stat.upper()]['format']
+                    val_format = vstats[stat.upper()]['format']
                 if val_nameplot is None:
                     val_nameplot = stat.upper()
-                    if 'name_plot' in defaults.valid_stats[stat.upper()]:
-                        val_nameplot = defaults.valid_stats[stat.upper()]['name_plot']
+                    if 'name_plot' in vstats[stat.upper()]:
+                        val_nameplot = vstats[stat.upper()]['name_plot']
+                    # if 'name_plot' in defaults.valid_stats[stat.upper()]:
+                    #     val_nameplot = defaults.valid_stats[stat.upper()]['name_plot']
 
                 options_out[f'{stat.upper()}_FORMAT'] = val_format.strip()
                 options_out[f'{stat.upper()}_NAMEPLOT'] = val_nameplot.strip()
@@ -389,14 +393,18 @@ class PlotOptions:
                         val_format_offset = defaults.valid_stats[f'OFFSET_{type_regression}']['format']
                     options_out[f'OFFSET_{type_regression}_FORMAT'] = val_format_offset.strip()
                 else:
+                    vstats = {x.upper(): defaults.valid_stats[x] for x in defaults.valid_stats}
                     val_format = self.get_value(section, f'{stat}_FORMAT')
                     val_nameplot = self.get_value(section, f'{stat}_NAMEPLOT')
                     if val_format is None:
-                        val_format = defaults.valid_stats[stat.upper()]['format']
+                        #val_format = defaults.valid_stats[stat.upper()]['format']
+                        val_format = vstats[stat.upper()]['format']
                     if val_nameplot is None:
                         val_nameplot = stat.upper()
-                        if 'name_plot' in defaults.valid_stats[stat.upper()]:
-                            val_nameplot = defaults.valid_stats[stat.upper()]['name_plot']
+                        # if 'name_plot' in defaults.valid_stats[stat.upper()]:
+                        #     val_nameplot = defaults.valid_stats[stat.upper()]['name_plot']
+                        if 'name_plot' in vstats[stat.upper()]:
+                            val_nameplot = vstats[stat.upper()]['name_plot']
 
                     options_out[f'{stat.upper()}_FORMAT'] = val_format.strip()
                     options_out[f'{stat.upper()}_NAMEPLOT'] = val_nameplot.strip()

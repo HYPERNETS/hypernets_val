@@ -461,11 +461,15 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         ld_ref_400 = nc_ins.variables['downwelling_radiance'][index_ref_400,0]
         ed_ref_400 = nc_ins.variables['irradiance'][index_ref_400,0]
         ratio_400 = ld_ref_400 / ed_ref_400
-        nc_ins.close
+        nc_ins.close()
 
         if quality_flag == 0 and ((-0.005) <= epsilon <= 0.005) and (ratio_750 < 0.05 < ratio_400):
+            if args.verbose:
+                print('-->In situ site flag set to valid')
             self.new_MDB.variables['insitu_site_flag'][0, insitu_idx] = 0##VALID
         else:
+            if args.verbose:
+                print('-->In situ site flag set to invalid')
             self.new_MDB.variables['insitu_site_flag'][0, insitu_idx] = 1##INVALID
 
 
