@@ -485,11 +485,13 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         insitu_time_f = float(nc_ins.variables['acquisition_time'][0])
         if np.isnan(insitu_time_f):
             try:
-                insitu_time = dt.strptime(file_name.split('_')[5], '%Y%m%dT%H%M')
+                insitu_time = dt.strptime(file_name.split('_')[5], '%Y%m%dT%H%M').astimezone(timezone.utc)
             except:
                 insitu_time = None
         else:
             insitu_time = dt.fromtimestamp(insitu_time_f).astimezone(timezone.utc)
+
+        sat_time = sat_time.astimezone(timezone.utc)
 
         if insitu_time is None:
             print(f'[ERROR] In situ time was not defined for in situ file: {file_name}')
