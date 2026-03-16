@@ -5,6 +5,7 @@ except:
 # import subprocess, os
 from netCDF4 import Dataset
 from datetime import datetime as dt
+from datetime import timezone
 from datetime import timedelta
 import numpy as np
 import __init__,sys,os,pytz
@@ -488,7 +489,7 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
             except:
                 insitu_time = None
         else:
-            insitu_time = dt.utcfromtimestamp(insitu_time_f)
+            insitu_time = dt.fromtimestamp(insitu_time_f).astimezone(timezone.utc)
 
         if insitu_time is None:
             print(f'[ERROR] In situ time was not defined for in situ file: {file_name}')

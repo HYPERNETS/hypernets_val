@@ -959,8 +959,8 @@ def create_mdb_hypernets(mo,extract_list):
             idx = 0
             for insitu_file in insitu_files:
                 b = ihd.set_data(insitu_file, idx, date_here, mo.get_sat_extracts_info())
-                ihd.set_quality_control_site(insitu_file,idx)
                 if b:
+                    ihd.set_quality_control_site(insitu_file, idx)##only check if there are valid data
                     idx = idx + 1
 
             ihd.close_mdb()
