@@ -464,11 +464,11 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
         nc_ins.close()
 
         if quality_flag == 0 and ((-0.005) <= epsilon <= 0.005) and (ratio_750 < 0.05 < ratio_400):
-            if args.verbose:
+            if self.verbose:
                 print('-->In situ site flag set to valid')
             self.new_MDB.variables['insitu_site_flag'][0, insitu_idx] = 0##VALID
         else:
-            if args.verbose:
+            if self.verbose:
                 print('-->In situ site flag set to invalid')
             self.new_MDB.variables['insitu_site_flag'][0, insitu_idx] = 1##INVALID
 
