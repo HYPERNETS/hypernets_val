@@ -432,8 +432,8 @@ class INSITU_HYPERNETS_DAY(INSITUBASE):
                 var.setncattr(at, self.insitu_extract_variables[var_name][at])
             # if type == 'u4':
             #     var[:] = 4294967295
-            if self.insitu_extract_variables[var_name]['name_orig'] is None:
-                var[:] = 0
+            # if self.insitu_extract_variables[var_name]['name_orig'] is None:
+            #     var[:] = 0
         for var_name in self.insitu_spectral_variables:
             type = self.insitu_spectral_variables[var_name]['type']
             var = self.new_MDB.createVariable(var_name, type, ('satellite_id', 'insitu_bands', 'insitu_id'),
