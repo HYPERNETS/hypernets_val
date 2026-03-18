@@ -4433,16 +4433,29 @@ def main():
         return
 
     if args.mode == 'TEST':
+        file = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TEMPORAL/MDB_S3A_OLCI_WFR_STANDARD_20240601T000000_20240630T235959_HYPSTAR_VEIT.nc'
+        from SpectralResponseFuntions import SRF
+        from netCDF4 import Dataset
+        srf = SRF(None, 'OLCIA')
 
+        dset = Dataset(file)
+        # array_qf =dset.variables['insitu_quality_flag'][:]
+        # # array_site = dset.variables['insitu_site_flag'][:]
+        # sat_time = dset.variables['satellite_time'][:]
+        spectra = dset.variables['insitu_Rrs'][:]
+        wl_array = dset.variables['insitu_original_bands'][:]
+        dset.close()
+
+        srf.apply_convolution_array(spectra, wl_array[1, :],-1)
         #make_oci_matchups()
 
-        dir_concatenate = '/mnt/c/DATA/MDBm'
-        dir_out = '/mnt/c/DATA'
-        file_out = '/mnt/c/DATA/output.nc'
-        list_files = []
-        for name in os.listdir(dir_concatenate):
-            list_files.append(os.path.join(dir_concatenate,name))
-        concatenate_nc_impl(list_files,dir_out,file_out)
+        # dir_concatenate = '/mnt/c/DATA/MDBm'
+        # dir_out = '/mnt/c/DATA'
+        # file_out = '/mnt/c/DATA/output.nc'
+        # list_files = []
+        # for name in os.listdir(dir_concatenate):
+        #     list_files.append(os.path.join(dir_concatenate,name))
+        # concatenate_nc_impl(list_files,dir_out,file_out)
 
 
         ##correctins resto files

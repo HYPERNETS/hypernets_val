@@ -53,6 +53,7 @@ class MDBPlot:
             print(f'[WARNING] {name_filter} is not available. Filter will not be applied')
 
         return type_filter,filter_info
+
     def compute_statistics(self, use_log_scale, use_rhow, type_regression, options_plot = None):
 
 
@@ -87,6 +88,9 @@ class MDBPlot:
                 ydatal = ydata_stats * np.pi
         minxy = min(np.min(xdatal),np.min(ydatal))
         maxxy = max(np.max(xdatal),np.max(ydatal))
+
+        # for idx in range(len(xdatal)):
+        #     print(idx,xdatal[idx],ydatal[idx])
 
         # # Generated linear fit
         # xdatal = []

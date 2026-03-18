@@ -440,13 +440,13 @@ class SatExtract:
         satellite_AOT_0865p50_box[0, :, :] = ma.array(aot[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])
         satellite_AOT_0865p50_box.description = 'Satellite Aerosol optical thickness'
 
-    def create_flag_variable(self, var_name, var_array, description, flag_masks, flag_meanings, window):
+    def create_flag_variable(self, var_name, var_array, description, flag_masks, flag_meanings, window,var_dtype='f4'):
         start_idx_y = window[0]
         stop_idx_y = window[1]
         start_idx_x = window[2]
         stop_idx_x = window[3]
         # Quality Flags
-        satellite_flag = self.EXTRACT.createVariable(var_name, 'f4', ('satellite_id', 'rows', 'columns'),
+        satellite_flag = self.EXTRACT.createVariable(var_name, var_dtype, ('satellite_id', 'rows', 'columns'),
                                                      fill_value=-999, zlib=True, complevel=6)
         satellite_flag[0, :, :] = [ma.array(var_array[start_idx_y:stop_idx_y, start_idx_x:stop_idx_x])]
         satellite_flag.description = description

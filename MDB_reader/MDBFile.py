@@ -1288,7 +1288,7 @@ class MDBFile:
         status_error = [0] * 8
 
         print(f'[INFO] Checking in situ validity...')
-
+        #self.insitu_rrs = np.ma.masked_invalid(self.insitu_rrs)##make sure to mask nan,inf,-inf
         self.qc_insitu.check_validity()
 
         valid_mu_ins = np.sum(self.qc_insitu.insitu_valid_rrs,axis=1)

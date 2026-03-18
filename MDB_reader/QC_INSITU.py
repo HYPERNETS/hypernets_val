@@ -65,7 +65,20 @@ class QC_INSITU:
 
     def check_validity(self):
         self.insitu_valid_rrs = np.ma.zeros((self.insitu_rrs.shape[0],self.insitu_rrs.shape[2]))
-        nconditions = 0
+
+        ##check first masked values or nan,inf,-inf, etc
+        insitu_rrs_check = np.ma.masked_invalid(self.insitu_rrs)
+        insitu_rrs_check = np.moveaxis(insitu_rrs_check,1,2)
+        nspectra = self.insitu_rrs.shape[0] * self.insitu_rrs.shape[2]
+        nbands = self.insitu_rrs.shape[1]
+        insitu_rrs_check = np.reshape(insitu_rrs_check,(nspectra,nbands))
+        insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check,axis=1)>0
+        insitu_rrs_check_sum = np.reshape(insitu_rrs_check_sum,(self.insitu_rrs.shape[0],self.insitu_rrs.shape[2]))
+        self.insitu_valid_rrs[insitu_rrs_check_sum==False]=self.insitu_valid_rrs[insitu_rrs_check_sum==False]+1
+
+
+
+        nconditions = 1
 
         # checking flag: TO BE IMPLEMENTED
         if len(self.check_flags) > 0:
@@ -131,12 +144,7 @@ class QC_INSITU:
                     self.insitu_valid_rrs[check_condition == True] = self.insitu_valid_rrs[check_condition == True] + 1
 
 
-                # if self.thersholds[wls]['min_th']['apply'] and val < self.thersholds[wls]['min_th']['value']:
-                #     check = False
-                #     break
-                # if self.thersholds[wls]['max_th']['apply'] and val > self.thersholds[wls]['max_th']['value']:
-                #     check = False
-                #     break
+
 
         print(f'[INFO]->Number of conditions analysed: {nconditions}')
         self.insitu_valid_rrs = np.where(self.insitu_valid_rrs==nconditions,True,False)

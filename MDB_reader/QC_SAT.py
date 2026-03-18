@@ -223,6 +223,7 @@ class QC_SAT:
 
             self.indices_valid_bands = np.where(valid_bands==1)[0]
 
+        self.satellite_rrs = np.ma.masked_invalid(self.satellite_rrs)##make sure that nan,-inf,inf are masked
 
         flag_mask,land = self.compute_flag_mask_array()
         print(f'[INFO]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
@@ -275,6 +276,7 @@ class QC_SAT:
 
         reported_rrs_unc = None
         if self.satellite_rrs_unc is not None:
+            self.satellite_rrs_unc = np.ma.masked_invalid(self.satellite_rrs_unc)##make sure nan,inf,-inf are masked
             central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
             if self.indices_valid_bands is not None:
                 rrs_unc = self.satellite_rrs_unc[:, self.indices_valid_bands, r_s:r_e, c_s:c_e]
@@ -291,6 +293,13 @@ class QC_SAT:
             'reported_rrs':reported_rrs,
             'reported_rrs_unc':reported_rrs_unc
         }
+
+        # print('----------------------------------------')
+        # print(reported_rrs.shape)
+        # print(reported_rrs[31,:])
+        # indices = np.where(np.isnan(reported_rrs))
+        # print(len(indices[0]))
+        # print('--------------------')
 
     def compute_flag_mask_array(self):
         flag_mask = np.zeros((self.nmu, self.window_size, self.window_size), dtype=np.uint64)
@@ -377,7 +386,7 @@ class QC_SAT:
 
 
         rrs_here = self.satellite_rrs[:,bands_to_check,r_s:r_e, c_s:c_e]
-        #print(self.satellite_rrs.shape,rrs_here.shape)
+        rrs_here = np.ma.masked_invalid(rrs_here)##make sure nan,inf,-inf are masked
         for iband in bands_to_check:
             index_rrs_here = bands_to_check.index(iband)
             rrs_here_band = np.squeeze(rrs_here[:,index_rrs_here,:,:])

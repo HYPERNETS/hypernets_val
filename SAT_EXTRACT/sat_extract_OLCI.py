@@ -1535,7 +1535,7 @@ def create_extract_syke(ofname, pdu, options, filepath, global_at, lat, long, r,
     nc_sat = Dataset(flag_file)
     flag_band = nc_sat.variables['WQSF']
     newEXTRACT.create_flag_variable('satellite_WQSF', flag_band, flag_band.long_name, flag_band.flag_masks,
-                                    flag_band.flag_meanings, window)
+                                    flag_band.flag_meanings, window,var_dtype='u8')
     nc_sat.close()
 
     if skie_file is not None:
