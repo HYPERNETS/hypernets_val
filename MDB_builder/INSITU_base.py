@@ -446,7 +446,10 @@ def copy_nc(ifile, ofile):
 def get_insitu_object(insitu_type,insitu_options,verbose):
     insituBase = None
     if insitu_type=='MULTIPLE_CSV':
-        from MDB_builder.INSITU_multiplecsv import INSITU_MULTIPLE_CSV
+        try:
+            from INSITU_multiplecsv import INSITU_MULTIPLE_CSV
+        except:
+            from MDB_builder.INSITU_multiplecsv import INSITU_MULTIPLE_CSV
         insituBase = INSITU_MULTIPLE_CSV(insitu_options,verbose)
     if insitu_type=='SINGLE_SEABASS':
         try:
@@ -455,7 +458,10 @@ def get_insitu_object(insitu_type,insitu_options,verbose):
             from MDB_builder.INSITU_SeaBass import INSITU_SEABASS
         insituBase = INSITU_SEABASS(insitu_options,verbose)
     if insitu_type=='HYPSTAR_L2':
-        from MDB_builder.INSITU_hypernets import HYPSTAR_L2
+        try:
+            from INSITU_hypernets import HYPSTAR_L2
+        except:
+            from MDB_builder.INSITU_hypernets import HYPSTAR_L2
         insituBase = HYPSTAR_L2(insitu_options,verbose)
     if insitu_type=='SO_RAD':
         try:

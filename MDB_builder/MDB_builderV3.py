@@ -9,6 +9,7 @@ import INSITU_base as ibase
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
 import COMMON.args_functions as arf
+import OPTIONS.OptionsManager as omanager
 
 def main():
     print('[INFO] Creating MDB files!')
@@ -29,6 +30,11 @@ def main():
 
     start_date, end_date = arf.get_start_end_date_from_args(args)
     insituBase.start_date, insituBase.end_date = start_date,end_date
+
+    file_date_list_check = mo.get_file_date_list_check()
+    if file_date_list_check is not None:
+        insituBase.date_list_check = omanager.get_date_list_from_file(file_date_list_check)
+
 
     if args.verbose:
         print(f'[INFO] Preparing in situ data...')

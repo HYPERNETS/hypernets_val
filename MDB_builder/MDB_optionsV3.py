@@ -96,6 +96,10 @@ class MDBBuilderOptions:
     def get_mdb_options(self):
         return self.get_general_options('mdb_options')
 
+    def get_file_date_list_check(self):
+        options = self.get_mdb_options()
+        return options['file_date_list_check'] if options is not None else None
+
     def get_extract_path(self):
         options = self.get_mdb_options()
         return options['extract_dir'] if options is not None else None

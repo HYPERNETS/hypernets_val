@@ -50,6 +50,7 @@ class SO_RAD:
         }
         self.start_date = None
         self.end_date = None
+        self.date_list_check = None
         self.file_list = {}
         self.date_list = []
 

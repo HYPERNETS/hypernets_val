@@ -474,7 +474,7 @@ class SatSourceOlci:
                     if os.path.isdir(path_prod_u):
                         self.path_prod_u = path_prod_u
             else:
-                print(f'[ERROR] unzip_path is required but not defined in the configuration file (section file_path, option unzip_path')
+                print(f'[ERROR] unzip path is required but not defined in the configuration file (section file_path, option unzip_dir)')
         else:
             self.path_prod_u = self.path_product
 

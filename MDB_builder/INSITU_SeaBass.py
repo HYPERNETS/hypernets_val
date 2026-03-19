@@ -13,7 +13,7 @@ except:
 
 
 
-class INSITU_SEABASS():
+class INSITU_SEABASS:
 
     def __init__(self, insitu_options, verbose):
 
@@ -28,6 +28,7 @@ class INSITU_SEABASS():
         self.date_list = []
         self.start_date = None
         self.end_date = None
+        self.date_list_check = None
 
         self.basic_arrays = None
 

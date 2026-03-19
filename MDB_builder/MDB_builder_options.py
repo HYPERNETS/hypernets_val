@@ -387,18 +387,14 @@ class MDBBuilderOptions:
 
     def get_sat_extracts_info(self):
         from datetime import datetime as dt
-        sat_extract_info = {}
-        sat_extract_info['time_min'] = self.start_date.strftime('%Y%m%dT%H%M%S')
-        sat_extract_info['time_max'] = self.end_date.strftime('%Y%m%dT%H%M%S')
-        sat_extract_info['time_creation'] = dt.now().strftime('%Y%m%dT%H%M%S')
-        sat_extract_info['insitu_site_name'] = self.param_insitu['station_name']
-        sat_extract_info['insitu_lat'] = self.param_insitu['insitu_lat']
-        sat_extract_info['insitu_lon'] = self.param_insitu['insitu_lon']
-        sat_extract_info['sensor'] = self.param_sat['sensor']
-        sat_extract_info['satellite'] = self.param_sat['satellite']
-        sat_extract_info['platform'] = self.param_sat['platform']
-        sat_extract_info['resolution'] = self.param_sat['resolution']
-        sat_extract_info['ac'] = self.param_sat['ac']
+        sat_extract_info = {'time_min': self.start_date.strftime('%Y%m%dT%H%M%S'),
+                            'time_max': self.end_date.strftime('%Y%m%dT%H%M%S'),
+                            'time_creation': dt.now().strftime('%Y%m%dT%H%M%S'),
+                            'insitu_site_name': self.param_insitu['station_name'],
+                            'insitu_lat': self.param_insitu['insitu_lat'],
+                            'insitu_lon': self.param_insitu['insitu_lon'], 'sensor': self.param_sat['sensor'],
+                            'satellite': self.param_sat['satellite'], 'platform': self.param_sat['platform'],
+                            'resolution': self.param_sat['resolution'], 'ac': self.param_sat['ac']}
         sensor_str = 'UNKNOWN'
         if 'insitu_sensor' in self.param_insitu.keys():
             sensor_str =  self.param_insitu['insitu_sensor']

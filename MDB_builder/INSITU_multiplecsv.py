@@ -17,6 +17,7 @@ class INSITU_MULTIPLE_CSV():
         self.date_list = []
         self.start_date = None
         self.end_date = None
+        self.date_list_check = None
 
     def check_data(self):
         if not 'path_csv' in self.insitu_options:

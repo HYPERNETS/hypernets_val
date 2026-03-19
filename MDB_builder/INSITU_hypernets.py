@@ -15,7 +15,7 @@ import COMMON.common_functions as cfs
 
 
 
-class HYPSTAR_L2():
+class HYPSTAR_L2:
 
     def __init__(self, insitu_options, verbose):
         self.fixed_site = True
@@ -32,6 +32,7 @@ class HYPSTAR_L2():
         self.date_list = []
         self.start_date = None
         self.end_date = None
+        self.date_list_check = None ##date list with format YYYY-mm-dd
 
 
 
@@ -66,6 +67,11 @@ class HYPSTAR_L2():
             if path_date is None:
                 date_here = date_here + timedelta(days=1)
                 continue
+            if self.date_list_check is not None:
+                if date_here.strftime('%Y-%m-%d') not in self.date_list_check:
+                    date_here = date_here + timedelta(days=1)
+                    continue
+
             if self.verbose:
                 print(f'[INFO] Checking date: {date_here}')
             list_files = self.get_file_list(path_date)

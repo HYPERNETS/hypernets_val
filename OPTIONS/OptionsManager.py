@@ -1,8 +1,9 @@
 import math,os,re,configparser
+from datetime import datetime as dt
 
 
 
-class OptionsManager():
+class OptionsManager:
 
     def __init__(self, config_file, options):
         self.options = None
@@ -557,6 +558,24 @@ def get_value_param_impl(value,type,default):
                 return None
         return dict_h
 
+def get_date_list_from_file(file):
+    if not os.path.exists(file):
+        return None
+    date_list = []
+    fr = open(file,'r')
+    for line in fr:
+        try:
+            date_list.append(dt.strptime(line.strip(),'%Y-%m-%d').strftime('%Y-%m-%d'))
+        except:
+            print(f'[WARNING] Error getting date list from file {file}: {line.strip()} is not in the  valid format YYYY-mm-dd. Skipping line...')
+            continue
+    fr.close()
+    if len(date_list)==0:
+        print(f'[ERROR] No date were retrieved from file {file}. Date list will not be used')
+        return None
+    print(f'[INFO] Date list with {len(date_list)} obtained from file {file}')
+
+    return date_list
 
 def check_file(file,type_file):
     if type_file=='nc':

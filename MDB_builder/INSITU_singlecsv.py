@@ -8,7 +8,7 @@ try:
 except:
     import MDB_builder.INSITU_base as ISb
 
-class INSITU_SINGLE_CSV():
+class INSITU_SINGLE_CSV:
 
     def __init__(self, insitu_options, verbose):
         self.fixed_site = False
@@ -20,7 +20,8 @@ class INSITU_SINGLE_CSV():
         self.date_list = []
         self.start_date = None
         self.end_date = None
-        print(insitu_options)
+        self.date_list_check = None
+        #print(insitu_options)
         self.non_spectral_vars = None
 
     def get_csv_options(self):
