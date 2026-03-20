@@ -86,6 +86,7 @@ class SAT_EXTRACTS_LIST:
         nadded = 0
 
         for name in os.listdir(sat_extract_dir):
+            print(f'Checking name: {name} with prefix: {prefix}-->{name.startswith(prefix)}')
             if not name.endswith('.nc'):
                 continue
             if prefix is not None and not name.startswith(prefix):
