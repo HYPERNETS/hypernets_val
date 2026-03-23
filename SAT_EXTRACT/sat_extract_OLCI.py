@@ -513,6 +513,7 @@ class SatSourceOlci:
 
 
         if self.path_prod_u is None:
+            print('=====================>',self.path_prod_u)
             return [None]*3
 
         print('518')
