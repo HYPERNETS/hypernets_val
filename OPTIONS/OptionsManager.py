@@ -573,7 +573,7 @@ def get_date_list_from_file(file):
     if len(date_list)==0:
         print(f'[ERROR] No date were retrieved from file {file}. Date list will not be used')
         return None
-    print(f'[INFO] Date list with {len(date_list)} obtained from file {file}')
+    print(f'[INFO] Date list with {len(date_list)} dates obtained from file {file}')
 
     return date_list
 

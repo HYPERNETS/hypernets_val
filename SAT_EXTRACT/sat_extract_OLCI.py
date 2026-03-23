@@ -173,6 +173,7 @@ class SatExtractOLCI:
             lat_array, lon_array, oza_array,ySubsampling, xSubsampling = [None]*5
 
             polygon = olci_source.get_polygon_from_manifest()
+
             cgeo = CHECK_GEO()
             cgeo.polygon_image = polygon
 
@@ -379,7 +380,12 @@ class SatSourceOlci:
             self.start_date = dt.strptime(name_l[7], '%Y%m%dT%H%M%S')
             self.end_date = dt.strptime(name_l[8], '%Y%m%dT%H%M%S')
             self.timeliness = 'NR' if 'NR' in name_l else 'NT' if 'NT' in name_l else None
-            self.collection = name_l[-1][0:name_l[-1].index('.')]
+            col = name_l[-1]
+            if col.find('.')==-1:
+                self.collection = col
+            else:
+                self.collection = col[0:col.index('.')]
+
         except Exception as ex:
             print(f'[ERROR] Error getting plaftorm, timeliness and sensing date times from Sentinel-3 OLCI file name: {ex}')
             self.valid = False

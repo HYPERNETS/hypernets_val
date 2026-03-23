@@ -2765,6 +2765,27 @@ class MDBFile:
                 pass
         return fillValue
 
+    ##return subset array, boolean array with 1 if the satellite date is in the specified date_list (list of string dates in format YYYY-mm-dd)
+    def get_subset_array_from_date_list(self,date_list):
+        if not self.VALID:
+            return None
+        array = np.zeros(self.n_mu_total).astype(np.bool)
+        for idx,stime in enumerate(self.sat_times):
+            stime_str = stime.strftime('%Y-%m-%d')
+
+            if stime_str in date_list:
+                array[idx]=1
+
+
+
+
+        if np.sum(array)==0:
+            return None
+        else:
+            print(f'[INFO] Subset array based on date list include {np.sum(array)} data points')
+
+        return array
+
     def close(self):
         if self.VALID:
             self.nc.close()

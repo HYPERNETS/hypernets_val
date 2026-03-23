@@ -14,6 +14,7 @@ from MDB_builder.INSITU_base import INSITUBASE
 import __init__,sys
 from COMMON import args_functions
 import MDBWritter
+import OPTIONS.OptionsManager as om
 from OPTIONS.OptionsManager import OptionsManager
 code_home = os.path.dirname(os.path.dirname(__init__.__file__))
 sys.path.append(code_home)
@@ -159,6 +160,14 @@ class MDBProcessing:
                 return array_subset
             expression, dims, shape = self.get_expression_from_mfile(options['basic_filter'])
             array_subset, dims = self.eval_expression(expression,{},dims,shape)
+
+        if type_subset=='date_list':
+            if options['date_list_file'] is None:
+                print(f'[ERROR] date_list_file option with a valid file with a date list in format YYYY-mm-dd is required for type_subset: date_list')
+                return array_subset
+            date_list_check = om.get_date_list_from_file(options['date_list_file'])
+            array_subset = self.mfile.get_subset_array_from_date_list(date_list_check)
+
 
         if array_subset is None:
             return
