@@ -469,14 +469,16 @@ class SatSourceOlci:
             if self.unzip_path is not None:
                 name_base = self.path_product.split('/')[-1][0:-4]
                 path_prod_u = os.path.join(self.unzip_path, name_base)
+                print('line 472',path_prod_u,os.path.isdir(path_prod_u))
                 if os.path.isdir(path_prod_u):
                     self.path_prod_u = path_prod_u
                 else:
                     with zp.ZipFile(self.path_product, 'r') as zprod:
                         if self.verbose:
-                            print(f'[INFO] Unziping {name_base} to {self.unzip_path}')
+                            print(f'[INFO] Unzipping {name_base} to {self.unzip_path}')
                         zprod.extractall(path=self.unzip_path)
                     path_prod_u = os.path.join(self.unzip_path, name_base)
+
                     if os.path.isdir(path_prod_u):
                         self.path_prod_u = path_prod_u
             else:
