@@ -387,7 +387,7 @@ class SatSourceOlci:
                 self.collection = col[0:col.index('.')]
 
         except Exception as ex:
-            print(f'[ERROR] Error getting plaftorm, timeliness and sensing date times from Sentinel-3 OLCI file name: {ex}')
+            print(f'[ERROR] Error getting platform, timeliness and sensing date times from Sentinel-3 OLCI file name {name} Exception: {ex}')
             self.valid = False
 
         if self.valid and not self.platform in ['S3A','S3B']:
