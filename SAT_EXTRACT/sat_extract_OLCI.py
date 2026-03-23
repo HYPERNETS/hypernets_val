@@ -467,10 +467,8 @@ class SatSourceOlci:
             print(f'[INFO] Retrieving uncompressed path...')
         if self.is_zipped:
             if self.unzip_path is not None:
-                print('line 470',self.path_product)
                 name_base = self.path_product.split('/')[-1][0:-4]
                 path_prod_u = os.path.join(self.unzip_path, name_base)
-                print('line 472',path_prod_u,os.path.isdir(path_prod_u))
                 if os.path.isdir(path_prod_u):
                     self.path_prod_u = path_prod_u
                 else:
@@ -482,6 +480,11 @@ class SatSourceOlci:
 
                     if os.path.isdir(path_prod_u):
                         self.path_prod_u = path_prod_u
+                    else:##it could be a problem that .SEN3 needs to be added
+                        name_base = f'{name_base}.SEN3'
+                        path_prod_u = os.path.join(self.unzip_path, name_base)
+                        if os.path.isdir(path_prod_u):
+                            self.path_prod_u = path_prod_u
             else:
                 print(f'[ERROR] unzip path is required but not defined in the configuration file (section file_path, option unzip_dir)')
         else:
@@ -506,22 +509,21 @@ class SatSourceOlci:
         return lat_array,lon_array
 
     def get_lat_lon_oza_arrays(self):
-        print('506')
+
         if not self.valid:
             return [None]*3
-        print('509')
+
         if self.path_prod_u is None:
             self.retrieve_uncompressed_path()
-        print('512')
+
 
 
         if self.path_prod_u is None:
-            print('=====================>',self.path_prod_u)
+
             return [None]*3
 
-        print('518')
+
         lat_array,lon_array = self.get_lat_lon_arrays()
-        print('520')
         filepah = os.path.join(self.path_prod_u, 'tie_geometries.nc')
         nc_sat = Dataset(filepah, 'r')
         oza_array = nc_sat.variables['OZA'][:]
