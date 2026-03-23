@@ -467,6 +467,7 @@ class SatSourceOlci:
             print(f'[INFO] Retrieving uncompressed path...')
         if self.is_zipped:
             if self.unzip_path is not None:
+                print('line 470',self.path_product)
                 name_base = self.path_product.split('/')[-1][0:-4]
                 path_prod_u = os.path.join(self.unzip_path, name_base)
                 print('line 472',path_prod_u,os.path.isdir(path_prod_u))
