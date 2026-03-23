@@ -503,18 +503,21 @@ class SatSourceOlci:
         return lat_array,lon_array
 
     def get_lat_lon_oza_arrays(self):
+        print('506')
         if not self.valid:
             return [None]*3
+        print('509')
         if self.path_prod_u is None:
             self.retrieve_uncompressed_path()
-
+        print('512')
 
 
         if self.path_prod_u is None:
             return [None]*3
 
-
+        print('518')
         lat_array,lon_array = self.get_lat_lon_arrays()
+        print('520')
         filepah = os.path.join(self.path_prod_u, 'tie_geometries.nc')
         nc_sat = Dataset(filepah, 'r')
         oza_array = nc_sat.variables['OZA'][:]
