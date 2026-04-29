@@ -43,6 +43,7 @@ fontsizetitle_default = 12
 fontsizeaxis_default = 12
 fontsizelabels_default = 12
 fontsizestats_default = 12
+
 units_default = {
     'rrs': r'sr$^-$$^1$',
     'rhow': '',

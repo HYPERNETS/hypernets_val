@@ -98,14 +98,19 @@ class PlotScatter():
             self.ax = self.ax_multiple[self.index_row, self.index_col]
 
     def set_axhere_rc(self,index_row,index_col):
-        self.ax = self.ax_multiple[index_row,index_col]
+        if len(self.ax_multiple.shape)==1 and self.ncol==1 and self.nrow>1:
+            self.ax = self.ax_multiple[index_row]
+        elif len(self.ax_multiple.shape)==1 and self.ncol>1 and self.nrow==1:
+            self.ax = self.ax_multiple[index_col]
+        else:
+            self.ax = self.ax_multiple[index_row,index_col]
 
     def set_axhere_index(self,index):
         index_row = np.floor(index/self.ncol)
         index_col = index-(index_row*self.ncol)
         self.index_row = int(index_row)
         self.index_col = int(index_col)
-        #print(index,self.index_row,self.index_col)
+        #print('---------->',index,self.index_row,self.index_col)
         self.set_axhere_rc(self.index_row,self.index_col)
 
     def set_log_scale(self):
@@ -244,6 +249,10 @@ class PlotScatter():
             self.set_axhere()
         self.ax.plot(xdata, ydata, color=color, linestyle=linestyle, linewidth=linewidth, marker=None)
 
+    def plot_general_line(self,xdata,ydata,color='black', linestyle='-', linewidth=1, marker=None):
+        if self.ax is None:
+            self.set_axhere()
+        self.ax.plot(xdata, ydata, color=color, linestyle=linestyle, linewidth=linewidth, marker=marker)
 
 
     def plot_text(self, xpos, ypos, str):
@@ -313,6 +322,9 @@ class PlotScatter():
             self.ax.set_xticks(ticks)
             self.ax.set_yticks(ticks)
         self.ax.tick_params(axis='y',labelleft=False,labelright=False)
+
+
+
 
 
     def set_as_joliff(self,x_ticks):

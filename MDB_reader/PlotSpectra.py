@@ -267,7 +267,7 @@ class PlotSpectra():
 
         plt.legend(handles, str_legend, loc=self.legend_options['loc'],
                    bbox_to_anchor=self.legend_options['bbox_to_anchor'], framealpha=self.legend_options['framealpha'],
-                   ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'])
+                   ncol=self.legend_options['ncols'],markerscale=self.legend_options['markerscale'],fontsize=14)
 
     def set_title(self, title):
         plt.title(title)
@@ -509,3 +509,6 @@ class PlotSpectra():
             imax = np.argmin(np.abs(wavelength - wlmax))
         imax = imax + 1
         return imin, imax
+
+    def hightligth_horizontal_axis(self):
+        plt.gca().axhline(lw=1,ls='--',color='k')

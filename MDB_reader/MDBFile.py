@@ -1214,7 +1214,7 @@ class MDBFile:
         nmu_valid_complete = 0
         status_error = [0] * 8
 
-        print(f'[INFO] Checking in situ validity...')
+        print(f'[INFO] Checking in situ validity (prepare_df_validation_new)...')
         self.qc_insitu.check_validity()
         valid_mu_ins = np.where(np.sum(self.qc_insitu.insitu_valid_rrs, axis=1)>0,1,0)
         print(f'[INFO] Number of valid in situ spectra: {np.sum(self.qc_insitu.insitu_valid_rrs)} in {np.sum(valid_mu_ins)}/{self.n_mu_total} match-ups')
@@ -1288,7 +1288,6 @@ class MDBFile:
         status_error = [0] * 8
 
         print(f'[INFO] Checking in situ validity...')
-        #self.insitu_rrs = np.ma.masked_invalid(self.insitu_rrs)##make sure to mask nan,inf,-inf
         self.qc_insitu.check_validity()
 
         valid_mu_ins = np.sum(self.qc_insitu.insitu_valid_rrs,axis=1)

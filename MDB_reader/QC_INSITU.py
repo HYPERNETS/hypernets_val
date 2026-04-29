@@ -72,6 +72,8 @@ class QC_INSITU:
         nspectra = self.insitu_rrs.shape[0] * self.insitu_rrs.shape[2]
         nbands = self.insitu_rrs.shape[1]
         insitu_rrs_check = np.reshape(insitu_rrs_check,(nspectra,nbands))
+        #insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check, axis=1) > 3 ##for LAIT
+        #insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check, axis=1) > 1 ##for TRIT
         insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check,axis=1)>0
         insitu_rrs_check_sum = np.reshape(insitu_rrs_check_sum,(self.insitu_rrs.shape[0],self.insitu_rrs.shape[2]))
         self.insitu_valid_rrs[insitu_rrs_check_sum==False]=self.insitu_valid_rrs[insitu_rrs_check_sum==False]+1
@@ -111,11 +113,13 @@ class QC_INSITU:
                     check_condition = np.logical_and(val_min <= val_here,val_here<=val_max)
                 elif val_max < val_min and is_angle:
                     check_condition = val_here >= val_min or val_here <= val_max
-
-                if th_type == 'keep':
-                    self.insitu_valid_rrs[check_condition==True]=self.insitu_valid_rrs[check_condition==True]+1
-                if th_type == 'remove':
-                    self.insitu_valid_rrs[check_condition==False]=self.insitu_valid_rrs[check_condition==False]+1
+                else:
+                    check_condition = None
+                if check_condition is not None:
+                    if th_type == 'keep':
+                        self.insitu_valid_rrs[check_condition==True]=self.insitu_valid_rrs[check_condition==True]+1
+                    if th_type == 'remove':
+                        self.insitu_valid_rrs[check_condition==False]=self.insitu_valid_rrs[check_condition==False]+1
 
         # checking rrs thresholds
         if self.thersholds is not None:

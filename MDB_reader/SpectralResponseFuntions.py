@@ -114,7 +114,7 @@ class SRF:
 
         nwl_apply = len(wl_olci_apply)
         rrs_values = np.ma.masked_all((spectra.shape[0],nwl_apply))
-        print('rrs values shape',rrs_values.shape)
+
         iwl_apply  = 0
         for iwl in range(nwl):
             band = olci_bands_list[iwl]
@@ -133,7 +133,10 @@ class SRF:
         wl_array = np.squeeze(wl_array)
         nwl = wl_array.shape[0]
 
-        wl_indices_valid = np.where(wl_array.mask==False)
+        if np.ma.is_masked(wl_array):
+            wl_indices_valid = np.where(wl_array.mask==False)
+        else:
+            wl_indices_valid = (np.arange(nwl).astype(np.int16),)
         nwl_valid = len(wl_indices_valid[0])
         print(f'[INFO] Number of wavelengths: {nwl} Valid: {nwl_valid}')
 
