@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-class PlotSpectra():
+class PlotSpectra:
 
     def __init__(self):
         self.start_plot()
