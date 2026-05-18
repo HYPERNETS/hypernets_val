@@ -121,7 +121,7 @@ class PlotScatter():
         self.ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         self.ax.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
 
-    def plot_data(self, xdata, ydata, marker, markersize, color, edgecolor, linewidth):
+    def plot_data(self, xdata, ydata, marker, markersize, color, edgecolor, linewidth,vmin=None,vmax=None):
         if isinstance(color,str) and len(color.split(';'))==3:
             color = tuple([float(x.strip()) for x in color.split(';')])
         style = self.style_default
@@ -131,6 +131,10 @@ class PlotScatter():
             style['s'] = markersize
         if color is not None:
             style['c'] = color
+            if vmin is None:
+                vmin = np.min(color)
+            if vmax is None:
+                vmax = np.max(color)
         if edgecolor is not None:
             style['edgecolors'] = edgecolor
         if linewidth is not None:
@@ -144,6 +148,8 @@ class PlotScatter():
                             marker=style['marker'],
                             s=style['s'],
                             c=style['c'],
+                            vmin = vmin,
+                            vmax = vmax,
                             edgecolors=style['edgecolors'],
                             linewidths=style['linewidths'],
                             alpha = 1.0)

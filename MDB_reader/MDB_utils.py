@@ -130,8 +130,15 @@ def main():
         # wl_list = [591,593,596,598,601,603,605,608,610]
         # remove_wl_from_mu_variables(file_in,file_out,wl_list)
 
-        dir_pace = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK/MDBsV3/PACE_OCI'
-        file_pace = os.path.join(dir_pace,'MDBr__PACE_OCI_TARA_20240323_20240821.nc')
+        # dir_pace = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK/MDBsV3/PACE_OCI'
+        # file_pace = os.path.join(dir_pace,'MDBr__PACE_OCI_TARA_20240323_20240821.nc')
+        from MBR_Chl_Algorithms import MBR_Chl_Algorithms
+        mbr_algo = MBR_Chl_Algorithms('OC4_MERIS')
+        mbr_algo.run_mbr_algorithm(np.zeros((100,6,25,25)),wl_array=[412,443,490,510,560,665],iwl=1)
+        # blue_wl,green_wl= mbr_algo.get_wl()
+        #
+        # indices_blue = mbr_algo.get_indices_wl(blue_wl,[412,443,490,510,560,665])
+        # indices_green = mbr_algo.get_indices_wl(green_wl,[412,443,490,510,560,665])
 
 
 def run_mdbr_to_mdb(input_path):
@@ -280,7 +287,7 @@ def remove_wl_from_mu_variables(input_file,output_file,wl_list):
 
     input_dataset.close()
     ncout.close()
-print('COMPLETED')
+
 
 def make_test():
     print('STARTED')

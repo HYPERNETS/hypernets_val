@@ -110,8 +110,26 @@ class MDBProcessing:
             self.run_brdf(options,output)
         elif type_algo=='bal_chl':
             self.run_bal_chl(options,output)
+        elif type_algo=='mbr_chl':
+            self.run_mbr_chl(options)
         else:
             print(f'[ERROR] {type_algo} processing is not implemented yet. Please add the corresponding function in the run() method in the MDBProcessing.py class (file MDBAlgorithm.py)')
+
+    def run_mbr_chl(self,options):
+        from MBR_Chl_Algorithms import MBR_Chl_Algorithms
+        self.mfile.close()
+        algo_list = options['mbr_algo']
+        if algo_list is None:
+            print(f'[ERROR] mbr_algo is not valid')
+            return
+
+        for algo in algo_list:
+            mbr_algo = MBR_Chl_Algorithms(algo)
+            if not mbr_algo.valid_algo:
+                return
+            mbr_algo.run_from_mdb(self.path_mdb,options)
+
+        #print(output_array.shape)
 
     def run_bal_chl(self,options,output_path):
         try:
@@ -470,7 +488,7 @@ def main():
     #     return
     # if do_test():
     #     return
-    print('Started MDBAlgorithm')
+    print('[INFO] Started MDBAlgorithm')
     if args.mode=='CONFIGFILE':
         run_from_config_file()
         return
@@ -492,7 +510,7 @@ def main():
                 os.mkdir(os.path.dirname(output_path))
             except:
                 print(
-                    f'[ERROR] Ouput path {os.path.basename(output_path)} is not valid as {os.path.dirname(output_path)} is not a valid directory')
+                    f'[ERROR] Output path {os.path.basename(output_path)} is not valid as {os.path.dirname(output_path)} is not a valid directory')
                 return
         if output_path.endswith('.nc'):
             print(f'[ERROR] Output path {output_path} should be a NC file (.nc)')
