@@ -84,7 +84,15 @@ class AlgorithOptions:
         options_specific['required_args'] = self.gmanager.get_required_args(options_global['type_algo'])
         if options_global is None or options_specific is None:
             return None
-        return options_global | options_specific
+        options_final = options_global | options_specific
+        points_args = self.gmanager.get_point_args(options_global['type_algo'])
+        if points_args is not None:
+            for parg in points_args:
+                if options_final[parg] is not None:
+                    soptions = self.gmanager.get_retrieve_point_options(options_global['type_algo'],parg,options_final[parg])
+                    options_point = self.omanager.get_options_as_dict(self.section,soptions,None)
+                    options_final = options_final | options_point
+        return options_final
 
     def get_algo_types(self):
         soptions, required = self.gmanager.get_retrieve_options('GLOBAL')
@@ -106,6 +114,8 @@ class MDBProcessing:
             self.run_common_mu(reference,options,output)
         elif type_algo=='subset':
             self.run_subset(options,output)
+        elif type_algo=='var_operations':
+            self.run_var_operations(options,output)
         elif type_algo=='brdf':
             self.run_brdf(options,output)
         elif type_algo=='bal_chl':
@@ -114,6 +124,30 @@ class MDBProcessing:
             self.run_mbr_chl(options)
         else:
             print(f'[ERROR] {type_algo} processing is not implemented yet. Please add the corresponding function in the run() method in the MDBProcessing.py class (file MDBAlgorithm.py)')
+
+    def run_var_operations(self,options,output):
+        if os.path.exists(output):
+            os.remove(output)
+        writer = MDBWritter.MDBWritter(self.mfile, output)
+        print(f'[INFO] Starting new MDB...')
+        writer.copy_global_attributes()
+        writer.copy_dimensions(changes=None)
+        variables_remove = options['vars_to_remove'] if options['vars_to_remove'] is not None else []
+        writer.copy_variables([], variables_remove, None)
+        variables_copy = options['vars_to_copy']
+        if variables_copy is not None:
+            for var_copy in variables_copy:
+                file_orig = options[f'{var_copy}.from_file']
+                print(var_copy,file_orig)
+                if file_orig is None:
+                    print(f'[ERROR] File {file_orig} given in {var_copy}.from_file is not available, copy could not be done. Skipping variable...')
+                array,dims,dtype,fvalue = self.mfile.get_consistent_data_array_from_other_file(file_orig,var_copy)
+                #print('===>',array.shape,dtype,dims,fvalue)
+                if array is not None:
+                    writer.add_variable(var_copy,array,dims,dtype,fvalue)
+        writer.close()
+        print(f'[INFO] Completed')
+
 
     def run_mbr_chl(self,options):
         from MBR_Chl_Algorithms import MBR_Chl_Algorithms
@@ -157,7 +191,7 @@ class MDBProcessing:
         vza_var = options['vza_var']
         raa_var = options['raa_var']
         vaa_var = options['vaa_var']
-        saa_var = optonss['saa_var']
+        saa_var = options['saa_var']
 
         # l = dset.variables['insitu_original_bands'][1, :]  # Wavelengths in nm
         # Rrs = dset.variables['insitu_Rrs'][5, :, 0]  # Remote sensing reflectance
@@ -169,6 +203,30 @@ class MDBProcessing:
     def run_subset(self,options,output):
         type_subset = options['type_subset']
 
+        if type_subset=='satellite_bands':
+            sat_bands_option = options['satellite_bands_option']
+            if options['satellite_bands_option'] is None:
+                print(f'[ERROR] satellite_bands_options option is required for type_subset: satellite_bands')
+                return None
+            new_sat_wl_array = None
+            if sat_bands_option=='band_list':
+                if options['band_list'] is not None:
+                    new_sat_wl_array = np.array(new_sat_wl_array)
+                else:
+                    print(f'[ERROR] band_list option is required for type_subset: satellite_bands with option band_list')
+                    return None
+            elif sat_bands_option=='file_nc':
+                if options['file_band_list'] is not None:
+                    new_sat_wl_array = get_wl_array_from_file(options['file_band_list'],options['variable_band_list'])
+                else:
+                    print(f'[ERROR] file_band_list option is required for type_subset: satellite_bands with option file_nc')
+                    return None
+            if new_sat_wl_array is None:
+                return None
+            if os.path.exists(output):
+                os.remove(output)
+            writer = MDBWritter.MDBWritter(self.mfile, output)
+            writer.create_subset_sat_bands(new_sat_wl_array)
 
         array_subset = None
 
@@ -188,12 +246,13 @@ class MDBProcessing:
 
 
         if array_subset is None:
-            return
+            return None
         if os.path.exists(output):
             os.remove(output)
         writer = MDBWritter.MDBWritter(self.mfile, output)
         writer.create_subset(array_subset)
 
+        return array_subset
 
     def run_common_mu(self,reference,options,output):
         output_variable = reference if options['output_variable'] is None else options['output_variable']
@@ -499,8 +558,8 @@ def main():
     try:
         dset = Dataset(input_path)
         dset.close()
-    except:
-        print(f'[ERROR] Input path {input_path} is not a valid MDB (NetCDF File)')
+    except Exception as ex:
+        print(f'[ERROR] Input path {input_path} is not a valid MDB (NetCDF File). Exception: {ex}')
         return
     output_path = None
     if args.output:
@@ -508,11 +567,11 @@ def main():
         if not os.path.isdir(os.path.dirname(output_path)):
             try:
                 os.mkdir(os.path.dirname(output_path))
-            except:
+            except Exception as ex:
                 print(
-                    f'[ERROR] Output path {os.path.basename(output_path)} is not valid as {os.path.dirname(output_path)} is not a valid directory')
+                    f'[ERROR] Output path {os.path.basename(output_path)} is not valid as {os.path.dirname(output_path)} is not a valid directory. Exception: {ex}')
                 return
-        if output_path.endswith('.nc'):
+        if not output_path.endswith('.nc'):
             print(f'[ERROR] Output path {output_path} should be a NC file (.nc)')
             return
 
@@ -675,6 +734,28 @@ def create_cyano_flag(input_path, output_path):
     if output_path is None:
         output_path = input_path
     print(f'[INFO] Completed. Output file {output_path}')
+
+
+def get_wl_array_from_file(file_nc,name_variable):
+    if not os.path.isfile(file_nc):
+        print(f'[ERROR] {file_nc} is not available or is not a valid file')
+        return None
+
+    try:
+        dset = Dataset(file_nc)
+    except Exception as e:
+        print(f'[ERROR] {file_nc} is not a valid NetCDF file. Exception: {e}')
+        return None
+
+    if not name_variable in dset.variables:
+        print(f'[ERROR] {name_variable} is not available in file {file_nc}')
+        return None
+
+    array = dset.variables[name_variable][:]
+
+    dset.close()
+
+    return array
 
 
 if __name__ == '__main__':

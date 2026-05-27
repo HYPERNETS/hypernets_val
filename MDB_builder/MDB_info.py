@@ -11,7 +11,7 @@ from netCDF4 import Dataset
 parser = argparse.ArgumentParser(
     description="Obtaining information for running MDB_builder.")
 
-parser.add_argument('-m', "--mode", help='Mode option', choices=["instrument_id", "match-up-info","extract_info","TEST"], required=True)
+parser.add_argument('-m', "--mode", help='Mode option', choices=["instrument_id", "match-up-info","extract_info","sat_times","TEST"], required=True)
 parser.add_argument('-i', "--input_path", help="Input path.")
 parser.add_argument('-o', "--output", help="Output file.")
 parser.add_argument('-sd', "--start_date", help="Start date. Optional with --listdates (YYYY-mm-dd)")
@@ -25,6 +25,14 @@ def main():
     if args.mode == 'TEST':
         make_test()
         return
+    if args.mode == 'sat_times':
+        if not check_required_params(['input_path']):
+            return
+        if not os.path.isfile(args.input_path):
+            print(f'[ERROR] {args.input_path} does not exist or is not a valid file')
+            return
+        get_sat_times(args.input_path)
+
     if args.mode == 'extract_info':
         if not check_required_params(['input_path', 'output']):
             return
@@ -56,7 +64,7 @@ def main():
         if not check_required_params(['input_path']):
             return
         if not os.path.isfile(args.input_path):
-            print(f'[ERROR] {args.input_path} does not exist or is not a valid directory')
+            print(f'[ERROR] {args.input_path} does not exist or is not a valid file')
             return
         get_match_up_info(args.input_path)
 
@@ -89,6 +97,11 @@ def get_extract_info(input_path,output_file):
     df.to_csv(output_file,sep=';')
     print(f'[INFO] Completed')
 
+def get_sat_times(input_file):
+    dataset = Dataset(input_file)
+    for t in dataset.variables['satellite_time'][:]:
+        print(dt.fromtimestamp(t).astimezone(timezone.utc).strftime('%Y-%m-%d'))
+    dataset.close()
 
 def get_match_up_info(input_file):
     dataset = Dataset(input_file)

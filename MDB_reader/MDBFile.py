@@ -778,14 +778,17 @@ class MDBFile:
             load_info['status'] = -4  # f'INVALID INSITU DATA'
             return is_mu_valid, load_info
 
+
+
         if not spectrum_complete and self.qc_insitu.only_complete_spectra:
             self.mu_curr_ins_rrs = []
             self.mu_curr_sat_rrs_mean = []
             load_info['status'] = -5  # f'INCOMPLETE IN SITU SPECTRUM'
             return is_mu_valid, load_info
 
-        #print('improve in qc sat...')
+
         cond_min_pixels, cond_stats, valid_mu, sat_values, sat_values_unc = self.qc_sat.get_match_up_values_v2(index_mu)
+
         # if index_mu>=360 and index_mu<=375:
         #     print(index_mu,'-->',cond_min_pixels,'-->',cond_stats,'--->',valid_mu)
 
@@ -1297,7 +1300,7 @@ class MDBFile:
         mu_invalid_list = None
         if self.qc_sat.mu_invalid_list is not None and len(self.qc_sat.mu_invalid_list)>0:
             mu_invalid_list = self.qc_sat.mu_invalid_list
-            print(f'[WARNING] Invalid list is avaialable, so that some match-ups will be manually excluded from the analysis.')
+            print(f'[WARNING] Invalid list is available, so that some match-ups will be manually excluded from the analysis.')
             #print(self.qc_sat.mu_invalid_list)
 
 
@@ -1332,6 +1335,7 @@ class MDBFile:
             else:
                 mu_valid, info_mu = self.load_mu_datav2(index_mu)
                 #print('mu_valid',mu_valid,info_mu['status'])
+
 
 
             if info_mu['status'] < 0:
@@ -1439,6 +1443,7 @@ class MDBFile:
             self.mu_dates[mukey]['spectrum_complete'] = spectrum_complete
             if spectrum_complete:
                 nmu_valid_complete = nmu_valid_complete + 1
+
 
         self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
 
@@ -2575,7 +2580,7 @@ class MDBFile:
             for month in range(1, 13):
                 # if year == 2023 and month >= 4:
                 #     continue
-                date_here = datetime(year, month, 1)
+                date_here = dt(year, month, 1)
                 # print(date_here)
                 monthl.append(date_here.strftime('%Y-%m'))
 
@@ -2763,6 +2768,66 @@ class MDBFile:
             except:
                 pass
         return fillValue
+
+
+    def get_consistent_data_array_from_other_file(self,other_file,name_variable):
+        if not os.path.isfile(other_file):
+            print(f'[ERROR] {other_file} is not available or is not a valid file')
+            return [None]*4
+        try:
+            dset = Dataset(other_file)
+        except Exception as ex:
+            print(f'[ERROR] {other_file} is not a valid NetCDF file. Exception: {ex}')
+            return [None]*4
+
+        var = dset.variables[name_variable]
+        dtype = var.dtype
+        fvalue = var.get_fill_value()
+        expected_dims = []
+        expected_shape = []
+        for dim in var.dimensions:
+            if not dim in self.dimensions:
+                dset.close()
+                print(f'[ERROR] Dimension {dim} is not available in the variable {name_variable} to be copy from {other_file} to the input file')
+                return [None]*4
+            expected_shape.append(len(self.dimensions[dim]))
+            expected_dims.append(dim)
+        expected_dims = tuple(expected_dims)
+
+        array = var[:]
+        array_shape = np.array(array.shape)
+        if np.array_equal(array_shape, expected_shape):
+            print(f'[INFO] Returned array with shape {expected_shape} ')
+            return array, expected_dims, dtype, fvalue
+
+
+        if np.array_equal(array_shape[1:],expected_shape[1:]) and var.dimensions[0]=='satellite_id':
+            print(f'[WARNING] Shape of the array to be copied {array.shape} shows different satellite_id dimension that the original file ({len(self.dimensions["satellite_id"])})')
+            print(f'[INFO] Trying to link data using satellite_time variable...')
+            other_sat_time = dset.variables['satellite_time'][:]
+
+            new_array = np.ma.masked_all(tuple(expected_shape),dtype)
+            input_sat_dates = [x.strftime('%Y-%m-%d') for x in self.sat_times]
+            linked  = np.zeros(new_array.shape[0])
+            for idx,it in enumerate(other_sat_time):
+                sat_date_here = dt.fromtimestamp(it).astimezone(timezone.utc).strftime('%Y-%m-%d')
+                try:
+                    index = input_sat_dates.index(sat_date_here)
+                    new_array[index,:] = array[idx,:]
+                    linked[index] = 1
+                except ValueError:
+                    continue
+            print(f'[INFO] Linked completed: {int(np.sum(linked))}/{expected_shape[0]}')
+            if np.sum(linked)<expected_shape[0]:
+                non_linked_dates = np.array(input_sat_dates)[linked==0]
+                for nld in non_linked_dates:
+                    print(f'Non linked date: {nld}')
+            dset.close()
+            return new_array, expected_dims, dtype, fvalue
+
+        dset.close()
+
+        return [None]*4
 
     ##return subset array, boolean array with 1 if the satellite date is in the specified date_list (list of string dates in format YYYY-mm-dd)
     def get_subset_array_from_date_list(self,date_list):

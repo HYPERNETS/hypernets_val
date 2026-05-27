@@ -121,7 +121,7 @@ class PlotScatter():
         self.ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         self.ax.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
 
-    def plot_data(self, xdata, ydata, marker, markersize, color, edgecolor, linewidth,vmin=None,vmax=None):
+    def plot_data(self, xdata, ydata, marker, markersize, color, edgecolor, linewidth,vmin=None,vmax=None,norm=None):
         if isinstance(color,str) and len(color.split(';'))==3:
             color = tuple([float(x.strip()) for x in color.split(';')])
         style = self.style_default
@@ -131,10 +131,11 @@ class PlotScatter():
             style['s'] = markersize
         if color is not None:
             style['c'] = color
-            if vmin is None:
-                vmin = np.min(color)
-            if vmax is None:
-                vmax = np.max(color)
+            if isinstance(color,np.ndarray):
+                if vmin is None:
+                    vmin = np.min(color)
+                if vmax is None:
+                    vmax = np.max(color)
         if edgecolor is not None:
             style['edgecolors'] = edgecolor
         if linewidth is not None:
@@ -142,17 +143,27 @@ class PlotScatter():
         if self.ax is None:
             self.set_axhere()
 
+        if norm is None:
+            hscatter = self.ax.scatter(xdata, ydata,
+                marker=style['marker'],
+                s=style['s'],
+                c=style['c'],
+                vmin = vmin,
+                vmax = vmax,
+                edgecolors=style['edgecolors'],
+                linewidths=style['linewidths'],
+                alpha = 1.0)
+        else:
+            hscatter = self.ax.scatter(xdata, ydata,
+                marker=style['marker'],
+                s=style['s'],
+                c=style['c'],
+                norm = norm,
+                edgecolors=style['edgecolors'],
+                linewidths=style['linewidths'],
+                alpha = 1.0)
+        
 
-
-        hscatter = self.ax.scatter(xdata, ydata,
-                            marker=style['marker'],
-                            s=style['s'],
-                            c=style['c'],
-                            vmin = vmin,
-                            vmax = vmax,
-                            edgecolors=style['edgecolors'],
-                            linewidths=style['linewidths'],
-                            alpha = 1.0)
         return hscatter
     # def plot_reg_line(self, xdata, ydata, color):
     #     data_plot = pd.concat([xdata, ydata], axis=1).astype(dtype=np.float)

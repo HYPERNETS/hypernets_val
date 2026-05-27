@@ -64,18 +64,26 @@ class QC_INSITU:
         self.sat_time = None
 
     def check_validity(self):
-        self.insitu_valid_rrs = np.ma.zeros((self.insitu_rrs.shape[0],self.insitu_rrs.shape[2]))
+        nmu = self.insitu_rrs.shape[0]
+        nid = self.insitu_rrs.shape[2]
+        nspectra = nmu * nid
+        nbands = self.insitu_rrs.shape[1]
+
+        self.insitu_valid_rrs = np.ma.zeros((nmu,nid))
 
         ##check first masked values or nan,inf,-inf, etc
         insitu_rrs_check = np.ma.masked_invalid(self.insitu_rrs)
         insitu_rrs_check = np.moveaxis(insitu_rrs_check,1,2)
-        nspectra = self.insitu_rrs.shape[0] * self.insitu_rrs.shape[2]
-        nbands = self.insitu_rrs.shape[1]
         insitu_rrs_check = np.reshape(insitu_rrs_check,(nspectra,nbands))
+
+        #insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check, axis=1) > 0
         #insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check, axis=1) > 3 ##for LAIT
         #insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check, axis=1) > 1 ##for TRIT
-        insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check,axis=1)>0
-        insitu_rrs_check_sum = np.reshape(insitu_rrs_check_sum,(self.insitu_rrs.shape[0],self.insitu_rrs.shape[2]))
+        insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check,axis=1)>2 ##for VEIT with instrument change
+
+
+
+        insitu_rrs_check_sum = np.reshape(insitu_rrs_check_sum,(nmu,nid))
         self.insitu_valid_rrs[insitu_rrs_check_sum==False]=self.insitu_valid_rrs[insitu_rrs_check_sum==False]+1
 
 

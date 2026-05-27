@@ -79,7 +79,6 @@ class MDBWritter:
 
             new_mu_satellite_id = new_mu_satellite_id[array_subset_mu]
 
-        
 
         for name, variable in self.input_dataset.variables.items():
             if len(variables_keep) > 0:
@@ -108,6 +107,34 @@ class MDBWritter:
             else:
                 self.output_dataset[name][:] = self.input_dataset[name][:]
 
+
+    def copy_variables_subsetting_sat_bands(self,variables_keep,variables_remove,new_sat_bands,indices_subset):
+        if self.output_dataset is None or self.input_dataset is None:
+            return
+        new_sat_bands = np.array(new_sat_bands)##make sure it't numpy
+        for name, variable in self.input_dataset.variables.items():
+            if len(variables_keep) > 0:
+                if not name in variables_keep:
+                    continue
+            if len(variables_remove) > 0:
+                if name in variables_remove:
+                    continue
+            print(f'[INFO] Copying variable: {name}')
+            fill_value = None
+            if '_FillValue' in list(variable.ncattrs()):
+                fill_value = variable._FillValue
+
+            # create variable
+            self.output_dataset.createVariable(name, variable.datatype, variable.dimensions, fill_value=fill_value, zlib=True, complevel=6)
+            # copy variable attributes all at once via dictionary
+            self.output_dataset[name].setncatts(self.input_dataset[name].__dict__)
+            # copy data
+            if name == 'satellite_bands':
+                self.output_dataset[name][:] = new_sat_bands[:]
+            elif len(variable.dimensions)>=2 and variable.dimensions[1]=='satellite_bands':
+                self.output_dataset[name][:] = self.input_dataset[name][:,indices_subset,:,:]
+            else:
+                self.output_dataset[name][:] = self.input_dataset[name][:]
 
 
     def get_dims_from_shape(self,shape):
@@ -160,6 +187,33 @@ class MDBWritter:
         self.copy_variables([],[],array_subset)
         self.close()
         print(f'[INFO] Completed')
+
+    def create_subset_sat_bands(self,new_array_bands):
+
+        old_sat_band = self.input_dataset.variables['satellite_bands'][:]
+
+        indices_band_old = []
+        for new_band in new_array_bands:
+            index_band_old = np.where(old_sat_band==new_band)[0]
+            if len(index_band_old)==0:
+                print(f'[ERROR] Satellite band {new_band} does not exist in the file and hence it could not be included in the subset. Please remove from the list of new bands')
+                return
+            else:
+                indices_band_old.append(index_band_old[0])
+
+        n_bands_new = len(indices_band_old)
+        print(f'[INFO] Starting subset from {len(old_sat_band)} to {n_bands_new} satellite wavelengths')
+        self.copy_global_attributes()
+        self.copy_dimensions(changes={'satellite_bands': n_bands_new})
+        self.copy_variables_subsetting_sat_bands([], [], new_array_bands,indices_band_old)
+        self.close()
+        print(f'[INFO] Completed')
+
+
+
+
+
+
 
     def from_mdbr_to_mdb(self):
         if self.output_dataset is None or self.input_dataset is None:

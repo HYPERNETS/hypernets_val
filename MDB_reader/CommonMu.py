@@ -85,26 +85,38 @@ class COMMON_MU:
             refidx = dt.fromtimestamp(np.int64(sat_time_array[idx])).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%S')
             if reference.startswith('sat_date'):
                 refidx = dt.fromtimestamp(sat_time_array[idx]).astimezone(timezone.utc).strftime('%Y%m%d')
-            ncomp = 0
+
+            indices_common = [idx]
             for fv in flag_value_comp:
                 if fv in check_mu[refidx]:
                     indices_fv = check_mu[refidx][fv]
                     for index_fv in indices_fv:
                         if index_used[index_fv]:
                             continue
-                        if cfs.is_central_pixel(sat_lat_array[index_fv,:,:],sat_lon_array[index_fv,:,:],sat_lat_array[idx,rc_center,rc_center],sat_lon_array[idx,rc_center,rc_center]):
-                            common_mu_array[idx] = index_common
-                            common_mu_array[index_fv] = index_common
-                            index_used[idx] = True
-                            index_used[index_fv] = True
-                            ncomp = ncomp + 1
+                        is_ok = False
+                        if reference.endswith('lat_lon'):
+                            if cfs.is_central_pixel(sat_lat_array[index_fv,:,:],sat_lon_array[index_fv,:,:],sat_lat_array[idx,rc_center,rc_center],sat_lon_array[idx,rc_center,rc_center]):
+                                is_ok = True
+                        else:
+                            is_ok = True
+
+                        if is_ok:
+                            indices_common.append(index_fv)
                             break
-            if ncomp==len(flag_value_comp):
+
+            if len(indices_common)==len(flag_among_values):
+                for icommon in indices_common:
+                    common_mu_array[icommon] = index_common
+                    index_used[icommon] = True
                 index_common = index_common + 1
 
-
-        print(f'[INFO] Number of common match-ups: {np.max(common_mu_array)} / {nflag_values}')
-
+        ncommonmu = int(np.max(common_mu_array))
+        npotentialflags = len(flag_among_values)
+        check = True
+        if ncommonmu>0:
+            check = int(len(np.where(common_mu_array>=1)[0]))==ncommonmu*npotentialflags
+        print(f'[INFO] Number of common match-ups: {ncommonmu} * number of flags: {npotentialflags} = {ncommonmu*npotentialflags} common match-ups of {nflag_values} total match-ups. Consistent result: {check}')
+        print(f'[INFO] Creating common match-ups variable...')
 
         return common_mu_array
 

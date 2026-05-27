@@ -87,6 +87,47 @@ class OptionsManager:
         options = self.options.options(section)
         return options
 
+    def get_point_args(self,section):
+        return self.get_value_param(section,'point_args',None,'strlist')
+
+    def get_retrieve_point_options(self,section,ref,value_list):
+        slist = self.get_options_list(section)
+        if slist is None:
+            print(f'[ERROR] Retrieve options were not found for section {section}')
+            return None
+        soptions = {}
+        for op in slist:
+            if op.startswith(f'{ref}.'):
+                list_here = self.get_value_param(section, op, None, 'strlist')
+
+                type_param = list_here[0]
+                default = None if list_here[1].upper() == 'NONE' else list_here[1]
+                if default is not None:
+                    default = get_value_param_impl(default, type_param, None)
+
+                potential_values =None
+                if len(list_here) == 3:
+                    if type_param.startswith('str'):  ##str or strlist:
+                        potential_values = get_value_param_impl(list_here[2], 'strlist', None)
+                    elif type_param.startswith('int'):  ##int or intlist:
+                        potential_values = get_value_param_impl(list_here[2], 'intlist', None)
+                    elif type_param.startswith('float'):  ##float or floatlist:
+                        potential_values = get_value_param_impl(list_here[2], 'floatlist', None)
+
+                for val in value_list:
+                    op_val = op.replace(ref,val)
+                    soptions[op_val] = {
+                        'type_param': type_param,
+                        'default': default
+                    }
+                    if potential_values is not None:
+                        soptions[op_va]['list_values'] = potential_values
+
+
+        return soptions
+
+
+
     def get_required_args(self,section):
         req_args = self.get_value_param(section,'required_args',None,'dict')
         #print(req_args)
@@ -116,6 +157,8 @@ class OptionsManager:
 
         return required_args
 
+
+
     def get_retrieve_options(self,section):
         slist = self.get_options_list(section)
         if slist is None:
@@ -128,13 +171,15 @@ class OptionsManager:
         for op in slist:
             if op == 'required':
                 required_list = self.get_value_param(section, op, None, 'strlist')
-            elif op == 'required_args':
+            elif op == 'required_args' or op == 'point_args':
+                continue
+            elif op.find('.')>0:
                 continue
             else:
-                list = self.get_value_param(section, op, None, 'strlist')
+                list_here = self.get_value_param(section, op, None, 'strlist')
 
-                type_param = list[0]
-                default = None if list[1].upper() == 'NONE' else list[1]
+                type_param = list_here[0]
+                default = None if list_here[1].upper() == 'NONE' else list_here[1]
                 if default is not None:
                     default = get_value_param_impl(default,type_param,None)
 
@@ -143,14 +188,14 @@ class OptionsManager:
                     'type_param': type_param,
                     'default': default
                 }
-                if len(list) == 3:
+                if len(list_here) == 3:
                     #soptions[op]['list_values'] = [s.strip() for s in list[2].split(',')]
                     if type_param.startswith('str'):##str or strlist:
-                        soptions[op]['list_values'] = get_value_param_impl(list[2],'strlist',None)
+                        soptions[op]['list_values'] = get_value_param_impl(list_here[2], 'strlist', None)
                     elif type_param.startswith('int'):##int or intlist:
-                        soptions[op]['list_values'] = get_value_param_impl(list[2],'intlist',None)
+                        soptions[op]['list_values'] = get_value_param_impl(list_here[2], 'intlist', None)
                     elif type_param.startswith('float'):##float or floatlist:
-                        soptions[op]['list_values'] = get_value_param_impl(list[2],'floatlist',None)
+                        soptions[op]['list_values'] = get_value_param_impl(list_here[2], 'floatlist', None)
 
         return soptions, required_list
 
