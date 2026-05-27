@@ -1668,6 +1668,7 @@ def main():
     if insitu_type is None:
         return
 
+
     insituBase = ibase.get_insitu_object(insitu_type, insitu_options, args.verbose)
     if insituBase is None:
         return

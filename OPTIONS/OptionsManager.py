@@ -416,7 +416,9 @@ class OptionsManager:
                         result[key] = self.get_option(section,key,poptions_key,None,None)
                         index = index + 1
                 else:
+
                     result[option] = self.get_option(section,option,poptions,None,None)
+                    
 
         if required is not None:
             for r in required:
@@ -447,6 +449,8 @@ class OptionsManager:
 
         value = self.get_value_param(section, option, default, type_param)
 
+
+
         if list_values is not None:
             if not value in list_values:
                 print(f'[WARNING] Section/option {section}/{option}: {value} is not a valid value. It should be in the list: {list_values}')
@@ -474,12 +478,10 @@ class OptionsManager:
 
 
 def get_value_param_impl(value,type,default):
-
     if type == 'str':
         return value.strip(f'"')
 
     if type == 'file' or type.startswith('input_file'):
-
         type_check = type[11:] if type.startswith('input_file_') else None
         file = value.strip(f'"')
 
