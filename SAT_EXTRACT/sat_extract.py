@@ -1340,18 +1340,20 @@ class SatExtractBase:
             return
         if args.verbose:
             print(f'[INFO] Overwrite: {overwrite}')
-
+        
+        pending_dates = []
         for date_here in insituBase.date_list:
             if self.start_date is not None and self.end_date is not None:
                 if date_here<self.start_date or date_here>self.end_date:
-                    if self.verbose:
-                        print(f'[INFO] Skipping date {date_here.strftime("%Y-%m-%d")} as it not in the range: {self.start_date.strftime("%Y-%m-%d")} to {self.end_date.strftime("%Y-%m-%d")}')
+                    # if self.verbose:
+                    #     print(f'[INFO] Skipping date {date_here.strftime("%Y-%m-%d")} as it not in the range: {self.start_date.strftime("%Y-%m-%d")} to {self.end_date.strftime("%Y-%m-%d")}')
                     continue
             if args.verbose:
                 print(f'[INFO] Working with date: {date_here.strftime("%Y-%m-%d")}')
             list_files,satellite_time = self.sat_extract_sensor.get_files_day(date_here, input_path_info,sat_extract_options)
             if list_files is None:
                 print(f'[WARNING] Data files for {date_here.strftime("%Y-%m-%d")} could not be retrieved. Skipping...')
+                pending_dates.append(date_here)
                 continue
             if satellite_time is None:
                 print(f'[WARNING] Satellite time for date could not be defined. Skipping...')
@@ -1395,9 +1397,13 @@ class SatExtractBase:
                     params_list.append([extract_options, extract_info, lat_array, lon_array, output_path, overwrite])
 
 
+        if len(pending_dates)>0:
+            print(f'[WARNING] {len(pending_dates)} pending dates found. Try to download the sources first')
+
+
         if ncores > 0 or ncores == -1:
             if len(params_list)==0:
-                print(f'[WARNING] No data for running multprocessing.')
+                print(f'[WARNING] No data for running multiprocessing.')
                 return
             if self.verbose:
                 print(f'[INFO] Starting parallel processing. Number of dates: {len(params_list)}')
@@ -1692,18 +1698,11 @@ if __name__ == '__main__':
     parser.add_argument('-ed', "--end_date", help="The End Date - format YYYY-MM-DD ")
     parser.add_argument('-insitu',"--insitu_type",help="In situ type")
     parser.add_argument('-sat', "--sat_type", help="Satellite type")
-    parser.add_argument('-no_concat', "--no_concatenate", help="Use internaly for sbatch mode", action="store_true")
+    parser.add_argument('-no_concat', "--no_concatenate", help="Use internally for sbatch mode", action="store_true")
     parser.add_argument('-make_concat', "--make_concatenate",
-                        help="Use internaly for sbatch mode to make final concatenation", action="store_true")
+                        help="Use internally for sbatch mode to make final concatenation", action="store_true")
     parser.add_argument('-p', "--product_file", help="Image file.")
     args = parser.parse_args()
 
     main()
-    # from sat_extract_OLCI import SatSourceOlci
-    # dir_base = '/mnt/c/Users/LuisGonzalez/OneDrive - NOLOGIN OCEANIC WEATHER SYSTEMS S.L.U/CNR/TARA_WORK'
-    # file_olci = os.path.join(dir_base,'S3A_OL_2_WFR____20230519T101357_20230519T101657_20230520T221344_0179_099_065_1980_MAR_O_NT_003.SEN3')
-    # osource = SatSourceOlci(file_olci,args.verbose)
-    # # print(osource.timeliness,osource.collection)
-    # # polygon = osource.get_polygon_from_manifest()
-    # # print(polygon)
-    # osource.get_geometry_array('OZA',[190,215,73,98])
+    

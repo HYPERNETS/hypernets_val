@@ -399,6 +399,9 @@ class SatExtractOCI:
         else:
             return [None]*2
 
+
+
+
     def is_l3_product(self):
         return False
 
