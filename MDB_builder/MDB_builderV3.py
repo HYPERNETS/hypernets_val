@@ -43,7 +43,11 @@ def main():
 
     if args.verbose:
         print(f'[INFO] Checking in situ Rrs and data variables...')
-    if not insituBase.check_rrs_and_data_variables():
+    try:
+        if not insituBase.check_rrs_and_data_variables():
+            return
+    except Exception as ex:
+        print(f'[ERROR] Error launching .check_rrs_and_data_variables. Exception: {ex}')
         return
 
     ##retrieving sat extract list

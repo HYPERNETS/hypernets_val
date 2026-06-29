@@ -376,8 +376,8 @@ class EXTRACT_LIST:
         ninsitu_max = mdb_options['ninsitu_max']
         time_diff_tv = mdb_options['time_diff_temporal_variability']
         insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day =  [None]*4
-        if time_diff_tv>0: ##if greater than zero, we need all the metadata for the day to complete the in situ metadata
-                           ##with in situ data points outside the central pixel
+        if time_diff_tv>0 and not insituBase.fixed_site:##if greater than zero, we need all the metadata for the day to complete the in situ metadata
+                           ##with in situ data points outside the central pixel (only for moving instruments)
             time_diff_tv = time_diff_tv * 60 ##from minutes to seconds
             insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day = insituBase.get_metadata_date(date_here)
 
@@ -390,8 +390,10 @@ class EXTRACT_LIST:
 
         if self.csv_files_by_date is not None and key in self.csv_files_by_date:
             file_csv = self.csv_files_by_date[key]
-
             df = pd.read_csv(file_csv,sep=';')
+            if insituBase.insitu_type=='AERONET_OC':
+                df = insituBase.get_metadata_date(df,date_here)
+
             extract_names_array = df['extract_file'][:]
             insitu_times_array = df['insitu_time'][:]
             insitu_times_array_ts = np.array([dt.strptime(x,'%Y-%m-%dT%H:%M:%S').replace(tzinfo=pytz.utc).timestamp() for x in insitu_times_array])
@@ -403,27 +405,22 @@ class EXTRACT_LIST:
             for extract_name in extract_names:
 
                 file_extract = os.path.join(extract_path,extract_name)
+                # print('--->',extract_name,file_extract,file_csv,os.path.exists(file_extract))
                 if os.path.exists(file_extract):
-
                     insitu_times_extract = insitu_times_array_ts[extract_names_array==extract_name]
                     insitu_indices_extract = df['insitu_index'][extract_names_array == extract_name].to_numpy()
                     insitu_lat_extract = df['insitu_lat'][extract_names_array == extract_name].to_numpy()
                     insitu_lon_extract = df['insitu_lon'][extract_names_array == extract_name].to_numpy()
                     info = self.check_extract_file(file_extract,insitu_indices_extract,insitu_times_extract,insitu_lat_extract,insitu_lon_extract,time_diff_mu,ninsitu_max)
-
                     if info is None:
                         return [None]*3
                     if len(info)==0:
                         continue
-
-                    info = self.check_attributes(info, sat_options, insituBase)
+                    info = self.check_attributes(info, sat_options, insituBase,file_extract=file_extract)
                     if info is None:
                         return [None]*3
-
                     nvalid = len(info['insitu_indices'])
-
-                    if time_diff_tv>0 and nvalid<ninsitu_max and nvalid<len(insitu_indices_day[0]):
-
+                    if not insituBase.fixed_site and time_diff_tv>0 and nvalid<ninsitu_max and nvalid<len(insitu_indices_day[0]):
                         info = self.check_insitu_variability_extract(info,insitu_time_day, insitu_lat_day, insitu_lon_day, insitu_indices_day[0],time_diff_tv,ninsitu_max)
                         if info is None:
                             return [None]*3
@@ -581,12 +578,20 @@ class EXTRACT_LIST:
 
         return info
 
-    def check_attributes(self,info, sat_options, insituBase):
+    def check_attributes(self,info, sat_options, insituBase,file_extract=None):
         if insituBase.fixed_site:
             expected_site = insituBase.site
             if expected_site!=info['site']:
-                print(f'[ERROR] Attribute site in the extract {info["site"]} is different from the site option {expected_site}')
-                return None
+                print(f'[WARNING] Attribute site in the extract {info["site"]} should be equal to the site option {expected_site}.')
+                print(f'[INFO] Trying to overwrite the site attribute to {expected_site} to avoid the error...')
+                try:
+                    dout = Dataset(file_extract,'a')
+                    dout.site = expected_site
+                    dout.close()
+                    print(f'[INFO] Attribute site was successfully overwritten to {expected_site}.')
+                except Exception as ex:
+                    print(f'[ERROR] Atributte site could not be updated. Exception: {ex}')
+                    return None
         else:
             info['site'] = 'SHIPBORNE' if insituBase.site is None else insituBase.site
         sat_attrs = ['satellite', 'platform', 'sensor', 'aco_processor', 'proc_version', 'res']

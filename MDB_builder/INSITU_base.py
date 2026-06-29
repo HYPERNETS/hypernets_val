@@ -254,7 +254,7 @@ class Mini_MDB_Builder():
         self.new_MDB.createDimension('insitu_id', n_insitu_id)
         if n_insitu_bands>0:
             self.new_MDB.createDimension('insitu_bands', n_insitu_bands)
-        self.new_MDB.createDimension('instrument_id',n_instrument_id)
+        self.new_MDB.createDimension('instrument_id',n_instrument_id+1)##a first "row" is reserved for 'default'
 
 
         ##TIME VARIABLE
@@ -338,6 +338,26 @@ class Mini_MDB_Builder():
             print(f'[ERROR] Number of wavelengths retrieved from in situ file different from the expected ({len(wl_array)} != {var_wl.shape[1]})')
             return False
         var_wl[instrument_id,:] = wl_array[:]
+        return True
+
+    def set_insitu_wavelengths_all_instruments(self, wl_array):
+        if not 'insitu_original_bands' in self.new_MDB.variables:
+            print(f'[ERROR] insitu_original_bands is not set in the input MDB mini file')
+            return False
+        var_wl = self.new_MDB.variables['insitu_original_bands']
+
+        if var_wl.shape[0]==wl_array.shape[0]+1:##we add and extra row for default
+
+            wl_array = np.concat([np.ma.masked_all((1,wl_array.shape[1])),np.ma.array(wl_array)],axis=0)
+            wl_array[0,:] = np.ma.masked ##make sure the row added is made by masked values
+
+
+        if wl_array.shape!=var_wl.shape:
+            print(f'[ERROR] shape of the insitu_original_bands variable ({var_wl.shape}) does not match the shape of the wavelengths array {wl_array.shape}')
+            return False
+        else:
+            var_wl[:] = wl_array[:]
+            return True
 
     def set_instrument_id(self,ninsitu_real,instrument_id):
         if not 'insitu_instrument_id' in self.new_MDB.variables:
@@ -348,6 +368,7 @@ class Mini_MDB_Builder():
             print(f'[ERROR] {ninsitu_real} is greater than the ninsitu_max set to {var.shape[1]}')
             return False
         var[0,0:ninsitu_real] = instrument_id
+        return True
 
     #Non-spectral variables include insitu_time,insitu_lat,insitu_lon,insitu_spatial_index,time_difference or other data variables
     def set_non_spectral_variables(self,name_var,array):
@@ -362,6 +383,9 @@ class Mini_MDB_Builder():
         var[0,0:ninsitu_real] = array[:]
         return True
 
+    def set_insitu_rrs(self,array):
+        return self.set_spectral_variables('insitu_Rrs',array)
+
     ##spectral variables include insitu_Rrs, insitu_Rrs_unc or other
     def set_spectral_variables(self,name_var,array):
         if not name_var in self.new_MDB.variables:
@@ -371,7 +395,7 @@ class Mini_MDB_Builder():
         ninsitu_real = array.shape[1]
         var = self.new_MDB.variables[name_var]
         if nwl != var.shape[1]:
-            print(f'[ERROR] Number of wavelengths in the data arrary {nwl} is different from the number of bands in the {name_var} variable({var.shape[1]})')
+            print(f'[ERROR] Number of wavelengths in the data array {nwl} is different from the number of bands in the {name_var} variable({var.shape[1]})')
             return False
         if ninsitu_real>var.shape[2]:
             print(f'[ERROR] {ninsitu_real} is greater than the n_insitu in the variable {name_var} ({var.shape[1]})')
@@ -379,20 +403,20 @@ class Mini_MDB_Builder():
         var[0,:,0:ninsitu_real] = array[:]
         return True
 
-    def set_insitu_basic_variables_from_dict(self,arrays):
+    def set_insitu_basic_variables_from_dict(self,arrays,is_fixed_site=False):
         if 'insitu_time' in arrays:
             if not self.set_non_spectral_variables('insitu_time',arrays['insitu_time']):
                 print(f'[ERROR] Error setting variable insitu_time')
                 return False
-        if 'insitu_lat' in arrays:
+        if 'insitu_lat' in arrays and not is_fixed_site:
             if not self.set_non_spectral_variables('insitu_latitude',arrays['insitu_lat']):
                 print(f'[ERROR] Error setting variable insitu_lat')
                 return False
-        if 'insitu_lon' in arrays:
+        if 'insitu_lon' in arrays and not is_fixed_site:
             if not self.set_non_spectral_variables('insitu_longitude',arrays['insitu_lon']):
                 print(f'[ERROR] Error setting variable insitu_lon')
                 return False
-        if 'insitu_spatial_index' in arrays:
+        if 'insitu_spatial_index' in arrays and not is_fixed_site:
             if not self.set_non_spectral_variables('insitu_spatial_index', arrays['insitu_spatial_index']):
                 print(f'[ERROR] Error setting variable insitu_spatial_index')
                 return False
@@ -416,6 +440,27 @@ class Mini_MDB_Builder():
     def close_mini_mdb_file(self):
         self.new_MDB.close()
         self.new_MDB = None
+
+
+def add_line_csv_with_mdbm_info(fw,file_nc,started):
+    if not started:
+        first_line = 'name;satellite_id;insitu_id;instrument_id;satellite_bands;insitu_bands;rows;columns'
+        fw.write(first_line)
+    dset  = Dataset(file_nc)
+    nsat = len(dset.dimensions['satellite_id'])
+    ninsitu = len(dset.dimensions['insitu_id'])
+    ninstrument = len(dset.dimensions['instrument_id'])
+    nwlsat = len(dset.dimensions['satellite_bands'])
+    nwlinsitu = len(dset.dimensions['insitu_bands'])
+    rows = len(dset.dimensions['rows'])
+    cols = len(dset.dimensions['columns'])
+    line = f'{os.path.basename(file_nc)};{nsat};{ninsitu};{ninstrument};{nwlsat};{nwlinsitu};{rows};{cols}'
+    dset.close()
+    fw.write('\n')
+    fw.write(line)
+    dims = np.array([nsat,ninsitu,ninstrument,nwlsat,nwlinsitu,rows,cols])
+
+    return fw,dims
 
 def get_mini_mdb_file_path(extract_path,info):
     time_min_diff = dt.fromtimestamp(info['time_min_diff']).astimezone(pytz.utc)

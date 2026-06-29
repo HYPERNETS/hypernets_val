@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime as dt
 import numpy as np
 
-class INSITU_MULTIPLE_CSV():
+class INSITU_MULTIPLE_CSV:
 
     def __init__(self, insitu_options, verbose):
         self.fixed_site = False
