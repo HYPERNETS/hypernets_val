@@ -1,0 +1,1342 @@
+import numpy as np
+import COMMON.Class_Flags_OLCI as flag
+import math
+import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
+
+
+
+class QC_SAT:
+
+    def __init__(self, satellite_rrs, sat_bands, satellite_flag, ac_processor):
+        self.name = ''
+        self.satellite_rrs = satellite_rrs
+        self.satellite_rrs_unc  = None
+        self.sat_bands = sat_bands
+
+        self.qc_sat_results = {}
+
+        self.pi_multiplied = [False] * len(self.sat_bands)
+        self.pi_divided = [False] * len(self.sat_bands)
+        self.nmu = self.satellite_rrs.shape[0]
+        self.nbands = self.satellite_rrs.shape[1]
+
+        self.stat_value = 'avg'
+
+        self.window_size = 3
+        self.min_valid_pixels = 9
+        self.use_Bailey_Werdell = False  # if true, minimun number of valid pixels is established
+        # as min_porc_valid_pixels (default 50%) +1 of NTPW
+        # if false, minimun number of valid pixels==min_valid_pixels
+
+        self.apply_outliers = True
+        self.outliers_info = {
+            'central_stat': 'avg',
+            'dispersion_stat': 'std',
+            'factor': 1.5
+        }
+
+        self.NTP = self.window_size * self.window_size  # total number of pixels
+        self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
+        self.NVP = 0  # number of valid pixels (excluding flag pixels), varies with MU
+        self.flag_mask = None  # mask based on flagging
+        self.ac_processor = ac_processor
+
+        self.info_flag = {}
+        if satellite_flag is not None and ac_processor is not None:
+            flag_list, flag_land, flag_inlandwater = self.get_flag_defaults(ac_processor)
+            self.info_flag[satellite_flag.name] = {
+                'variable': satellite_flag,
+                'flag_list': flag_list,
+                'flag_land': flag_land,
+                'flag_inlandwater': flag_inlandwater,
+                'ac_processor': ac_processor,
+                'nflagged': 0,
+                'flag_stats': None
+            }
+
+        self.th_masks = []
+        self.check_statistics = []
+
+        ##values for statistis no rrs
+        self.check_statistics_norrs = []
+        self.statistics_norrs = {}
+        self.ncdataset = None
+
+        self.invalid_mask = {}
+        for sat_index in range(self.nbands):
+            sat_index_str = str(sat_index)
+            self.invalid_mask[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'apply_mask': True,
+                'n_masked': 0,
+                'ref': f'rrs_{self.sat_bands[sat_index]:.0f}_invalid'
+            }
+
+        self.statistics = {}
+        self.statistics_unc = {}
+        for sat_index in range(self.nbands):
+            sat_index_str = str(sat_index)
+            stat_list = {
+                'n_values': 0,
+                'avg': 0,
+                'std': 0,
+                'median': 0,
+                'min': 0,
+                'max': 0,
+                'CV': 0
+            }
+            self.statistics[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'without_outliers': stat_list,
+                'with_outliers': stat_list
+            }
+            self.statistics_unc[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'without_outliers': stat_list,
+                'with_outliers': stat_list
+            }
+        # print(self.statistics[sat_index_str]['without_outliers'])
+
+        self.max_diff_wl = 10
+
+        self.apply_band_shifting = False
+        self.wl_ref = None
+        self.mu_invalid_list = []
+
+        self.indices_valid_bands = None
+
+        self.apply_olci_gains = False
+        self.olci_gains_s3a = {
+            '400': 0.97546,
+            '412.5': 0.97406,
+            '442.5': 0.97492,
+            '490': 0.9689,
+            '510': 0.97184,
+            '560': 0.97571,
+            '620': 0.98001,
+            '665': 0.97834,
+            '673.75': 0.9786,
+            '681.25': 0.97908,
+            '708.75': 0.98013,
+            '753.75': 0.98552,
+            '778.75': 0.98772,
+            '865': 0.986,
+            '885': 0.98657,
+            '1020': 0.91316
+        }
+        self.olci_gains_s3b = {
+            '400': 0.99458,
+            '412.5': 0.9901,
+            '442.5': 0.99221,
+            '490': 0.9862,
+            '510': 0.98898,
+            '560': 0.99114,
+            '620': 0.99769,
+            '665': 0.99684,
+            '673.75': 0.99716,
+            '681.25': 0.99802,
+            '708.75': 0.99782,
+            '753.75': 1.00163,
+            '778.75': 1.00259,
+            '865': 1,
+            '885': 1.00089,
+            '1020': 0.94064
+        }
+
+
+    def check_rrs_variability(self):
+        if len(self.wl_ref)<self.nbands:
+            valid_bands = np.array([1 if wl_here in self.wl_ref else 0 for wl_here in self.sat_bands])
+            print(f'[INFO] Working with a subset of {np.sum(valid_bands)} bands (Total: {self.nbands})')
+            if np.sum(valid_bands)<len(self.wl_ref):
+                wl_to_check = self.sat_bands[valid_bands==0]
+                print(f'[WARNING] Not all the bands given in the band list are available. The following satellite bands are missing: {wl_to_check}')
+                print(f'[WARNING] Expected band list: {self.wl_ref}')
+
+
+            self.indices_valid_bands = np.where(valid_bands==1)[0]
+
+        flag_mask,land = self.compute_flag_mask_array()
+        print(f'[INFO]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
+        print(f'[INFO]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
+        mask_invalid = self.compute_invalid_masks_array()
+        print(f'[INFO]->Number of invalid rrs: {np.ma.sum(mask_invalid)}/{np.ma.count(mask_invalid)}')
+        mask_th = self.compute_th_masks_array()
+        print(f'[INFO]->Number of pixels masked using user-defined thresholds: {np.ma.sum(mask_th)}/{np.ma.count(mask_th)}')
+
+        final_mask = flag_mask + mask_invalid + mask_th
+        final_mask[final_mask>0]=1
+
+        print(f'[INFO]->Number of masked pixels in the final mask: {np.ma.sum(final_mask)}/{np.ma.count(final_mask)}')
+
+
+        ntotal_by_mu = self.window_size*self.window_size
+        nmasked_by_mu = np.ma.sum(np.ma.reshape(final_mask,(self.nmu,self.window_size*self.window_size)),axis=1)
+        nvalid_by_mu = ntotal_by_mu-nmasked_by_mu
+
+
+        min_valid_pixels = self.min_valid_pixels
+
+        if self.use_Bailey_Werdell:
+            nland_by_mu = np.ma.sum(np.ma.reshape(land,(self.nmu,self.window_size*self.window_size)),axis=1)
+            ntotalw_by_mu = ntotal_by_mu-nland_by_mu
+            min_valid_pixels = np.floor(0.50 * ntotalw_by_mu) + 1
+            min_valid_pixels[min_valid_pixels<self.min_valid_pixels]=self.min_valid_pixels
+
+        min_pixel_condition = nvalid_by_mu >= min_valid_pixels
+        print(f'[INFO] Number of match-ups filtered because the number of valid pixels is lower than the required one: {np.count_nonzero(min_pixel_condition==False)}')
+        masks_rrs = self.get_masks_rrs(final_mask)
+
+
+        macropixel_filter = self.do_check_macropixel(final_mask,masks_rrs)
+
+        macropixel_condition = macropixel_filter==0
+
+        all_conditions = np.logical_and(min_pixel_condition,macropixel_condition)
+        print(f'[INFO] Final number of match-ups passing the satellite quality control: {np.sum(all_conditions)} / {self.nmu}')
+
+        outliers_str = 'with' if self.apply_outliers else 'without'
+        if outliers_str in masks_rrs:
+            mask_rrs = masks_rrs[outliers_str]
+        else:
+            print(f'[WARNING] Mask with outliers is not available. Using mask without ouliers')
+            mask_rrs = masks_rrs['without']
+
+        std_rrs = self.get_stat_rrs('std', mask_rrs)
+        cv_rrs = self.get_stat_rrs('CV',mask_rrs)
+        nvalues_rrs = self.get_stat_rrs('n_values',mask_rrs)
+
+        return std_rrs,cv_rrs,nvalues_rrs
+
+
+    def check_validity(self):
+
+
+        if len(self.wl_ref)<self.nbands:
+            valid_bands = np.array([1 if wl_here in self.wl_ref else 0 for wl_here in self.sat_bands])
+            print(f'[INFO] Working with a subset of {np.sum(valid_bands)} bands (Total: {self.nbands})')
+            if np.sum(valid_bands)<len(self.wl_ref):
+                wl_to_check = self.sat_bands[valid_bands==0]
+                print(f'[WARNING] Not all the bands given in the band list are available. The following satellite bands are missing: {wl_to_check}')
+                print(f'[WARNING] Expected band list: {self.wl_ref}')
+
+
+            self.indices_valid_bands = np.where(valid_bands==1)[0]
+
+        self.satellite_rrs = np.ma.masked_invalid(self.satellite_rrs)##make sure that nan,-inf,inf are masked
+
+        flag_mask,land = self.compute_flag_mask_array()
+        indices_to_check = [31,45,48,51,194,225,281]
+        for icheck in indices_to_check:
+            print(icheck,np.sum(flag_mask[icheck,:,:]))
+
+        print(f'[INFO]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
+        print(f'[INFO]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
+        mask_invalid = self.compute_invalid_masks_array()
+        print('mu31 invalid-->',mask_invalid.shape,np.sum(mask_invalid[31,:]))
+        print(f'[INFO]->Number of invalid rrs: {np.ma.sum(mask_invalid)}/{np.ma.count(mask_invalid)}')
+        mask_th = self.compute_th_masks_array()
+        print('mu31 th-->', np.sum(mask_invalid[31, :]))
+        print(f'[INFO]->Number of pixels masked using user-defined thresholds: {np.ma.sum(mask_th)}/{np.ma.count(mask_th)}')
+
+        final_mask = flag_mask + mask_invalid + mask_th
+        final_mask[final_mask>0]=1
+        print('mu31 final mask-->', np.sum(mask_invalid[31, :]))
+
+        print(f'[INFO]->Number of masked pixels in the final mask: {np.ma.sum(final_mask)}/{np.ma.count(final_mask)}')
+
+
+        ntotal_by_mu = self.window_size*self.window_size
+        nmasked_by_mu = np.ma.sum(np.ma.reshape(final_mask,(self.nmu,self.window_size*self.window_size)),axis=1)
+        nvalid_by_mu = ntotal_by_mu-nmasked_by_mu
+
+
+        min_valid_pixels = self.min_valid_pixels
+
+        if self.use_Bailey_Werdell:
+            nland_by_mu = np.ma.sum(np.ma.reshape(land,(self.nmu,self.window_size*self.window_size)),axis=1)
+            ntotalw_by_mu = ntotal_by_mu-nland_by_mu
+            min_valid_pixels = np.floor(0.50 * ntotalw_by_mu) + 1
+            min_valid_pixels[min_valid_pixels<self.min_valid_pixels]=self.min_valid_pixels
+
+        min_pixel_condition = nvalid_by_mu >= min_valid_pixels
+        print(f'[INFO] Number of match-ups filtered because the number of valid pixels is lower than the required one: {np.count_nonzero(min_pixel_condition==False)}')
+        masks_rrs = self.get_masks_rrs(final_mask)
+
+
+        macropixel_filter = self.do_check_macropixel(final_mask,masks_rrs)
+
+        macropixel_condition = macropixel_filter==0
+
+        all_conditions = np.logical_and(min_pixel_condition,macropixel_condition)
+        print(f'[INFO] Final number of match-ups passing the satellite quality control: {np.sum(all_conditions)} / {self.nmu}')
+
+        outliers_str = 'with' if self.apply_outliers else 'without'
+        if outliers_str in masks_rrs:
+            mask_rrs = masks_rrs[outliers_str]
+        else:
+            print(f'[WARNING] Mask with outliers is not available. Using mask without ouliers')
+            mask_rrs = masks_rrs['without']
+        reported_rrs = self.get_stat_rrs(self.stat_value,mask_rrs)
+
+
+
+        reported_rrs_unc = None
+        if self.satellite_rrs_unc is not None:
+            self.satellite_rrs_unc = np.ma.masked_invalid(self.satellite_rrs_unc)##make sure nan,inf,-inf are masked
+            central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+            if self.indices_valid_bands is not None:
+                rrs_unc = self.satellite_rrs_unc[:, self.indices_valid_bands, r_s:r_e, c_s:c_e]
+            else:
+                rrs_unc = self.satellite_rrs_unc[:, :, r_s:r_e, c_s:c_e]
+            rrs_unc[mask_rrs] = np.ma.masked
+            reported_rrs_unc = self.get_stat_spectral_impl(self.stat_value,rrs_unc)
+
+
+
+        self.qc_sat_results = {
+            'min_pixel_condition':min_pixel_condition,
+            'macropixel_condition':macropixel_condition,
+            'all_conditions': all_conditions,
+            'reported_rrs':reported_rrs,
+            'reported_rrs_unc':reported_rrs_unc
+        }
+
+        # print('----------------------------------------')
+        # print(reported_rrs.shape)
+        # print(reported_rrs[31,:])
+        # indices = np.where(np.isnan(reported_rrs))
+        # print(len(indices[0]))
+        # print('--------------------')
+
+    def compute_flag_mask_array(self):
+        flag_mask = np.zeros((self.nmu, self.window_size, self.window_size), dtype=np.uint64)
+        land = np.zeros((self.nmu, self.window_size, self.window_size), dtype=np.uint64)
+        for flag_band in self.info_flag.keys():
+            flag_mask_here, land_here = self.compute_flag_mask_array_impl(flag_band)
+            if flag_mask_here is not None:
+                flag_mask = flag_mask + flag_mask_here
+            if land_here is not None:
+                land = land + land_here
+            self.info_flag[flag_band]['nflagged'] = np.sum(flag_mask.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+
+        flag_mask[flag_mask > 0] = 1
+        land[land > 0] = 1
+
+        return flag_mask,land
+
+    def compute_flag_mask_array_impl(self,flag_band):
+        land = None
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        satellite_flag = self.info_flag[flag_band]['variable']
+        if satellite_flag is None:
+            flag_mask = np.zeros((self.nmu,self.window_size, self.window_size), dtype=np.uint64)
+            return flag_mask, land
+        # flag_meanings_ string separated by spaces or list
+        flag_meanings = satellite_flag.flag_meanings
+        if isinstance(flag_meanings, list):
+            flag_meanings = ' '.join(flag_meanings)
+
+        satellite_flag_band = satellite_flag[:, r_s:r_e, c_s:c_e]
+        # float32 is not allowed
+        if str(satellite_flag.dtype) == 'float32':
+            satellite_flag_band = satellite_flag_band.astype('uint64')
+
+        # flag list, it could be a list or a comma separated string
+        flag_list_tobe_applied = self.info_flag[flag_band]['flag_list']
+        if isinstance(flag_list_tobe_applied, str):
+            flag_list_tobe_applied = [x.strip() for x in flag_list_tobe_applied.split(',')]
+
+        if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
+            flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, flag_meanings)
+            flag_mask = flagging.MaskGeneral(satellite_flag_band)
+            flag_mask[np.where(flag_mask != 0)] = 1
+        elif self.info_flag[flag_band]['ac_processor'] == 'IDEPIX':
+            flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, flag_meanings)
+            flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+            flag_mask[np.where(flag_mask != 0)] = 1
+        else:
+            ##we must be sure that flag_mask must be uint64
+            satellite_flag_band = satellite_flag_band.astype('uint64')
+            flag_masks = satellite_flag.flag_masks.astype('uint64')
+            flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
+            flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+            flag_mask[np.where(flag_mask != 0)] = 1
+
+
+        flag_land = self.info_flag[flag_band]['flag_land']
+        if flag_land is not None and flag_land.strip().lower() == 'none':
+            flag_land = None
+        flag_inlandwater = self.info_flag[flag_band]['flag_inlandwater']
+        if flag_inlandwater is not None and flag_inlandwater.strip().lower() == 'none':
+            flag_inlandwater = None
+
+        if flag_land is not None:
+            land = flagging.Mask(satellite_flag_band, ([flag_land]))
+            land[np.where(land != 0)] = 1
+            if flag_inlandwater is not None:
+                inland_w = flagging.Mask(satellite_flag_band, ([flag_inlandwater]))
+                land[np.where(inland_w != 0)] = 0
+
+        return flag_mask, land
+
+
+    def compute_invalid_masks_array(self):
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        mask_invalid = np.zeros((self.nmu,self.window_size, self.window_size), dtype=np.uint64)
+        bands_to_check = []
+        for sat_index in range(self.nbands):
+            if self.indices_valid_bands is not None and sat_index not in self.indices_valid_bands:
+                continue
+            sat_index_str = str(sat_index)
+            if self.invalid_mask[sat_index_str]['apply_mask']:
+                bands_to_check.append(sat_index)
+
+
+        rrs_here = self.satellite_rrs[:,bands_to_check,r_s:r_e, c_s:c_e]
+        rrs_here = np.ma.masked_invalid(rrs_here)##make sure nan,inf,-inf are masked
+        for iband in bands_to_check:
+            index_rrs_here = bands_to_check.index(iband)
+            rrs_here_band = np.squeeze(rrs_here[:,index_rrs_here,:,:])
+            n_masked = np.ma.count_masked(rrs_here_band)
+            self.invalid_mask[str(iband)]['n_masked'] = n_masked
+            if n_masked > 0:
+                mask_invalid[rrs_here_band.mask] = mask_invalid[rrs_here_band.mask] + 1
+        mask_invalid[mask_invalid>0]=1
+        return mask_invalid
+
+    def compute_th_masks_array(self):
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        mask_thershold = np.zeros((self.nmu,self.window_size, self.window_size), dtype=np.uint64)
+
+        for idx in range(len(self.th_masks)):
+            th_mask = self.th_masks[idx]
+            if th_mask['index_sat'] >= 0:
+                band_here = self.satellite_rrs[:,th_mask['index_sat'], r_s:r_e, c_s:c_e]
+            else:
+                var_here = self.ncdataset.variables[th_mask['band_name']]
+                band_here = var_here[:, r_s:r_e, c_s:c_e]
+
+            #mask_thershold_here = np.zeros(band_here.shape, dtype=np.uint64)
+            n_masked = 0
+            if th_mask['type_th'] == 'greater':
+                mask_thershold[band_here > th_mask['value_th']] = mask_thershold[band_here > th_mask['value_th']]+1
+                n_masked = np.count_nonzero(band_here > th_mask['value_th'])
+            elif th_mask['type_th'] == 'lower':
+                mask_thershold[band_here < th_mask['value_th']] = mask_thershold[band_here < th_mask['value_th']]+1
+                n_masked = np.count_nonzero(band_here < th_mask['value_th'])
+            th_mask['n_masked'] = n_masked
+            self.th_masks[idx] = th_mask
+
+        mask_thershold[mask_thershold>0]=1
+
+        return mask_thershold
+
+    def get_masks_rrs(self,final_mask):
+
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        if self.indices_valid_bands is not None:
+            rrs = self.satellite_rrs[:,self.indices_valid_bands,r_s:r_e, c_s:c_e]
+        else:
+            rrs = self.satellite_rrs[:, :, r_s:r_e, c_s:c_e]
+        print(f'[INFO] Number of valid rrs values before masking: {np.ma.count(rrs)}')
+        nbands_used = rrs.shape[1]
+        for iband in range(nbands_used):
+            rrs_band = np.ma.squeeze(rrs[:, iband, :, :])
+            rrs_band[final_mask == 1] = np.ma.masked
+            rrs[:,iband,:,:] = rrs_band[:,:,:]
+        nvalid_total  = np.ma.count(rrs)
+        nvalid_by_band = nvalid_total/nbands_used
+        print(f'[INFO] Number of valid rrs values after masking (without ouliers): {nvalid_total} By band: {nvalid_by_band}')
+
+        masks = {'without':rrs.mask.copy()}
+
+        if self.apply_outliers:
+            central_stat = self.outliers_info['central_stat']
+            rrs_central = None
+            rrs_dispersion = None
+            rrs_min_th = None
+            rrs_max_th = None
+            factor = self.outliers_info['factor']
+
+            if central_stat=='avg':
+                rrs_central = np.ma.mean(rrs.reshape((self.nmu,nbands_used,self.window_size*self.window_size)),axis=2)
+            elif central_stat=='median':
+                rrs_central = np.ma.median(rrs.reshape((self.nmu, nbands_used, self.window_size * self.window_size)),axis=2)
+
+            dispersion_stat = self.outliers_info['dispersion_stat']
+            if dispersion_stat=='std':
+                rrs_dispersion = np.ma.std(rrs.reshape((self.nmu,nbands_used,self.window_size*self.window_size)),axis=2)
+            elif dispersion_stat=='iqr':
+                if factor<0:
+                    ql = 25
+                    qh = 75
+                else:
+                    ql = factor
+                    qh = 100 - factor
+                rrs_min_th = np.percentile(rrs.reshape((self.nmu,nbands_used,self.window_size*self.window_size)),ql,axis=2)
+                rrs_max_th = np.percentile(rrs.reshape((self.nmu, nbands_used, self.window_size * self.window_size)),qh, axis=2)
+
+
+
+            if rrs_central is not None and rrs_dispersion is not None and rrs_min_th is None and rrs_max_th is None:
+                rrs_min_th = rrs_central  - (factor * rrs_dispersion)
+                rrs_max_th = rrs_central  + (factor * rrs_dispersion)
+
+            if rrs_min_th is not None and rrs_max_th is not None:
+                rrs_min_th = np.repeat(rrs_min_th,self.window_size*self.window_size).reshape((self.nmu,nbands_used,self.window_size,self.window_size))
+                rrs_max_th = np.repeat(rrs_max_th, self.window_size * self.window_size).reshape((self.nmu, nbands_used, self.window_size, self.window_size))
+                rrs[rrs < rrs_min_th] = np.ma.masked
+                rrs[rrs > rrs_max_th] = np.ma.masked
+
+                masks['with'] = rrs.mask.copy()
+                print(f'[INFO] Number of valid rrs values after masking (with ouliers): {np.ma.count(rrs)}')
+            else:
+                print(f'[WARNING] Outliers could not be applied')
+
+
+        return masks
+
+    def get_stat_rrs(self,type_stat,mask_rrs):
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        if self.indices_valid_bands is not None:
+            rrs = self.satellite_rrs[:, self.indices_valid_bands, r_s:r_e, c_s:c_e]
+        else:
+            rrs = self.satellite_rrs[:, :, r_s:r_e, c_s:c_e]
+        rrs[mask_rrs] = np.ma.masked
+
+        return self.get_stat_spectral_impl(type_stat,rrs)
+
+    def get_stat_spectral_impl(self,type_stat,array):
+        nbands_used = array.shape[1]
+        if type_stat=='n_values':
+            result = np.ma.count(array.reshape((self.nmu, nbands_used, self.window_size * self.window_size)), axis=2)
+        elif type_stat=='avg':
+            result = np.ma.mean(array.reshape((self.nmu,nbands_used,self.window_size*self.window_size)),axis=2)
+        elif type_stat=='std':
+            result = np.ma.std(array.reshape((self.nmu, nbands_used, self.window_size * self.window_size)), axis=2)
+        elif type_stat=='median':
+            result = np.ma.median(array.reshape((self.nmu, nbands_used, self.window_size * self.window_size)), axis=2)
+        elif type_stat=='min':
+            result = np.ma.min(array.reshape((self.nmu, nbands_used, self.window_size * self.window_size)), axis=2)
+        elif type_stat=='max':
+            result = np.ma.max(array.reshape((self.nmu, nbands_used, self.window_size * self.window_size)), axis=2)
+        elif type_stat=='CV':
+            avg = np.ma.mean(array.reshape((self.nmu, nbands_used, self.window_size * self.window_size)), axis=2)
+            std = np.ma.std(array.reshape((self.nmu, nbands_used, self.window_size * self.window_size)), axis=2)
+            result = (std / np.abs(avg)) * 100
+        else:
+            print(f'[WARNING] {type_stat} is not implemented in the computation of window stats')
+            result = None
+
+        return result
+
+    def get_stats_non_spectral(self,array,type_stat,mask):
+        if len(array.shape)==1:
+            if type_stat=='n_values':
+                result = np.array(array.mask).astype(np.int8)
+            else:
+                result = array[:]
+            return result
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        array = array[:, r_s:r_e, c_s:c_e]
+        array[mask==1] = np.ma.masked
+
+        if type_stat=='n_values':
+            result = np.ma.count(array.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+        elif type_stat=='avg':
+            result = np.ma.mean(array.reshape((self.nmu,self.window_size*self.window_size)),axis=1)
+        elif type_stat=='std':
+            result = np.ma.std(array.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+        elif type_stat=='median':
+            result = np.ma.median(array.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+        elif type_stat=='min':
+            result = np.ma.min(array.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+        elif type_stat=='max':
+            result = np.ma.max(array.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+        elif type_stat=='CV':
+            avg = np.ma.mean(array.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+            std = np.ma.std(array.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+            result = (std / np.abs(avg)) * 100
+        else:
+            print(f'[WARNING] {type_stat} is not implemented in the computation of window stats')
+            result = None
+
+        return result
+
+
+
+    def do_check_macropixel(self,final_mask,masks_rrs):
+        macropixel_filter = np.zeros(self.nmu)
+        ##filters based on rrs data
+        required_rrs_stats = {}
+        for check_stat in self.check_statistics:
+            outliers_str = 'with' if check_stat['with_outliers'] else 'without'
+            type_stat = check_stat['type_stat']
+            ref = f'{type_stat}_{outliers_str}'
+            if not ref in required_rrs_stats:
+                if outliers_str in masks_rrs:
+                    mask_rrs = masks_rrs[outliers_str]
+                else:
+                    print(f'[WARNING] Mask with outliers is not available. Using mask without ouliers')
+                    mask_rrs = masks_rrs['without']
+                required_rrs_stats[ref] = self.get_stat_rrs(type_stat,mask_rrs)
+
+        for check_stat in self.check_statistics:
+            outliers_str = 'with' if check_stat['with_outliers'] else 'without'
+            type_stat = check_stat['type_stat']
+            ref = f'{type_stat}_{outliers_str}'
+            if not ref in required_rrs_stats:
+                continue
+            index_sat = check_stat['index_sat']
+            if self.indices_valid_bands is not None:##recalculate index_sat if not all the bands are used
+                wl_stat = self.sat_bands[index_sat]
+                index_sat = int(np.argmin(np.abs(self.wl_ref-wl_stat)))
+            stat_array = required_rrs_stats[ref]
+            stat_array = stat_array[:,index_sat]
+            if check_stat['type_th'] == 'greater':##false (+1) if stat>th
+                print(f'[INFO] RRS macro-pixel filter: {np.count_nonzero(stat_array>check_stat['value_th'])} match-ups filtered because {type_stat} at {self.sat_bands[index_sat]} nm > {check_stat["value_th"]}')
+                macropixel_filter[stat_array>check_stat['value_th']] = macropixel_filter[stat_array>check_stat['value_th']]+1
+            if check_stat['type_th'] == 'lower':##false (+1) if stat<th
+                print(f'[INFO] RRS macro-pixel filter: {np.count_nonzero(stat_array < check_stat['value_th'])} match-ups filtered because {type_stat} at {self.sat_bands[index_sat]} nm < {check_stat["value_th"]}')
+                macropixel_filter[stat_array<check_stat['value_th']] = macropixel_filter[stat_array<check_stat['value_th']]+1
+
+        ##filters based on non-rrs data
+        for check_stat in self.check_statistics_norrs:
+            name_band = check_stat['name_band']
+            type_stat = check_stat['type_stat']
+            array = check_stat['variable'][:]
+            stat_array = self.get_stats_non_spectral(array,type_stat,final_mask)
+            if check_stat['type_th'] == 'greater':##false (+1) if stat>th
+                print(f'[INFO] {name_band} macro-pixel filter: {np.count_nonzero(stat_array>check_stat['value_th'])} match-ups filtered because {type_stat} > {check_stat["value_th"]}')
+                macropixel_filter[stat_array>check_stat['value_th']] = macropixel_filter[stat_array>check_stat['value_th']]+1
+            if check_stat['type_th'] == 'lower':##false (+1) if stat<th
+                print(f'[INFO] {name_band} macro-pixel filter: {np.count_nonzero(stat_array < check_stat['value_th'])} match-ups filtered because {type_stat} < {check_stat["value_th"]}')
+                macropixel_filter[stat_array<check_stat['value_th']] = macropixel_filter[stat_array<check_stat['value_th']]+1
+
+        macropixel_filter[macropixel_filter>0]=1
+        print(f'[INFO] Total number of match-ups filtered based on macropixel filters: {np.ma.sum(macropixel_filter)}')
+
+        return macropixel_filter
+
+
+
+
+    ##type: 1: multiplied 2: divided
+    def update_pi_correct(self, wl_list_rhow, type):
+        for wl in wl_list_rhow:
+            idx = self.get_index_sat_from_wlvalue(wl)
+            if idx >= 0 and type == 1:
+                self.pi_multiplied[idx] = True
+            if idx >= 0 and type == 2:
+                self.pi_divided[idx] = True
+
+    def set_apply_invalid_mask_wl(self,wl,bvalue):
+        for sat_index in range(self.nbands):
+            wlhere = self.sat_bands[sat_index]
+            sat_index_str = str(sat_index)
+            if wlhere==wl:
+                self.invalid_mask[sat_index_str]['apply_mask']=bvalue
+
+    def update_invalid_mask(self):
+        if self.wl_ref is None:
+            return
+        self.invalid_mask = {}
+        for sat_index in range(self.nbands):
+            apply_mask = False
+            wlhere = self.sat_bands[sat_index]
+            for wl in self.wl_ref:
+                diffwl = abs(wlhere - wl)
+                if diffwl < 1.0:
+                    apply_mask = True
+            sat_index_str = str(sat_index)
+            self.invalid_mask[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'apply_mask': apply_mask,
+                'n_masked': 0,
+                'ref': f'rrs_{self.sat_bands[sat_index]:.0f}_invalid'
+            }
+
+    def set_window_size(self, wsize):
+        self.window_size = wsize
+        self.NTP = self.window_size * self.window_size
+        self.NTPW = self.NTP
+        if self.min_valid_pixels > self.NTP:
+            self.min_valid_pixels = self.NTP
+
+    def get_wl_sat_list_from_wlreflist(self, wlref):
+        wllist = []
+        for wl in wlref:
+            index = self.get_index_sat_from_wlvalue(wl)
+            if index >= 0:
+                wllist.append(self.sat_bands[index])
+        return wllist
+
+    def prepare_new_match_up(self):
+        self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
+        self.NVP = 0  # number of valid pixels (excluding flag pixels), varies with MU
+        self.flag_mask = None  # mask based on flagging
+        self.statistics = {}
+        for sat_index in range(self.nbands):
+            sat_index_str = str(sat_index)
+            stat_list = {
+                'n_values': 0,
+                'avg': 0,
+                'std': 0,
+                'median': 0,
+                'min': 0,
+                'max': 0,
+                'CV': 0
+            }
+            self.statistics[sat_index_str] = {
+                'wavelength': self.sat_bands[sat_index],
+                'without_outliers': stat_list,
+                'with_outliers': stat_list
+            }
+
+    def compute_statistics(self, index_mu):
+        cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
+        if not cond_min_pixels:
+            return False
+
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        for sat_index in range(self.nbands):
+            sat_index_str = str(sat_index)
+            rrs_here = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
+            rrs_valid = rrs_here[self.flag_mask == 0]
+            stats = self.compute_statistics_impl(self.statistics[sat_index_str]['without_outliers'], rrs_valid)
+            self.statistics[sat_index_str]['without_outliers'] = stats
+            if self.apply_outliers:
+                cvalue = self.statistics[sat_index_str]['without_outliers'][self.outliers_info['central_stat']]
+                dvalue = self.statistics[sat_index_str]['without_outliers'][self.outliers_info['dispersion_stat']]
+                min_th = cvalue - (dvalue * self.outliers_info['factor'])
+                max_th = cvalue + (dvalue * self.outliers_info['factor'])
+                mask_outliers = np.zeros(rrs_valid.shape)
+                mask_outliers[rrs_valid > max_th] = 1
+                mask_outliers[rrs_valid < min_th] = 1
+                n_outliers = np.sum(mask_outliers)
+                if n_outliers > 0:
+                    rrs_valid = rrs_valid[mask_outliers == 0]
+                stats = self.compute_statistics_impl(self.statistics[sat_index_str]['with_outliers'], rrs_valid)
+            self.statistics[sat_index_str]['with_outliers'] = stats
+
+            ##uncertainties
+            if self.satellite_rrs_unc is not None:
+                rrs_here_unc = self.satellite_rrs_unc[index_mu, sat_index, r_s:r_e, c_s:c_e]
+                rrs_valid_unc = rrs_here_unc[self.flag_mask == 0]
+                stats_unc = self.compute_statistics_impl(self.statistics_unc[sat_index_str]['without_outliers'],rrs_valid_unc)
+                self.statistics_unc[sat_index_str]['without_outliers'] = stats_unc
+                if self.apply_outliers:
+                    cvalue = self.statistics_unc[sat_index_str]['without_outliers'][self.outliers_info['central_stat']]
+                    dvalue = self.statistics_unc[sat_index_str]['without_outliers'][self.outliers_info['dispersion_stat']]
+                    min_th = cvalue - (dvalue * self.outliers_info['factor'])
+                    max_th = cvalue + (dvalue * self.outliers_info['factor'])
+                    mask_outliers_unc = np.zeros(rrs_valid_unc.shape)
+                    mask_outliers_unc[rrs_valid_unc > max_th] = 1
+                    mask_outliers_unc[rrs_valid_unc < min_th] = 1
+                    n_outliers_unc = np.sum(mask_outliers_unc)
+                    if n_outliers_unc > 0:
+                        rrs_valid_unc = rrs_valid_unc[mask_outliers_unc == 0]
+                    stats_unc = self.compute_statistics_impl(self.statistics_unc[sat_index_str]['with_outliers'], rrs_valid_unc)
+                self.statistics_unc[sat_index_str]['with_outliers'] = stats_unc
+
+        for check_stat_here in self.check_statistics_norrs:
+            name_band = check_stat_here['name_band']
+            var_here = check_stat_here['variable']
+            if len(var_here.shape)==3:
+                var_here_array = var_here[index_mu, r_s:r_e, c_s:c_e]
+                var_here_valid = var_here_array[~var_here_array.mask]
+            elif len(var_here.shape)==1:
+                var_here_valid = var_here[index_mu]
+
+            if not name_band in self.statistics_norrs:
+                self.statistics_norrs[name_band] = {
+                    'n_values': 0,
+                    'avg': 0,
+                    'std': 0,
+                    'median': 0,
+                    'min': 0,
+                    'max': 0,
+                    'CV': 0
+                }
+            stats = self.compute_statistics_impl(self.statistics_norrs[name_band], var_here_valid)
+            self.statistics_norrs[name_band] = stats
+
+        return True
+
+    def compute_statistics_impl(self, stats, array):
+        if not np.any(array):
+            stats['n_values'] = 0
+            stats['avg'] = 0
+            stats['std'] = 0
+            stats['median'] = 0
+            stats['min'] = 0
+            stats['max'] = 0
+            stats['CV'] = 0
+        else:
+            stats['n_values'] = len(array)
+            stats['avg'] = np.mean(array)
+            stats['std'] = np.std(array)
+            stats['median'] = np.median(array)
+            stats['min'] = np.min(array)
+            stats['max'] = np.max(array)
+            CV = (stats['std'] / abs(stats['avg'])) * 100
+            stats['CV'] = CV
+        return stats
+
+    def do_check_statistics(self):
+        CHECK = True
+
+        for check_stat in self.check_statistics:
+            index_sat = str(check_stat['index_sat'])
+
+            if index_sat in self.statistics:
+                outliers_str = 'with_outliers'
+                if not check_stat['with_outliers']:
+                    outliers_str = 'without_outliers'
+                val_here = self.statistics[index_sat][outliers_str][check_stat['type_stat']]
+                if check_stat['type_th'] == 'greater' and val_here > check_stat['value_th']:
+                    CHECK = False
+                if check_stat['type_th'] == 'lower' and val_here < check_stat['value_th']:
+                    CHECK = False
+        for check_stat in self.check_statistics_norrs:
+            name_band = check_stat['name_band']
+            if name_band in self.statistics_norrs:
+                val_here = self.statistics_norrs[name_band][check_stat['type_stat']]
+                if check_stat['type_th'] == 'greater' and val_here > check_stat['value_th']:
+                    CHECK = False
+                if check_stat['type_th'] == 'lower' and val_here < check_stat['value_th']:
+                    CHECK = False
+
+        return CHECK
+
+    def get_match_up_values_v2(self,index_mu):
+        # self.qc_sat_results = {
+        #     'min_pixel_condition': min_pixel_condition,
+        #     'macropixel_condition': macropixel_condition,
+        #     'all_conditions': all_conditions,
+        #     'reported_rrs': reported_rrs,
+        #     'reported_rrs_unc': reported_rrs_unc
+        # }
+        cond_min_pixels = self.qc_sat_results['min_pixel_condition'][index_mu]
+        cond_stats = self.qc_sat_results['macropixel_condition'][index_mu]
+        valid_mu = self.qc_sat_results['all_conditions'][index_mu]
+        values = self.qc_sat_results['reported_rrs'][index_mu]
+        values_unc = self.qc_sat_results['reported_rrs_unc'][index_mu] if  self.qc_sat_results['reported_rrs_unc'] is not None else None
+
+
+
+        return cond_min_pixels, cond_stats, valid_mu, values, values_unc
+
+    def get_match_up_values(self, index_mu):
+        self.prepare_new_match_up()
+
+        cond_min_pixels = self.compute_masks_and_check_roi(index_mu)
+
+
+        cond_stats = False
+        valid_mu = False
+
+        wl_orig = []
+
+        if self.wl_ref is None:
+            print('ATTENTION: NON DEBERIA ARRIVARE QUI, SAREBBE UN ERRORRE', self.nbands)
+            indexes_bands = range(self.nbands)
+            wl_orig = self.sat_bands
+        else:
+            indexes_bands = []
+            for wl in self.wl_ref:
+                index = self.get_index_sat_from_wlvalue(wl)
+                if index == -1:
+                    print(f'[WARNING] No valid satellite band for wl: {wl}')
+                wl_orig.append(self.sat_bands[index])
+                indexes_bands.append(index)
+
+        values = [0] * len(indexes_bands)
+        values_unc = [0] * len(indexes_bands)
+
+        if cond_min_pixels:
+
+            outliers_str = 'without_outliers'
+            if self.apply_outliers:
+                outliers_str = 'with_outliers'
+            self.compute_statistics(index_mu)
+
+            cond_stats = self.do_check_statistics()
+
+            if cond_stats:
+                valid_mu = True
+            for idx in range(len(indexes_bands)):
+                sat_index = indexes_bands[idx]
+                sat_index_str = str(sat_index)
+                values[idx] = self.statistics[sat_index_str][outliers_str][self.stat_value]
+                if self.satellite_rrs_unc is not None:
+                    values_unc[idx] = self.statistics_unc[sat_index_str][outliers_str][self.stat_value]
+                else:
+                    values_unc[idx] = -999
+            if self.apply_band_shifting:
+                values = bsc_qaa.bsc_qaa(values, wl_orig, self.wl_ref)
+
+        return cond_min_pixels, cond_stats, valid_mu, values, values_unc
+
+    def compute_masks_and_check_roi(self, index_mu):
+
+        land = self.compute_flag_masks(index_mu)
+
+        nv = self.NTP - np.sum(self.flag_mask)
+
+        # if index_mu==362:
+        #     print('After flag mask: ',nv)
+
+        self.compute_invalid_masks(index_mu)
+        nv = self.NTP - np.sum(self.flag_mask)
+
+        # if index_mu == 362:
+        #     print('After Invalid: ', nv)
+
+        self.compute_th_masks(index_mu)
+        self.NVP = self.NTP - np.sum(self.flag_mask)
+        self.NTPW = self.NTP - np.sum(land, axis=(0, 1))
+        # if index_mu == 362:
+        #     print('After th: ',self.NVP)
+        #     print(index_mu,'After th: ', self.NVP)
+        #     print(f'[INFO] Index mu: {index_mu}')
+        #     print(f'[INFO] Number total of pixels: {self.NTP}')
+        #     print(f'[INFO] Water pixels: {self.NTPW}')
+        #     print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
+
+        min_valid_pixels = self.min_valid_pixels
+        if self.use_Bailey_Werdell:
+            min_valid_pixels = math.floor(0.50 * self.NTPW) + 1
+
+        cond_min_pixels = False
+        if self.NVP >= min_valid_pixels:
+            cond_min_pixels = True
+
+        return cond_min_pixels
+
+    def compute_flag_masks(self, index_mu):
+        flag_mask = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
+        land = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
+        for flag_band in self.info_flag.keys():
+            flag_mask_here, land_here = self.compute_flag_mask_impl(index_mu, flag_band)
+
+            #CHAMBELAc
+            # if flag_mask_here is not None:
+            #     print('aplica la chambella')
+            #     central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions_inner(3)
+            #     flag_mask_here[r_s:r_e, c_s:c_e] = 1
+                # invalid = None
+                # if self.ncdataset.platform=='A':
+                #     invalid = [24]
+                # if self.ncdataset.platform=='B':
+                #     invalid = [19,22,24]
+                # if invalid is not None:
+                #     if index_mu in invalid:
+                #         flag_mask_here[:,:] = 1
+
+            if flag_mask_here is not None:
+                flag_mask = np.add(flag_mask, flag_mask_here)
+            if land_here is not None:
+                land = np.add(land, land_here)
+            self.info_flag[flag_band]['nflagged'] = np.sum(flag_mask)
+
+        if self.flag_mask is None:
+            self.flag_mask = flag_mask
+        self.flag_mask[flag_mask > 0] = 1
+
+        land[land > 0] = 1
+
+        return land
+
+    def compute_flag_stats(self, index_mu):
+        for flag_band in self.info_flag.keys():
+            self.compute_flag_stats_impl(index_mu, flag_band)
+
+    def compute_th_masks(self, index_mu):
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        mask_thershold = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
+
+        for idx in range(len(self.th_masks)):
+            th_mask = self.th_masks[idx]
+            if th_mask['index_sat'] >= 0:
+                band_here = self.satellite_rrs[index_mu, th_mask['index_sat'], r_s:r_e, c_s:c_e]
+            else:
+                var_here = self.ncdataset.variables[th_mask['band_name']]
+                band_here = var_here[index_mu, r_s:r_e, c_s:c_e]
+
+            mask_thershold_here = np.zeros(band_here.shape, dtype=np.uint64)
+            if th_mask['type_th'] == 'greater':
+                mask_thershold_here[band_here > th_mask['value_th']] = 1
+            elif th_mask['type_th'] == 'lower':
+                mask_thershold_here[band_here < th_mask['value_th']] = 1
+            n_masked = np.sum(mask_thershold_here)
+            th_mask['n_masked'] = n_masked
+            self.th_masks[idx] = th_mask
+            mask_thershold = mask_thershold + mask_thershold_here
+
+        if self.flag_mask is None:
+            self.flag_mask = mask_thershold
+
+        self.flag_mask[mask_thershold > 0] = 1
+
+    def compute_invalid_masks(self, index_mu):
+
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        mask_invalid = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
+        for sat_index in range(self.nbands):
+            sat_index_str = str(sat_index)
+            if self.invalid_mask[sat_index_str]['apply_mask']:
+                rrshere = self.satellite_rrs[index_mu, sat_index, r_s:r_e, c_s:c_e]
+                mask_invalid_here = np.zeros(rrshere.shape, dtype=np.uint64)
+                mask_invalid_here[rrshere.mask] = 1
+
+
+
+                # if np.sum(mask_invalid_here)>0:
+                #     print(index_mu, '->Index with invalid values: ',sat_index)
+                n_masked = np.sum(mask_invalid_here)
+                # if index_mu==6:
+                #     print(sat_index,n_masked )
+                self.invalid_mask[sat_index_str]['n_masked'] = n_masked
+                mask_invalid = mask_invalid + mask_invalid_here
+
+        if self.flag_mask is None:
+            self.flag_mask = mask_invalid
+
+        self.flag_mask[mask_invalid > 0] = 1
+
+        # for key in self.invalid_mask:
+        #     print(self.invalid_mask[key]['ref'],self.invalid_mask[key]['n_masked'])
+
+    ##ADDING QUALITY CONTROL PROTOCOLS------------------------------
+    # Add a thershold mask.
+    # index_sat: index band (if -1, index_sat is obtained from wl_sat)
+    # wl_sat: wavelength (used for computing index_sat)
+    # value_th: threshold
+    # type_th:[greater, lower]
+    def add_theshold_mask(self, index_sat, wl_sat, value_th, type_th):
+        if index_sat == -1:
+            index_sat = self.get_index_sat_from_wlvalue(wl_sat)
+        if index_sat < 0:
+            return
+        if index_sat >= self.nbands:
+            return
+
+        th_mask = {
+            'index_sat': index_sat,
+            'value_th': value_th,
+            'type_th': type_th,
+            'n_masked': 0
+        }
+        self.th_masks.append(th_mask)
+
+    def add_threhold_mask_range(self, wl_min, wl_max, value_th, type_th):
+        for index_sat in range(self.nbands):
+            if wl_min <= self.sat_bands[index_sat] <= wl_max:
+                self.add_theshold_mask(index_sat, -1, value_th, type_th)
+
+    def add_threshold_mask_norrs(self, band_name, value_th, type_th):
+        th_mask = {
+            'index_sat': -1,
+            'band_name': band_name,
+            'value_th': value_th,
+            'type_th': type_th,
+            'n_masked': 0
+        }
+        self.th_masks.append(th_mask)
+
+    def add_band_statistics(self, index_sat, wl_sat, type_stat, with_outliers, value_th, type_th):
+        if index_sat == -1:
+            index_sat = self.get_index_sat_from_wlvalue(wl_sat)
+        if index_sat < 0:
+            return
+        if index_sat >= self.nbands:
+            return
+
+        check_val = {
+            'index_sat': index_sat,
+            'type_stat': type_stat,
+            'with_outliers': with_outliers,
+            'value_th': value_th,
+            'type_th': type_th
+        }
+        self.check_statistics.append(check_val)
+
+    def add_bands_norrs_statistics(self, name_band, type_stat, value_th, type_th):
+        if self.ncdataset is None:
+            print('[WARNING] Statistics for bands no rrs could not be added as dataset was not defined')
+            return
+        if name_band not in self.ncdataset.variables:
+            return
+        var_band = self.ncdataset.variables[name_band]
+        check_val = {
+            'variable': var_band,
+            'name_band': name_band,
+            'type_stat': type_stat,
+            'value_th': value_th,
+            'type_th': type_th
+        }
+        self.check_statistics_norrs.append(check_val)
+
+    ##IMPLEMENTATIONS-----------------------------------
+    def compute_flag_stats_impl(self, index_mu, flag_band):
+        if index_mu < 0 or index_mu >= self.nmu:
+            return
+        if flag_band not in self.info_flag.keys():
+            return
+        if self.info_flag[flag_band]['flag_stats'] is not None:
+            return
+        satellite_flag = self.info_flag[flag_band]['variable']
+        if satellite_flag is None:
+            return
+
+        if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
+            flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, satellite_flag.flag_meanings)
+        else:
+            flagging = flag.Class_Flags_OLCI(satellite_flag.flag_masks, satellite_flag.flag_meanings)
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        satellite_flag_band = satellite_flag[index_mu, r_s:r_e, c_s:c_e]
+        flag_list_here = str.split(satellite_flag.flag_meanings, ' ')
+        flag_stats = {}
+        for flag_here in flag_list_here:
+            flag_ref = f'{flag_band}.{flag_here}'
+
+            mask_here = flagging.Mask(satellite_flag_band, ([flag_here]))
+            mask_here[np.where(mask_here != 0)] = 1
+            nflagg_here = np.sum(mask_here)
+            flag_stats[flag_ref] = nflagg_here
+
+        self.info_flag[flag_band]['flag_stats'] = flag_stats
+
+    def compute_flag_mask_impl(self, index_mu, flag_band):
+        land = None
+        flag_mask = None
+
+        if index_mu < 0 or index_mu >= self.nmu:
+            return land, flag_mask
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+
+        if flag_band not in self.info_flag.keys():
+            return land, flag_mask
+
+        satellite_flag = self.info_flag[flag_band]['variable']
+
+        # flag_meanings_ string separated by spaces or list
+        flag_meanings = satellite_flag.flag_meanings
+        if isinstance(flag_meanings, list):
+            flag_meanings = ' '.join(flag_meanings)
+
+        if satellite_flag is None:
+            flag_mask = np.zeros((self.window_size, self.window_size), dtype=np.uint64)
+            return flag_mask, land
+
+        satellite_flag_band = satellite_flag[index_mu, r_s:r_e, c_s:c_e]
+        # float32 is not allowed
+        if str(satellite_flag.dtype) == 'float32':
+            satellite_flag_band = satellite_flag_band.astype('uint64')
+
+        # if index_mu==3:
+        #     print('vistazo a los datos:')
+        #     print(satellite_flag_band.shape)
+        #     print(satellite_flag_band)
+
+        # flag list, it coulb be a comma separated string
+        flag_list_tobe_applied = self.info_flag[flag_band]['flag_list']
+        if isinstance(flag_list_tobe_applied, str):
+            flag_list_tobe_applied = [x.strip() for x in flag_list_tobe_applied.split(',')]
+
+        if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
+            flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, flag_meanings)
+            flag_mask = flagging.MaskGeneral(satellite_flag_band)
+            flag_mask[np.where(flag_mask != 0)] = 1
+        elif self.info_flag[flag_band]['ac_processor'] == 'IDEPIX':
+            flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, flag_meanings)
+            flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+            flag_mask[np.where(flag_mask != 0)] = 1
+        else:
+            ##we must be sure that flag_mask must be uint64
+            flag_masks = satellite_flag.flag_masks.astype('uint64')
+            flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
+            # if index_mu==3:
+            #     print(flag_list_tobe_applied)
+            flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+            # if index_mu==3:
+            #     print(flag_list_tobe_applied)
+            #     print(flag_mask)
+            #     tal = [17536]
+            #     tal = np.array(tal,dtype=np.uint64)
+            #     print(flag_meanings)
+            #     flag_meanings_l = [x.strip() for x in flag_meanings.split(' ')]
+            #     for l in flag_meanings_l:
+            #         ll = [l]
+            #         ftal = flagging.Mask(tal,ll)
+            #         print(l,ftal)
+            flag_mask[np.where(flag_mask != 0)] = 1
+
+            # if self.info_flag[flag_band][
+            #     'ac_processor'] == 'C2RCC' and not flag_band == 'satellite_WQSF':  # C2RCC FLAGS
+            #     valuePE = np.uint64(2147483648)
+            #     flag_mask = np.ones(satellite_flag_band.shape, dtype=np.uint64)
+            #     flag_mask[satellite_flag_band == valuePE] = 0
+            # else:
+            #     flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+            #     flag_mask[np.where(flag_mask != 0)] = 1
+            # for fl in self.info_flag[flag_band]['flag_list']:
+            #     fltal = flagging.Mask(satellite_flag_band, ([fl]))
+            #     ntal = np.count_nonzero(fltal)
+            #     if ntal>0:
+            #         print('----> ',fl,':',ntal)
+
+        flag_land = self.info_flag[flag_band]['flag_land']
+        if flag_land is not None and flag_land.strip().lower() == 'none':
+            flag_land = None
+        flag_inlandwater = self.info_flag[flag_band]['flag_inlandwater']
+        if flag_inlandwater is not None and flag_inlandwater.strip().lower() == 'none':
+            flag_inlandwater = None
+
+        if flag_land is not None:
+            land = flagging.Mask(satellite_flag_band, ([flag_land]))
+            land[np.where(land != 0)] = 1
+            if flag_inlandwater is not None:
+                inland_w = flagging.Mask(satellite_flag_band, ([flag_inlandwater]))
+                land[np.where(inland_w != 0)] = 0
+
+        return flag_mask, land
+
+    # self.invalid_mask[sat_index_str] = {
+    #     'wavelength': self.invalid_mask[sat_index],
+    #     'apply_mask': True,
+    #     'n_masked': 0
+    # }
+
+    ##UTILITIES/DEFAUTLS-----------------------------------
+    def get_index_sat_from_wlvalue(self, wl_sat):
+        index_sat = np.argmin(np.abs(wl_sat - self.sat_bands))
+        if np.abs(wl_sat - self.sat_bands[index_sat]) > self.max_diff_wl:
+            index_sat = -1
+        return index_sat
+
+    def get_dimensions(self):
+        # Dimensions
+        nrows = self.satellite_rrs.shape[2]
+        ncols = self.satellite_rrs.shape[3]
+        central_r = int(np.floor(nrows / 2))
+        central_c = int(np.floor(ncols / 2))
+        r_s = central_r - int(np.floor(self.window_size / 2))  # starting row
+        r_e = central_r + int(np.floor(self.window_size / 2)) + 1  # ending row
+        c_s = central_c - int(np.floor(self.window_size / 2))  # starting col
+        c_e = central_c + int(np.floor(self.window_size / 2)) + 1  # ending col
+        return central_r, central_c, r_s, r_e, c_s, c_e
+
+    def get_dimensions_inner(self, wsize):
+        # Dimensions
+        nrows = self.satellite_rrs.shape[2]
+        ncols = self.satellite_rrs.shape[3]
+        central_r = int(np.floor(nrows / 2))
+        central_c = int(np.floor(ncols / 2))
+        r_s = central_r - int(np.floor(wsize / 2))  # starting row
+        r_e = central_r + int(np.floor(wsize / 2)) + 1  # ending row
+        c_s = central_c - int(np.floor(wsize / 2))  # starting col
+        c_e = central_c + int(np.floor(wsize / 2)) + 1  # ending col
+        return central_r, central_c, r_s, r_e, c_s, c_e
+
+    def get_flag_defaults(self, ac_processor):
+        flag_list = None
+        flag_land = None
+        flag_inlandwaters = None
+
+        if ac_processor == 'STANDARD':
+            flag_list = 'LAND,COASTLINE,CLOUD,CLOUD_AMBIGUOUS,CLOUD_MARGIN,INVALID,COSMETIC,SATURATED,SUSPECT,HISOLZEN,HIGHGLINT,SNOW_ICE,AC_FAIL,WHITECAPS,RWNEG_O2,RWNEG_O3,RWNEG_O4,RWNEG_O5,RWNEG_O6,RWNEG_O7,RWNEG_O8'
+            flag_land = 'LAND'
+            flag_inlandwaters = 'INLAND_WATER'
+        if ac_processor == 'POLYMER':
+            # flag_list = 'LAND,CLOUD_BASE,L1_INVALID,NEGATIVE_BB,OUT_OF_BOUNDS,EXCEPTION,THICK_AEROSOL,HIGH_AIR_MASS,EXTERNAL_MASK'
+            flag_list = 'LAND,CLOUD_BASE'
+            flag_land = 'LAND'
+        if ac_processor == 'C2RCC':
+            flag_list = 'Rtosa_OOS, Rtosa_OOR, Rhow_OOR, Cloud_risk, Iop_OOR, Apig_at_max, Adet_at_max, Agelb_at_max, Bpart_at_max, Bwit_at_max, Apig_at_min, Adet_at_min, Agelb_at_min, Bpart_at_min, Bwit_at_min, Rhow_OOS, Kd489_OOR,Kdmin_OOR, Kd489_at_max, Kdmin_at_max'
+            # flag_list =  ''
+        if ac_processor == 'FUB':
+            # flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,duplicated,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16'
+            flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16'
+            flag_land = 'land'
+            flag_inlandwaters = 'fresh_inland_water'
+            # flag_list = 'land,coastline,fresh_inland_water,bright,straylight_risk,invalid,cosmetic,duplicated,sun_glint_risk,dubious,saturated_Oa01,saturated_Oa02,saturated_Oa03,saturated_Oa04,saturated_Oa05,saturated_Oa06,saturated_Oa07,saturated_Oa08,saturated_Oa09,saturated_Oa10,saturated_Oa11,saturated_Oa12,saturated_Oa13,saturated_Oa14,saturated_Oa15,saturated_Oa16,saturated_Oa17,saturated_Oa18,saturated_Oa19,saturated_Oa20,saturated_Oa21'
+
+        if flag_list is not None:
+            flag_list = flag_list.replace(" ", "")
+            flag_list = str.split(flag_list, ',')
+
+        return flag_list, flag_land, flag_inlandwaters
+
+    # eumetsat_defults: windows_size should be 3 (min_valid_pixels==9) o 5 (use_Bailey_Werdell=True)
+    def set_eumetsat_defaults(self, window_size):
+        self.stat_value = 'avg'
+
+        self.window_size = window_size
+        if window_size == 3:
+            self.min_valid_pixels = 9
+            self.use_Bailey_Werdell = False
+        if window_size == 9:
+            self.use_Bailey_Werdell = True
+
+        self.apply_outliers = True
+        self.outliers_info = {
+            'central_stat': 'avg',
+            'dispersion_stat': 'std',
+            'factor': 1.5
+        }
+
+        self.add_band_statistics(-1, 560, 'CV', True, 20, 'greater')
+
+    def set_idepix_as_flag(self, satellite_idepix_flag):
+        flag_list = ['IDEPIX_LAND', 'IDEPIX_COASTLINE', 'IDEPIX_INVALID', 'IDEPIX_CLOUD', 'IDEPIX_CLOUD_BUFFER',
+                     'IDEPIX_CLOUD_SHADOW', 'IDEPIX_SNOW_ICE']
+        flag_land = 'IDEPIX_LAND'
+        flag_inlandwater = None
+        self.info_flag = {}
+        self.info_flag[satellite_idepix_flag.name] = {
+            'variable': satellite_idepix_flag,
+            'flag_list': flag_list,
+            'flag_land': flag_land,
+            'flag_inlandwater': flag_inlandwater,
+            'ac_processor': 'IDEPIX',
+            'nflagged': 0,
+            'flag_stats': None
+        }
+
+    def set_qc_from_qcbase(self, qcbase):
+
+        self.name = qcbase.sat_name
+        self.stat_value = qcbase.sat_stat_value
+        self.window_size = qcbase.sat_window_size
+        self.min_valid_pixels = qcbase.sat_min_valid_pixels
+        self.use_Bailey_Werdell = qcbase.sat_use_Bailey_Werdell
+        self.max_diff_wl = qcbase.sat_max_diff_wl
+        self.apply_band_shifting = qcbase.sat_apply_band_shifting
+
+        self.apply_outliers = qcbase.sat_apply_outliers
+        self.outliers_info = qcbase.sat_outliers_info
+
+        if len(qcbase.sat_th_mask) > 0:
+            for thm in qcbase.sat_th_mask:
+                self.add_theshold_mask(thm['index_sat'], thm['wl_sat'], thm['value_th'], thm['type_th'])
+
+        if len(qcbase.sat_check_statistics) > 0:
+            for cst in qcbase.sat_check_statistics:
+                self.add_band_statistics(cst['index_sat'], cst['wl_sat'], cst['type_stat'], cst['with_outliers'],
+                                         cst['value_th'], cst['type_th'])
+
+        if len(qcbase.sat_info_flag) > 0:
+            for info_f in qcbase.sat_info_flag:
+                name_flag = info_f['sat_flag_name']
+                if name_flag is None:
+                    name_flag = self.info_flag.keys()[0]
+                if name_flag is self.info_flag.keys():
+                    if info_f['flag_list'] is not None:
+                        self.info_flag[name_flag]['flag_list'] = info_f['flag_list']
+                    if info_f['flag_land'] is not None:
+                        self.info_flag[name_flag]['flag_land'] = info_f['flag_land']
+                    if info_f['flag_inlandwater'] is not None:
+                        self.info_flag[name_flag]['flag_inlandwater'] = info_f['flag_land']
