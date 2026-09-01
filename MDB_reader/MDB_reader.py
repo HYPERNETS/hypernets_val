@@ -55,15 +55,15 @@ def main():
             print(f'[INFO] MDB output path: {output_path}')
         mfile = MDBFile(args_d['input_path'])
 
-        # if not reader.mfile.VALID:
-        #     return
-        # if not reader.mfile.check_repeated() and not allow_repeated:
-        #     print(f'To allow repeated ids (e.g. if your are working with shipborne data) use --allow_repeated option with GENERATE_MU')
-        #     print(f'To remove repeated satellite ids before run GENERATE_MU,  you could run:')
-        #     print(f'python MDB_readerV2.py -m REMOVEREP -i {input_path} -v')
-        #     return
-        # if args.config_file and not os.path.exists(args.config_file):
-        #     print(f'[ERROR] {args.config_file} is not available')
-        #     return
+        if not mfile.VALID:
+            return
+        
+        if not mfile.check_repeated() and not args.allow_repeated:
+            print(f'To allow repeated ids (e.g. if your are working with shipborne data) use --allow_repeated option with GENERATE_MU')
+            print(f'To remove repeated satellite ids before run GENERATE_MU,  you could run:')
+            print(f'python MDB_readerV2.py -m REMOVEREP -i {args.input_path} -v')
+            return
+
+
 if __name__ == '__main__':
     main()
