@@ -184,6 +184,22 @@ def main():
     print('common_functions.py loaded!')
 
 
+def get_mdb_output_path(input_path):
+    output_folder = os.path.dirname(input_path)
+    input_name = os.path.basename(input_path)
+    if input_name.startswith('MDB_') and input_name.endswith('.nc'):
+        index = 1
+        path_exist = True
+        while path_exist:
+            output_name = f'MDBr_{input_name[4:-3]}_{index}.nc'
+            output_path = os.path.join(output_folder, output_name)
+            path_exist = os.path.exists(output_path)
+            index = index + 1
+    else:
+        print(f'[ERROR] MDB path should start with MDB_ and end with .nc. Please rename the file and try again')
+        return None
+    return output_path
+
 # %%
 if __name__ == '__main__':
     main()
