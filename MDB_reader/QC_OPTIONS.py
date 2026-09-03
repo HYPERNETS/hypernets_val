@@ -225,7 +225,8 @@ class QC_OPTIONS:
         qc_sat.set_filter_var_th(options_config, key_values=retrieve_options['filter_var_th_']['key_values'])
         qc_sat.set_filter_macropixel_spectral(options_config, key_values=retrieve_options['filter_macropixel_spectral_']['key_values'])
         qc_sat.set_filter_macropixel_var(options_config, key_values=retrieve_options['filter_macropixel_var_']['key_values'])
-        check = qc_sat.check_parameters()
+
+        check = qc_sat.check_parameters(potential_stat_values=retrieve_options['stat_value']['list_values'])
 
         return qc_sat
 
