@@ -228,7 +228,13 @@ class QC_OPTIONS:
 
         check = qc_sat.check_parameters(potential_stat_values=retrieve_options['stat_value']['list_values'])
 
-        return qc_sat
+        if not check:
+            print(f'[ERROR] Satellite quality control could not be initiated. Please review errors, correct your configuration file ([QC_SAT] section) and try again.')
+            return None
+        else:
+            if self.verbose:
+                print(f'[INFO] Satellite quality control successfully initiated.')
+            return qc_sat
 
     def get_qcsat_deprecated(self, qc_sat, dataset):
         section = 'QC_SAT'

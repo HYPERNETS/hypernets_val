@@ -285,7 +285,6 @@ class QC_SAT:
             n_rows = self.dataset.variables[self.spectral_variable].shape[2]
             n_cols = self.dataset.variables[self.spectral_variable].shape[3]
 
-
         if self.wl_list is None or self.indices_wl is None:
             check_qc = False
 
@@ -306,7 +305,6 @@ class QC_SAT:
         if potential_stat_values is None:
             potential_stat_values = self.potential_stat_values
 
-
         if self.stat_value not in potential_stat_values:
             print(f'[ERROR] Stat value ({self.stat_value}) is not valid, should be one of {potential_stat_values}')
             check_qc = False
@@ -322,7 +320,7 @@ class QC_SAT:
             try:
                 self.outliers_info['factor'] = float(factor_str)
             except Exception as ex:
-                print(f'[ERROR] Factor for outliers {factor_str} must be a float number. Exception: {ex}')
+                print(f'[ERROR] Factor in outliers_info {factor_str} must be a float. Exception: {ex}')
                 self.outliers_info['factor'] = None
                 check_qc = False
 
@@ -379,10 +377,10 @@ class QC_SAT:
                 else:
                     check_qc = False
                 if not isinstance(self.filter_spectral_th[idx]['th_value'], float):
-                    print(f'[ERROR] Threshold th_value {self.filter_spectral_th[idx]['th_value']} for filter_spectral_th {idx} should be a float')
+                    print(f'[ERROR] Threshold th_value {self.filter_spectral_th[idx]['th_value']} for filter_spectral_th_{idx} should be a float')
                     check_qc = False
                 if not self.filter_spectral_th[idx]['th_type'] in self.th_types:
-                    print(f'[ERROR] Threshold filter type th_type {self.filter_spectral_th[idx]['th_type']} for filter_spectral_th {idx} should one of {self.th_types}')
+                    print(f'[ERROR] Threshold filter type th_type {self.filter_spectral_th[idx]['th_type']} for filter_spectral_th_{idx} should one of {self.th_types}')
                     check_qc = False
 
         if len(self.filter_var_th)>0:
@@ -394,15 +392,15 @@ class QC_SAT:
                     if self.filter_var_th[idx]['window_size']==-1:
                         self.filter_var_th[idx]['window_size']= self.window_size
                     check_w = self.check_window_size(self.filter_var_th[idx]['window_size'],n_rows_here,n_cols_here)
-                    if check_w:
+                    if not check_w:
                         check_qc = False
                 else:
                     check_qc = False
                 if not isinstance(self.filter_var_th[idx]['th_value'], float):
-                    print(f'[ERROR] Threshold th_value {self.filter_var_th[idx]['th_value']} for filter_spectral_th {idx} should be a float')
+                    print(f'[ERROR] Threshold th_value {self.filter_var_th[idx]['th_value']} for filter_var_th_{idx} should be a float')
                     check_qc = False
                 if not self.filter_var_th[idx]['th_type'] in self.th_types:
-                    print(f'[ERROR] Threshold filter type th_type {self.filter_var_th[idx]['th_type']} for filter_spectral_th {idx} should one of {self.th_types}')
+                    print(f'[ERROR] Threshold filter type th_type {self.filter_var_th[idx]['th_type']} for filter_var_th_{idx} should one of {self.th_types}')
                     check_qc = False
 
         if len(self.filter_macropixel_spectral)>0:
@@ -414,18 +412,18 @@ class QC_SAT:
                     wl_min_here = self.filter_macropixel_spectral[idx]['wl_min']
                     wl_max_here = self.filter_macropixel_spectral[idx]['wl_min']
                     if not isinstance(wl_min_here, float):
-                        print(f'[ERROR] wl_min {wl_min_here} for filter_macropixel_spectral_th {idx} should be a float value')
+                        print(f'[ERROR] wl_min {wl_min_here} for filter_macropixel_spectral_{idx} should be a float value')
                         check_qc = False
                     if not isinstance(wl_max_here, float):
-                        print(f'[ERROR] wl_max {wl_max_here} for filter_macropixel_spectral_th {idx} should be a float value')
+                        print(f'[ERROR] wl_max {wl_max_here} for filter_macropixel_spectral_{idx} should be a float value')
                         check_qc = False
                     if isinstance(wl_min_here,float) and isinstance(wl_max_here,float):
                         if wl_min_here > wl_max_here:
-                            print(f'[ERROR] wl_max {wl_max_here} should be greater or equal to wl_min {wl_min_here} for filter_macropixel_spectral_th_{idx}')
+                            print(f'[ERROR] wl_max {wl_max_here} should be greater or equal to wl_min {wl_min_here} for filter_macropixel_spectral_{idx}')
                             check_qc = False
                         else:
                             if wl_min_here < wl_min_abs or wl_min_here > wl_max_abs:
-                                print(f'[ERROR] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_macropixel_spectral_th_{idx}')
+                                print(f'[ERROR] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_macropixel_spectral_{idx}')
                                 check_qc = False
                             if wl_min_here < wl_min_abs or wl_min_here > wl_max_abs:
                                 print(f'[ERROR] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_macropixels_spectral_th_{idx}')
@@ -470,24 +468,29 @@ class QC_SAT:
             for idx in range(len(self.filter_macropixel_var)):
                 check_b = self.check_non_spectral_variable(self.filter_macropixel_var[idx]['name_var'])
                 if check_b:
-                    n_rows_here = self.dataset.variables[self.filter_var_th[idx]['name_var']][:].shape[1]
-                    n_cols_here = self.dataset.variables[self.filter_var_th[idx]['name_var']][:].shape[2]
+                    n_rows_here = self.dataset.variables[self.filter_macropixel_var[idx]['name_var']][:].shape[1]
+                    n_cols_here = self.dataset.variables[self.filter_macropixel_var[idx]['name_var']][:].shape[2]
                     if self.filter_macropixel_var[idx]['window_size'] == -1:
                         self.filter_macropixel_var[idx]['window_size'] = self.window_size
                     check_w = self.check_window_size(self.filter_macropixel_var[idx]['window_size'], n_rows_here, n_cols_here)
-                    if check_w:
+                    if not check_w:
                         check_qc = False
+
                 else:
                     check_qc = False
+
                 if not isinstance(self.filter_macropixel_var[idx]['th_value'], float):
                     print(f'[ERROR] Threshold th_value {self.filter_macropixel_var[idx]['th_value']} for filter_macropixel_var_{idx} should be a float')
                     check_qc = False
+
                 if not self.filter_macropixel_var[idx]['th_type'] in self.th_types:
                     print(f'[ERROR] Threshold filter type th_type {self.filter_macropixel_var[idx]['th_type']} for filter_macropixel_var_{idx} should one of {self.th_types}')
                     check_qc = False
+
                 if not self.filter_macropixel_var[idx]['spatial_stat'] in self.macropixel_spatial_stats:
                     print(f'[ERROR] spatial_stat {self.filter_macropixel_var[idx]['spatial_stat']} for filter_macropixel_var_{idx} should one of {self.macropixel_spatial_stats}')
                     check_qc = False
+
                 if self.filter_macropixel_var[idx]['use_outliers']:
                     if self.filter_macropixel_var[idx]['outliers_central_stat'] not in self.central_stat_values:
                         print(f'[ERROR] outliers_central_stat {self.filter_macropixel_var[idx]['outliers_central_stat']} for filter_macropixel_var_{idx} should be one of {self.central_stat_values}')
@@ -502,6 +505,10 @@ class QC_SAT:
                         print(f'[ERROR] outliers_factor {factor_str} for filter_macropixel_var_{idx}  must be a float number. Exception: {ex}')
                         self.filter_macropixel_var[idx]['factor'] = None
                         check_qc = False
+
+
+        
+
         return check_qc
 
     def check_window_size(self,window_size,n_rows,n_cols):
@@ -514,17 +521,17 @@ class QC_SAT:
             if window_size > n_rc_max:
                 print(f'[ERROR] Window size ({self.window_size}) should be greater or equal than the maximum extrac size {n_rc_max}')
                 check_w = False
-
         return check_w
 
     def check_spectral_variable(self,spectral_variable,bands_variable):
         check_qc = True
         if bands_variable is None or not bands_variable in self.dataset.variables:
             print(f'[ERROR] Band wavelengths variable  {bands_variable} is not available in the dataset')
-            check_qc = False
+            return False
         if spectral_variable is None or not spectral_variable in self.dataset.variables:
-            print(f'[ERROR] Spectral variable {spectral_variable} is not available in the dataset')
-            check_qc = False
+            print(f'[ERROR] Spectral variable {spectral_variable} is not available in the dataset. Choose among:')
+            print(f'[ERROR] {list(self.dataset.variables)}')
+            return False
 
         if len(self.dataset.variables[bands_variable].shape) != 1:
             print(f'[ERROR] Band wavelengths variable {bands_variable} should be a 1D array')
@@ -547,8 +554,9 @@ class QC_SAT:
     def check_non_spectral_variable(self,name_var):
         check_qc = True
         if name_var is None or not name_var in self.dataset.variables:
-            print(f'[ERROR] Non-spectral variable {name_var} is not available in the dataset')
-            check_qc = False
+            print(f'[ERROR] Non-spectral variable {name_var} is not available in the dataset. Choose among: ')
+            print(f'[ERROR] {list(self.dataset.variables)}')
+            return False
 
         if len(self.dataset.variables[name_var].shape) != 3:
             print(f'[ERROR] Spectral variable {name_var} should have 3 dimensions: satellite_id, rows, columns')
