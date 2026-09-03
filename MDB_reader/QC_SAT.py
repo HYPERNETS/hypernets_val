@@ -50,7 +50,10 @@ class QC_SAT:
         self.spectral_variable_unc = options_config['spectral_variable_unc']
         self.window_size = options_config['window_size']
         self.min_valid_pixels = options_config['min_valid_pixels']
-        self.use_Bailey_Werdell = options_config['use_bailey_werdell']
+        self.min_valid_porc = options_config['min_valid_porc']
+        self.use_min_valid_porc = options_config['use_min_valid_porc']
+        self.min_valid_porc_with_valid = options_config['min_valid_porc_with_valid']
+
         self.stat_value = options_config['stat_value']
         self.outliers_info['apply'] = options_config['apply_outliers']
         self.max_diff_wl  = options_config['max_diff_wl']
