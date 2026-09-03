@@ -68,6 +68,11 @@ def main():
         if not qc_options.is_valid:
             return
         qc_sat = qc_options.get_qc_sat(mfile.nc)
+        if qc_sat is None:
+            return
+        qc_ins = qc_options.get_qc_ins(mfile.nc)
+        if qc_ins is None:
+            return
 
 
 if __name__ == '__main__':

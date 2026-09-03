@@ -227,7 +227,6 @@ class QC_OPTIONS:
         qc_sat.set_filter_macropixel_var(options_config, key_values=retrieve_options['filter_macropixel_var_']['key_values'])
 
         check = qc_sat.check_parameters(potential_stat_values=retrieve_options['stat_value']['list_values'])
-
         if not check:
             print(f'[ERROR] Satellite quality control could not be initiated. Please review errors, correct your configuration file ([QC_SAT] section) and try again.')
             return None
@@ -236,6 +235,12 @@ class QC_OPTIONS:
                 print(f'[INFO] Satellite quality control successfully initiated.')
             return qc_sat
 
+    def get_qc_ins(self,dataset):
+        retrieve_options, required = self.gmanager.get_retrieve_options('QC_INS')
+        options_config = self.omanager.get_options_as_dict('QC_INS', retrieve_options, required)
+        print(options_config)
+
+        return None
     def get_qcsat_deprecated(self, qc_sat, dataset):
         section = 'QC_SAT'
         options_qcsat = {
@@ -399,7 +404,7 @@ class QC_OPTIONS:
 
         return qc_sat
 
-    def get_qc_insitu(self, qc_insitu,wllist):
+    def get_qc_insitu_deprecated(self, qc_insitu,wllist):
         section = 'QC_INS'
         ##wl list
         if wllist is None:

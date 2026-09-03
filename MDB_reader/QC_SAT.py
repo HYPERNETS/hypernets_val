@@ -506,9 +506,6 @@ class QC_SAT:
                         self.filter_macropixel_var[idx]['factor'] = None
                         check_qc = False
 
-
-        
-
         return check_qc
 
     def check_window_size(self,window_size,n_rows,n_cols):
