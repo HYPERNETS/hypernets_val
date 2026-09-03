@@ -1,147 +1,332 @@
+import math
 import numpy as np
 import COMMON.Class_Flags_OLCI as flag
-import math
 import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
+
+
 
 
 
 class QC_SAT:
 
-    def __init__(self, satellite_rrs, sat_bands, satellite_flag, ac_processor):
-        self.name = ''
-        self.satellite_rrs = satellite_rrs
-        self.satellite_rrs_unc  = None
-        self.sat_bands = sat_bands
+    def __init__(self, dataset):
 
-        self.qc_sat_results = {}
+        self.dataset = dataset
+        self.wl_list = None
+        self.indices_wl = None
 
-        self.pi_multiplied = [False] * len(self.sat_bands)
-        self.pi_divided = [False] * len(self.sat_bands)
-        self.nmu = self.satellite_rrs.shape[0]
-        self.nbands = self.satellite_rrs.shape[1]
+        ##basic information
+        self.bands_variable = 'satellite_bands'
+        self.spectral_variable = 'satellite_Rrs'
+        self.spectral_variable_unc = 'satellite_Rrs_unc'
+        self.window_size = 3
+        self.min_valid_pixels = 9
+        self.min_valid_porc = 50.0
+
+        self.use_min_valid_porc = False  # if true, minimum number of valid pixels is established as min_porc_valid_pixels (default 50%) +1 of NP
+        self.min_valid_porc_with_valid = True #if valid, NP is the NTWP (number of water pixels), if false, NP, is the NTP (number of total pixels)
 
         self.stat_value = 'avg'
 
-        self.window_size = 3
-        self.min_valid_pixels = 9
-        self.use_Bailey_Werdell = False  # if true, minimun number of valid pixels is established
-        # as min_porc_valid_pixels (default 50%) +1 of NTPW
-        # if false, minimun number of valid pixels==min_valid_pixels
+        self.outliers_info = {'apply': True, 'central_stat': 'avg','dispersion_stat': 'std','factor': 1.5}
 
-        self.apply_outliers = True
-        self.outliers_info = {
-            'central_stat': 'avg',
-            'dispersion_stat': 'std',
-            'factor': 1.5
-        }
+        self.max_diff_wl = 5.0
 
-        self.NTP = self.window_size * self.window_size  # total number of pixels
-        self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
-        self.NVP = 0  # number of valid pixels (excluding flag pixels), varies with MU
-        self.flag_mask = None  # mask based on flagging
-        self.ac_processor = ac_processor
+        self.flag_land = [None]*2
+        self.flag_inland_water = [None]*2
 
-        self.info_flag = {}
-        if satellite_flag is not None and ac_processor is not None:
-            flag_list, flag_land, flag_inlandwater = self.get_flag_defaults(ac_processor)
-            self.info_flag[satellite_flag.name] = {
-                'variable': satellite_flag,
-                'flag_list': flag_list,
-                'flag_land': flag_land,
-                'flag_inlandwater': flag_inlandwater,
-                'ac_processor': ac_processor,
-                'nflagged': 0,
-                'flag_stats': None
-            }
+        self.filter_flag = []
 
-        self.th_masks = []
-        self.check_statistics = []
+        self.filter_spectral_th = []
+        self.filter_var_th = []
+        self.filter_macropixel_spectral = []
+        self.filter_macropixel_var = []
 
-        ##values for statistis no rrs
-        self.check_statistics_norrs = []
-        self.statistics_norrs = {}
-        self.ncdataset = None
+        self.is_valid = True
 
-        self.invalid_mask = {}
-        for sat_index in range(self.nbands):
-            sat_index_str = str(sat_index)
-            self.invalid_mask[sat_index_str] = {
-                'wavelength': self.sat_bands[sat_index],
-                'apply_mask': True,
-                'n_masked': 0,
-                'ref': f'rrs_{self.sat_bands[sat_index]:.0f}_invalid'
-            }
+    def set_basic_info(self,options_config):
+        self.bands_variable = options_config['bands_variable']
+        self.spectral_variable = options_config['spectral_variable']
+        self.spectral_variable_unc = options_config['spectral_variable_unc']
+        self.window_size = options_config['window_size']
+        self.min_valid_pixels = options_config['min_valid_pixels']
+        self.use_Bailey_Werdell = options_config['use_bailey_werdell']
+        self.stat_value = options_config['stat_value']
+        self.outliers_info['apply'] = options_config['apply_outliers']
+        self.max_diff_wl  = options_config['max_diff_wl']
+        if self.outliers_info['apply']:
+            o_info = options_config['outliers_info']
+            self.outliers_info['central_stat'] = o_info[0]
+            self.outliers_info['dispersion_stat'] = o_info[1]
+            try:
+                self.outliers_info['factor'] = float(o_info[2])
+            except Exception as ex:
+                print(f'[ERROR] Factor for outliers {o_info[2]} must be a float number. Exception: {ex}')
+                self.outliers_info['factor'] = None
+        self.flag_land = options_config['flag_land']
+        self.flag_inland_water = options_config['flag_inland_water']
 
-        self.statistics = {}
-        self.statistics_unc = {}
-        for sat_index in range(self.nbands):
-            sat_index_str = str(sat_index)
-            stat_list = {
-                'n_values': 0,
-                'avg': 0,
-                'std': 0,
-                'median': 0,
-                'min': 0,
-                'max': 0,
-                'CV': 0
-            }
-            self.statistics[sat_index_str] = {
-                'wavelength': self.sat_bands[sat_index],
-                'without_outliers': stat_list,
-                'with_outliers': stat_list
-            }
-            self.statistics_unc[sat_index_str] = {
-                'wavelength': self.sat_bands[sat_index],
-                'without_outliers': stat_list,
-                'with_outliers': stat_list
-            }
-        # print(self.statistics[sat_index_str]['without_outliers'])
+    def set_wl_list(self,options_config):
+        if not self.bands_variable in self.dataset.variables:
+            self.bands_variable = None
+            print(f'[ERROR] {self.bands_variable} variable is not available in the NetCDF dataset')
+            return
 
-        self.max_diff_wl = 10
+        original_bands = self.dataset.variables[self.bands_variable][:]
+        wl_list = options_config['wl_list']
+        wl_min = options_config['wl_min']
+        wl_max = options_config['wl_max']
+        if wl_list is not None and (wl_min is not None or wl_max is not None):
+            print(f'[WARNING] As wl_list is given, wl_min and wl_max values are not used for setting the wavelength list')
 
-        self.apply_band_shifting = False
-        self.wl_ref = None
-        self.mu_invalid_list = []
 
-        self.indices_valid_bands = None
+        if wl_list is None:
+            if wl_min is not None or wl_max is not None:
+                if wl_min is None:
+                    wl_min = np.min(original_bands)
+                if wl_max  is None:
+                    wl_max = np.max(original_bands)
+                if wl_max<wl_min:
+                    print(f'[ERROR] wl_max ({wl_max}) must be greater or equal than wl_min ({wl_min})')
+                    return
+                wl_list = original_bands[(original_bands>=wl_min) & (original_bands<=wl_max)]
+                print(f'[INFO] wl_list set to {len(wl_list)} bands between {np.min(wl_list)} and {np.max(wl_list)}')
+            elif wl_min is None and wl_max is None:
+                wl_list = original_bands
+                print(f'[INFO] wl_list set to the original satellite bands with {len(wl_list)} bands between {np.min(wl_list)} and {np.max(wl_list)}')
 
-        self.apply_olci_gains = False
-        self.olci_gains_s3a = {
-            '400': 0.97546,
-            '412.5': 0.97406,
-            '442.5': 0.97492,
-            '490': 0.9689,
-            '510': 0.97184,
-            '560': 0.97571,
-            '620': 0.98001,
-            '665': 0.97834,
-            '673.75': 0.9786,
-            '681.25': 0.97908,
-            '708.75': 0.98013,
-            '753.75': 0.98552,
-            '778.75': 0.98772,
-            '865': 0.986,
-            '885': 0.98657,
-            '1020': 0.91316
-        }
-        self.olci_gains_s3b = {
-            '400': 0.99458,
-            '412.5': 0.9901,
-            '442.5': 0.99221,
-            '490': 0.9862,
-            '510': 0.98898,
-            '560': 0.99114,
-            '620': 0.99769,
-            '665': 0.99684,
-            '673.75': 0.99716,
-            '681.25': 0.99802,
-            '708.75': 0.99782,
-            '753.75': 1.00163,
-            '778.75': 1.00259,
-            '865': 1,
-            '885': 1.00089,
-            '1020': 0.94064
-        }
+
+        wl_list = np.array(wl_list)
+
+        n_original_bands = len(original_bands)
+        n_list = len(wl_list)
+
+        wl_list_m = np.repeat(wl_list,n_original_bands).reshape((n_list,n_original_bands))
+        wl_original_m = np.tile(original_bands,n_list).reshape((n_list,n_original_bands))
+
+        diff_wl = np.abs(wl_list_m-wl_original_m)
+        min_diff_wl = np.min(diff_wl,axis=1)
+        if np.max(min_diff_wl)>=self.max_diff_wl:
+            print(f'[ERROR] Some bands given in the parameter wl_list are not available as wavelength difference with the satellite original bands is greater than the allowed maximum of {self.max_diff_wl} nm')
+            no_valid_bands = wl_list[min_diff_wl>self.max_diff_wl]
+            print(f'Please review the following bands: ')
+            for no_valid_band in no_valid_bands:
+                print(f'  {no_valid_band} nm')
+            print(f'Or you can also modify the allowed  maximum difference using the max_diff_wl parameter in QC_SAT')
+            return
+
+
+        self.indices_wl = np.argmin(diff_wl,axis=1)
+        self.wl_list = original_bands[self.indices_wl]
+        
+
+
+
+        # self.name = ''
+        # self.satellite_rrs = satellite_rrs
+        # self.satellite_rrs_unc  = None
+        # self.sat_bands = sat_bands
+        #
+        # self.qc_sat_results = {}
+        #
+        # self.pi_multiplied = [False] * len(self.sat_bands)
+        # self.pi_divided = [False] * len(self.sat_bands)
+        # self.nmu = self.satellite_rrs.shape[0]
+        # self.nbands = self.satellite_rrs.shape[1]
+        #
+        # self.stat_value = 'avg'
+        #
+        # self.window_size = 3
+        # self.min_valid_pixels = 9
+
+        #
+        # self.apply_outliers = True
+        # self.outliers_info = {
+        #     'central_stat': 'avg',
+        #     'dispersion_stat': 'std',
+        #     'factor': 1.5
+        # }
+        #
+        # self.NTP = self.window_size * self.window_size  # total number of pixels
+        # self.NTPW = self.NTP  # total number of water pixels (excluding land/inland waters), could vary with MU
+        # self.NVP = 0  # number of valid pixels (excluding flag pixels), varies with MU
+        # self.flag_mask = None  # mask based on flagging
+        # self.ac_processor = ac_processor
+        #
+        # self.info_flag = {}
+        # if satellite_flag is not None and ac_processor is not None:
+        #     flag_list, flag_land, flag_inlandwater = self.get_flag_defaults(ac_processor)
+        #     self.info_flag[satellite_flag.name] = {
+        #         'variable': satellite_flag,
+        #         'flag_list': flag_list,
+        #         'flag_land': flag_land,
+        #         'flag_inlandwater': flag_inlandwater,
+        #         'ac_processor': ac_processor,
+        #         'nflagged': 0,
+        #         'flag_stats': None
+        #     }
+        #
+        # self.th_masks = []
+        # self.check_statistics = []
+        #
+        # ##values for statistis no rrs
+        # self.check_statistics_norrs = []
+        # self.statistics_norrs = {}
+        # self.ncdataset = None
+        #
+        # self.invalid_mask = {}
+        # for sat_index in range(self.nbands):
+        #     sat_index_str = str(sat_index)
+        #     self.invalid_mask[sat_index_str] = {
+        #         'wavelength': self.sat_bands[sat_index],
+        #         'apply_mask': True,
+        #         'n_masked': 0,
+        #         'ref': f'rrs_{self.sat_bands[sat_index]:.0f}_invalid'
+        #     }
+        #
+        # self.statistics = {}
+        # self.statistics_unc = {}
+        # for sat_index in range(self.nbands):
+        #     sat_index_str = str(sat_index)
+        #     stat_list = {
+        #         'n_values': 0,
+        #         'avg': 0,
+        #         'std': 0,
+        #         'median': 0,
+        #         'min': 0,
+        #         'max': 0,
+        #         'CV': 0
+        #     }
+        #     self.statistics[sat_index_str] = {
+        #         'wavelength': self.sat_bands[sat_index],
+        #         'without_outliers': stat_list,
+        #         'with_outliers': stat_list
+        #     }
+        #     self.statistics_unc[sat_index_str] = {
+        #         'wavelength': self.sat_bands[sat_index],
+        #         'without_outliers': stat_list,
+        #         'with_outliers': stat_list
+        #     }
+        # # print(self.statistics[sat_index_str]['without_outliers'])
+        #
+        # self.max_diff_wl = 10
+        #
+        # self.apply_band_shifting = False
+        # self.wl_ref = None
+        # self.mu_invalid_list = []
+        #
+        # self.indices_valid_bands = None
+        #
+        # self.apply_olci_gains = False
+        # self.olci_gains_s3a = {
+        #     '400': 0.97546,
+        #     '412.5': 0.97406,
+        #     '442.5': 0.97492,
+        #     '490': 0.9689,
+        #     '510': 0.97184,
+        #     '560': 0.97571,
+        #     '620': 0.98001,
+        #     '665': 0.97834,
+        #     '673.75': 0.9786,
+        #     '681.25': 0.97908,
+        #     '708.75': 0.98013,
+        #     '753.75': 0.98552,
+        #     '778.75': 0.98772,
+        #     '865': 0.986,
+        #     '885': 0.98657,
+        #     '1020': 0.91316
+        # }
+        # self.olci_gains_s3b = {
+        #     '400': 0.99458,
+        #     '412.5': 0.9901,
+        #     '442.5': 0.99221,
+        #     '490': 0.9862,
+        #     '510': 0.98898,
+        #     '560': 0.99114,
+        #     '620': 0.99769,
+        #     '665': 0.99684,
+        #     '673.75': 0.99716,
+        #     '681.25': 0.99802,
+        #     '708.75': 0.99782,
+        #     '753.75': 1.00163,
+        #     '778.75': 1.00259,
+        #     '865': 1,
+        #     '885': 1.00089,
+        #     '1020': 0.94064
+        # }
+
+
+    def set_filter_flag(self,options_config, key_values = None):
+        self.filter_flag = get_filter_list(options_config,'filter_flag_',key_values=key_values)
+
+    def set_filter_spectral_th(self,options_config,key_values = None):
+        self.filter_spectral_th = get_filter_list(options_config,'filter_spectral_th_',key_values=key_values)
+
+    def set_filter_var_th(self,options_config,key_values = None):
+        self.filter_var_th = get_filter_list(options_config,'filter_var_th_',key_values=key_values)
+
+    def set_filter_macropixel_spectral(self,options_config,key_values = None):
+        self.filter_macropixel_spectral = get_filter_list(options_config,'filter_macropixel_spectral_',key_values=key_values)
+
+    def set_filter_macropixel_var(self,options_config,key_values = None):
+        self.filter_macropixel_var = get_filter_list(options_config,'filter_macropixel_var_',key_values=key_values)
+
+    def check_parameters(self):
+        check_qc = True
+        if self.bands_variable is None or not self.bands_variable in self.dataset.variables:
+            print(f'[ERROR] Band wavelengths variable (bands_variable) {self.bands_variable} is not available in the dataset')
+            check_qc = False
+        if self.spectral_variable is None or not self.spectral_variable in self.dataset.variables:
+            print(f'[ERROR] Spectral variable (spectral_variable) {self.spectral_variable} is not available in the dataset')
+            check_qc = False
+        if self.spectral_variable_unc is None or not self.spectral_variable_unc in self.dataset.variables:
+            print(f'[WARNING] Spectral uncertainty variable (spectral_variable_unc) {self.spectral_variable} is not available in the dataset, so some functions could not be available')
+
+        if len(self.dataset.variables[self.bands_variable].shape)!=1:
+            print(f'[ERROR] Band wavelengths variable {self.bands_variable} should be a 1D array')
+            check_qc = False
+            n_bands = -1
+        else:
+            n_bands = self.dataset.variables[self.bands_variable].shape[0]
+
+        if len(self.dataset.variables[self.bands_variable].shape)!=1:
+            print(f'[ERROR] Spectral variable {self.spectral_variable} should have 4 dimensions: satellite_id,satellite_bands,rows,columns')
+            check_qc = False
+            n_rows = -1
+            n_cols = -1
+        else:
+            n_rows = self.dataset.variables[self.spectral_variable].shape[2]
+            n_cols = self.dataset.variables[self.spectral_variable].shape[3]
+            n_bands_spectral = self.dataset.variables[self.spectral_variable].shape[1]
+            if n_bands_spectral != n_bands:
+                print(f'[ERROR] The number of bands in the spectral variable ({n_bands_spectral}) should be equal to the number of bands in the band wavelengths variable ({n_bands}) ')
+                check_qc = False
+
+
+        if self.window_size<1:
+            print(f'[ERROR] Window size ({self.window_size}) should be a positive integer')
+            check_qc = False
+        else:
+
+
+            if self.window_size % 2 == 0:
+                print(f'[ERROR] Window size ({self.window_size}) should be an uneven integer')
+                check_qc = False
+            if n_rows>=1 and n_cols>=1:
+                n_rc_max = min(n_rows, n_cols)
+                n_all = n_rows*n_cols
+
+                if self.window_size > n_rc_max:
+                    print(f'[ERROR] Window size ({self.window_size}) should be greater or equal than the maximum extrac size {n_rc_max}')
+                    check_qc = False
+                if not self.use_min_valid_porc and self.min_valid_pixels>n_all:
+                    print(f'[ERROR] min_valid_pixels {min_valid_pixels} should be lower or equal to {n_all} for a window size of {self.window_size} * {self.window_size} pixels')
+                    check_qc = False
+
+
+
+        return check_qc
+
 
 
     def check_rrs_variability(self):
@@ -233,10 +418,8 @@ class QC_SAT:
         print(f'[INFO]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
         print(f'[INFO]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
         mask_invalid = self.compute_invalid_masks_array()
-        print('mu31 invalid-->',mask_invalid.shape,np.sum(mask_invalid[31,:]))
         print(f'[INFO]->Number of invalid rrs: {np.ma.sum(mask_invalid)}/{np.ma.count(mask_invalid)}')
         mask_th = self.compute_th_masks_array()
-        print('mu31 th-->', np.sum(mask_invalid[31, :]))
         print(f'[INFO]->Number of pixels masked using user-defined thresholds: {np.ma.sum(mask_th)}/{np.ma.count(mask_th)}')
 
         final_mask = flag_mask + mask_invalid + mask_th
@@ -1340,3 +1523,31 @@ class QC_SAT:
                         self.info_flag[name_flag]['flag_land'] = info_f['flag_land']
                     if info_f['flag_inlandwater'] is not None:
                         self.info_flag[name_flag]['flag_inlandwater'] = info_f['flag_land']
+
+
+def get_filter_list(options_config, prefix, key_values = None):
+    if key_values is None:
+        from QC_OPTIONS import QC_OPTIONS
+        qc_options_general = QC_OPTIONS(None,False)
+        retrieve_options,required = qc_options_general.gmanager.get_retrieve_options('QC_SAT')
+        key_values = retrieve_options[prefix]['key_values']
+
+    default_dict = {key:key_values[key]['default'] for key in key_values}
+    index = 0
+    exist_filter = True
+    filter_list = []
+    while exist_filter:
+        key_filter = f'{prefix}{index}'
+        exist_filter =  key_filter in options_config
+        if exist_filter:
+            dict_here = default_dict.copy()
+            dict_here.update(options_config[key_filter])
+            invalid_keys = options_config[key_filter].keys() - default_dict.keys()
+            filter_list.append(dict_here)
+            if len(invalid_keys)>0:
+                print(f'[WARNING] The following {len(invalid_keys)}  keys in configuration file for {key_filter} are not valid:')
+                print(f'[WARNING] --> {list(invalid_keys)}')
+                print(f'[WARNING] --> valid expected keys: {list(default_dict.keys())}')
+
+        index = index+1
+    return filter_list

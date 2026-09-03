@@ -2,6 +2,7 @@ import __init__,argparse, warnings
 import COMMON.args_functions as afs
 import COMMON.common_functions as cfs
 from MDBFile import MDBFile
+from QC_OPTIONS import QC_OPTIONS
 
 # import datetime
 # from datetime import datetime as dt
@@ -57,12 +58,16 @@ def main():
 
         if not mfile.VALID:
             return
-        
+
         if not mfile.check_repeated() and not args.allow_repeated:
             print(f'To allow repeated ids (e.g. if your are working with shipborne data) use --allow_repeated option with GENERATE_MU')
             print(f'To remove repeated satellite ids before run GENERATE_MU,  you could run:')
             print(f'python MDB_readerV2.py -m REMOVEREP -i {args.input_path} -v')
             return
+        qc_options = QC_OPTIONS(args_d['config_file'],args.verbose)
+        if not qc_options.is_valid:
+            return
+        qc_sat = qc_options.get_qc_sat(mfile.nc)
 
 
 if __name__ == '__main__':

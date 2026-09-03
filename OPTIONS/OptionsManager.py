@@ -196,6 +196,25 @@ class OptionsManager:
                         soptions[op]['list_values'] = get_value_param_impl(list_here[2], 'intlist', None)
                     elif type_param.startswith('float'):##float or floatlist:
                         soptions[op]['list_values'] = get_value_param_impl(list_here[2], 'floatlist', None)
+                    elif type_param=='dict':
+                        key_list = get_value_param_impl(list_here[2],'strlist', None)
+                        key_values = {}
+                        for key in key_list:
+                            if key.find(':')>0:
+                                key_type = key.split(':')[1].strip()
+                                key_default = None
+                                if len(key.split(':'))==3:
+                                    key_default = get_value_param_impl(key.split(':')[2].strip(),key_type,None)
+                                key_values[key.split(':')[0].strip()] = {
+                                    'type': key_type,
+                                    'default': key_default
+                                }
+                            else:
+                                key_values[key] = {
+                                    'type':'str',
+                                    'default': None
+                                } ##by default, keys are retrieved as str
+                        soptions[op]['key_values'] = key_values
 
         return soptions, required_list
 
@@ -436,6 +455,7 @@ class OptionsManager:
     def get_option(self,section,option,poptions,default,type_param):
 
         list_values = None
+        key_values = None
         if poptions is not None and option in poptions.keys():
             if default is None  and 'default' in poptions[option].keys():
                 default = poptions[option]['default']
@@ -443,11 +463,14 @@ class OptionsManager:
                 type_param = poptions[option]['type_param']
             if 'list_values' in poptions[option].keys():
                 list_values = poptions[option]['list_values']
+            if 'key_values' in poptions[option].keys():
+                key_values = poptions[option]['key_values']
 
         if type_param is None:
             return None
 
-        value = self.get_value_param(section, option, default, type_param)
+
+        value = self.get_value_param(section, option, default, type_param, key_values=key_values)
 
 
 
@@ -465,24 +488,24 @@ class OptionsManager:
             value = value.strip()
         return value
 
-    def get_value_param(self, section, key, default, type):
+    def get_value_param(self, section, key, default, type_p, key_values = None):
         value = self.get_value(section, key)
         if value is None:
             return default
 
 
-        return get_value_param_impl(value,type,default)
+        return get_value_param_impl(value,type_p,default,key_values = key_values)
 
 
 
 
 
-def get_value_param_impl(value,type,default):
-    if type == 'str':
+def get_value_param_impl(value,type_p,default,key_values=None):
+    if type_p == 'str':
         return value.strip(f'"')
 
-    if type == 'file' or type.startswith('input_file'):
-        type_check = type[11:] if type.startswith('input_file_') else None
+    if type_p == 'file' or type_p.startswith('input_file'):
+        type_p_check = type_p[11:] if type_p.startswith('input_file_') else None
         file = value.strip(f'"')
 
         if not os.path.exists(file):
@@ -492,15 +515,15 @@ def get_value_param_impl(value,type,default):
                 print(f'[WARNING] Input file {file} is not a valid file.')
                 return None
         else:
-            if type_check is not None:
-                if check_file(file,type_check):
+            if type_p_check is not None:
+                if check_file(file,type_p_check):
                     return file
                 else:
                     return None
             return file
 
-    if type=='output_file' or type.startswith('output_file'):
-        ext = type[12:] if type.startswith('output_file_') else None
+    if type_p=='output_file' or type_p.startswith('output_file'):
+        ext = type_p[12:] if type_p.startswith('output_file_') else None
         file = value.strip(f'"')
         check_default = False
         if ext is not None and not file.endswith(f'.{ext}'):
@@ -529,7 +552,7 @@ def get_value_param_impl(value,type,default):
         else:
             return file
 
-    if type=='output_path': #type == 'directory' or
+    if type_p=='output_path': #type_p == 'directory' or
         directory = value.strip(f'"')
         try:
             os.makedirs(directory,exist_ok=True)
@@ -541,7 +564,7 @@ def get_value_param_impl(value,type,default):
                 return None
         return directory
 
-    if type== 'input_path':
+    if type_p== 'input_path':
         input_path = value.strip(f'"')
         if not os.path.isdir(input_path):
             if default is not None and os.path.isdir(default):
@@ -552,13 +575,13 @@ def get_value_param_impl(value,type,default):
         else:
             return input_path
 
-    if type == 'int':
+    if type_p == 'int':
         return int(value.strip(f'"'))
 
-    if type == 'float':
+    if type_p == 'float':
         return float(value.strip(f'"'))
 
-    if type == 'boolean':
+    if type_p == 'boolean':
         value = value.strip(f'"')
         if value == '1' or value.upper() == 'TRUE':
             return True
@@ -567,7 +590,7 @@ def get_value_param_impl(value,type,default):
         else:
             return True
 
-    if type == 'rrslist':
+    if type_p == 'rrslist':
         #list_str = value.split(',')
         list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
         list = []
@@ -576,34 +599,39 @@ def get_value_param_impl(value,type,default):
             list.append(f'RRS{vals}')
         return list
 
-    if type == 'strlist':
+    if type_p == 'strlist':
         list = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
         return list
 
-    if type == 'floatlist':
+    if type_p == 'floatlist':
         list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
         list = []
         for vals in list_str:
             list.append(float(vals))
         return list
 
-    if type == 'intlist':
+    if type_p == 'intlist':
         list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', value)]
         list = []
         for vals in list_str:
             list.append(int(vals))
         return list
 
-    if type == 'dict':
-        list_str = [s.strip() for s in value.split(',')]
+    if type_p == 'dict':
+        list_str = [s.strip().strip('"') for s in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)',value)]
         dict_h = {}
         for vals in list_str:
             list_h = [s.strip().strip('"') for s in re.split(r':(?=(?:[^"]*"[^"]*")*[^"]*$)', vals)]
             if len(list_h)==2:
-                dict_h[list_h[0]]=list_h[1]
+                if key_values is not None and list_h[0] in key_values:
+                    dict_h[list_h[0]] = get_value_param_impl(list_h[1],key_values[list_h[0]]['type'],key_values[list_h[0]]['default'])
+                else:
+                    dict_h[list_h[0]]=list_h[1]
             else:
                 return None
         return dict_h
+
+    return None
 
 def get_date_list_from_file(file):
     if not os.path.exists(file):

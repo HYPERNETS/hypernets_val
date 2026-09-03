@@ -1,14 +1,29 @@
-import os.path
-
+import __init__,os,configparser
+from OPTIONS.OptionsManager import OptionsManager
+from QC_SAT import QC_SAT
 
 class QC_OPTIONS:
 
-    def __init__(self, options):
-        # config_file = ''
-        # import configparser
-        # options = configparser.ConfigParser()
-        # options.read(config_file)
-        self.options = options
+    def __init__(self,config_file,verbose=False):
+
+        self.verbose = verbose
+        self.omanager = None
+        self.gmanager = None
+        general_options_file = os.path.join(__init__.code_home, 'OPTIONS', 'qc_options.ini')
+        self.gmanager = OptionsManager(general_options_file, None)
+        if config_file is not None and os.path.exists(config_file):
+            options = configparser.ConfigParser()
+            options.read(config_file)
+            self.omanager = OptionsManager(config_file, None)
+            if self.verbose:
+                print(f'[INFO][QC_OPTIONS] gmanager status: {self.gmanager.is_valid()}')
+                print(f'[INFO][QC_OPTIONS] omanager status: {self.omanager.is_valid()}')
+            self.is_valid = self.gmanager.is_valid() and self.omanager.is_valid()
+        else:
+            if self.verbose:
+                print(f'[INFO][QC_OPTIONS] gmanager status: {self.gmanager.is_valid()}')
+                rint(f'[INFO][QC_OPTIONS] omanager is not started')
+            self.is_valid = False
 
     # def get_satellite_variable(self):
     #     return self.get_value_param('QC_SINGLE','satellite_variable',None,'str')
@@ -198,7 +213,23 @@ class QC_OPTIONS:
         section = 'QC_SAT'
         return self.get_value_param(section,'copy_with_wllist',False,'boolean')
 
-    def get_qcsat(self, qc_sat, dataset):
+
+    def get_qc_sat(self,dataset):
+        retrieve_options,required = self.gmanager.get_retrieve_options('QC_SAT')
+        options_config = self.omanager.get_options_as_dict('QC_SAT',retrieve_options,required)
+        qc_sat = QC_SAT(dataset)
+        qc_sat.set_basic_info(options_config)
+        qc_sat.set_wl_list(options_config)
+        qc_sat.set_filter_flag(options_config, key_values=retrieve_options['filter_flag_']['key_values'])
+        qc_sat.set_filter_spectral_th(options_config, key_values=retrieve_options['filter_spectral_th_']['key_values'])
+        qc_sat.set_filter_var_th(options_config, key_values=retrieve_options['filter_var_th_']['key_values'])
+        qc_sat.set_filter_macropixel_spectral(options_config, key_values=retrieve_options['filter_macropixel_spectral_']['key_values'])
+        qc_sat.set_filter_macropixel_var(options_config, key_values=retrieve_options['filter_macropixel_var_']['key_values'])
+        check = qc_sat.check_parameters()
+
+        return qc_sat
+
+    def get_qcsat_deprecated(self, qc_sat, dataset):
         section = 'QC_SAT'
         options_qcsat = {
             'wllist': {'valid': 0, 'value': None, 'type': 'floatlist'},
