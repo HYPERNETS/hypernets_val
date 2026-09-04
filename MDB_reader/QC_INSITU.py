@@ -12,10 +12,18 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 class QC_INSITU:
 
-    def __init__(self, insitu_rrs, insitu_bands):
+    def __init__(self, dataset):
         self.dataset = dataset
         self.wl_list = None
         self.indices_wl = None
+        self.n_instruments = None
+
+        ##basic information
+        self.bands_variable = 'insitu_original_bands'
+        self.spectral_variable = 'insitu_Rrs'
+        self.spectral_variable_unc = 'insitu_Rrs_unc'
+        self.time_max = 7200
+        self.max_diff_wl = 5.0
         # self.name = ''
         #
         # self.insitu_rrs = insitu_rrs
@@ -65,6 +73,106 @@ class QC_INSITU:
         # # temporal for checking
         # self.insitu_time = None
         # self.sat_time = None
+
+
+
+    def set_basic_info(self,options_config):
+        self.bands_variable = options_config['bands_variable']
+        self.spectral_variable = options_config['spectral_variable']
+        self.spectral_variable_unc = options_config['spectral_variable_unc']
+
+        self.max_diff_wl  = options_config['max_diff_wl']
+
+        max_time_units = options_config['time_diff_max_units']
+        max_time_value = options_config['time_diff_max']
+        self.time_max = None
+        if not isinstance(max_time_units, str):
+            print(f'[ERROR] time_diff_max_units should be a string, not {max_time_units}')
+        elif not isinstance(max_time_value, float):
+            print(f'[ERROR] time_diff_max should be a float, not {max_time_value}')
+        else:
+            units = ['hours','minutes','seconds']
+            u_factor = [3600, 60, 1]
+            if not max_time_units in units:
+                print(f'[ERROR] time_diff_max_units should be one of {units}')
+            else:
+                self.time_max = max_time_value * u_factor[units.index(max_time_units)]
+        
+
+    def set_wl_list(self,options_config):
+        if not self.bands_variable in self.dataset.variables:
+            print(f'[ERROR] {self.bands_variable} variable is not available in the NetCDF dataset')
+            return
+
+        original_bands = self.dataset.variables[self.bands_variable][:]
+        if len(original_bands.shape)==1:
+            original_bands = np.expand_dims(original_bands,axis=0)
+            self.n_instruments = 1
+        elif len(original_bands.shape)==2:
+            self.n_instruments = original_bands.shape[0]
+        else:
+            print(f'[ERROR] Wavelength {self.bands_variable} variable should have 1 or 2 dimensions')
+            return
+
+
+        wl_list = options_config['wl_list']
+        wl_min = options_config['wl_min']
+        wl_max = options_config['wl_max']
+        if wl_list is not None and (wl_min is not None or wl_max is not None):
+            print(f'[WARNING] As wl_list is given, wl_min and wl_max values are not used for setting the wavelength list')
+
+
+        if wl_list is None:
+            if wl_min is not None or wl_max is not None:
+                if wl_min is None:
+                    wl_min = np.ma.min(original_bands)
+                if wl_max  is None:
+                    wl_max = np.ma.max(original_bands)
+                if wl_max<wl_min:
+                    print(f'[ERROR] wl_max ({wl_max}) must be greater or equal than wl_min ({wl_min})')
+
+                valid_bands = np.where(np.sum((original_bands>=wl_min) & (original_bands<=wl_max),axis=0)>=1)[0]
+                index_valid_min, index_valid_max = min(valid_bands), max(valid_bands)
+
+                wl_list = original_bands[:,index_valid_min:index_valid_max+1]
+
+
+                print(f'[INFO] wl_list set to {wl_list.shape[1]} bands between {np.ma.min(wl_list)} and {np.ma.max(wl_list)}')
+            elif wl_min is None and wl_max is None:
+                wl_list = original_bands
+                print(f'[INFO] wl_list set to the original in situ bands with {wl_list.shape[1]} bands between {np.ma.min(wl_list)} and {np.ma.max(wl_list)}')
+
+        else:##set the same wl_list for all the instruments
+            n_wl_here = len(wl_list)
+            wl_list = np.tile(np.ma.array(wl_list),self.n_instruments).reshape(self.n_instruments,n_wl_here)
+
+
+
+
+        n_original_bands = original_bands.shape[1]
+        n_list = wl_list.shape[1]
+
+        ##check maximum wavelength difference by instrument
+        for i_instrument in range(self.n_instruments):
+            original_bands_i = original_bands[i_instrument,:]
+            wl_list_i = wl_list[i_instrument,:]
+            wl_list_m = np.repeat(wl_list_i,n_original_bands).reshape((n_list,n_original_bands))
+            wl_original_m = np.tile(original_bands_i,n_list).reshape((n_list,n_original_bands))
+
+            diff_wl = np.abs(wl_list_m-wl_original_m)
+            min_diff_wl = np.min(diff_wl,axis=1)
+            if np.max(min_diff_wl)>=self.max_diff_wl:
+                print(f'[ERROR] Some bands given in the parameter wl_list are not available as wavelength difference with the in situ original bands is greater than the allowed maximum of {self.max_diff_wl} nm')
+                min_diff_wl = np.ma.filled(min_diff_wl,self.max_diff_wl)  ##no_valid_bands are defined only for non-masked
+                no_valid_bands = wl_list_i[min_diff_wl>self.max_diff_wl]
+                print(f'Please review the following bands: ')
+                for no_valid_band in no_valid_bands:
+                    print(f'{no_valid_band} nm')
+                print(f'Or you can also modify the allowed  maximum difference using the max_diff_wl parameter in QC_INS')
+                return
+
+        ##set the values
+        self.wl_list = wl_list
 
 
 

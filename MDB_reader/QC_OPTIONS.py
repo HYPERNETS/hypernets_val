@@ -1,6 +1,7 @@
 import __init__,os,configparser
 from OPTIONS.OptionsManager import OptionsManager
 from QC_SAT import QC_SAT
+from QC_INSITU import QC_INSITU
 
 class QC_OPTIONS:
 
@@ -228,17 +229,19 @@ class QC_OPTIONS:
 
         check = qc_sat.check_parameters(potential_stat_values=retrieve_options['stat_value']['list_values'])
         if not check:
-            print(f'[ERROR] Satellite quality control could not be initiated. Please review errors, correct your configuration file ([QC_SAT] section) and try again.')
+            print(f'[ERROR][QC_SAT] Satellite quality control could not be initiated. Please review errors, correct your configuration file ([QC_SAT] section) and try again.')
             return None
         else:
             if self.verbose:
-                print(f'[INFO] Satellite quality control successfully initiated.')
+                print(f'[INFO][QC_SAT] Satellite quality control successfully initiated.')
             return qc_sat
 
     def get_qc_ins(self,dataset):
         retrieve_options, required = self.gmanager.get_retrieve_options('QC_INS')
         options_config = self.omanager.get_options_as_dict('QC_INS', retrieve_options, required)
-        print(options_config)
+        qc_ins = QC_INSITU(dataset)
+        qc_ins.set_basic_info(options_config)
+        qc_ins.set_wl_list(options_config)
 
         return None
     def get_qcsat_deprecated(self, qc_sat, dataset):

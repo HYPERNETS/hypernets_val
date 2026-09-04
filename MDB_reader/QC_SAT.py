@@ -76,7 +76,7 @@ class QC_SAT:
 
     def set_wl_list(self,options_config):
         if not self.bands_variable in self.dataset.variables:
-            print(f'[ERROR] {self.bands_variable} variable is not available in the NetCDF dataset')
+            print(f'[ERROR][QC_SAT] {self.bands_variable} variable is not available in the NetCDF dataset')
             return
 
         original_bands = self.dataset.variables[self.bands_variable][:]
@@ -94,13 +94,13 @@ class QC_SAT:
                 if wl_max  is None:
                     wl_max = np.max(original_bands)
                 if wl_max<wl_min:
-                    print(f'[ERROR] wl_max ({wl_max}) must be greater or equal than wl_min ({wl_min})')
+                    print(f'[ERROR][QC_SAT] wl_max ({wl_max}) must be greater or equal than wl_min ({wl_min})')
                     return
                 wl_list = original_bands[(original_bands>=wl_min) & (original_bands<=wl_max)]
-                print(f'[INFO] wl_list set to {len(wl_list)} bands between {np.min(wl_list)} and {np.max(wl_list)}')
+                print(f'[INFO][QC_SAT] wl_list set to {len(wl_list)} bands between {np.min(wl_list)} and {np.max(wl_list)}')
             elif wl_min is None and wl_max is None:
                 wl_list = original_bands
-                print(f'[INFO] wl_list set to the original satellite bands with {len(wl_list)} bands between {np.min(wl_list)} and {np.max(wl_list)}')
+                print(f'[INFO][QC_SAT] wl_list set to the original satellite bands with {len(wl_list)} bands between {np.min(wl_list)} and {np.max(wl_list)}')
 
 
         wl_list = np.array(wl_list)
@@ -114,7 +114,7 @@ class QC_SAT:
         diff_wl = np.abs(wl_list_m-wl_original_m)
         min_diff_wl = np.min(diff_wl,axis=1)
         if np.max(min_diff_wl)>=self.max_diff_wl:
-            print(f'[ERROR] Some bands given in the parameter wl_list are not available as wavelength difference with the satellite original bands is greater than the allowed maximum of {self.max_diff_wl} nm')
+            print(f'[ERROR][QC_SAT] Some bands given in the parameter wl_list are not available as wavelength difference with the satellite original bands is greater than the allowed maximum of {self.max_diff_wl} nm')
             no_valid_bands = wl_list[min_diff_wl>self.max_diff_wl]
             print(f'Please review the following bands: ')
             for no_valid_band in no_valid_bands:
@@ -292,13 +292,13 @@ class QC_SAT:
         if check_w:
             n_all = self.window_size * self.window_size
             if not self.use_min_valid_porc and self.min_valid_pixels > n_all:
-                print(f'[ERROR] min_valid_pixels {min_valid_pixels} should be lower or equal to {n_all} for a window size of {self.window_size} * {self.window_size} pixels')
+                print(f'[ERROR][QC_SAT] min_valid_pixels {min_valid_pixels} should be lower or equal to {n_all} for a window size of {self.window_size} * {self.window_size} pixels')
                 check_qc = False
         else:
             check_qc = False
 
         if self.use_min_valid_porc and (self.min_valid_porc<0 or self.min_valid_porc>100):
-            print(f'[ERROR] min_valid_porc {self.min_valid_porc} should be between 0 and 100')
+            print(f'[ERROR][QC_SAT] min_valid_porc {self.min_valid_porc} should be between 0 and 100')
             check_qc = False
 
 
@@ -306,21 +306,21 @@ class QC_SAT:
             potential_stat_values = self.potential_stat_values
 
         if self.stat_value not in potential_stat_values:
-            print(f'[ERROR] Stat value ({self.stat_value}) is not valid, should be one of {potential_stat_values}')
+            print(f'[ERROR][QC_SAT] Stat value ({self.stat_value}) is not valid, should be one of {potential_stat_values}')
             check_qc = False
 
         if self.outliers_info['apply']:
             if self.outliers_info['central_stat'] not in self.central_stat_values:
-                print(f'[ERROR] central_stat in outliers_info should be one of {self.central_stat_values}')
+                print(f'[ERROR][QC_SAT] central_stat in outliers_info should be one of {self.central_stat_values}')
                 check_qc = False
             if self.outliers_info['dispersion_stat'] not in self.dispersion_stat_values:
-                print(f'[ERROR] dispersion_stat in outliers_info should be one of {self.dispersion_stat_values}')
+                print(f'[ERROR][QC_SAT] dispersion_stat in outliers_info should be one of {self.dispersion_stat_values}')
                 check_qc = False
             factor_str = self.outliers_info['factor']
             try:
                 self.outliers_info['factor'] = float(factor_str)
             except Exception as ex:
-                print(f'[ERROR] Factor in outliers_info {factor_str} must be a float. Exception: {ex}')
+                print(f'[ERROR][QC_SAT] Factor in outliers_info {factor_str} must be a float. Exception: {ex}')
                 self.outliers_info['factor'] = None
                 check_qc = False
 
@@ -350,21 +350,21 @@ class QC_SAT:
                     wl_min_here = self.filter_spectral_th[idx]['wl_min']
                     wl_max_here = self.filter_spectral_th[idx]['wl_min']
                     if not isinstance(wl_min_here, float):
-                        print(f'[ERROR] wl_min {wl_min_here} for filter_macropixel_spectral_th {idx} should be a float value')
+                        print(f'[ERROR][QC_SAT] wl_min {wl_min_here} for filter_macropixel_spectral_th {idx} should be a float value')
                         check_qc = False
                     if not isinstance(wl_max_here, float):
-                        print(f'[ERROR] wl_max {wl_max_here} for filter_macropixel_spectral_th {idx} should be a float value')
+                        print(f'[ERROR][QC_SAT] wl_max {wl_max_here} for filter_macropixel_spectral_th {idx} should be a float value')
                         check_qc = False
                     if isinstance(wl_min_here,float) and isinstance(wl_max_here,float):
                         if wl_min_here>wl_max_here:
-                            print(f'[ERROR] wl_max {wl_max_here} should be greater or equal to wl_min {wl_min_here} for filter_spectral_th_{idx}')
+                            print(f'[ERROR][QC_SAT] wl_max {wl_max_here} should be greater or equal to wl_min {wl_min_here} for filter_spectral_th_{idx}')
                             check_qc = False
                         else:
                             if wl_min_here<wl_min_abs or wl_min_here>wl_max_abs:
-                                print(f'[ERROR] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_th_{idx}')
+                                print(f'[ERROR][QC_SAT] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_th_{idx}')
                                 check_qc = False
                             if wl_min_here<wl_min_abs or wl_min_here>wl_max_abs:
-                                print(f'[ERROR] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_th_{idx}')
+                                print(f'[ERROR][QC_SAT] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_th_{idx}')
                                 check_qc = False
 
                     if self.filter_spectral_th[idx]['window_size']==-1:
@@ -377,10 +377,10 @@ class QC_SAT:
                 else:
                     check_qc = False
                 if not isinstance(self.filter_spectral_th[idx]['th_value'], float):
-                    print(f'[ERROR] Threshold th_value {self.filter_spectral_th[idx]['th_value']} for filter_spectral_th_{idx} should be a float')
+                    print(f'[ERROR][QC_SAT] Threshold th_value {self.filter_spectral_th[idx]['th_value']} for filter_spectral_th_{idx} should be a float')
                     check_qc = False
                 if not self.filter_spectral_th[idx]['th_type'] in self.th_types:
-                    print(f'[ERROR] Threshold filter type th_type {self.filter_spectral_th[idx]['th_type']} for filter_spectral_th_{idx} should one of {self.th_types}')
+                    print(f'[ERROR][QC_SAT] Threshold filter type th_type {self.filter_spectral_th[idx]['th_type']} for filter_spectral_th_{idx} should one of {self.th_types}')
                     check_qc = False
 
         if len(self.filter_var_th)>0:
@@ -397,10 +397,10 @@ class QC_SAT:
                 else:
                     check_qc = False
                 if not isinstance(self.filter_var_th[idx]['th_value'], float):
-                    print(f'[ERROR] Threshold th_value {self.filter_var_th[idx]['th_value']} for filter_var_th_{idx} should be a float')
+                    print(f'[ERROR][QC_SAT] Threshold th_value {self.filter_var_th[idx]['th_value']} for filter_var_th_{idx} should be a float')
                     check_qc = False
                 if not self.filter_var_th[idx]['th_type'] in self.th_types:
-                    print(f'[ERROR] Threshold filter type th_type {self.filter_var_th[idx]['th_type']} for filter_var_th_{idx} should one of {self.th_types}')
+                    print(f'[ERROR][QC_SAT] Threshold filter type th_type {self.filter_var_th[idx]['th_type']} for filter_var_th_{idx} should one of {self.th_types}')
                     check_qc = False
 
         if len(self.filter_macropixel_spectral)>0:
@@ -412,21 +412,21 @@ class QC_SAT:
                     wl_min_here = self.filter_macropixel_spectral[idx]['wl_min']
                     wl_max_here = self.filter_macropixel_spectral[idx]['wl_min']
                     if not isinstance(wl_min_here, float):
-                        print(f'[ERROR] wl_min {wl_min_here} for filter_macropixel_spectral_{idx} should be a float value')
+                        print(f'[ERROR][QC_SAT] wl_min {wl_min_here} for filter_macropixel_spectral_{idx} should be a float value')
                         check_qc = False
                     if not isinstance(wl_max_here, float):
-                        print(f'[ERROR] wl_max {wl_max_here} for filter_macropixel_spectral_{idx} should be a float value')
+                        print(f'[ERROR][QC_SAT] wl_max {wl_max_here} for filter_macropixel_spectral_{idx} should be a float value')
                         check_qc = False
                     if isinstance(wl_min_here,float) and isinstance(wl_max_here,float):
                         if wl_min_here > wl_max_here:
-                            print(f'[ERROR] wl_max {wl_max_here} should be greater or equal to wl_min {wl_min_here} for filter_macropixel_spectral_{idx}')
+                            print(f'[ERROR][QC_SAT] wl_max {wl_max_here} should be greater or equal to wl_min {wl_min_here} for filter_macropixel_spectral_{idx}')
                             check_qc = False
                         else:
                             if wl_min_here < wl_min_abs or wl_min_here > wl_max_abs:
-                                print(f'[ERROR] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_macropixel_spectral_{idx}')
+                                print(f'[ERROR][QC_SAT] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_macropixel_spectral_{idx}')
                                 check_qc = False
                             if wl_min_here < wl_min_abs or wl_min_here > wl_max_abs:
-                                print(f'[ERROR] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_macropixels_spectral_th_{idx}')
+                                print(f'[ERROR][QC_SAT] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_macropixels_spectral_th_{idx}')
                                 check_qc = False
                     if self.filter_macropixel_spectral[idx]['window_size']==-1:
                         self.filter_macropixel_spectral[idx]['window_size']= self.window_size
@@ -438,29 +438,29 @@ class QC_SAT:
                 else:
                     check_qc = False
                 if not isinstance(self.filter_macropixel_spectral[idx]['th_value'], float):
-                    print(f'[ERROR] Threshold th_value {self.filter_macropixel_spectral[idx]['th_value']} for filter_macropixel_spectral_{idx} should be a float')
+                    print(f'[ERROR][QC_SAT] Threshold th_value {self.filter_macropixel_spectral[idx]['th_value']} for filter_macropixel_spectral_{idx} should be a float')
                     check_qc = False
                 if not self.filter_macropixel_spectral[idx]['th_type'] in self.th_types:
-                    print(f'[ERROR] Threshold filter type th_type {self.filter_macropixel_spectral[idx]['th_type']} for filter_macropixel_spectral_{idx} should one of {self.th_types}')
+                    print(f'[ERROR][QC_SAT] Threshold filter type th_type {self.filter_macropixel_spectral[idx]['th_type']} for filter_macropixel_spectral_{idx} should one of {self.th_types}')
                     check_qc = False
                 if not self.filter_macropixel_spectral[idx]['spatial_stat'] in self.macropixel_spatial_stats:
-                    print(f'[ERROR] spatial_stat {self.filter_macropixel_spectral[idx]['spatial_stat']} for filter_macropixel_spectral_{idx} should one of {self.macropixel_spatial_stats}')
+                    print(f'[ERROR][QC_SAT] spatial_stat {self.filter_macropixel_spectral[idx]['spatial_stat']} for filter_macropixel_spectral_{idx} should one of {self.macropixel_spatial_stats}')
                     check_qc = False
                 if not self.filter_macropixel_spectral[idx]['spectral_stat'] in self.macropixel_spectral_stats:
-                    print(f'[ERROR] spectral_stat {self.filter_macropixel_spectral[idx]['spectral_stat']} for filter_macropixel_spectral_{idx} should one of {self.macropixel_spectral_stats}')
+                    print(f'[ERROR][QC_SAT] spectral_stat {self.filter_macropixel_spectral[idx]['spectral_stat']} for filter_macropixel_spectral_{idx} should one of {self.macropixel_spectral_stats}')
                     check_qc = False
                 if self.filter_macropixel_spectral[idx]['use_outliers']:
                     if self.filter_macropixel_spectral[idx]['outliers_central_stat'] not in self.central_stat_values:
-                        print(f'[ERROR] outliers_central_stat {self.filter_macropixel_spectral[idx]['outliers_central_stat']} for filter_macropixel_spectral_{idx} should be one of {self.central_stat_values}')
+                        print(f'[ERROR][QC_SAT] outliers_central_stat {self.filter_macropixel_spectral[idx]['outliers_central_stat']} for filter_macropixel_spectral_{idx} should be one of {self.central_stat_values}')
                         check_qc = False
                     if self.filter_macropixel_spectral[idx]['outliers_dispersion_stat'] not in self.dispersion_stat_values:
-                        print(f'[ERROR] outliers_dispersion_stat {self.filter_macropixel_spectral[idx]['outliers_dispersion_stat']} for filter_macropixel_spectral_{idx} be one of {self.dispersion_stat_values}')
+                        print(f'[ERROR][QC_SAT] outliers_dispersion_stat {self.filter_macropixel_spectral[idx]['outliers_dispersion_stat']} for filter_macropixel_spectral_{idx} be one of {self.dispersion_stat_values}')
                         check_qc = False
                     factor_str = self.filter_macropixel_spectral[idx]['outliers_factor']
                     try:
                         self.filter_macropixel_spectral[idx]['factor'] = float(factor_str)
                     except Exception as ex:
-                        print(f'[ERROR] outliers_factor {factor_str} for filter_macropixel_spectral_{idx}  must be a float number. Exception: {ex}')
+                        print(f'[ERROR][QC_SAT] outliers_factor {factor_str} for filter_macropixel_spectral_{idx}  must be a float number. Exception: {ex}')
                         self.filter_macropixel_spectral[idx]['factor'] = None
                         check_qc = False
 
@@ -480,29 +480,29 @@ class QC_SAT:
                     check_qc = False
 
                 if not isinstance(self.filter_macropixel_var[idx]['th_value'], float):
-                    print(f'[ERROR] Threshold th_value {self.filter_macropixel_var[idx]['th_value']} for filter_macropixel_var_{idx} should be a float')
+                    print(f'[ERROR][QC_SAT] Threshold th_value {self.filter_macropixel_var[idx]['th_value']} for filter_macropixel_var_{idx} should be a float')
                     check_qc = False
 
                 if not self.filter_macropixel_var[idx]['th_type'] in self.th_types:
-                    print(f'[ERROR] Threshold filter type th_type {self.filter_macropixel_var[idx]['th_type']} for filter_macropixel_var_{idx} should one of {self.th_types}')
+                    print(f'[ERROR][QC_SAT] Threshold filter type th_type {self.filter_macropixel_var[idx]['th_type']} for filter_macropixel_var_{idx} should one of {self.th_types}')
                     check_qc = False
 
                 if not self.filter_macropixel_var[idx]['spatial_stat'] in self.macropixel_spatial_stats:
-                    print(f'[ERROR] spatial_stat {self.filter_macropixel_var[idx]['spatial_stat']} for filter_macropixel_var_{idx} should one of {self.macropixel_spatial_stats}')
+                    print(f'[ERROR][QC_SAT] spatial_stat {self.filter_macropixel_var[idx]['spatial_stat']} for filter_macropixel_var_{idx} should one of {self.macropixel_spatial_stats}')
                     check_qc = False
 
                 if self.filter_macropixel_var[idx]['use_outliers']:
                     if self.filter_macropixel_var[idx]['outliers_central_stat'] not in self.central_stat_values:
-                        print(f'[ERROR] outliers_central_stat {self.filter_macropixel_var[idx]['outliers_central_stat']} for filter_macropixel_var_{idx} should be one of {self.central_stat_values}')
+                        print(f'[ERROR][QC_SAT] outliers_central_stat {self.filter_macropixel_var[idx]['outliers_central_stat']} for filter_macropixel_var_{idx} should be one of {self.central_stat_values}')
                         check_qc = False
                     if self.filter_macropixel_var[idx]['outliers_dispersion_stat'] not in self.dispersion_stat_values:
-                        print(f'[ERROR] outliers_dispersion_stat {self.filter_macropixel_var[idx]['outliers_dispersion_stat']} for filter_macropixel_var_{idx} be one of {self.dispersion_stat_values}')
+                        print(f'[ERROR][QC_SAT] outliers_dispersion_stat {self.filter_macropixel_var[idx]['outliers_dispersion_stat']} for filter_macropixel_var_{idx} be one of {self.dispersion_stat_values}')
                         check_qc = False
                     factor_str = self.filter_macropixel_var[idx]['outliers_factor']
                     try:
                         self.filter_macropixel_var[idx]['factor'] = float(factor_str)
                     except Exception as ex:
-                        print(f'[ERROR] outliers_factor {factor_str} for filter_macropixel_var_{idx}  must be a float number. Exception: {ex}')
+                        print(f'[ERROR][QC_SAT] outliers_factor {factor_str} for filter_macropixel_var_{idx}  must be a float number. Exception: {ex}')
                         self.filter_macropixel_var[idx]['factor'] = None
                         check_qc = False
 
@@ -511,39 +511,39 @@ class QC_SAT:
     def check_window_size(self,window_size,n_rows,n_cols):
         check_w = True
         if window_size % 2 == 0:
-            print(f'[ERROR] Window size ({window_size}) should be an uneven integer')
+            print(f'[ERROR][QC_SAT] Window size ({window_size}) should be an uneven integer')
             check_w = False
         if n_rows >= 1 and n_cols >= 1:
             n_rc_max = min(n_rows, n_cols)
             if window_size > n_rc_max:
-                print(f'[ERROR] Window size ({self.window_size}) should be greater or equal than the maximum extrac size {n_rc_max}')
+                print(f'[ERROR][QC_SAT] Window size ({self.window_size}) should be greater or equal than the maximum extrac size {n_rc_max}')
                 check_w = False
         return check_w
 
     def check_spectral_variable(self,spectral_variable,bands_variable):
         check_qc = True
         if bands_variable is None or not bands_variable in self.dataset.variables:
-            print(f'[ERROR] Band wavelengths variable  {bands_variable} is not available in the dataset')
+            print(f'[ERROR][QC_SAT] Band wavelengths variable  {bands_variable} is not available in the dataset')
             return False
         if spectral_variable is None or not spectral_variable in self.dataset.variables:
-            print(f'[ERROR] Spectral variable {spectral_variable} is not available in the dataset. Choose among:')
-            print(f'[ERROR] {list(self.dataset.variables)}')
+            print(f'[ERROR][QC_SAT] Spectral variable {spectral_variable} is not available in the dataset. Choose among:')
+            print(f'[ERROR][QC_SAT] {list(self.dataset.variables)}')
             return False
 
         if len(self.dataset.variables[bands_variable].shape) != 1:
-            print(f'[ERROR] Band wavelengths variable {bands_variable} should be a 1D array')
+            print(f'[ERROR][QC_SAT] Band wavelengths variable {bands_variable} should be a 1D array')
             check_qc = False
             n_bands = -1
         else:
             n_bands = self.dataset.variables[bands_variable].shape[0]
 
         if len(self.dataset.variables[spectral_variable].shape) != 4:
-            print(f'[ERROR] Spectral variable {self.spectral_variable} should have 4 dimensions: satellite_id,satellite_bands,rows,columns')
+            print(f'[ERROR][QC_SAT] Spectral variable {self.spectral_variable} should have 4 dimensions: satellite_id,satellite_bands,rows,columns')
             check_qc = False
         else:
             n_bands_spectral = self.dataset.variables[spectral_variable].shape[1]
             if n_bands_spectral != n_bands:
-                print(f'[ERROR] The number of bands in the spectral variable ({n_bands_spectral}) should be equal to the number of bands in the band wavelengths variable ({n_bands}) ')
+                print(f'[ERROR][QC_SAT] The number of bands in the spectral variable ({n_bands_spectral}) should be equal to the number of bands in the band wavelengths variable ({n_bands}) ')
                 check_qc = False
 
         return check_qc
@@ -551,25 +551,25 @@ class QC_SAT:
     def check_non_spectral_variable(self,name_var):
         check_qc = True
         if name_var is None or not name_var in self.dataset.variables:
-            print(f'[ERROR] Non-spectral variable {name_var} is not available in the dataset. Choose among: ')
-            print(f'[ERROR] {list(self.dataset.variables)}')
+            print(f'[ERROR][QC_SAT] Non-spectral variable {name_var} is not available in the dataset. Choose among: ')
+            print(f'[ERROR][QC_SAT] {list(self.dataset.variables)}')
             return False
 
         if len(self.dataset.variables[name_var].shape) != 3:
-            print(f'[ERROR] Spectral variable {name_var} should have 3 dimensions: satellite_id, rows, columns')
+            print(f'[ERROR][QC_SAT] Spectral variable {name_var} should have 3 dimensions: satellite_id, rows, columns')
             check_qc = False
 
         return check_qc
 
     def check_flag_list(self,name_variable,flag_list):
         if name_variable is None:
-            print(f'[ERROR] name_variable is required for flagging filters, it could not be None')
+            print(f'[ERROR][QC_SAT] name_variable is required for flagging filters, it could not be None')
             return False
         if not name_variable in self.dataset.variables:
-            print(f'[ERROR] {name_variable} is not available in the dataset')
+            print(f'[ERROR][QC_SAT] {name_variable} is not available in the dataset')
             return False
         if flag_list is None:
-            print(f'[ERROR] {flag_list} is required for flagging filters, it could not be None')
+            print(f'[ERROR][QC_SAT] {flag_list} is required for flagging filters, it could not be None')
             return False
         ##flag list could be given as: flag_meanings (string with space separated flag) or flag_list (comma separated list)
         flag_list_var = None
@@ -578,18 +578,18 @@ class QC_SAT:
         elif 'flag_list' in self.dataset.variables[name_variable].ncattrs():
             flag_list_var = self.dataset.variables[name_variable].flag_list.split(',')
         if flag_list_var is None:
-            print(f'[ERROR] Flag list in not available for variable {name_variable}, attribute flag_meanings or flag_list is required')
+            print(f'[ERROR][QC_SAT] Flag list in not available for variable {name_variable}, attribute flag_meanings or flag_list is required')
             return False
 
         check = set(flag_list).issubset(set(flag_list_var))
         if not check:
-            print(f'[ERROR] {flag_list} flags are not available in the variable {name_variable} flag list: {flag_list_var}')
+            print(f'[ERROR][QC_SAT] {flag_list} flags are not available in the variable {name_variable} flag list: {flag_list_var}')
         return check
 
     def check_rrs_variability(self):
         if len(self.wl_ref)<self.nbands:
             valid_bands = np.array([1 if wl_here in self.wl_ref else 0 for wl_here in self.sat_bands])
-            print(f'[INFO] Working with a subset of {np.sum(valid_bands)} bands (Total: {self.nbands})')
+            print(f'[INFO][QC_SAT] Working with a subset of {np.sum(valid_bands)} bands (Total: {self.nbands})')
             if np.sum(valid_bands)<len(self.wl_ref):
                 wl_to_check = self.sat_bands[valid_bands==0]
                 print(f'[WARNING] Not all the bands given in the band list are available. The following satellite bands are missing: {wl_to_check}')
@@ -599,17 +599,17 @@ class QC_SAT:
             self.indices_valid_bands = np.where(valid_bands==1)[0]
 
         flag_mask,land = self.compute_flag_mask_array()
-        print(f'[INFO]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
-        print(f'[INFO]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
+        print(f'[INFO][QC_SAT]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
+        print(f'[INFO][QC_SAT]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
         mask_invalid = self.compute_invalid_masks_array()
-        print(f'[INFO]->Number of invalid rrs: {np.ma.sum(mask_invalid)}/{np.ma.count(mask_invalid)}')
+        print(f'[INFO][QC_SAT]->Number of invalid rrs: {np.ma.sum(mask_invalid)}/{np.ma.count(mask_invalid)}')
         mask_th = self.compute_th_masks_array()
-        print(f'[INFO]->Number of pixels masked using user-defined thresholds: {np.ma.sum(mask_th)}/{np.ma.count(mask_th)}')
+        print(f'[INFO][QC_SAT]->Number of pixels masked using user-defined thresholds: {np.ma.sum(mask_th)}/{np.ma.count(mask_th)}')
 
         final_mask = flag_mask + mask_invalid + mask_th
         final_mask[final_mask>0]=1
 
-        print(f'[INFO]->Number of masked pixels in the final mask: {np.ma.sum(final_mask)}/{np.ma.count(final_mask)}')
+        print(f'[INFO][QC_SAT]->Number of masked pixels in the final mask: {np.ma.sum(final_mask)}/{np.ma.count(final_mask)}')
 
 
         ntotal_by_mu = self.window_size*self.window_size
@@ -626,7 +626,7 @@ class QC_SAT:
             min_valid_pixels[min_valid_pixels<self.min_valid_pixels]=self.min_valid_pixels
 
         min_pixel_condition = nvalid_by_mu >= min_valid_pixels
-        print(f'[INFO] Number of match-ups filtered because the number of valid pixels is lower than the required one: {np.count_nonzero(min_pixel_condition==False)}')
+        print(f'[INFO][QC_SAT] Number of match-ups filtered because the number of valid pixels is lower than the required one: {np.count_nonzero(min_pixel_condition==False)}')
         masks_rrs = self.get_masks_rrs(final_mask)
 
 
@@ -635,7 +635,7 @@ class QC_SAT:
         macropixel_condition = macropixel_filter==0
 
         all_conditions = np.logical_and(min_pixel_condition,macropixel_condition)
-        print(f'[INFO] Final number of match-ups passing the satellite quality control: {np.sum(all_conditions)} / {self.nmu}')
+        print(f'[INFO][QC_SAT] Final number of match-ups passing the satellite quality control: {np.sum(all_conditions)} / {self.nmu}')
 
         outliers_str = 'with' if self.apply_outliers else 'without'
         if outliers_str in masks_rrs:
@@ -656,7 +656,7 @@ class QC_SAT:
 
         if len(self.wl_ref)<self.nbands:
             valid_bands = np.array([1 if wl_here in self.wl_ref else 0 for wl_here in self.sat_bands])
-            print(f'[INFO] Working with a subset of {np.sum(valid_bands)} bands (Total: {self.nbands})')
+            print(f'[INFO][QC_SAT] Working with a subset of {np.sum(valid_bands)} bands (Total: {self.nbands})')
             if np.sum(valid_bands)<len(self.wl_ref):
                 wl_to_check = self.sat_bands[valid_bands==0]
                 print(f'[WARNING] Not all the bands given in the band list are available. The following satellite bands are missing: {wl_to_check}')
@@ -672,18 +672,18 @@ class QC_SAT:
         for icheck in indices_to_check:
             print(icheck,np.sum(flag_mask[icheck,:,:]))
 
-        print(f'[INFO]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
-        print(f'[INFO]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
+        print(f'[INFO][QC_SAT]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
+        print(f'[INFO][QC_SAT]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
         mask_invalid = self.compute_invalid_masks_array()
-        print(f'[INFO]->Number of invalid rrs: {np.ma.sum(mask_invalid)}/{np.ma.count(mask_invalid)}')
+        print(f'[INFO][QC_SAT]->Number of invalid rrs: {np.ma.sum(mask_invalid)}/{np.ma.count(mask_invalid)}')
         mask_th = self.compute_th_masks_array()
-        print(f'[INFO]->Number of pixels masked using user-defined thresholds: {np.ma.sum(mask_th)}/{np.ma.count(mask_th)}')
+        print(f'[INFO][QC_SAT]->Number of pixels masked using user-defined thresholds: {np.ma.sum(mask_th)}/{np.ma.count(mask_th)}')
 
         final_mask = flag_mask + mask_invalid + mask_th
         final_mask[final_mask>0]=1
         print('mu31 final mask-->', np.sum(mask_invalid[31, :]))
 
-        print(f'[INFO]->Number of masked pixels in the final mask: {np.ma.sum(final_mask)}/{np.ma.count(final_mask)}')
+        print(f'[INFO][QC_SAT]->Number of masked pixels in the final mask: {np.ma.sum(final_mask)}/{np.ma.count(final_mask)}')
 
 
         ntotal_by_mu = self.window_size*self.window_size
@@ -700,7 +700,7 @@ class QC_SAT:
             min_valid_pixels[min_valid_pixels<self.min_valid_pixels]=self.min_valid_pixels
 
         min_pixel_condition = nvalid_by_mu >= min_valid_pixels
-        print(f'[INFO] Number of match-ups filtered because the number of valid pixels is lower than the required one: {np.count_nonzero(min_pixel_condition==False)}')
+        print(f'[INFO][QC_SAT] Number of match-ups filtered because the number of valid pixels is lower than the required one: {np.count_nonzero(min_pixel_condition==False)}')
         masks_rrs = self.get_masks_rrs(final_mask)
 
 
@@ -709,7 +709,7 @@ class QC_SAT:
         macropixel_condition = macropixel_filter==0
 
         all_conditions = np.logical_and(min_pixel_condition,macropixel_condition)
-        print(f'[INFO] Final number of match-ups passing the satellite quality control: {np.sum(all_conditions)} / {self.nmu}')
+        print(f'[INFO][QC_SAT] Final number of match-ups passing the satellite quality control: {np.sum(all_conditions)} / {self.nmu}')
 
         outliers_str = 'with' if self.apply_outliers else 'without'
         if outliers_str in masks_rrs:
@@ -879,7 +879,7 @@ class QC_SAT:
             rrs = self.satellite_rrs[:,self.indices_valid_bands,r_s:r_e, c_s:c_e]
         else:
             rrs = self.satellite_rrs[:, :, r_s:r_e, c_s:c_e]
-        print(f'[INFO] Number of valid rrs values before masking: {np.ma.count(rrs)}')
+        print(f'[INFO][QC_SAT] Number of valid rrs values before masking: {np.ma.count(rrs)}')
         nbands_used = rrs.shape[1]
         for iband in range(nbands_used):
             rrs_band = np.ma.squeeze(rrs[:, iband, :, :])
@@ -887,7 +887,7 @@ class QC_SAT:
             rrs[:,iband,:,:] = rrs_band[:,:,:]
         nvalid_total  = np.ma.count(rrs)
         nvalid_by_band = nvalid_total/nbands_used
-        print(f'[INFO] Number of valid rrs values after masking (without ouliers): {nvalid_total} By band: {nvalid_by_band}')
+        print(f'[INFO][QC_SAT] Number of valid rrs values after masking (without ouliers): {nvalid_total} By band: {nvalid_by_band}')
 
         masks = {'without':rrs.mask.copy()}
 
@@ -930,7 +930,7 @@ class QC_SAT:
                 rrs[rrs > rrs_max_th] = np.ma.masked
 
                 masks['with'] = rrs.mask.copy()
-                print(f'[INFO] Number of valid rrs values after masking (with ouliers): {np.ma.count(rrs)}')
+                print(f'[INFO][QC_SAT] Number of valid rrs values after masking (with ouliers): {np.ma.count(rrs)}')
             else:
                 print(f'[WARNING] Outliers could not be applied')
 
@@ -1035,10 +1035,10 @@ class QC_SAT:
             stat_array = required_rrs_stats[ref]
             stat_array = stat_array[:,index_sat]
             if check_stat['type_th'] == 'greater':##false (+1) if stat>th
-                print(f'[INFO] RRS macro-pixel filter: {np.count_nonzero(stat_array>check_stat['value_th'])} match-ups filtered because {type_stat} at {self.sat_bands[index_sat]} nm > {check_stat["value_th"]}')
+                print(f'[INFO][QC_SAT] RRS macro-pixel filter: {np.count_nonzero(stat_array>check_stat['value_th'])} match-ups filtered because {type_stat} at {self.sat_bands[index_sat]} nm > {check_stat["value_th"]}')
                 macropixel_filter[stat_array>check_stat['value_th']] = macropixel_filter[stat_array>check_stat['value_th']]+1
             if check_stat['type_th'] == 'lower':##false (+1) if stat<th
-                print(f'[INFO] RRS macro-pixel filter: {np.count_nonzero(stat_array < check_stat['value_th'])} match-ups filtered because {type_stat} at {self.sat_bands[index_sat]} nm < {check_stat["value_th"]}')
+                print(f'[INFO][QC_SAT] RRS macro-pixel filter: {np.count_nonzero(stat_array < check_stat['value_th'])} match-ups filtered because {type_stat} at {self.sat_bands[index_sat]} nm < {check_stat["value_th"]}')
                 macropixel_filter[stat_array<check_stat['value_th']] = macropixel_filter[stat_array<check_stat['value_th']]+1
 
         ##filters based on non-rrs data
@@ -1048,14 +1048,14 @@ class QC_SAT:
             array = check_stat['variable'][:]
             stat_array = self.get_stats_non_spectral(array,type_stat,final_mask)
             if check_stat['type_th'] == 'greater':##false (+1) if stat>th
-                print(f'[INFO] {name_band} macro-pixel filter: {np.count_nonzero(stat_array>check_stat['value_th'])} match-ups filtered because {type_stat} > {check_stat["value_th"]}')
+                print(f'[INFO][QC_SAT] {name_band} macro-pixel filter: {np.count_nonzero(stat_array>check_stat['value_th'])} match-ups filtered because {type_stat} > {check_stat["value_th"]}')
                 macropixel_filter[stat_array>check_stat['value_th']] = macropixel_filter[stat_array>check_stat['value_th']]+1
             if check_stat['type_th'] == 'lower':##false (+1) if stat<th
-                print(f'[INFO] {name_band} macro-pixel filter: {np.count_nonzero(stat_array < check_stat['value_th'])} match-ups filtered because {type_stat} < {check_stat["value_th"]}')
+                print(f'[INFO][QC_SAT] {name_band} macro-pixel filter: {np.count_nonzero(stat_array < check_stat['value_th'])} match-ups filtered because {type_stat} < {check_stat["value_th"]}')
                 macropixel_filter[stat_array<check_stat['value_th']] = macropixel_filter[stat_array<check_stat['value_th']]+1
 
         macropixel_filter[macropixel_filter>0]=1
-        print(f'[INFO] Total number of match-ups filtered based on macropixel filters: {np.ma.sum(macropixel_filter)}')
+        print(f'[INFO][QC_SAT] Total number of match-ups filtered based on macropixel filters: {np.ma.sum(macropixel_filter)}')
 
         return macropixel_filter
 
@@ -1340,10 +1340,10 @@ class QC_SAT:
         # if index_mu == 362:
         #     print('After th: ',self.NVP)
         #     print(index_mu,'After th: ', self.NVP)
-        #     print(f'[INFO] Index mu: {index_mu}')
-        #     print(f'[INFO] Number total of pixels: {self.NTP}')
-        #     print(f'[INFO] Water pixels: {self.NTPW}')
-        #     print(f'[INFO] Valid (no-flag) pixels: {self.NVP}')
+        #     print(f'[INFO][QC_SAT] Index mu: {index_mu}')
+        #     print(f'[INFO][QC_SAT] Number total of pixels: {self.NTP}')
+        #     print(f'[INFO][QC_SAT] Water pixels: {self.NTPW}')
+        #     print(f'[INFO][QC_SAT] Valid (no-flag) pixels: {self.NVP}')
 
         min_valid_pixels = self.min_valid_pixels
         if self.use_Bailey_Werdell:
