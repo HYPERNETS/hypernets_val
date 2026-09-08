@@ -2935,5 +2935,5 @@ class MDBFile:
         try:
             self.nc.close()
             print(f'[INFO] MDB file {self.file_path} closed')
-        except:
-            print(f'[INFO] MDB file {self.file_path} could not be closed. Maybe it was not opened before?')
+        except Exception as ex:
+            print(f'[INFO] MDB file {self.file_path} could not be closed. Maybe it was not opened before?. Exception: {ex}')

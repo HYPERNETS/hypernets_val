@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import COMMON.flag_functions as ffs
 import COMMON.Class_Flags_OLCI as flag
 import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
 
@@ -9,11 +10,12 @@ import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
 
 class QC_SAT:
 
-    def __init__(self, dataset):
+    def __init__(self, dataset,versose=False):
 
         self.dataset = dataset
         self.wl_list = None
         self.indices_wl = None
+        self.verbose = versose
 
         ##basic information
         self.bands_variable = 'satellite_bands'
@@ -35,8 +37,8 @@ class QC_SAT:
         self.flag_land = [None]*2
         self.flag_inland_water = [None]*2
 
+        self.filter_invalid = 'all'
         self.filter_flag = []
-
         self.filter_spectral_th = []
         self.filter_var_th = []
         self.filter_macropixel_spectral = []
@@ -48,7 +50,13 @@ class QC_SAT:
         self.th_types = ['greater', 'gt', 'gte', 'lower', 'lt', 'lte']
         self.macropixel_spatial_stats = ['avg', 'median', 'std', 'iqr', 'min', 'max', 'CV']
         self.macropixel_spectral_stats = ['all', 'any', 'avg', 'median', 'std', 'iqr', 'min', 'max', 'CV']
+        self.filter_invalid_options  = ['all','any']
 
+        ##dimensions
+        self.n_bands = None ##defined for wl_list
+        self.n_rows = None
+        self.n_cols = None
+        self.n_mu = None
 
         self.is_valid = True
 
@@ -73,6 +81,8 @@ class QC_SAT:
 
         self.flag_land = options_config['flag_land']
         self.flag_inland_water = options_config['flag_inland_water']
+
+        self.filter_invalid = options_config['filter_invalid']
 
     def set_wl_list(self,options_config):
         if not self.bands_variable in self.dataset.variables:
@@ -262,7 +272,6 @@ class QC_SAT:
         #     '1020': 0.94064
         # }
 
-
     def set_filter_flag(self,options_config, key_values = None):
         self.filter_flag = get_filter_list(options_config,'filter_flag_',key_values=key_values)
 
@@ -301,6 +310,9 @@ class QC_SAT:
             print(f'[ERROR][QC_SAT] min_valid_porc {self.min_valid_porc} should be between 0 and 100')
             check_qc = False
 
+        if self.filter_invalid not in self.filter_invalid_options:
+            print(f'[ERROR][QC_SAT] filter_invalid {self.filter_invalid} should be one of {self.filter_invalid_options}')
+            check_qc = False
 
         if potential_stat_values is None:
             potential_stat_values = self.potential_stat_values
@@ -340,6 +352,13 @@ class QC_SAT:
                     self.filter_flag[idx]['flag_list'] = None ##not implemented, to get flag_list from default ac_processor
                 if not self.check_flag_list(self.filter_flag[idx]['name_var'],self.filter_flag[idx]['flag_list']):
                     check_qc = False
+                if self.filter_flag[idx]['window_size'] == -1:
+                    self.filter_flag[idx]['window_size'] = self.window_size
+                n_rows_here = self.dataset.variables[self.filter_flag[idx]['name_var']][:].shape[1]
+                n_cols_here = self.dataset.variables[self.filter_flag[idx]['name_var']][:].shape[2]
+                check_w = self.check_window_size(self.filter_flag[idx]['window_size'], n_rows_here, n_cols_here)
+                if not check_w:
+                    check_qc = False
 
         if len(self.filter_spectral_th)>0:
             for idx in range(len(self.filter_spectral_th)):
@@ -350,10 +369,10 @@ class QC_SAT:
                     wl_min_here = self.filter_spectral_th[idx]['wl_min']
                     wl_max_here = self.filter_spectral_th[idx]['wl_min']
                     if not isinstance(wl_min_here, float):
-                        print(f'[ERROR][QC_SAT] wl_min {wl_min_here} for filter_macropixel_spectral_th {idx} should be a float value')
+                        print(f'[ERROR][QC_SAT] wl_min {wl_min_here} for filter_spectral_th_{idx} should be a float value')
                         check_qc = False
                     if not isinstance(wl_max_here, float):
-                        print(f'[ERROR][QC_SAT] wl_max {wl_max_here} for filter_macropixel_spectral_th {idx} should be a float value')
+                        print(f'[ERROR][QC_SAT] wl_max {wl_max_here} for filter_spectral_th_{idx} should be a float value')
                         check_qc = False
                     if isinstance(wl_min_here,float) and isinstance(wl_max_here,float):
                         if wl_min_here>wl_max_here:
@@ -363,8 +382,8 @@ class QC_SAT:
                             if wl_min_here<wl_min_abs or wl_min_here>wl_max_abs:
                                 print(f'[ERROR][QC_SAT] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_th_{idx}')
                                 check_qc = False
-                            if wl_min_here<wl_min_abs or wl_min_here>wl_max_abs:
-                                print(f'[ERROR][QC_SAT] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_th_{idx}')
+                            if wl_max_here<wl_min_abs or wl_max_here>wl_max_abs:
+                                print(f'[ERROR][QC_SAT] wl_max {wl_max_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_th_{idx}')
                                 check_qc = False
 
                     if self.filter_spectral_th[idx]['window_size']==-1:
@@ -523,7 +542,8 @@ class QC_SAT:
     def check_spectral_variable(self,spectral_variable,bands_variable):
         check_qc = True
         if bands_variable is None or not bands_variable in self.dataset.variables:
-            print(f'[ERROR][QC_SAT] Band wavelengths variable  {bands_variable} is not available in the dataset')
+            print(f'[ERROR][QC_SAT] Band wavelengths variable  {bands_variable} is not available in the dataset. Choose among:')
+            print(f'[ERROR][QC_SAT] {list(self.dataset.variables)}')
             return False
         if spectral_variable is None or not spectral_variable in self.dataset.variables:
             print(f'[ERROR][QC_SAT] Spectral variable {spectral_variable} is not available in the dataset. Choose among:')
@@ -571,20 +591,157 @@ class QC_SAT:
         if flag_list is None:
             print(f'[ERROR][QC_SAT] {flag_list} is required for flagging filters, it could not be None')
             return False
-        ##flag list could be given as: flag_meanings (string with space separated flag) or flag_list (comma separated list)
-        flag_list_var = None
-        if 'flag_meanings' in self.dataset.variables[name_variable].ncattrs():
-            flag_list_var =self.dataset.variables[name_variable].flag_meanings.split(' ')
-        elif 'flag_list' in self.dataset.variables[name_variable].ncattrs():
-            flag_list_var = self.dataset.variables[name_variable].flag_list.split(',')
-        if flag_list_var is None:
-            print(f'[ERROR][QC_SAT] Flag list in not available for variable {name_variable}, attribute flag_meanings or flag_list is required')
+        # ##flag list could be given as: flag_meanings (string with space separated flag) or flag_list (comma separated list)
+        # flag_list_var = None
+        # if 'flag_meanings' in self.dataset.variables[name_variable].ncattrs():
+        #     flag_list_var = [x.strip() for x in self.dataset.variables[name_variable].flag_meanings.split(' ')]
+        # elif 'flag_list' in self.dataset.variables[name_variable].ncattrs():
+        #     flag_list_var = [x.strip() for x in self.dataset.variables[name_variable].flag_list.split(',')]
+        # if flag_list_var is None:
+        #     print(f'[ERROR][QC_SAT] Flag list in not available for variable {name_variable}, attribute flag_meanings or flag_list is required')
+        #     return False
+        flag_list_var, flag_values_var = ffs.get_info_from_flag_variable(self.dataset.variables[name_variable],key_error='QC_SAT')
+        if flag_values_var is None or flag_list_var is None:
             return False
 
         check = set(flag_list).issubset(set(flag_list_var))
         if not check:
             print(f'[ERROR][QC_SAT] {flag_list} flags are not available in the variable {name_variable} flag list: {flag_list_var}')
         return check
+
+    def set_basic_dimensions(self):
+        ##method to be called only if check parameters is True
+        self.n_bands = len(self.wl_list)
+        self.n_mu = self.dataset.variables[self.spectral_variable].shape[0]
+        self.n_rows = self.dataset.variables[self.spectral_variable].shape[2]
+        self.n_cols = self.dataset.variables[self.spectral_variable].shape[3]
+
+    def compute_validity(self):
+        spectral_data = self.dataset.variables[self.spectral_variable][:,self.indices_wl,:,:]
+        spectral_data = np.ma.masked_invalid(spectral_data)##make sure that invalid values, NaN and so on are masked
+        mask_invalid = self.compute_invalid_masks_array(spectral_data)
+        if self.verbose:
+            print(f'[INFO][QC_SAT] Number of pixels filtered using {self.filter_invalid} invalid filter: {np.sum(mask_invalid)}')
+        mask_flag = self.compute_flag_mask_array()
+
+    def get_window_dimensions(self,w_size=None,n_rows=None,n_cols=None):
+        if w_size is None:
+            w_size = self.window_size
+        if n_rows is None:
+            n_rows = self.n_rows
+        if n_cols is None:
+            n_cols = self.n_cols
+        central_r = int(np.floor(n_rows / 2))
+        central_c = int(np.floor(n_cols / 2))
+        r_s = central_r - int(np.floor(w_size / 2))  # starting row
+        r_e = central_r + int(np.floor(w_size / 2)) + 1  # ending row
+        c_s = central_c - int(np.floor(w_size / 2))  # starting col
+        c_e = central_c + int(np.floor(w_size / 2)) + 1  # ending col
+        return central_r, central_c, r_s, r_e, c_s, c_e
+
+    def compute_invalid_masks_array(self,spectral_data):
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions()
+        spectral_data_window = np.moveaxis(spectral_data[:,:,r_s:r_e, c_s:c_e],1,-1)
+        invalid_mask_all_bands = np.where(spectral_data_window.mask,1,0)
+        invalid_mask = np.sum(invalid_mask_all_bands,axis=-1)
+        if self.filter_invalid=='any':
+            invalid_mask[invalid_mask>=1]=1
+        elif self.filter_invalid=='all':
+            invalid_mask[invalid_mask<self.n_bands]=0
+            invalid_mask[invalid_mask==self.n_bands]=1
+        return invalid_mask
+
+
+    def compute_flag_mask_array(self):
+        flag_mask = np.zeros((self.n_mu, self.window_size, self.window_size), dtype=np.uint64)
+        for idx in range(len(self.filter_flag)):
+            flag_mask_here = self.compute_flag_mask_array_impl(self.filter_flag[idx])
+            if self.verbose:
+                print(f'[INFO][QC_SAT] filter_flag_{idx}: Variable: {self.filter_flag[idx]["name_var"]}. Flagged pixels: {np.sum(flag_mask_here)}')
+            if flag_mask_here is not None:
+                flag_mask = flag_mask + flag_mask_here
+            #self.info_flag[flag_band]['nflagged'] = np.sum(flag_mask.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
+        flag_mask[flag_mask > 0] = 1
+        return flag_mask
+
+    def compute_flag_mask_array_impl(self, f_flag):
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions(w_size=f_flag['window_size'])
+        flag_array = self.dataset.variables[f_flag['name_var']][:,r_s:r_e,c_s:c_e]
+        if np.issubdtype(flag_array.dtype, np.floating): ##floating points are not allowed
+            flag_array = flag_array.astype('uint64')
+
+        fw = ffs.start_flag_work_from_variable(self.dataset.variables[f_flag['name_var']])
+        if fw is None:
+            print(f'[ERROR][QC_SAT] Flag work object for variable {f_flag["name_var"]} could not be started')
+            return np.zeros(flag_array.shape, dtype=np.int8)
+        if self.verbose:
+            print(f'[INFO][QC_SAT] Starting FlagWork object with variable {f_flag["name_var"]}. Data type: {fw.dType}')
+
+        ##invalid
+        mask_array = None
+        if f_flag['flag_list'] is not None:
+            mask_array = fw.mask(flag_array,f_flag['flag_list'])
+            mask_array[mask_array >= 1] = 1
+        if f_flag['flag_list_valid'] is not None:
+            f_list = flag['flag_list_valid']
+            if '$' in f_list:
+                mask_array_v = np.where(flag_array==0,0,1)
+                if len(f_list)>1:
+                    flag_list.remove('$')
+                    m_array = fw.mask(flag_array,f_list)
+                    mask_array_v[m_array>=1] = 0
+            else:
+                m_array = fw.mask(flag_array, f_list)
+                mask_array_v = np.where(m_array>=1,0,1)
+            if mask_array is None:
+                mask_array = mask_array_v
+            else:
+                mask_array = np.where(np.logical_and(mask_array_v==0,ask_array==0,mask_array),0,1)
+        return mask_array
+                
+            
+
+
+
+        # land = None
+        # central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
+        # satellite_flag = self.info_flag[flag_band]['variable']
+        # if satellite_flag is None:
+        #     flag_mask = np.zeros((self.nmu, self.window_size, self.window_size), dtype=np.uint64)
+        #     return flag_mask, land
+        # # flag_meanings_ string separated by spaces or list
+        # flag_meanings = satellite_flag.flag_meanings
+        # if isinstance(flag_meanings, list):
+        #     flag_meanings = ' '.join(flag_meanings)
+        #
+        # satellite_flag_band = satellite_flag[:, r_s:r_e, c_s:c_e]
+        # # float32 is not allowed
+        # if str(satellite_flag.dtype) == 'float32':
+        #     satellite_flag_band = satellite_flag_band.astype('uint64')
+        #
+        # # flag list, it could be a list or a comma separated string
+        # flag_list_tobe_applied = self.info_flag[flag_band]['flag_list']
+        # if isinstance(flag_list_tobe_applied, str):
+        #     flag_list_tobe_applied = [x.strip() for x in flag_list_tobe_applied.split(',')]
+        #
+        # if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
+        #     flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, flag_meanings)
+        #     flag_mask = flagging.MaskGeneral(satellite_flag_band)
+        #     flag_mask[np.where(flag_mask != 0)] = 1
+        # elif self.info_flag[flag_band]['ac_processor'] == 'IDEPIX':
+        #     flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, flag_meanings)
+        #     flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+        #     flag_mask[np.where(flag_mask != 0)] = 1
+        # else:
+        #     ##we must be sure that flag_mask must be uint64
+        #     satellite_flag_band = satellite_flag_band.astype('uint64')
+        #     flag_masks = satellite_flag.flag_masks.astype('uint64')
+        #     flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
+        #     flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
+        #     flag_mask[np.where(flag_mask != 0)] = 1
+
+        return flag_mask
+
 
     def check_rrs_variability(self):
         if len(self.wl_ref)<self.nbands:
@@ -651,7 +808,9 @@ class QC_SAT:
         return std_rrs,cv_rrs,nvalues_rrs
 
 
-    def check_validity(self):
+
+
+    def check_validity_deprecated(self):
 
 
         if len(self.wl_ref)<self.nbands:
@@ -668,9 +827,7 @@ class QC_SAT:
         self.satellite_rrs = np.ma.masked_invalid(self.satellite_rrs)##make sure that nan,-inf,inf are masked
 
         flag_mask,land = self.compute_flag_mask_array()
-        indices_to_check = [31,45,48,51,194,225,281]
-        for icheck in indices_to_check:
-            print(icheck,np.sum(flag_mask[icheck,:,:]))
+
 
         print(f'[INFO][QC_SAT]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
         print(f'[INFO][QC_SAT]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
@@ -749,101 +906,12 @@ class QC_SAT:
         # print(len(indices[0]))
         # print('--------------------')
 
-    def compute_flag_mask_array(self):
-        flag_mask = np.zeros((self.nmu, self.window_size, self.window_size), dtype=np.uint64)
-        land = np.zeros((self.nmu, self.window_size, self.window_size), dtype=np.uint64)
-        for flag_band in self.info_flag.keys():
-            flag_mask_here, land_here = self.compute_flag_mask_array_impl(flag_band)
-            if flag_mask_here is not None:
-                flag_mask = flag_mask + flag_mask_here
-            if land_here is not None:
-                land = land + land_here
-            self.info_flag[flag_band]['nflagged'] = np.sum(flag_mask.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
-
-        flag_mask[flag_mask > 0] = 1
-        land[land > 0] = 1
-
-        return flag_mask,land
-
-    def compute_flag_mask_array_impl(self,flag_band):
-        land = None
-        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
-        satellite_flag = self.info_flag[flag_band]['variable']
-        if satellite_flag is None:
-            flag_mask = np.zeros((self.nmu,self.window_size, self.window_size), dtype=np.uint64)
-            return flag_mask, land
-        # flag_meanings_ string separated by spaces or list
-        flag_meanings = satellite_flag.flag_meanings
-        if isinstance(flag_meanings, list):
-            flag_meanings = ' '.join(flag_meanings)
-
-        satellite_flag_band = satellite_flag[:, r_s:r_e, c_s:c_e]
-        # float32 is not allowed
-        if str(satellite_flag.dtype) == 'float32':
-            satellite_flag_band = satellite_flag_band.astype('uint64')
-
-        # flag list, it could be a list or a comma separated string
-        flag_list_tobe_applied = self.info_flag[flag_band]['flag_list']
-        if isinstance(flag_list_tobe_applied, str):
-            flag_list_tobe_applied = [x.strip() for x in flag_list_tobe_applied.split(',')]
-
-        if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
-            flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, flag_meanings)
-            flag_mask = flagging.MaskGeneral(satellite_flag_band)
-            flag_mask[np.where(flag_mask != 0)] = 1
-        elif self.info_flag[flag_band]['ac_processor'] == 'IDEPIX':
-            flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, flag_meanings)
-            flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
-            flag_mask[np.where(flag_mask != 0)] = 1
-        else:
-            ##we must be sure that flag_mask must be uint64
-            satellite_flag_band = satellite_flag_band.astype('uint64')
-            flag_masks = satellite_flag.flag_masks.astype('uint64')
-            flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
-            flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
-            flag_mask[np.where(flag_mask != 0)] = 1
 
 
-        flag_land = self.info_flag[flag_band]['flag_land']
-        if flag_land is not None and flag_land.strip().lower() == 'none':
-            flag_land = None
-        flag_inlandwater = self.info_flag[flag_band]['flag_inlandwater']
-        if flag_inlandwater is not None and flag_inlandwater.strip().lower() == 'none':
-            flag_inlandwater = None
-
-        if flag_land is not None:
-            land = flagging.Mask(satellite_flag_band, ([flag_land]))
-            land[np.where(land != 0)] = 1
-            if flag_inlandwater is not None:
-                inland_w = flagging.Mask(satellite_flag_band, ([flag_inlandwater]))
-                land[np.where(inland_w != 0)] = 0
-
-        return flag_mask, land
 
 
-    def compute_invalid_masks_array(self):
-        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
-        mask_invalid = np.zeros((self.nmu,self.window_size, self.window_size), dtype=np.uint64)
-        bands_to_check = []
-        for sat_index in range(self.nbands):
-            if self.indices_valid_bands is not None and sat_index not in self.indices_valid_bands:
-                continue
-            sat_index_str = str(sat_index)
-            if self.invalid_mask[sat_index_str]['apply_mask']:
-                bands_to_check.append(sat_index)
 
 
-        rrs_here = self.satellite_rrs[:,bands_to_check,r_s:r_e, c_s:c_e]
-        rrs_here = np.ma.masked_invalid(rrs_here)##make sure nan,inf,-inf are masked
-        for iband in bands_to_check:
-            index_rrs_here = bands_to_check.index(iband)
-            rrs_here_band = np.squeeze(rrs_here[:,index_rrs_here,:,:])
-            n_masked = np.ma.count_masked(rrs_here_band)
-            self.invalid_mask[str(iband)]['n_masked'] = n_masked
-            if n_masked > 0:
-                mask_invalid[rrs_here_band.mask] = mask_invalid[rrs_here_band.mask] + 1
-        mask_invalid[mask_invalid>0]=1
-        return mask_invalid
 
     def compute_th_masks_array(self):
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
@@ -1657,17 +1725,7 @@ class QC_SAT:
             index_sat = -1
         return index_sat
 
-    def get_dimensions(self):
-        # Dimensions
-        nrows = self.satellite_rrs.shape[2]
-        ncols = self.satellite_rrs.shape[3]
-        central_r = int(np.floor(nrows / 2))
-        central_c = int(np.floor(ncols / 2))
-        r_s = central_r - int(np.floor(self.window_size / 2))  # starting row
-        r_e = central_r + int(np.floor(self.window_size / 2)) + 1  # ending row
-        c_s = central_c - int(np.floor(self.window_size / 2))  # starting col
-        c_e = central_c + int(np.floor(self.window_size / 2)) + 1  # ending col
-        return central_r, central_c, r_s, r_e, c_s, c_e
+
 
     def get_dimensions_inner(self, wsize):
         # Dimensions

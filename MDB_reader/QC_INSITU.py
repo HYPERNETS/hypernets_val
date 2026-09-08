@@ -1,11 +1,9 @@
-import os.path
-
 import numpy as np
-import numpy.ma as ma
 import pandas
-
-import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
+#import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
 import warnings
+import COMMON.common_functions as cfs
+import COMMON.flag_functions as ffs
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -17,6 +15,7 @@ class QC_INSITU:
         self.wl_list = None
         self.indices_wl = None
         self.n_instruments = None
+        self.spectral_convolution = None
 
         ##basic information
         self.bands_variable = 'insitu_original_bands'
@@ -24,6 +23,14 @@ class QC_INSITU:
         self.spectral_variable_unc = 'insitu_Rrs_unc'
         self.time_max = 7200
         self.max_diff_wl = 5.0
+        self.spectral_convolution_methods = ["nearest","interp","srf","band_shifting"]
+        ##filters
+        self.filter_flag = []
+        self.filter_spectral_range = []
+        self.filter_band_range = []
+
+        self.spectral_stats = ['all', 'any', 'avg', 'median', 'std', 'iqr', 'min', 'max', 'CV']
+        self.actions = ['keep','remove']
         # self.name = ''
         #
         # self.insitu_rrs = insitu_rrs
@@ -87,21 +94,22 @@ class QC_INSITU:
         max_time_value = options_config['time_diff_max']
         self.time_max = None
         if not isinstance(max_time_units, str):
-            print(f'[ERROR] time_diff_max_units should be a string, not {max_time_units}')
+            print(f'[ERROR][QC_INS] time_diff_max_units should be a string, not {max_time_units}')
         elif not isinstance(max_time_value, float):
-            print(f'[ERROR] time_diff_max should be a float, not {max_time_value}')
+            print(f'[ERROR][QC_INS] time_diff_max should be a float, not {max_time_value}')
         else:
             units = ['hours','minutes','seconds']
             u_factor = [3600, 60, 1]
             if not max_time_units in units:
-                print(f'[ERROR] time_diff_max_units should be one of {units}')
+                print(f'[ERROR][QC_INS] time_diff_max_units should be one of {units}')
             else:
                 self.time_max = max_time_value * u_factor[units.index(max_time_units)]
-        
+
+        self.spectral_convolution = options_config['spectral_convolution']
 
     def set_wl_list(self,options_config):
         if not self.bands_variable in self.dataset.variables:
-            print(f'[ERROR] {self.bands_variable} variable is not available in the NetCDF dataset')
+            print(f'[ERROR][QC_INS] {self.bands_variable} variable is not available in the NetCDF dataset')
             return
 
         original_bands = self.dataset.variables[self.bands_variable][:]
@@ -111,7 +119,7 @@ class QC_INSITU:
         elif len(original_bands.shape)==2:
             self.n_instruments = original_bands.shape[0]
         else:
-            print(f'[ERROR] Wavelength {self.bands_variable} variable should have 1 or 2 dimensions')
+            print(f'[ERROR][QC_INS] Wavelength {self.bands_variable} variable should have 1 or 2 dimensions')
             return
 
 
@@ -129,7 +137,7 @@ class QC_INSITU:
                 if wl_max  is None:
                     wl_max = np.ma.max(original_bands)
                 if wl_max<wl_min:
-                    print(f'[ERROR] wl_max ({wl_max}) must be greater or equal than wl_min ({wl_min})')
+                    print(f'[ERROR][QC_INS] wl_max ({wl_max}) must be greater or equal than wl_min ({wl_min})')
 
                 valid_bands = np.where(np.sum((original_bands>=wl_min) & (original_bands<=wl_max),axis=0)>=1)[0]
                 index_valid_min, index_valid_max = min(valid_bands), max(valid_bands)
@@ -137,20 +145,20 @@ class QC_INSITU:
                 wl_list = original_bands[:,index_valid_min:index_valid_max+1]
 
 
-                print(f'[INFO] wl_list set to {wl_list.shape[1]} bands between {np.ma.min(wl_list)} and {np.ma.max(wl_list)}')
+                print(f'[INFO][QC_INS] wl_list set to {wl_list.shape[1]} bands between {np.ma.min(wl_list)} and {np.ma.max(wl_list)}')
             elif wl_min is None and wl_max is None:
                 wl_list = original_bands
-                print(f'[INFO] wl_list set to the original in situ bands with {wl_list.shape[1]} bands between {np.ma.min(wl_list)} and {np.ma.max(wl_list)}')
+                print(f'[INFO][QC_INS] wl_list set to the original in situ bands with {wl_list.shape[1]} bands between {np.ma.min(wl_list)} and {np.ma.max(wl_list)}')
 
         else:##set the same wl_list for all the instruments
             n_wl_here = len(wl_list)
             wl_list = np.tile(np.ma.array(wl_list),self.n_instruments).reshape(self.n_instruments,n_wl_here)
 
-
-
-
         n_original_bands = original_bands.shape[1]
         n_list = wl_list.shape[1]
+
+        self.wl_list = np.ma.masked_all((self.n_instruments,n_list))
+        self.indices_wl = np.ma.masked_all((self.n_instruments,n_list),np.int32)
 
         ##check maximum wavelength difference by instrument
         for i_instrument in range(self.n_instruments):
@@ -162,20 +170,240 @@ class QC_INSITU:
             diff_wl = np.abs(wl_list_m-wl_original_m)
             min_diff_wl = np.min(diff_wl,axis=1)
             if np.max(min_diff_wl)>=self.max_diff_wl:
-                print(f'[ERROR] Some bands given in the parameter wl_list are not available as wavelength difference with the in situ original bands is greater than the allowed maximum of {self.max_diff_wl} nm')
+                print(f'[ERROR][QC_INS] Some bands given in the parameter wl_list are not available as wavelength difference with the in situ original bands is greater than the allowed maximum of {self.max_diff_wl} nm')
                 min_diff_wl = np.ma.filled(min_diff_wl,self.max_diff_wl)  ##no_valid_bands are defined only for non-masked
                 no_valid_bands = wl_list_i[min_diff_wl>self.max_diff_wl]
                 print(f'Please review the following bands: ')
                 for no_valid_band in no_valid_bands:
                     print(f'{no_valid_band} nm')
                 print(f'Or you can also modify the allowed  maximum difference using the max_diff_wl parameter in QC_INS')
+                self.wl_list = None
+                self.indices_wl = None
                 return
+            indices_min_diff_wl = np.ma.array(np.argmin(diff_wl,axis=1),mask=min_diff_wl.mask)
+            indices_no_mask = indices_min_diff_wl.compressed()
+            self.wl_list[i_instrument,min_diff_wl.mask==False] = wl_list_i[indices_no_mask]
+            self.indices_wl[i_instrument,:] = indices_min_diff_wl[:]
 
-        ##set the values
-        self.wl_list = wl_list
+    def set_flag_filter(self,options_config, key_values = None):
+        self.filter_flag = cfs.get_filter_list(options_config,'filter_flag_',key_values=key_values)
+        #print(self.flag_filter)
 
+    def set_spectral_range_filter(self,options_config, key_values = None):
+        self.filter_spectral_range = cfs.get_filter_list(options_config, 'filter_spectral_range_', key_values=key_values)
+        #print(self.spectral_range_filter)
 
+    def set_band_range_filter(self,options_config, key_values = None):
+        self.filter_band_range = cfs.get_filter_list(options_config, 'filter_band_range_', key_values=key_values)
+        #print(self.band_range_filter)
 
+    def check_parameters(self):
+
+        check_qc = self.check_spectral_variable(self.spectral_variable,self.bands_variable)
+
+        if self.wl_list is None or self.indices_wl is None:
+            check_qc = False
+
+        if self.time_max is None:
+            check_qc = False
+
+        if not self.spectral_convolution  in self.spectral_convolution_methods:
+            print(f'[ERROR][QC_INS] spectral_convolution {self.spectral_convolution} method is not available, it should be one of {self.spectral_convolution_methods}')
+            check_qc = False
+
+        if len(self.filter_flag)>0:
+            for idx in range(len(self.filter_flag)):
+                if self.filter_flag[idx]['name_var'] is None and self.filter_flag[idx]['insitu_instrument'] is not None:
+                    self.filter_flag[idx]['name_var'] = None ##not implemented, to get name_var from default insitu_instrument
+
+                flag_list = self.filter_flag[idx]['flag_list']
+                flag_list_valid = self.filter_flag[idx]['flag_list_valid']
+                if flag_list is None and flag_list_valid is None:
+                    print('NOT IMPLEMENTED, TO GET FLAG LISTS FROM insitu_instrument')
+                if flag_list is None and flag_list_valid is None:
+                    print(f'[ERROR][QC_INS] flag_list or flag_list_valid are required for filter_flag_{idx}')
+                    check_qc = False
+                else:
+                    if flag_list is not None:
+                        if '$' in flag_list:
+                            print(f'[ERROR][QC_INS] Key flag \"$\" for empty flags is not allowed for flag_list, but only for flag_list_valid (filter_flag_{idx})')
+                            check_qc = False
+                        if not self.check_flag_list(self.filter_flag[idx]['name_var'],flag_list):
+                            check_qc = False
+                    if flag_list_valid is not None:
+                        if not self.check_flag_list(self.filter_flag[idx]['name_var'],flag_list_valid):
+                            check_qc = False
+                    if flag_list_valid is not None and flag_list is not None:
+                        irs = set(flag_list_valid).intersection(set(flag_list))
+                        if len(irs)>0:
+                            print(f'[ERROR][QC_INS] Flags \"{",".join(list(irs))}\" in flag_list and flag_list_valid are duplicated for filter_flag_{idx}')
+
+        if len(self.filter_spectral_range)>0:
+            for idx in range(len(self.filter_spectral_range)):
+                if self.filter_spectral_range[idx]['name_var']=="$spectral_variable$":
+                    self.filter_spectral_range[idx]['name_var'] = self.spectral_variable
+                if self.filter_spectral_range[idx]['name_var_wl']=="$bands_variable$":
+                    self.filter_spectral_range[idx]['name_var_wl'] = self.bands_variable
+                check_b = self.check_spectral_variable(self.filter_spectral_range[idx]['name_var'],self.filter_spectral_range[idx]['name_var_wl'])
+                if check_b:
+                    wl_min_abs = np.min(self.dataset.variables[self.filter_spectral_range[idx]['name_var_wl']][:]) - self.max_diff_wl
+                    wl_max_abs = np.max(self.dataset.variables[self.filter_spectral_range[idx]['name_var_wl']][:]) + self.max_diff_wl
+                    wl_min_here = self.filter_spectral_range[idx]['wl_min']
+                    wl_max_here = self.filter_spectral_range[idx]['wl_min']
+                    if not isinstance(wl_min_here, float):
+                        print(f'[ERROR][QC_INS] wl_min {wl_min_here} for filter_spectral_range_{idx} should be a float value')
+                        check_qc = False
+                    if not isinstance(wl_max_here, float):
+                        print(f'[ERROR][QC_INS] wl_max {wl_max_here} for filter_spectral_range_{idx} should be a float value')
+                        check_qc = False
+                    if isinstance(wl_min_here, float) and isinstance(wl_max_here, float):
+                        if wl_min_here > wl_max_here:
+                            print(f'[ERROR][QC_INS] wl_max {wl_max_here} should be greater or equal to wl_min {wl_min_here} for filter_spectral_range_{idx}')
+                            check_qc = False
+                        else:
+                            if wl_min_here < wl_min_abs or wl_min_here > wl_max_abs:
+                                print(f'[ERROR][QC_INS] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_range_{idx}')
+                                check_qc = False
+                            if wl_max_here < wl_min_abs or wl_max_here > wl_max_abs:
+                                print(f'[ERROR][QC_INS] wl_max {wl_max_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_range_{idx}')
+                                check_qc = False
+                else:
+                    check_qc = False
+
+                th_min_valid = isinstance(self.filter_spectral_range[idx]['th_min'], float)
+                th_max_valid = isinstance(self.filter_spectral_range[idx]['th_max'], float)
+                if th_min_valid or th_max_valid:
+                    pass
+                else:
+                    if not th_min_valid:
+                        print(f'[ERROR][QC_INS] Minimum threshold th_min {self.filter_spectral_range[idx]['th_min']} for filter_spectral_range_{idx} should be a float')
+                        check_qc = False
+                    if not th_max_valid:
+                        print(f'[ERROR][QC_INS] Minimum threshold th_max {self.filter_spectral_range[idx]['th_max']} for filter_spectral_range_{idx} should be a float')
+                        check_qc = False
+                if not self.filter_spectral_range[idx]['spectral_stat'] in self.spectral_stats:
+                    print(f'[ERROR][QC_INS] spectral_stat {self.filter_spectral_range[idx]['spectral_stat']} for filter_spectral_range_{idx} should one of {self.spectral_stats}')
+                    check_qc = False
+                if not self.filter_spectral_range[idx]['action'] in self.actions:
+                    print(f'[ERROR][QC_INS] action {self.filter_spectral_range[idx]['action']} for filter_spectral_range_{idx} should one of {self.actions}')
+                    check_qc = False
+
+        if len(self.filter_band_range) > 0:
+            for idx in range(len(self.filter_band_range)):
+                check_b = self.check_non_spectral_variable(self.filter_band_range[idx]['name_var'])
+                if not check_b:
+                    print(f'[ERROR][QC_INS] Error with name_var in filter_band_range {idx}')
+                    check_qc = False
+                th_min_valid = isinstance(self.filter_band_range[idx]['th_min'], float)
+                th_max_valid = isinstance(self.filter_band_range[idx]['th_max'], float)
+                if th_min_valid or th_max_valid:
+                    pass
+                else:
+                    if not th_min_valid:
+                        print(f'[ERROR][QC_INS] Minimum threshold th_min {self.filter_band_range[idx]['th_min']} for filter_band_range_{idx} should be a float')
+                        check_qc = False
+                    if not th_max_valid:
+                        print(f'[ERROR][QC_INS] Minimum threshold th_max {self.filter_band_range[idx]['th_max']} for filter_band_range_{idx} should be a float')
+                        check_qc = False
+
+                if not self.filter_band_range[idx]['action'] in self.actions:
+                    print(
+                        f'[ERROR][QC_INS]action {self.filter_band_range[idx]['action']} for filter_band_range_{idx} should one of {self.actions}')
+                    check_qc = False
+
+        return check_qc
+
+    def check_flag_list(self,name_variable,flag_list):
+        if name_variable is None:
+            print(f'[ERROR][QC_INS] name_variable is required for flagging filters, it could not be None')
+            return False
+        if not name_variable in self.dataset.variables:
+            print(f'[ERROR][QC_INS] {name_variable} is not available in the dataset')
+            return False
+        if flag_list is None:
+            print(f'[ERROR][QC_INS] {flag_list} is required for flagging filters, it could not be None')
+            return False
+
+        # ##flag list could be given as: flag_meanings (string with space separated flag) or flag_list (comma separated list)
+        # flag_list_var = None
+        # if 'flag_meanings' in self.dataset.variables[name_variable].ncattrs():
+        #     flag_list_var =self.dataset.variables[name_variable].flag_meanings.split(' ')
+        # elif 'flag_list' in self.dataset.variables[name_variable].ncattrs():
+        #     flag_list_var = self.dataset.variables[name_variable].flag_list.split(',')
+        # if flag_list_var is None:
+        #     print(f'[ERROR][QC_INS] Flag list is not available for variable {name_variable}, attribute flag_meanings or flag_list is required')
+        #     return False
+        #
+        # flag_values_var = None
+        # if 'flag_values' in self.dataset.variables[name_variable].ncattrs():
+        #     flag_values_var = self.dataset.variables[name_variable].flag_values
+        # elif 'flag_masks' in self.dataset.variables[name_variable].ncattrs():
+        #     flag_values_var = self.dataset.variables[name_variable].flag_masks
+        # elif 'flag_mask' in self.dataset.variables[name_variable].ncattrs():
+        #     flag_values_var = self.dataset.variables[name_variable].flag_mask
+        # if isinstance(flag_values_var,str):
+        #     try:
+        #         flag_values_var = [np.int64(x) for x in flag_values_var.split(',')]
+        #     except ValueError as ex:
+        #         print(f'[ERROR][QC_INS] Value error {ex}')
+        #         flag_values_var = None
+        # if not isinstance(flag_values_var,list):
+        #     print(f'[ERROR][QC_INS] Flag values list is not available for variable {name_variable}, attribute flag_values, flag_masks or flag_mask with a comma separated list of integer values is required')
+        #     return False
+        flag_list_var, flag_values_var = ffs.get_info_from_flag_variable(self.dataset.variables[name_variable],key_error='QC_INS')
+        if flag_values_var is None or flag_list_var is None:
+            return False
+        if '$' in flag_list:
+            flag_list.remove('$')
+
+        check = set(flag_list).issubset(set(flag_list_var))
+        if not check:
+            print(f'[ERROR][QC_INS] {flag_list} flags are not available in the variable {name_variable} flag list: {flag_list_var}')
+        return check
+
+    def check_spectral_variable(self,spectral_variable,bands_variable):
+        check_qc = True
+        if bands_variable is None or not bands_variable in self.dataset.variables:
+            print(f'[ERROR][QC_INS] Band wavelengths variable  {bands_variable} is not available in the dataset. Choose among: ')
+            print(f'[ERROR][QC_INS]{list(self.dataset.variables)}')
+            return False
+        if spectral_variable is None or not spectral_variable in self.dataset.variables:
+            print(f'[ERROR][QC_INS] Spectral variable {spectral_variable} is not available in the dataset. Choose among:')
+            print(f'[ERROR][QC_INS]{list(self.dataset.variables)}')
+            return False
+        original_bands = self.dataset.variables[self.bands_variable][:]
+        if len(original_bands.shape) == 1:
+            n_bands = original_bands.shape[0]
+        elif len(original_bands.shape) == 2:
+            n_bands = original_bands.shape[1]
+        else:
+            print(f'[ERROR][QC_INS] Wavelength {self.bands_variable} variable should have 1 or 2 dimensions')
+            check_qc = False
+            n_bands = -1
+
+        if len(self.dataset.variables[spectral_variable].shape) != 3:
+            print(f'[ERROR][QC_INS] Spectral variable {self.spectral_variable} should have 3 dimensions: satellite_id,insitu_bands,insitu_id')
+            check_qc = False
+        else:
+            n_bands_spectral = self.dataset.variables[spectral_variable].shape[1]
+            if n_bands_spectral != n_bands and n_bands>0:
+                print(f'[ERROR][QC_INS] The number of bands in the spectral variable ({n_bands_spectral}) should be equal to the number of bands in the band wavelengths variable ({n_bands}) ')
+                check_qc = False
+
+        return check_qc
+
+    def check_non_spectral_variable(self,name_var):
+        check_qc = True
+        if name_var is None or not name_var in self.dataset.variables:
+            print(f'[ERROR][QC_INS] Non-spectral variable {name_var} is not available in the dataset. Choose among: ')
+            print(f'[ERROR][QC_INS] {list(self.dataset.variables)}')
+            return False
+
+        if len(self.dataset.variables[name_var].shape) != 2:
+            print(f'[ERROR][QC_INS] Spectral variable {name_var} should have 2 dimensions: satellite_id, insitu_id')
+            check_qc = False
+
+        return check_qc
     # def check_validity(self):
     #
     #
@@ -269,21 +497,21 @@ class QC_INSITU:
     #             if self.thersholds[wls]['min_th']['apply'] and rrs_min is not None:
     #                 nconditions = nconditions + 1
     #                 check_condition = rrs_min>=self.thersholds[wls]['min_th']['value']
-    #                 print(f'[INFO] Condition: {nconditions} Wavelength: {wls} Lower thershold: {self.thersholds[wls]['min_th']['value']} Number of bad spectra: {np.ma.count(check_condition) - np.sum(check_condition)}')
+    #                 print(f'[INFO][QC_INS] Condition: {nconditions} Wavelength: {wls} Lower thershold: {self.thersholds[wls]['min_th']['value']} Number of bad spectra: {np.ma.count(check_condition) - np.sum(check_condition)}')
     #                 self.insitu_valid_rrs[check_condition == True] = self.insitu_valid_rrs[check_condition == True] + 1
     #
     #             if self.thersholds[wls]['max_th']['apply'] and rrs_max is not None:
     #                 nconditions = nconditions + 1
     #                 check_condition = rrs_max<=self.thersholds[wls]['max_th']['value']
-    #                 print(f'[INFO] Condition: {nconditions} Wavelength: {wls} Upper thershold: {self.thersholds[wls]['max_th']['value']} Number of bad spectra: {np.ma.count(check_condition)-np.sum(check_condition)}')
+    #                 print(f'[INFO][QC_INS] Condition: {nconditions} Wavelength: {wls} Upper thershold: {self.thersholds[wls]['max_th']['value']} Number of bad spectra: {np.ma.count(check_condition)-np.sum(check_condition)}')
     #                 self.insitu_valid_rrs[check_condition == True] = self.insitu_valid_rrs[check_condition == True] + 1
     #
     #
     #
     #
-    #     print(f'[INFO]->Number of conditions analysed: {nconditions}')
+    #     print(f'[INFO][QC_INS]->Number of conditions analysed: {nconditions}')
     #     self.insitu_valid_rrs = np.where(self.insitu_valid_rrs==nconditions,True,False)
-    #     print(f'[INFO]->Number of valid spectra: {np.ma.sum(self.insitu_valid_rrs)}')
+    #     print(f'[INFO][QC_INS]->Number of valid spectra: {np.ma.sum(self.insitu_valid_rrs)}')
     #
     # def get_spectra_rrs(self, insitu_id, valid_sat_id=None):
     #     return self.get_spectra_impl(self.insitu_rrs,insitu_id,valid_sat_id)
@@ -313,7 +541,7 @@ class QC_INSITU:
     #         return insitu_rrs_nearest
     #     else:
     #         if self.instrument_id_array is None:
-    #             print(f'[ERROR] {self.wl_indices.shape[0]} different wl arrays  for different instruments are given, but instrument id array is not available')
+    #             print(f'[ERROR][QC_INS] {self.wl_indices.shape[0]} different wl arrays  for different instruments are given, but instrument id array is not available')
     #             return None
     #         if valid_sat_id is not None:
     #             instrument_id_array = self.instrument_id_array[valid_sat_id == 1, insitu_id]
@@ -799,13 +1027,13 @@ class QC_INSITU:
     #
     # ##OPERATIONS WITH GOOD SPECTRA
     # def compute_good_spectra_statistics(self):
-    #     print(f'[INFO] Getting valid spectra...')
+    #     print(f'[INFO][QC_INS] Getting valid spectra...')
     #     spectra_res = self.get_all_good_spectra()
     #     band_stats = {}
     #     for index in range(len(self.wl_list)):
     #         wl = self.wl_list[index]
     #         wls = str(wl)
-    #         print(f'[INFO] Computing statistics for band: {wls} ({index})')
+    #         print(f'[INFO][QC_INS] Computing statistics for band: {wls} ({index})')
     #         allvalid = spectra_res[:, index]
     #         band_stats[wls] = {
     #             'nvalid': 0,
@@ -817,7 +1045,7 @@ class QC_INSITU:
     #             'p25': 0,
     #             'p75': 0
     #         }
-    #         # print(f'[INFO]Computing statistics...')
+    #         # print(f'[INFO][QC_INS]Computing statistics...')
     #         if allvalid is not None:
     #             band_stats[wls]['nvalid'] = len(allvalid)
     #             band_stats[wls]['min_val'] = np.min(allvalid)

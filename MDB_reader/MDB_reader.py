@@ -2,6 +2,7 @@ import __init__,argparse, warnings
 import COMMON.args_functions as afs
 import COMMON.common_functions as cfs
 from MDBFile import MDBFile
+
 from QC_OPTIONS import QC_OPTIONS
 
 # import datetime
@@ -39,6 +40,20 @@ parser.add_argument('-arep', "--allow_repeated", help="Set to allow multiple mat
 #parser.add_argument('-version',"--version_plot", help="Plot version", default='V3', choices=['V2','V3'])
 args = parser.parse_args()
 
+class MDBr_Writer:
+    def __init__(self,mdb_file,qc_sat,qc_ins,verbose=False):
+        self.m_file = mdb_file
+        self.qc_sat = qc_sat
+        self.qc_ins = qc_ins
+        self.verbose = verbose
+
+    def create_mdb_file_out(self):
+        self.qc_sat.verbose = self.verbose
+        if self.verbose:
+            print(f'[INFO] Started created MDB file out')
+
+        self.qc_sat.compute_validity()
+
 
 def main():
     print(f'[INFO] Started MDBReader with mode: {args.mode}')
@@ -73,6 +88,8 @@ def main():
         qc_ins = qc_options.get_qc_ins(mfile.nc)
         if qc_ins is None:
             return
+        m_writer = MDBr_Writer(mfile,qc_sat,qc_ins,verbose=args.verbose)
+        m_writer.create_mdb_file_out()
 
 
 if __name__ == '__main__':

@@ -13,8 +13,6 @@ class QC_OPTIONS:
         general_options_file = os.path.join(__init__.code_home, 'OPTIONS', 'qc_options.ini')
         self.gmanager = OptionsManager(general_options_file, None)
         if config_file is not None and os.path.exists(config_file):
-            options = configparser.ConfigParser()
-            options.read(config_file)
             self.omanager = OptionsManager(config_file, None)
             if self.verbose:
                 print(f'[INFO][QC_OPTIONS] gmanager status: {self.gmanager.is_valid()}')
@@ -23,7 +21,7 @@ class QC_OPTIONS:
         else:
             if self.verbose:
                 print(f'[INFO][QC_OPTIONS] gmanager status: {self.gmanager.is_valid()}')
-                rint(f'[INFO][QC_OPTIONS] omanager is not started')
+                print(f'[INFO][QC_OPTIONS] omanager is not started')
             self.is_valid = False
 
     # def get_satellite_variable(self):
@@ -232,6 +230,7 @@ class QC_OPTIONS:
             print(f'[ERROR][QC_SAT] Satellite quality control could not be initiated. Please review errors, correct your configuration file ([QC_SAT] section) and try again.')
             return None
         else:
+            qc_sat.set_basic_dimensions()
             if self.verbose:
                 print(f'[INFO][QC_SAT] Satellite quality control successfully initiated.')
             return qc_sat
@@ -242,8 +241,18 @@ class QC_OPTIONS:
         qc_ins = QC_INSITU(dataset)
         qc_ins.set_basic_info(options_config)
         qc_ins.set_wl_list(options_config)
+        qc_ins.set_flag_filter(options_config, key_values=retrieve_options['filter_flag_']['key_values'])
+        qc_ins.set_spectral_range_filter(options_config, key_values=retrieve_options['filter_spectral_range_']['key_values'])
+        qc_ins.set_band_range_filter(options_config, key_values=retrieve_options['filter_band_range_']['key_values'])
+        check = qc_ins.check_parameters()
+        if not check:
+            print(f'[ERROR][QC_INS] In situ quality control could not be initiated. Please review errors, correct your configuration file ([QC_INS] section) and try again.')
+            return None
+        else:
+            if self.verbose:
+                print(f'[INFO][QC_INS] In situ quality control successfully initiated.')
+            return qc_ins
 
-        return None
     def get_qcsat_deprecated(self, qc_sat, dataset):
         section = 'QC_SAT'
         options_qcsat = {

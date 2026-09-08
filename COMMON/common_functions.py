@@ -200,6 +200,34 @@ def get_mdb_output_path(input_path):
         return None
     return output_path
 
+def get_filter_list(options_config, prefix, key_values = None):
+    if key_values is None:
+        from QC_OPTIONS import QC_OPTIONS
+        qc_options_general = QC_OPTIONS(None,False)
+        retrieve_options,required = qc_options_general.gmanager.get_retrieve_options('QC_SAT')
+        key_values = retrieve_options[prefix]['key_values']
+
+    default_dict = {key:key_values[key]['default'] for key in key_values}
+    index = 0
+    exist_filter = True
+    filter_list = []
+    while exist_filter:
+        key_filter = f'{prefix}{index}'
+        exist_filter =  key_filter in options_config
+        if exist_filter:
+            dict_here = default_dict.copy()
+            dict_here.update(options_config[key_filter])
+            invalid_keys = options_config[key_filter].keys() - default_dict.keys()
+            filter_list.append(dict_here)
+            if len(invalid_keys)>0:
+                print(f'[WARNING] The following {len(invalid_keys)}  keys in configuration file for {key_filter} are not valid:')
+                print(f'[WARNING] --> {list(invalid_keys)}')
+                print(f'[WARNING] --> valid expected keys: {list(default_dict.keys())}')
+
+        index = index+1
+    return filter_list
+
+
 # %%
 if __name__ == '__main__':
     main()
