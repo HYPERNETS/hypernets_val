@@ -47,7 +47,7 @@ class QC_SAT:
         self.potential_stat_values = ['avg', 'std', 'min', 'max', 'median']
         self.central_stat_values = ['avg', 'median']
         self.dispersion_stat_values = ['std', 'iqr']
-        self.th_types = ['greater', 'gt', 'gte', 'lower', 'lt', 'lte']
+        self.th_types = ['greater', 'gt', 'greater_or_equal','gte', 'lower', 'lt', 'lower_or_equal','lte']
         self.macropixel_spatial_stats = ['avg', 'median', 'std', 'iqr', 'min', 'max', 'CV']
         self.macropixel_spectral_stats = ['all', 'any', 'avg', 'median', 'std', 'iqr', 'min', 'max', 'CV']
         self.filter_invalid_options  = ['all','any']
@@ -352,13 +352,6 @@ class QC_SAT:
                     self.filter_flag[idx]['flag_list'] = None ##not implemented, to get flag_list from default ac_processor
                 if not self.check_flag_list(self.filter_flag[idx]['name_var'],self.filter_flag[idx]['flag_list']):
                     check_qc = False
-                if self.filter_flag[idx]['window_size'] == -1:
-                    self.filter_flag[idx]['window_size'] = self.window_size
-                n_rows_here = self.dataset.variables[self.filter_flag[idx]['name_var']][:].shape[1]
-                n_cols_here = self.dataset.variables[self.filter_flag[idx]['name_var']][:].shape[2]
-                check_w = self.check_window_size(self.filter_flag[idx]['window_size'], n_rows_here, n_cols_here)
-                if not check_w:
-                    check_qc = False
 
         if len(self.filter_spectral_th)>0:
             for idx in range(len(self.filter_spectral_th)):
@@ -385,42 +378,43 @@ class QC_SAT:
                             if wl_max_here<wl_min_abs or wl_max_here>wl_max_abs:
                                 print(f'[ERROR][QC_SAT] wl_max {wl_max_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_th_{idx}')
                                 check_qc = False
-
-                    if self.filter_spectral_th[idx]['window_size']==-1:
-                        self.filter_spectral_th[idx]['window_size']= self.window_size
-                    n_rows_here = self.dataset.variables[self.filter_spectral_th[idx]['name_var']][:].shape[2]
-                    n_cols_here = self.dataset.variables[self.filter_spectral_th[idx]['name_var']][:].shape[3]
-                    check_w = self.check_window_size(self.filter_spectral_th[idx]['window_size'],n_rows_here,n_cols_here)
-                    if not check_w:
-                        check_qc = False
                 else:
                     check_qc = False
-                if not isinstance(self.filter_spectral_th[idx]['th_value'], float):
-                    print(f'[ERROR][QC_SAT] Threshold th_value {self.filter_spectral_th[idx]['th_value']} for filter_spectral_th_{idx} should be a float')
+
+                check_th, th_types = self.check_thresholds(self.filter_spectral_th[idx]['th_value'],
+                                                           self.filter_spectral_th[idx]['th_min'],
+                                                           self.filter_spectral_th[idx]['th_max'],
+                                                           self.filter_spectral_th[idx]['th_type'],
+                                                           key_filter=f'filter_spectral_th_{idx}')
+                self.filter_spectral_th[idx]['th_type'] = th_types
+
+                if not check_th:
                     check_qc = False
-                if not self.filter_spectral_th[idx]['th_type'] in self.th_types:
-                    print(f'[ERROR][QC_SAT] Threshold filter type th_type {self.filter_spectral_th[idx]['th_type']} for filter_spectral_th_{idx} should one of {self.th_types}')
+
+                if not self.filter_spectral_th[idx]['spectral_stat'] in self.macropixel_spectral_stats:
+                    print(f'[ERROR][QC_SAT] Threshold filter spectral stat {self.filter_spectral_th[idx]["spectral_stat"]} for filter_spectral_th_{idx} should one of {self.macropixel_spectral_stats}')
                     check_qc = False
 
         if len(self.filter_var_th)>0:
             for idx in range(len(self.filter_var_th)):
                 check_b = self.check_non_spectral_variable(self.filter_var_th[idx]['name_var'])
-                if check_b:
-                    n_rows_here = self.dataset.variables[self.filter_var_th[idx]['name_var']][:].shape[1]
-                    n_cols_here = self.dataset.variables[self.filter_var_th[idx]['name_var']][:].shape[2]
-                    if self.filter_var_th[idx]['window_size']==-1:
-                        self.filter_var_th[idx]['window_size']= self.window_size
-                    check_w = self.check_window_size(self.filter_var_th[idx]['window_size'],n_rows_here,n_cols_here)
-                    if not check_w:
-                        check_qc = False
-                else:
+                if not check_b:
                     check_qc = False
-                if not isinstance(self.filter_var_th[idx]['th_value'], float):
-                    print(f'[ERROR][QC_SAT] Threshold th_value {self.filter_var_th[idx]['th_value']} for filter_var_th_{idx} should be a float')
+                check_th, th_types = self.check_thresholds(self.filter_var_th[idx]['th_value'],
+                                                           self.filter_var_th[idx]['th_min'],
+                                                           self.filter_var_th[idx]['th_max'],
+                                                           self.filter_var_th[idx]['th_type'],
+                                                           key_filter=f'filter_spectral_th_{idx}',
+                                                           check_is_angle=True,
+                                                           is_angle=self.filter_var_th[idx]['is_angle'])
+                self.filter_spectral_th[idx]['th_type'] = th_types
+
+                if not check_th:
                     check_qc = False
-                if not self.filter_var_th[idx]['th_type'] in self.th_types:
-                    print(f'[ERROR][QC_SAT] Threshold filter type th_type {self.filter_var_th[idx]['th_type']} for filter_var_th_{idx} should one of {self.th_types}')
+                if self.filter_var_th[idx]['is_angle'] and not isinstance(self.filter_var_th[idx]['is_angle_limit'],float):
+                    print(f'[ERROR][QC_SAT] is_angle_limit for filter_spectral_th_{idx} should be a float value' )
                     check_qc = False
+
 
         if len(self.filter_macropixel_spectral)>0:
             for idx in range(len(self.filter_macropixel_spectral)):
@@ -591,23 +585,63 @@ class QC_SAT:
         if flag_list is None:
             print(f'[ERROR][QC_SAT] {flag_list} is required for flagging filters, it could not be None')
             return False
-        # ##flag list could be given as: flag_meanings (string with space separated flag) or flag_list (comma separated list)
-        # flag_list_var = None
-        # if 'flag_meanings' in self.dataset.variables[name_variable].ncattrs():
-        #     flag_list_var = [x.strip() for x in self.dataset.variables[name_variable].flag_meanings.split(' ')]
-        # elif 'flag_list' in self.dataset.variables[name_variable].ncattrs():
-        #     flag_list_var = [x.strip() for x in self.dataset.variables[name_variable].flag_list.split(',')]
-        # if flag_list_var is None:
-        #     print(f'[ERROR][QC_SAT] Flag list in not available for variable {name_variable}, attribute flag_meanings or flag_list is required')
-        #     return False
         flag_list_var, flag_values_var = ffs.get_info_from_flag_variable(self.dataset.variables[name_variable],key_error='QC_SAT')
         if flag_values_var is None or flag_list_var is None:
             return False
-
         check = set(flag_list).issubset(set(flag_list_var))
         if not check:
             print(f'[ERROR][QC_SAT] {flag_list} flags are not available in the variable {name_variable} flag list: {flag_list_var}')
         return check
+
+    def check_thresholds(self, th_value, th_min, th_max, th_types, key_filter ='-',check_is_angle=False,is_angle=False):
+        check_qc = True
+
+        if th_value is not None:
+            if not isinstance(th_value, float):
+                print(f'[ERROR][QC_sat] Threshold th_value {th_value} for {key_filter}  should be a float')
+                check_qc = False
+            if th_min is not None and th_max is not None:
+                print(f'[WARNING][QC_SAT] Thresholds values th_min and th_max are ignored for {key_filter}, only th_value is considered')
+            if th_types is None:
+                print(f'[ERROR][QC_SAT] Threshold filter type th_type is required for {key_filter}. It should one of {self.th_types}')
+                check_qc = False
+            if not th_types[0] in self.th_types:
+                print(f'[ERROR][QC_SAT] Threshold filter type th_type  {th_types[0]} for {key_filter} should one of {self.th_types}')
+                check_qc = False
+
+        if th_value is None:
+            if th_min is not None and th_max is None:
+                print(f'[ERROR][QC_SAT] Threshold th_max is required for {key_filter} as th_min is given.')
+                check_qc = False
+            elif th_min is None and th_max is not None:
+                print(f'[ERROR][QC_SAT] Threshold th_min is required for {key_filter} as th_max is given.')
+                check_qc = False
+            elif th_min is not None and th_max is not None:
+                if not isinstance(th_min, float):
+                    print(f'[ERROR][QC_SAT] Threshold th_min {th_min} for {key_filter}  should be a float')
+                    check_qc = False
+                if not isinstance(th_max, float):
+                    print(f'[ERROR][QC_SAT] Threshold th_max {th_max} for {key_filter}  should be a float')
+                    check_qc = False
+                if th_types is None:  ##set default to be used with th_min and th_max
+                    th_types = ['gte', 'lt']
+
+                if len(th_types) == 2:
+                    if not th_types[0] in self.th_types[0:4]:
+                        print(f'[ERROR][QC_SAT] Threshold filter type th_type (first element) {th_types[0]} for {key_filter}  should one of {self.th_types[0:4]}')
+                        check_qc = False
+                    elif not th_types[1] in self.th_types[4:]:
+                        print(f'[ERROR][QC_SAT] Threshold filter type th_type (second element) {th_types[1]} for {key_filter}  should one of {self.th_types[4:]}')
+                        check_qc = False
+                    else:
+                        if not check_is_angle or (check_is_angle and not is_angle):##th_max should be >=th_min except for angle variables
+                            if th_max<th_min:
+                                print(f'[ERROR] th_min {th_min }should be lower or equal to th_max {th_max} for {key_filter}')
+                                check_qc = False
+                else:
+                    print(f'[ERROR] [QC_SAT] Threshold filter type th_type using th_min and th_max for {key_filter} should include two elements: {self.th_types[0:4]} , {self.th_types[4:]}')
+                    check_qc = False
+        return check_qc,th_types
 
     def set_basic_dimensions(self):
         ##method to be called only if check parameters is True
@@ -621,8 +655,14 @@ class QC_SAT:
         spectral_data = np.ma.masked_invalid(spectral_data)##make sure that invalid values, NaN and so on are masked
         mask_invalid = self.compute_invalid_masks_array(spectral_data)
         if self.verbose:
-            print(f'[INFO][QC_SAT] Number of pixels filtered using {self.filter_invalid} invalid filter: {np.sum(mask_invalid)}')
+            print(f'[INFO][QC_SAT] Number of masked pixels using \"{self.filter_invalid}\" invalid filter: {np.sum(mask_invalid)}')
         mask_flag = self.compute_flag_mask_array()
+        if self.verbose:
+            print(f'[INFO][QC_SAT] Number of masked pixels using flag bands: {int(np.sum(mask_flag))}')
+        mask_th_spectral = self.compute_th_spectral_masks_array()
+        if self.verbose:
+            print(f'[INFO][QC_SAT] Number of masked pixels using spectral ranges: {int(np.sum(mask_th_spectral))}')
+        mask_th_var = self.compute_th_var_masks_array()
 
     def get_window_dimensions(self,w_size=None,n_rows=None,n_cols=None):
         if w_size is None:
@@ -651,21 +691,20 @@ class QC_SAT:
             invalid_mask[invalid_mask==self.n_bands]=1
         return invalid_mask
 
-
     def compute_flag_mask_array(self):
-        flag_mask = np.zeros((self.n_mu, self.window_size, self.window_size), dtype=np.uint64)
+        flag_mask =  np.zeros((self.n_mu, self.window_size, self.window_size), dtype=np.uint64)
         for idx in range(len(self.filter_flag)):
             flag_mask_here = self.compute_flag_mask_array_impl(self.filter_flag[idx])
             if self.verbose:
-                print(f'[INFO][QC_SAT] filter_flag_{idx}: Variable: {self.filter_flag[idx]["name_var"]}. Flagged pixels: {np.sum(flag_mask_here)}')
+                print(f'[INFO][QC_SAT] Number of masked pixels using filter_flag_{idx} ({self.filter_flag[idx]["name_var"]}): {np.sum(flag_mask_here)}')
             if flag_mask_here is not None:
                 flag_mask = flag_mask + flag_mask_here
-            #self.info_flag[flag_band]['nflagged'] = np.sum(flag_mask.reshape((self.nmu, self.window_size * self.window_size)), axis=1)
         flag_mask[flag_mask > 0] = 1
+
         return flag_mask
 
     def compute_flag_mask_array_impl(self, f_flag):
-        central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions(w_size=f_flag['window_size'])
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions()
         flag_array = self.dataset.variables[f_flag['name_var']][:,r_s:r_e,c_s:c_e]
         if np.issubdtype(flag_array.dtype, np.floating): ##floating points are not allowed
             flag_array = flag_array.astype('uint64')
@@ -698,50 +737,93 @@ class QC_SAT:
             else:
                 mask_array = np.where(np.logical_and(mask_array_v==0,ask_array==0,mask_array),0,1)
         return mask_array
-                
-            
 
+    def compute_th_spectral_masks_array(self):
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions()
+        mask_threshold = np.zeros((self.n_mu, self.window_size, self.window_size), dtype=np.uint64)
 
+        ##filter spectral
+        for idx in range(len(self.filter_spectral_th)):
+            spectral_bands = self.dataset.variables[self.filter_spectral_th[idx]['name_var_wl']][:]
+            indices_valid = np.where((spectral_bands>=self.filter_spectral_th[idx]['wl_min']) & (spectral_bands<=self.filter_spectral_th[idx]['wl_max']))
+            spectral_data = np.moveaxis(self.dataset.variables[self.filter_spectral_th[idx]['name_var']][:,indices_valid[0], r_s:r_e, c_s:c_e],1,-1)
+            s_stat = self.filter_spectral_th[idx]['spectral_stat']
+            th_val = self.filter_spectral_th[idx]['th_value']
+            th_min = self.filter_spectral_th[idx]['th_min']
+            th_max = self.filter_spectral_th[idx]['th_max']
+            th_types = self.filter_spectral_th[idx]['th_type']
+            n_bands = spectral_data.shape[3]
+            #print(self.filter_spectral_th[idx])
+            if n_bands>1:##more than one spectral bands, we compute spectral_stat
 
-        # land = None
-        # central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
-        # satellite_flag = self.info_flag[flag_band]['variable']
-        # if satellite_flag is None:
-        #     flag_mask = np.zeros((self.nmu, self.window_size, self.window_size), dtype=np.uint64)
-        #     return flag_mask, land
-        # # flag_meanings_ string separated by spaces or list
-        # flag_meanings = satellite_flag.flag_meanings
-        # if isinstance(flag_meanings, list):
-        #     flag_meanings = ' '.join(flag_meanings)
-        #
-        # satellite_flag_band = satellite_flag[:, r_s:r_e, c_s:c_e]
-        # # float32 is not allowed
-        # if str(satellite_flag.dtype) == 'float32':
-        #     satellite_flag_band = satellite_flag_band.astype('uint64')
-        #
-        # # flag list, it could be a list or a comma separated string
-        # flag_list_tobe_applied = self.info_flag[flag_band]['flag_list']
-        # if isinstance(flag_list_tobe_applied, str):
-        #     flag_list_tobe_applied = [x.strip() for x in flag_list_tobe_applied.split(',')]
-        #
-        # if self.info_flag[flag_band]['ac_processor'] == 'POLYMER':
-        #     flagging = flag.Class_Flags_Polymer(satellite_flag.flag_masks, flag_meanings)
-        #     flag_mask = flagging.MaskGeneral(satellite_flag_band)
-        #     flag_mask[np.where(flag_mask != 0)] = 1
-        # elif self.info_flag[flag_band]['ac_processor'] == 'IDEPIX':
-        #     flagging = flag.Class_Flags_Idepix(satellite_flag.flag_masks, flag_meanings)
-        #     flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
-        #     flag_mask[np.where(flag_mask != 0)] = 1
-        # else:
-        #     ##we must be sure that flag_mask must be uint64
-        #     satellite_flag_band = satellite_flag_band.astype('uint64')
-        #     flag_masks = satellite_flag.flag_masks.astype('uint64')
-        #     flagging = flag.Class_Flags_OLCI(flag_masks, flag_meanings)
-        #     flag_mask = flagging.Mask(satellite_flag_band, flag_list_tobe_applied)
-        #     flag_mask[np.where(flag_mask != 0)] = 1
+                if s_stat=='any' or s_stat=='all':
+                    if th_val is not None:
+                        mask_th = get_mask_threshold_impl(spectral_data,th_val,th_types[0])
+                        mask_th = mask_th*2
+                    else:
+                        mask_th = get_mask_threshold_impl(spectral_data,th_min,th_types[0])+get_mask_threshold_impl(spectral_data,th_max,th_types[1])
+                    mask_th = np.sum(mask_th,axis=3)
+                else:
+                    if s_stat=='avg':
+                        mask_th = np.ma.mean(spectral_data,axis=3)
+                    elif s_stat=='median':
+                        mask_th = np.ma.median(spectral_data,axis=3)
+                    elif s_stat=='min':
+                        mask_th = np.ma.min(spectral_data,axis=3)
+                    elif s_stat=='max':
+                        mask_th = np.ma.max(spectral_data,axis=3)
+                    elif s_stat=='std':
+                        mask_th = np.ma.std(spectral_data,axis=3)
+                    elif s_stat=='iqr':
+                        mask_th = np.percentile(spectral_data,75,axis=3)-np.percentile(spectral_data,25,axis=3)
+                    elif s_stat=='CV':
+                        mask_th = (np.std(spectral_data,axis=3)/np.abs(np.mean(spectral_data,axis=3)))*100
+                    if th_val is not None:
+                        mask_th = get_mask_threshold_impl(mask_th, th_val, th_types[0])
+                        mask_th = mask_th * 2
+                    else:
+                        mask_th = get_mask_threshold_impl(mask_th, th_min, th_types[0]) + get_mask_threshold_impl(
+                            mask_th, th_max, th_types[1])
+                    mask_th = mask_th*n_bands
+                if s_stat=='any':
+                    mask_th_here = np.where(mask_th>=2,1,0)
+                else:
+                    mask_th_here = np.where(mask_th==(n_bands*2),1,0)
+            else:
+                if th_val is not None:
+                    mask_th = get_mask_threshold_impl(spectral_data, th_val, th_types[0])
+                    mask_th = mask_th * 2
+                else:
+                    mask_th = get_mask_threshold_impl(spectral_data, th_min, th_types[0]) + get_mask_threshold_impl(
+                        spectral_data, th_max, th_types[1])
+                mask_th = np.squeeze(mask_th)
+                mask_th_here = np.where(mask_th == 2, 1, 0)
 
-        return flag_mask
+            self.filter_spectral_th[idx]['mask_th'] = mask_th_here
+            if self.verbose:
+                print(f'[INFO][QC_SAT] Number of masked pixels using filter_spectral_th_{idx}: {np.sum(mask_th_here)}')
+            mask_threshold = mask_threshold + mask_th_here
 
+        mask_threshold[mask_threshold > 0]=1
+
+        return mask_threshold
+
+    def compute_th_var_masks_array(self):
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions()
+        mask_threshold = np.zeros((self.n_mu, self.window_size, self.window_size), dtype=np.uint64)
+
+        ##filter var
+        for idx in range(len(self.filter_var_th)):
+
+            var_data = self.dataset.variables[self.filter_var_th[idx]['name_var']][:, r_s:r_e, c_s:c_e]
+            th_val = self.filter_var_th[idx]['th_value']
+            th_min = self.filter_var_th[idx]['th_min']
+            th_max = self.filter_var_th[idx]['th_max']
+            th_types = self.filter_var_th[idx]['th_type']
+            is_angle = self.filter_var_th[idx]['is_angle']
+
+            if th_val is not None:
+                mask_th_here = get_mask_threshold_impl(var_data,th_val,th_types[0])
 
     def check_rrs_variability(self):
         if len(self.wl_ref)<self.nbands:
@@ -913,32 +995,7 @@ class QC_SAT:
 
 
 
-    def compute_th_masks_array(self):
-        central_r, central_c, r_s, r_e, c_s, c_e = self.get_dimensions()
-        mask_thershold = np.zeros((self.nmu,self.window_size, self.window_size), dtype=np.uint64)
 
-        for idx in range(len(self.th_masks)):
-            th_mask = self.th_masks[idx]
-            if th_mask['index_sat'] >= 0:
-                band_here = self.satellite_rrs[:,th_mask['index_sat'], r_s:r_e, c_s:c_e]
-            else:
-                var_here = self.ncdataset.variables[th_mask['band_name']]
-                band_here = var_here[:, r_s:r_e, c_s:c_e]
-
-            #mask_thershold_here = np.zeros(band_here.shape, dtype=np.uint64)
-            n_masked = 0
-            if th_mask['type_th'] == 'greater':
-                mask_thershold[band_here > th_mask['value_th']] = mask_thershold[band_here > th_mask['value_th']]+1
-                n_masked = np.count_nonzero(band_here > th_mask['value_th'])
-            elif th_mask['type_th'] == 'lower':
-                mask_thershold[band_here < th_mask['value_th']] = mask_thershold[band_here < th_mask['value_th']]+1
-                n_masked = np.count_nonzero(band_here < th_mask['value_th'])
-            th_mask['n_masked'] = n_masked
-            self.th_masks[idx] = th_mask
-
-        mask_thershold[mask_thershold>0]=1
-
-        return mask_thershold
 
     def get_masks_rrs(self,final_mask):
 
@@ -1866,3 +1923,19 @@ def get_filter_list(options_config, prefix, key_values = None):
 
         index = index+1
     return filter_list
+
+ #return zero-ones array with same shape as data with 1 values meeting the condition (if invert, zero values meeting the condition)
+def get_mask_threshold_impl(data,th_val,th_type,invert=False):
+    if th_type=='greater' or th_type=='gt':
+        mask_th = np.where(data>th_val,1,0)
+    elif th_type=='greater_or_equal' or th_type=='gte':
+        mask_th = np.where(data >= th_val, 1, 0)
+    elif th_type=='lower' or th_type=='lt':
+        mask_th = np.where(data < th_val, 1, 0)
+    elif th_type=='lower_or_equal' or th_type=='lte':
+        mask_th = np.where(data <= th_val, 1, 0)
+    else:
+        mask_th = None
+    if invert and mask_th is not None:
+        mask_th = np.where(mask_th==1,0,1)
+    return mask_th
