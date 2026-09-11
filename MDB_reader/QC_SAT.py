@@ -49,6 +49,7 @@ class QC_SAT:
         self.dispersion_stat_values = ['std', 'iqr']
         self.th_types = ['greater', 'gt', 'greater_or_equal','gte', 'lower', 'lt', 'lower_or_equal','lte']
         self.spatial_or_spectral_stats = ['all', 'any', 'avg', 'median', 'std', 'iqr', 'min', 'max', 'CV']
+        self.stat_orders = ['spatial_spectral','spectral_spatial','global']
 
         self.filter_invalid_options  = ['all','any']
 
@@ -380,11 +381,8 @@ class QC_SAT:
                                                            check_is_angle=True,
                                                            is_angle=self.filter_var_th[idx]['is_angle'])
                 self.filter_spectral_th[idx]['th_type'] = th_types
-
                 if not check_th:
                     check_qc = False
-
-
 
         if len(self.filter_macropixel_spectral)>0:
             for idx in range(len(self.filter_macropixel_spectral)):
@@ -417,12 +415,27 @@ class QC_SAT:
                 else:
                     self.filter_macropixel_spectral[idx]['th_type'] = th_types
 
-                if not self.filter_macropixel_spectral[idx]['spatial_stat'] in self.spatial_or_spectral_stats:
-                    print(f'[ERROR][QC_SAT] spatial_stat {self.filter_macropixel_spectral[idx]['spatial_stat']} for filter_macropixel_spectral_{idx} should one of {self.spatial_or_spectral_stats}')
+                spatial_stat, spectral_stat, global_stat, stat_order = [self.filter_macropixel_spectral[idx][s] for s in ['spatial_stat','spectral_stat','global_stat','stat_order']]
+                if not stat_order in self.stat_orders:
+                    print(f'[ERROR] {stat_order} should be one of {self.stat_orders} for filter_macropixel_spectral_{idx}')
                     check_qc = False
-                if not self.filter_macropixel_spectral[idx]['spectral_stat'] in self.spatial_or_spectral_stats:
-                    print(f'[ERROR][QC_SAT] spectral_stat {self.filter_macropixel_spectral[idx]['spectral_stat']} for filter_macropixel_spectral_{idx} should one of {self.spatial_or_spectral_stats}')
-                    check_qc = False
+                if stat_order in self.stat_orders[0:2]:
+                    if not spatial_stat in self.spatial_or_spectral_stats:
+                        print(f'[ERROR][QC_SAT] spatial_stat {spatial_stat} for filter_macropixel_spectral_{idx} should one of {self.spatial_or_spectral_stats}')
+                        check_qc = False
+                    if not spectral_stat in self.spatial_or_spectral_stats:
+                        print(f'[ERROR][QC_SAT] spectral_stat {spectral_stat} for filter_macropixel_spectral_{idx} should one of {self.spatial_or_spectral_stats}')
+                        check_qc = False
+                    if stat_order=='spatial_spectral' and spatial_stat in ['all','any'] and spectral_stat not in ['all','any']:
+                        print(f'[ERROR][QS_SAT] With order {stat_order} for filter_macropixel_spectral_{idx}, combination {spatial_stat}+{spectral_stat} is not allowed, if spatial_stat is any or all, spectral stat should be also any or all')
+                        check_qc = False
+                    if stat_order=='spectral_spatial' and spectral_stat in ['all','any'] and spatial_stat not in ['all','any']:
+                        print(f'[ERROR][QS_SAT] With order {stat_order} for filter_macropixel_spectral_{idx}, combination {spectral_stat}+{spatial_stat} is not allowed, if spectral_stat is any or all, spatial stat should be also any or all')
+                        check_qc = False
+                elif stat_order=='global':
+                    if not global_stat in self.spatial_or_spectral_stats:
+                        print(f'[ERROR][QC_SAT] global_stat {global_stat} for filter_macropixel_spectral_{idx} should one of {self.spatial_or_spectral_stats}')
+                        check_qc = False
                 if self.filter_macropixel_spectral[idx]['use_outliers']:
                     check_outliers, factor = self.check_outliers(self.filter_macropixel_spectral[idx]['outliers_central_stat'],
                                                            self.filter_macropixel_spectral[idx]['outliers_dispersion_stat'],
@@ -661,6 +674,25 @@ class QC_SAT:
         if self.verbose:
             print(f'[INFO][QC_SAT] Number of masked pixels using variable ranges (filter_var_th_): {int(np.sum(mask_th_var))}')
 
+        final_mask = mask_invalid+mask_flag+mask_th_spectral+mask_th_var
+        final_mask[final_mask>1]=1
+        if self.verbose:
+            print(f'[INFO][QC_SAT] Number of masked pixels in the final mask: {int(np.sum(final_mask))}')
+
+        macropixel_spectral = self.compute_macropixel_spectra()
+        if self.verbose:
+            print(f'[INFO][QC_SAT] Number of masked macropixels using spectral ranges (filter_macropixel_spectral_): {int(np.sum(macropixel_spectral))}')
+
+        macropixel_var = self.compute_macropixel_var()
+
+        ##TEMPORAL
+        # n_total_by_mu = np.array([self.window_size * self.window_size]*self.n_mu)
+        # n_invalid_by_mu = np.sum(final_mask,axis=(1,2))
+        # n_valid_by_mu = n_total_by_mu-n_invalid_by_mu
+        # valid_match_ups_using_mask = np.where(n_valid_by_mu>=self.min_valid_pixels,1,0)
+        # if self.verbose:
+        #     print(f'[INFO][QC_SAT] Number of valid match-ups according to the final mask: {np.sum(valid_match_ups_using_mask)}')
+
     def get_window_dimensions(self,w_size=None,n_rows=None,n_cols=None):
         if w_size is None:
             w_size = self.window_size
@@ -745,54 +777,58 @@ class QC_SAT:
             indices_valid = np.where((spectral_bands>=self.filter_spectral_th[idx]['wl_min']) & (spectral_bands<=self.filter_spectral_th[idx]['wl_max']))
             spectral_data = np.moveaxis(self.dataset.variables[self.filter_spectral_th[idx]['name_var']][:,indices_valid[0], r_s:r_e, c_s:c_e],1,-1)
             s_stat = self.filter_spectral_th[idx]['spectral_stat']
-            th_val = self.filter_spectral_th[idx]['th_value']
-            th_min = self.filter_spectral_th[idx]['th_min']
-            th_max = self.filter_spectral_th[idx]['th_max']
-            th_types = self.filter_spectral_th[idx]['th_type']
+            # th_val = self.filter_spectral_th[idx]['th_value']
+            # th_min = self.filter_spectral_th[idx]['th_min']
+            # th_max = self.filter_spectral_th[idx]['th_max']
+            # th_types = self.filter_spectral_th[idx]['th_type']
             n_bands = spectral_data.shape[3]
             #print(self.filter_spectral_th[idx])
             if n_bands>1:##more than one spectral bands, we compute spectral_stat
 
                 if s_stat=='any' or s_stat=='all':
-                    if th_val is not None:
-                        mask_th = get_mask_threshold_impl(spectral_data,th_val,th_types[0])
-                        mask_th = mask_th*2
-                    else:
-                        mask_th = get_mask_threshold_impl(spectral_data,th_min,th_types[0])+get_mask_threshold_impl(spectral_data,th_max,th_types[1])
+                    # if th_val is not None:
+                    #     mask_th = get_mask_threshold_impl(spectral_data,th_val,th_types[0])
+                    #     mask_th = mask_th*2
+                    # else:
+                    #     mask_th = get_mask_threshold_impl(spectral_data,th_min,th_types[0])+get_mask_threshold_impl(spectral_data,th_max,th_types[1])
+                    mask_th = get_mask_threshold_from_dict(spectral_data, self.filter_spectral_th[idx])
                     mask_th = np.sum(mask_th,axis=3)
                 else:
-                    if s_stat=='avg':
-                        mask_th = np.ma.mean(spectral_data,axis=3)
-                    elif s_stat=='median':
-                        mask_th = np.ma.median(spectral_data,axis=3)
-                    elif s_stat=='min':
-                        mask_th = np.ma.min(spectral_data,axis=3)
-                    elif s_stat=='max':
-                        mask_th = np.ma.max(spectral_data,axis=3)
-                    elif s_stat=='std':
-                        mask_th = np.ma.std(spectral_data,axis=3)
-                    elif s_stat=='iqr':
-                        mask_th = np.percentile(spectral_data,75,axis=3)-np.percentile(spectral_data,25,axis=3)
-                    elif s_stat=='CV':
-                        mask_th = (np.std(spectral_data,axis=3)/np.abs(np.mean(spectral_data,axis=3)))*100
-                    if th_val is not None:
-                        mask_th = get_mask_threshold_impl(mask_th, th_val, th_types[0])
-                        mask_th = mask_th * 2
-                    else:
-                        mask_th = get_mask_threshold_impl(mask_th, th_min, th_types[0]) + get_mask_threshold_impl(
-                            mask_th, th_max, th_types[1])
+                    mask_th = compute_stats_from_array(spectral_data,s_stat,axis=3)
+                    # if s_stat=='avg':
+                    #     mask_th = np.ma.mean(spectral_data,axis=3)
+                    # elif s_stat=='median':
+                    #     mask_th = np.ma.median(spectral_data,axis=3)
+                    # elif s_stat=='min':
+                    #     mask_th = np.ma.min(spectral_data,axis=3)
+                    # elif s_stat=='max':
+                    #     mask_th = np.ma.max(spectral_data,axis=3)
+                    # elif s_stat=='std':
+                    #     mask_th = np.ma.std(spectral_data,axis=3)
+                    # elif s_stat=='iqr':
+                    #     mask_th = np.percentile(spectral_data,75,axis=3)-np.percentile(spectral_data,25,axis=3)
+                    # elif s_stat=='CV':
+                    #     mask_th = (np.std(spectral_data,axis=3)/np.abs(np.mean(spectral_data,axis=3)))*100
+                    # if th_val is not None:
+                    #     mask_th = get_mask_threshold_impl(mask_th, th_val, th_types[0])
+                    #     mask_th = mask_th * 2
+                    # else:
+                    #     mask_th = get_mask_threshold_impl(mask_th, th_min, th_types[0]) + get_mask_threshold_impl(
+                    #         mask_th, th_max, th_types[1])
+                    mask_th = get_mask_threshold_from_dict(mask_th, self.filter_spectral_th[idx])
                     mask_th = mask_th*n_bands
                 if s_stat=='any':
                     mask_th_here = np.where(mask_th>=2,1,0)
                 else:
                     mask_th_here = np.where(mask_th==(n_bands*2),1,0)
             else:
-                if th_val is not None:
-                    mask_th = get_mask_threshold_impl(spectral_data, th_val, th_types[0])
-                    mask_th = mask_th * 2
-                else:
-                    mask_th = get_mask_threshold_impl(spectral_data, th_min, th_types[0]) + get_mask_threshold_impl(
-                        spectral_data, th_max, th_types[1])
+                # if th_val is not None:
+                #     mask_th = get_mask_threshold_impl(spectral_data, th_val, th_types[0])
+                #     mask_th = mask_th * 2
+                # else:
+                #     mask_th = get_mask_threshold_impl(spectral_data, th_min, th_types[0]) + get_mask_threshold_impl(
+                #         spectral_data, th_max, th_types[1])
+                mask_th = get_mask_threshold_from_dict(spectral_data,self.filter_spectral_th[idx])
                 mask_th = np.squeeze(mask_th)
                 mask_th_here = np.where(mask_th == 2, 1, 0)
 
@@ -813,17 +849,17 @@ class QC_SAT:
         for idx in range(len(self.filter_var_th)):
 
             var_data = self.dataset.variables[self.filter_var_th[idx]['name_var']][:, r_s:r_e, c_s:c_e]
-            th_val = self.filter_var_th[idx]['th_value']
-            th_min = self.filter_var_th[idx]['th_min']
-            th_max = self.filter_var_th[idx]['th_max']
-            th_types = self.filter_var_th[idx]['th_type']
-
-            if th_val is not None:
-                mask_th = get_mask_threshold_impl(var_data,th_val,th_types[0])
-                mask_th = mask_th * 2
-            else:
-                mask_th = get_mask_threshold_impl(var_data, th_min, th_types[0]) + get_mask_threshold_impl(var_data, th_max, th_types[1])
-
+            # th_val = self.filter_var_th[idx]['th_value']
+            # th_min = self.filter_var_th[idx]['th_min']
+            # th_max = self.filter_var_th[idx]['th_max']
+            # th_types = self.filter_var_th[idx]['th_type']
+            #
+            # if th_val is not None:
+            #     mask_th = get_mask_threshold_impl(var_data,th_val,th_types[0])
+            #     mask_th = mask_th * 2
+            # else:
+            #     mask_th = get_mask_threshold_impl(var_data, th_min, th_types[0]) + get_mask_threshold_impl(var_data, th_max, th_types[1])
+            mask_th = get_mask_threshold_from_dict(var_data,self.filter_var_th[idx])
             mask_th_here = np.where(mask_th == 2, 1, 0)
             self.filter_var_th[idx]['mask_th'] = mask_th_here
             if self.verbose:
@@ -834,6 +870,94 @@ class QC_SAT:
 
         return mask_threshold
 
+    def compute_macropixel_spectra(self):
+        macropixel_spectral_mask = np.zeros(self.n_mu).astype(np.int8)
+        for idx in range(len(self.filter_macropixel_spectral)):
+            ##window_size could be different from the one use in the extraction
+            window_size = self.filter_macropixel_spectral[idx]['window_size']
+            n_rows_here = self.dataset.variables[self.filter_macropixel_spectral[idx]['name_var']].shape[2]
+            n_cols_here = self.dataset.variables[self.filter_macropixel_spectral[idx]['name_var']].shape[3]
+            central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions(w_size=window_size,n_rows = n_rows_here,n_cols=n_cols_here)
+            spectral_bands = self.dataset.variables[self.filter_macropixel_spectral[idx]['name_var_wl']][:]
+            indices_valid = np.where((spectral_bands >= self.filter_macropixel_spectral[idx]['wl_min']) & (
+                        spectral_bands <= self.filter_macropixel_spectral[idx]['wl_max']))
+            spectral_data = np.moveaxis(
+                self.dataset.variables[self.filter_macropixel_spectral[idx]['name_var']][:, indices_valid[0], r_s:r_e, c_s:c_e],1, -1)
+            n_bands_here = spectral_data.shape[-1]
+            stat_order = self.filter_macropixel_spectral[idx]['stat_order']
+
+            if self.filter_macropixel_spectral[idx]['use_outliers']:
+                spectral_data = get_array_with_outliers_masked_from_dict(spectral_data,(1,2),self.filter_macropixel_spectral[idx],verbose=self.verbose)
+
+
+            mask_here = None
+            if stat_order == 'spatial_spectral': ##first spatial statistic, then spectral statistic
+                spatial_stat = self.filter_macropixel_spectral[idx]['spatial_stat']
+                spectral_stat = self.filter_macropixel_spectral[idx]['spectral_stat']
+                if spatial_stat not in ['all,any']:
+                    spectral_data = compute_stats_from_array(spectral_data,spatial_stat,axis=(1,2))
+
+                    if spectral_stat in ['all','any']: ##compute the mask and then apply 'all' or 'any'
+                        spectral_data = get_mask_threshold_from_dict(spectral_data,self.filter_macropixel_spectral[idx])
+                        spectral_data[spectral_data>1]=1
+                        spectral_data = np.sum(spectral_data,axis=1)
+                        if spectral_stat=='all':
+                            mask_here = np.where(spectral_data==n_bands_here, 1, 0)
+                        elif spectral_stat=='any':
+                            mask_here = np.where(spectral_data > 0, 1, 0)
+                    else: ##compute spectral stat and the use threshold
+                        spectral_data = compute_stats_from_array(spectral_data,spectral_stat,axis=1)
+                        mask_here = get_mask_threshold_from_dict(spectral_data,self.filter_macropixel_spectral[idx])
+                        mask_here[mask_here > 1] = 1
+
+            self.filter_macropixel_spectral[idx]['macropixel_mask'] = mask_here
+            if mask_here is None:
+                print(f'[WARNING][QC_SAT] Macropixel mask using filter_macropixel_spectral_{idx} could not be computed. Skipping...')
+                continue
+            if self.verbose:
+                print(f'[INFO][QC_SAT] Number of masked macropixels using filter_macropixel_spectral_{idx}: {np.sum(mask_here)}')
+            macropixel_spectral_mask = macropixel_spectral_mask + mask_here
+
+        macropixel_spectral_mask[macropixel_spectral_mask>1] = 1
+
+        return macropixel_spectral_mask
+
+    def compute_macropixel_var(self):
+        macropixel_var_mask = np.zeros(self.n_mu).astype(np.int8)
+        for idx in range(len(self.filter_macropixel_var)):
+            ##window_size could be different from the one use in the extraction
+            window_size = self.filter_macropixel_var[idx]['window_size']
+            n_rows_here = self.dataset.variables[self.filter_macropixel_var[idx]['name_var']].shape[1]
+            n_cols_here = self.dataset.variables[self.filter_macropixel_var[idx]['name_var']].shape[2]
+            central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions(w_size=window_size,n_rows=n_rows_here,n_cols=n_cols_here)
+            var_data = self.dataset.variables[self.filter_macropixel_var[idx]['name_var']][:,r_s:r_e, c_s:c_e]
+            if self.filter_macropixel_var[idx]['use_outliers']:
+                var_data = get_array_with_outliers_masked_from_dict(spectral_data,(1,2),self.filter_macropixel_var[idx],verbose=self.verbose)
+            spatial_stat = self.filter_macropixel_var[idx]['spatial_stat']
+            mask_here = None
+            if spatial_stat not in ['all','any']:
+                var_data = compute_stats_from_array(var_data, spatial_stat, axis=(1, 2))
+                mask_here = get_mask_threshold_from_dict(var_data,self.filter_macropixel_var[idx])
+                mask_here[mask_here>1]  = 1
+            else:
+                var_data = get_mask_threshold_from_dict(var_data,self.filter_macropixel_var[idx])
+                var_data[var_data>1]=1
+                var_data = np.sum(var_data,axis=(1,2))
+                if spatial_stat=='all':
+                    n_window = window_size*window_size
+                    mask_here = np.where(var_data == n_window, 1, 0)
+                elif spatial_stat=='any':
+                    mask_here = np.where(var_data > 0, 1, 0)
+            self.filter_macropixel_var[idx]['macropixel_mask'] = mask_here
+            if mask_here is None:
+                print(f'[WARNING][QC_SAT] Macropixel mask using filter_macropixel_var_{idx} could not be computed. Skipping...')
+                continue
+            if self.verbose:
+                print(f'[INFO][QC_SAT] Number of masked macropixels using filter_macropixel_var_{idx}: {np.sum(mask_here)}')
+            macropixel_var_mask = macropixel_var_mask + mask_here
+
+        macropixel_var_mask[macropixel_var_mask > 1] = 1
+        return macropixel_var_mask
     def check_rrs_variability(self):
         if len(self.wl_ref)<self.nbands:
             valid_bands = np.array([1 if wl_here in self.wl_ref else 0 for wl_here in self.sat_bands])
@@ -1948,3 +2072,93 @@ def get_mask_threshold_impl(data,th_val,th_type,invert=False):
     if invert and mask_th is not None:
         mask_th = np.where(mask_th==1,0,1)
     return mask_th
+
+def compute_stats_from_array(array,s_stat,axis=None):
+    if s_stat == 'avg':
+        result = np.ma.mean(array, axis=axis)
+    elif s_stat == 'median':
+        result = np.ma.median(array, axis=axis)
+    elif s_stat == 'min':
+        result = np.ma.min(array, axis=axis)
+    elif s_stat == 'max':
+        result = np.ma.max(array, axis=axis)
+    elif s_stat == 'std':
+        result = np.ma.std(array, axis=axis)
+    elif s_stat == 'iqr':
+        result = np.percentile(array, 75, axis=axis) - np.percentile(array, 25, axis=axis)
+    elif s_stat == 'CV':
+        result = (np.std(array, axis=axis) / np.abs(np.mean(array, axis=axis))) * 100
+    return result
+
+def get_thresholds_from_dict(dict_here):
+    th_val = dict_here['th_value']
+    th_min = dict_here['th_min']
+    th_max = dict_here['th_max']
+    th_types = dict_here['th_type']
+    return th_val, th_min, th_max, th_types
+
+def get_mask_threshold_from_dict(array,dict_here):
+    th_val,th_min,th_max,th_types = get_thresholds_from_dict(dict_here)
+    return get_mask_threshold(array, th_val, th_min, th_max, th_types)
+
+def get_mask_threshold(array,th_val,th_min,th_max,th_types):
+    if th_val is not None:
+        mask_th = get_mask_threshold_impl(array, th_val, th_types[0])
+        mask_th = mask_th * 2
+    else:
+        mask_th = get_mask_threshold_impl(array, th_min, th_types[0]) + get_mask_threshold_impl(array, th_max,th_types[1])
+
+    return mask_th
+
+def get_array_with_outliers_masked_from_dict(array,axis_window,dict_here,verbose=False):
+    #print(dict_here,'-->',verbose)
+    central_stat = dict_here['outliers_central_stat']
+    dispersion_stat = dict_here['outliers_dispersion_stat']
+    factor = dict_here['outliers_factor']
+    return get_array_with_outliers_masked(array,central_stat,dispersion_stat,factor,axis_window,verbose=verbose)
+
+##axis window should be (n_rows,n_cols)
+def get_array_with_outliers_masked(array,central_stat,dispersion_stat,factor,axis_window,verbose=False):
+
+    n_rows = array.shape[axis_window[0]]
+    n_cols = array.shape[axis_window[1]]
+    n_window = n_rows*n_cols
+
+    array_c = None
+    if central_stat=='avg':
+        array_c = np.ma.mean(array, axis=axis_window)
+    elif central_stat=='median':
+        array_c = np.ma.median(array, axis=axis_window)
+
+    array_d = None
+    if dispersion_stat=='std':
+        array_d = np.ma.std(array, axis=axis_window)
+    elif dispersion_stat=='iqr':
+        array_d = np.percentile(array, 75, axis=axis) - np.percentile(array, 25, axis=axis)
+
+    if array_c is None or array_d is None:
+        print(f'[WARNING][QC_SAT] Outliers could not be masked, using the original array')
+        return array
+
+    upper_array = array_c + (array_d*factor)
+    lower_array = array_c - (array_d*factor)
+
+    ##getting upper_array and lower_array with the same shape as array (match-ups x n_rows x n_cols x n_bands),
+    repeat_shape = upper_array.shape + (n_rows,n_cols)
+    upper_array = np.repeat(upper_array,n_window).reshape(repeat_shape)
+    upper_array = np.moveaxis(upper_array,(-2, -1), axis_window)
+    lower_array = np.repeat(lower_array,n_window).reshape(repeat_shape)
+    lower_array = np.moveaxis(lower_array, (-2, -1), axis_window)
+
+    ##masking array
+    n_mask_before = np.ma.count_masked(array)
+    array[array>upper_array] = np.ma.masked
+    array[array<lower_array] = np.ma.masked
+    n_masked = np.ma.count_masked(array) - n_mask_before
+
+    if verbose:
+        print(f'[INFO][QC_SAT] Number of pixels masked after applying outliers: {n_masked}')
+
+
+    return array
+
