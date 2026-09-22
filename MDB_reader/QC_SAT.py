@@ -10,12 +10,12 @@ import BSC_QAA.bsc_qaa_EUMETSAT as bsc_qaa
 
 class QC_SAT:
 
-    def __init__(self, dataset,versose=False):
+    def __init__(self, dataset,verbose=False):
 
         self.dataset = dataset
         self.wl_list = None
         self.indices_wl = None
-        self.verbose = versose
+        self.verbose = verbose
 
         ##basic information
         self.bands_variable = 'satellite_bands'
@@ -23,10 +23,11 @@ class QC_SAT:
         self.spectral_variable_unc = 'satellite_Rrs_unc'
         self.window_size = 3
         self.min_valid_pixels = 9
-        self.min_valid_porc = 50.0
+
 
         self.use_min_valid_porc = False  # if true, minimum number of valid pixels is established as min_porc_valid_pixels (default 50%) +1 of NP
-        self.min_valid_porc_with_valid = True #if valid, NP is the NTWP (number of water pixels), if false, NP, is the NTP (number of total pixels)
+        self.min_valid_porc = 50.0
+        self.min_valid_porc_with = "OCEAN" #valid pixels are considered: ALL: all pixels; OCEAN: pixels except for flagged as LAND or INLAND_WATER (flag_inland_water and flag_land required); INLAND: valid flagged as inland water,flag_inland_water is required
 
         self.stat_value = 'avg'
 
@@ -61,6 +62,8 @@ class QC_SAT:
 
         self.is_valid = True
 
+        self.validity_info = {}
+
     def set_basic_info(self,options_config):
         self.bands_variable = options_config['bands_variable']
         self.spectral_variable = options_config['spectral_variable']
@@ -69,7 +72,7 @@ class QC_SAT:
         self.min_valid_pixels = options_config['min_valid_pixels']
         self.min_valid_porc = options_config['min_valid_porc']
         self.use_min_valid_porc = options_config['use_min_valid_porc']
-        self.min_valid_porc_with_valid = options_config['min_valid_porc_with_valid']
+        self.min_valid_porc_with = options_config['min_valid_porc_with']
 
         self.stat_value = options_config['stat_value']
         self.outliers_info['apply'] = options_config['apply_outliers']
@@ -307,9 +310,29 @@ class QC_SAT:
         else:
             check_qc = False
 
-        if self.use_min_valid_porc and (self.min_valid_porc<0 or self.min_valid_porc>100):
-            print(f'[ERROR][QC_SAT] min_valid_porc {self.min_valid_porc} should be between 0 and 100')
-            check_qc = False
+        if self.use_min_valid_porc:
+            if self.min_valid_porc<0 or self.min_valid_porc>100:
+                print(f'[ERROR][QC_SAT] min_valid_porc {self.min_valid_porc} should be between 0 and 100')
+                check_qc = False
+            if self.min_valid_porc_with is None:
+                print(f'[ERROR][QC_SAT] Error setting the option min_valid_porc (check [CONFIG] WARNING)')
+                check_qc = False
+            if self.min_valid_porc_with=='OCEAN':
+                if self.flag_land is None or len(self.flag_land)!=2:
+                    print(f'[ERROR][QC_SAT] flag_land is required to use min_valid_porc_with==OCEAN. If flag_land is not available, use min_valid_porc_with=ALL')
+                    check_qc = False
+                if not self.check_flag_list(self.flag_land[0],[self.flag_land[1]]):
+                    print(f'[ERROR] flag_land {self.flag_land} is not available. Check variable and/or flag (flag_land is required with min_valid_porc_with=OCEAN')
+                    check_qc = False
+            if self.min_valid_porc_with=='INLAND':
+                if self.flag_inland_water is None or len(self.flag_inland_water)!=2:
+                    print(f'[ERROR][QC_SAT] flag_inland_water is required to use min_valid_porc_with==INLAND. If flag_inland_water is not available, use min_valid_porc_with=ALL')
+                    check_qc = False
+                if not self.check_flag_list(self.flag_inland_water[0],[self.flag_inland_water[1]]):
+                    print(f'[ERROR] flag_inland_water {self.flag_land} is not available. Check variable and/or flag (flag_inland_water is required with min_valid_porc_with=INLAND')
+                    check_qc = False
+
+
 
         if self.filter_invalid not in self.filter_invalid_options:
             print(f'[ERROR][QC_SAT] filter_invalid {self.filter_invalid} should be one of {self.filter_invalid_options}')
@@ -684,14 +707,60 @@ class QC_SAT:
             print(f'[INFO][QC_SAT] Number of masked macropixels using spectral ranges (filter_macropixel_spectral_): {int(np.sum(macropixel_spectral))}')
 
         macropixel_var = self.compute_macropixel_var()
+        if self.verbose:
+            print(f'[INFO][QC_SAT] Number of masked macropixels using variable ranges (filter_macropixel_var_): {int(np.sum(macropixel_var))}')
 
-        ##TEMPORAL
-        # n_total_by_mu = np.array([self.window_size * self.window_size]*self.n_mu)
-        # n_invalid_by_mu = np.sum(final_mask,axis=(1,2))
-        # n_valid_by_mu = n_total_by_mu-n_invalid_by_mu
-        # valid_match_ups_using_mask = np.where(n_valid_by_mu>=self.min_valid_pixels,1,0)
-        # if self.verbose:
-        #     print(f'[INFO][QC_SAT] Number of valid match-ups according to the final mask: {np.sum(valid_match_ups_using_mask)}')
+        macropixel_all = macropixel_spectral + macropixel_var
+
+        n_total_by_mu = np.array([self.window_size * self.window_size]*self.n_mu)
+        n_min_valid_by_mu = np.array([self.min_valid_pixels] * self.n_mu)
+        water_mask = None
+        if self.use_min_valid_porc:
+            if self.min_valid_porc_with=='OCEAN' or self.min_valid_porc_with=='INLAND':
+                if self.min_valid_porc_with == 'OCEAN':
+                    water_mask = self.compute_water_mask()
+                elif self.min_valid_porc_with == 'INLAND':
+                    water_mask = self.compute_inland_water_mask()
+
+                n_total_by_mu = np.sum(water_mask==0,axis=(1,2))
+            n_min_valid_by_mu = np.floor(n_total_by_mu * (self.min_valid_porc / 100.0)) + 1
+
+
+        n_invalid_by_mu = np.sum(final_mask,axis=(1,2))
+        n_valid_by_mu = n_total_by_mu-n_invalid_by_mu
+
+        valid_match_ups_using_mask = np.where(n_valid_by_mu>=n_min_valid_by_mu,1,0)
+        valid_match_ups_using_macropixels = np.where(macropixel_all==0,1,0)
+        qc_sat_valid_match_ups = np.where((valid_match_ups_using_mask+valid_match_ups_using_macropixels)==2,1,0)
+        n_invalid_only_by_mask = np.sum((valid_match_ups_using_mask==0) & (valid_match_ups_using_macropixels==1))
+        n_invalid_only_by_macropixel = np.sum((valid_match_ups_using_mask==1) & (valid_match_ups_using_macropixels==0))
+        n_invalid_both = np.sum((valid_match_ups_using_mask==0) & (valid_match_ups_using_macropixels==0))
+        n_invalid = np.sum(qc_sat_valid_match_ups==0)
+        check = n_invalid == n_invalid_only_by_mask+n_invalid_only_by_macropixel+n_invalid_both
+        if self.verbose:
+            print(f'[INFO][QC_SAT] Number of valid match-ups according to the final mask: {np.sum(valid_match_ups_using_mask)}')
+            print(f'[INFO][QC_SAT] Number of valid match-ups according to the macropixels filtering: {np.sum(valid_match_ups_using_macropixels)}')
+            print(f'[INFO][QC_SAT] Number of invalid match-ups: {n_invalid}. Check: {check}')
+            print(f'[INFO][QC_SAT]    - By mask: {np.sum(valid_match_ups_using_mask==0)}. Mask only: {n_invalid_only_by_mask}')
+            print(f'[INFO][QC_SAT]    - By macropixel: {np.sum(valid_match_ups_using_macropixels==0)}. Macropixels only: {n_invalid_only_by_macropixel}')
+            print(f'[INFO][QC_SAT]    - Mask + macropixels: {n_invalid_both}')
+            print(f'[INFO][QC_SAT] Final number of valid match-ups passing the satellite quality control: {np.sum(qc_sat_valid_match_ups)}')
+
+        self.validity_info = {
+            'mask_valid': mask_invalid,
+            'mask_flag': mask_flag,
+            'mask_th_spectral': mask_th_spectral,
+            'mask_th_var': mask_th_var,
+            'final_mask': final_mask,
+            'water_mask': water_mask,
+            'macropixel_spectral':macropixel_spectral,
+            'macropixel_var': macropixel_var,
+            'macropixel_all': macropixel_all,
+            'n_total_by_mu': n_total_by_mu,
+            'n_valid_by_mu': n_valid_by_mu,
+            'n_min_valid_by_mu': n_min_valid_by_mu,
+            'qc_sat_valid_match_ups': qc_sat_valid_match_ups
+        }
 
     def get_window_dimensions(self,w_size=None,n_rows=None,n_cols=None):
         if w_size is None:
@@ -751,7 +820,7 @@ class QC_SAT:
             mask_array = fw.mask(flag_array,f_flag['flag_list'])
             mask_array[mask_array >= 1] = 1
         if f_flag['flag_list_valid'] is not None:
-            f_list = flag['flag_list_valid']
+            f_list = f_flag['flag_list_valid']
             if '$' in f_list:
                 mask_array_v = np.where(flag_array==0,0,1)
                 if len(f_list)>1:
@@ -766,6 +835,34 @@ class QC_SAT:
             else:
                 mask_array = np.where(np.logical_and(mask_array_v==0,ask_array==0,mask_array),0,1)
         return mask_array
+
+    def compute_water_mask(self):
+        if self.flag_land is None or len(self.flag_land)!=2:
+            return None
+        name_var_land = self.flag_land[0]
+        name_flag_land = self.flag_land[1]
+        if  self.flag_inland_water is not None and len(self.flag_inland_water)==2:
+            name_var_iw = self.flag_inland_water[0]
+            name_flag_iw = self.flag_inland_water[1]
+            if name_var_land==name_var_iw:
+                water_mask = self.compute_flag_mask_array_impl({'name_var': name_var_land,'flag_list':[name_flag_land,name_flag_iw],'flag_list_valid':None})
+            else:
+                water_mask_land = self.compute_flag_mask_array_impl({'name_var': name_var_land,'flag_list':[name_flag_land],'flag_list_valid':None})
+                water_mask_iw = self.compute_flag_mask_array_impl({'name_var': name_var_iw,'flag_list':[name_flag_iw],'flag_list_valid':None})
+                water_mask = water_mask_land + water_mask_iw
+                water_mask[water_mask >= 1] = 1
+        else:
+            water_mask= self.compute_flag_mask_array_impl({'name_var': name_var_land, 'flag_list': [name_flag_land],'flag_list_valid':None})
+
+        return water_mask
+
+    def compute_inland_water_mask(self):
+        if self.flag_inland_water is None or len(self.flag_inland_water)!=2:
+            return None
+        name_var_iw = self.flag_inland_water[0]
+        name_flag_iw = self.flag_inland_water[1]
+        water_mask = self.compute_flag_mask_array_impl({'name_var': name_var_iw, 'flag_list':None, 'flag_list_valid': [name_flag_iw]})
+        return water_mask
 
     def compute_th_spectral_masks_array(self):
         central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions()
@@ -894,7 +991,7 @@ class QC_SAT:
             if stat_order == 'spatial_spectral': ##first spatial statistic, then spectral statistic
                 spatial_stat = self.filter_macropixel_spectral[idx]['spatial_stat']
                 spectral_stat = self.filter_macropixel_spectral[idx]['spectral_stat']
-                if spatial_stat not in ['all,any']:
+                if spatial_stat not in ['all','any']:
                     spectral_data = compute_stats_from_array(spectral_data,spatial_stat,axis=(1,2))
 
                     if spectral_stat in ['all','any']: ##compute the mask and then apply 'all' or 'any'
@@ -902,14 +999,83 @@ class QC_SAT:
                         spectral_data[spectral_data>1]=1
                         spectral_data = np.sum(spectral_data,axis=1)
                         if spectral_stat=='all':
-                            mask_here = np.where(spectral_data==n_bands_here, 1, 0)
+                            mask_here = np.ma.where(spectral_data==n_bands_here, 1, 0)
                         elif spectral_stat=='any':
-                            mask_here = np.where(spectral_data > 0, 1, 0)
+                            mask_here = np.ma.where(spectral_data > 0, 1, 0)
                     else: ##compute spectral stat and the use threshold
                         spectral_data = compute_stats_from_array(spectral_data,spectral_stat,axis=1)
                         mask_here = get_mask_threshold_from_dict(spectral_data,self.filter_macropixel_spectral[idx])
                         mask_here[mask_here > 1] = 1
+                else:
+                    spectral_data = get_mask_threshold_from_dict(spectral_data,self.filter_macropixel_spectral[idx])
+                    spectral_data[spectral_data > 1] = 1
+                    n_masked_pixels_by_band = np.ma.sum(spectral_data,axis=(1,2))
+                    n_good_pixels_by_band = np.ma.count(spectral_data,axis=(1,2))
+                    mask_spatial = None
+                    if spatial_stat=='all':
+                        mask_spatial = np.ma.where(n_masked_pixels_by_band==n_good_pixels_by_band, 1, 0)
+                    elif spatial_stat=='any':
+                        mask_spatial = np.ma.where(n_masked_pixels_by_band > 0, 1, 0)
 
+                    if spectral_stat=='all':
+                        mask_here = np.ma.where(np.ma.sum(mask_spatial,axis=1)==n_bands_here, 1, 0)
+                    elif spectral_stat=='any':
+                        mask_here = np.ma.where(np.ma.sum(mask_spatial,axis=1)>0, 1, 0)
+
+            elif stat_order == 'spectral_spatial':##first spectral statistic, then spatial statistic
+                spatial_stat = self.filter_macropixel_spectral[idx]['spatial_stat']
+                spectral_stat = self.filter_macropixel_spectral[idx]['spectral_stat']
+                if spectral_stat not in ['all', 'any']:
+                    spatial_data = compute_stats_from_array(spectral_data, spectral_stat, axis=3)
+                    # print('936,',spectral_data.shape,'-->',spatial_data.shape)
+                    # print(spatial_data[29,:])
+                    if spatial_stat in ['all', 'any']:  ##compute the mask and then apply 'all' or 'any'
+                        spatial_data = get_mask_threshold_from_dict(spatial_data,self.filter_macropixel_spectral[idx])
+                        spatial_data[spatial_data > 1] = 1
+                        n_masked_pixels = np.ma.sum(spatial_data, axis= (1,2))
+                        n_good_pixels = np.ma.count(spatial_data, axis=(1,2))
+                        if spatial_stat == 'all':
+                            mask_here = np.ma.where(n_masked_pixels == n_good_pixels, 1, 0)
+                        elif spatial_stat == 'any':
+                            mask_here = np.ma.where(n_masked_pixels > 0, 1, 0)
+
+                    else:  ##compute spatial stat and the use threshold
+                        spatial_data = compute_stats_from_array(spatial_data, spatial_stat, axis=(1,2))
+                        mask_here = get_mask_threshold_from_dict(spatial_data, self.filter_macropixel_spectral[idx])
+                        mask_here[mask_here > 1] = 1
+                else:
+                    spectral_data = get_mask_threshold_from_dict(spectral_data, self.filter_macropixel_spectral[idx])
+                    spectral_data[spectral_data > 1] = 1
+
+                    n_masked_pixels_by_rc = np.ma.sum(spectral_data, axis=3)
+                    n_good_pixels_by_rc = np.ma.count(spectral_data, axis=3)
+
+                    mask_spectral = None
+                    if spectral_stat == 'all':
+                        mask_spectral = np.ma.where(n_masked_pixels_by_rc == n_good_pixels_by_rc, 1, 0)
+                    elif spectral_stat == 'any':
+                        mask_spectral = np.ma.where(n_masked_pixels_by_rc > 0, 1, 0)
+
+                    if spatial_stat == 'all':
+                        mask_here = np.ma.where(np.ma.sum(mask_spectral, axis=(1,2)) == np.ma.sum(n_good_pixels_by_rc,axis=(1,2)), 1, 0)
+                    elif spatial_stat == 'any':
+                        mask_here = np.ma.where(np.ma.sum(mask_spectral, axis=(1,2)) > 0, 1, 0)
+
+            elif stat_order == 'global':
+                global_stat = self.filter_macropixel_spectral[idx]['global_stat']
+                n_global = n_bands_here*window_size*window_size
+                spectral_data = np.reshape(spectral_data,(spectral_data.shape[0],n_global))
+                if global_stat == 'all':
+                    mask_here = np.ma.where(np.ma.sum(spectral_data,axis=1)==n_global, 1, 0)
+                elif global_stat == 'any':
+                    mask_here = np.ma.where(np.ma.sum(spectral_data, axis=1) > 0, 1, 0)
+                else:
+                    spectral_data = compute_stats_from_array(spectral_data, global_stat, axis=1)
+                    mask_here = get_mask_threshold_from_dict(spectral_data,self.filter_macropixel_spectral[idx])
+
+
+            if mask_here is not None:
+                mask_here = np.ma.filled(mask_here,0)
             self.filter_macropixel_spectral[idx]['macropixel_mask'] = mask_here
             if mask_here is None:
                 print(f'[WARNING][QC_SAT] Macropixel mask using filter_macropixel_spectral_{idx} could not be computed. Skipping...')
@@ -942,12 +1108,14 @@ class QC_SAT:
             else:
                 var_data = get_mask_threshold_from_dict(var_data,self.filter_macropixel_var[idx])
                 var_data[var_data>1]=1
-                var_data = np.sum(var_data,axis=(1,2))
+                var_data = np.ma.sum(var_data,axis=(1,2))
                 if spatial_stat=='all':
                     n_window = window_size*window_size
-                    mask_here = np.where(var_data == n_window, 1, 0)
+                    mask_here = np.ma.where(var_data == n_window, 1, 0)
                 elif spatial_stat=='any':
-                    mask_here = np.where(var_data > 0, 1, 0)
+                    mask_here = np.ma.where(var_data > 0, 1, 0)
+            if mask_here is not None:
+                mask_here = np.ma.filled(mask_here, 0)
             self.filter_macropixel_var[idx]['macropixel_mask'] = mask_here
             if mask_here is None:
                 print(f'[WARNING][QC_SAT] Macropixel mask using filter_macropixel_var_{idx} could not be computed. Skipping...')
@@ -2060,17 +2228,17 @@ def get_filter_list(options_config, prefix, key_values = None):
  #return zero-ones array with same shape as data with 1 values meeting the condition (if invert, zero values meeting the condition)
 def get_mask_threshold_impl(data,th_val,th_type,invert=False):
     if th_type=='greater' or th_type=='gt':
-        mask_th = np.where(data>th_val,1,0)
+        mask_th = np.ma.where(data>th_val,1,0)
     elif th_type=='greater_or_equal' or th_type=='gte':
-        mask_th = np.where(data >= th_val, 1, 0)
+        mask_th = np.ma.where(data >= th_val, 1, 0)
     elif th_type=='lower' or th_type=='lt':
-        mask_th = np.where(data < th_val, 1, 0)
+        mask_th = np.ma.where(data < th_val, 1, 0)
     elif th_type=='lower_or_equal' or th_type=='lte':
-        mask_th = np.where(data <= th_val, 1, 0)
+        mask_th = np.ma.where(data <= th_val, 1, 0)
     else:
         mask_th = None
     if invert and mask_th is not None:
-        mask_th = np.where(mask_th==1,0,1)
+        mask_th = np.ma.where(mask_th==1,0,1)
     return mask_th
 
 def compute_stats_from_array(array,s_stat,axis=None):

@@ -9,16 +9,16 @@ class OptionsManager:
         self.options = None
         if options is None:
             if not os.path.exists(config_file):
-                print(f'[ERROR] {config_file} does not exist')
+                print(f'[ERROR][CONFIG] {config_file} does not exist')
             elif not os.path.isfile(config_file):
-                print(f'[ERROR] {config_file} is not a valid file')
+                print(f'[ERROR][CONFIG] {config_file} is not a valid file')
             else:
                 try:
                     self.options = configparser.ConfigParser()
                     self.options.read(config_file)
 
                 except Exception as ex:
-                    print(f'[ERROR] Error parsing configuration file {config_file}: {ex}')
+                    print(f'[ERROR][CONFIG] Error parsing configuration file {config_file}: {ex}')
         else:
             self.options = options
 
@@ -82,7 +82,7 @@ class OptionsManager:
         if self.options is None:
             return None
         if not self.options.has_section(section):
-            print(f'[WARNING] Section {section} is not available')
+            print(f'[WARNING][CONFIG] Section {section} is not available')
             return None
         options = self.options.options(section)
         return options
@@ -93,7 +93,7 @@ class OptionsManager:
     def get_retrieve_point_options(self,section,ref,value_list):
         slist = self.get_options_list(section)
         if slist is None:
-            print(f'[ERROR] Retrieve options were not found for section {section}')
+            print(f'[ERROR][CONFIG] Retrieve options were not found for section {section}')
             return None
         soptions = {}
         for op in slist:
@@ -146,12 +146,12 @@ class OptionsManager:
                     try:
                         required_args[arg]['potential_values'] = [int(x) for x in pvalues]
                     except:
-                        print(f'[ERROR] Error getting int potential_values for argument {arg}')
+                        print(f'[ERROR][CONFIG] Error getting int potential_values for argument {arg}')
                 elif val_list[0]=='float':
                     try:
                         required_args[arg]['potential_values'] = [float(x) for x in pvalues]
                     except:
-                        print(f'[ERROR] Error getting float potential_values for argument {arg}')
+                        print(f'[ERROR][CONFIG] Error getting float potential_values for argument {arg}')
 
 
 
@@ -162,7 +162,7 @@ class OptionsManager:
     def get_retrieve_options(self,section):
         slist = self.get_options_list(section)
         if slist is None:
-            print(f'[ERROR] Retrieve options were not found for section {section}')
+            print(f'[ERROR][CONFIG] Retrieve options were not found for section {section}')
             return [None] * 2
 
         soptions = {}
@@ -233,7 +233,7 @@ class OptionsManager:
             type = self.read_option(section, 'typevirtual', 'typevirtual', poptions, -1, use_pow2_flags)
         if type is None:
             print(
-                f'[ERROR] type (or typevirtual) are not define. Potential types: {poptions["typevirtual"]["list_values"]}')
+                f'[ERROR][CONFIG] type (or typevirtual) are not define. Potential types: {poptions["typevirtual"]["list_values"]}')
             return None
 
         use_pow2_flags = self.get_value_param(section,'use_pow2_flags',False,'boolean')
@@ -435,19 +435,18 @@ class OptionsManager:
                         result[key] = self.get_option(section,key,poptions_key,None,None)
                         index = index + 1
                 else:
-
                     result[option] = self.get_option(section,option,poptions,None,None)
                     
 
         if required is not None:
             for r in required:
                 if not r in result:
-                    print(f'[ERROR] Option {r} is required in section {section} of the configuration file.')
+                    print(f'[ERROR][CONFIG] Option {r} is required in section {section} of the configuration file.')
                     return None
                 if result[r] is None:
-                    print(f'[ERROR] Option {section}/{r}  of the configuration file is required.')
+                    print(f'[ERROR][CONFIG] Option {section}/{r}  of the configuration file is required.')
                     if poptions[r]['type_param']=='file' and self.options.has_option(section,r):
-                        print(f'[ERROR] {section}/{r}: {self.options[section][r]} does not exist or is not a valid file')
+                        print(f'[ERROR][CONFIG] {section}/{r}: {self.options[section][r]} does not exist or is not a valid file')
                     return None
 
         return result
@@ -476,7 +475,7 @@ class OptionsManager:
 
         if list_values is not None:
             if not value in list_values:
-                print(f'[WARNING] Section/option {section}/{option}: {value} is not a valid value. It should be in the list: {list_values}')
+                print(f'[WARNING][CONFIG] Section/option {section}/{option}: {value} is not a valid value. It should be in the list: {list_values}')
                 value = None
 
         return value
@@ -512,7 +511,7 @@ def get_value_param_impl(value,type_p,default,key_values=None):
             if default is not None and os.path.exists(default):
                 return default
             else:
-                print(f'[WARNING] Input file {file} is not a valid file.')
+                print(f'[WARNING][CONFIG] Input file {file} is not a valid file.')
                 return None
         else:
             if type_p_check is not None:
@@ -527,24 +526,24 @@ def get_value_param_impl(value,type_p,default,key_values=None):
         file = value.strip(f'"')
         check_default = False
         if ext is not None and not file.endswith(f'.{ext}'):
-            print(f'[WARNING] Output file {file} does not have the correct extension, it should be {ext}')
+            print(f'[WARNING][CONFIG] Output file {file} does not have the correct extension, it should be {ext}')
             check_default = True
         output_dir = os.path.dirname(file)
         try:
             os.makedirs(output_dir,exist_ok=True)
         except:
-            print(f'[WARNING] Output path {output_dir} does not exist and could not be created.')
+            print(f'[WARNING][CONFIG] Output path {output_dir} does not exist and could not be created.')
             check_default = True
         if check_default:
             if default is not None:
                 if ext is not None and not default.endswith(f'.{ext}'):
-                    print(f'[WARNING] Output default file {default} does not have the correct extension, it should be {ext}')
+                    print(f'[WARNING][CONFIG] Output default file {default} does not have the correct extension, it should be {ext}')
                     return None
                 output_dir_default = os.path.dirname(default)
                 try:
                     os.makedirs(output_dir_default, exist_ok=True)
                 except:
-                    print(f'[WARNING] Default output path {output_dir_default} does not exist and could not be created.')
+                    print(f'[WARNING][CONFIG] Default output path {output_dir_default} does not exist and could not be created.')
                     return None
                 return default
             else:
@@ -558,9 +557,9 @@ def get_value_param_impl(value,type_p,default,key_values=None):
             os.makedirs(directory,exist_ok=True)
         except:
             if default is not None and os.path.isdir(default):
-                print(f'[WARNING] Output path {directory} does not exist and could not be created. Using default output path: {default})')
+                print(f'[WARNING][CONFIG] Output path {directory} does not exist and could not be created. Using default output path: {default})')
             else:
-                print(f'[WARNING] Output path {directory} does not exist and could not be created. Please review permissions')
+                print(f'[WARNING][CONFIG] Output path {directory} does not exist and could not be created. Please review permissions')
                 return None
         return directory
 
@@ -570,7 +569,7 @@ def get_value_param_impl(value,type_p,default,key_values=None):
             if default is not None and os.path.isdir(default):
                 return default
             else:
-                print(f'[WARNING] Input path {input_path} is not a valid directory')
+                print(f'[WARNING][CONFIG] Input path {input_path} is not a valid directory')
                 return None
         else:
             return input_path
@@ -642,11 +641,11 @@ def get_date_list_from_file(file):
         try:
             date_list.append(dt.strptime(line.strip(),'%Y-%m-%d').strftime('%Y-%m-%d'))
         except:
-            print(f'[WARNING] Error getting date list from file {file}: {line.strip()} is not in the  valid format YYYY-mm-dd. Skipping line...')
+            print(f'[WARNING][CONFIG] Error getting date list from file {file}: {line.strip()} is not in the  valid format YYYY-mm-dd. Skipping line...')
             continue
     fr.close()
     if len(date_list)==0:
-        print(f'[ERROR] No date were retrieved from file {file}. Date list will not be used')
+        print(f'[ERROR][CONFIG] No date were retrieved from file {file}. Date list will not be used')
         return None
     print(f'[INFO] Date list with {len(date_list)} dates obtained from file {file}')
 
@@ -659,7 +658,7 @@ def check_file(file,type_file):
             dset = Dataset(file)
             dset.close()
         except Exception as ex:
-            print(f'[WARNING] File {file} is not a valid {type_file}. Exception: {ex}')
+            print(f'[WARNING][CONFIG] File {file} is not a valid {type_file}. Exception: {ex}')
             return False
 
     if type_file=='ini':
@@ -667,7 +666,7 @@ def check_file(file,type_file):
             cp = configparser.ConfigParser()
             cp.read(file)
         except Exception as ex:
-            print(f'[WARNING] File {file} is not a valid {type_file}. Exception: {ex}')
+            print(f'[WARNING][CONFIG] File {file} is not a valid {type_file}. Exception: {ex}')
             return False
 
     return True
