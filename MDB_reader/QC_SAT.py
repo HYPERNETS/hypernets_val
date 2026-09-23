@@ -541,7 +541,7 @@ class QC_SAT:
             n_bands = self.dataset.variables[bands_variable].shape[0]
 
         if len(self.dataset.variables[spectral_variable].shape) != 4:
-            print(f'[ERROR][QC_SAT] Spectral variable {self.spectral_variable} should have 4 dimensions: satellite_id,satellite_bands,rows,columns')
+            print(f'[ERROR][QC_SAT] Spectral variable {spectral_variable} should have 4 dimensions: satellite_id,satellite_bands,rows,columns')
             check_qc = False
         else:
             n_bands_spectral = self.dataset.variables[spectral_variable].shape[1]

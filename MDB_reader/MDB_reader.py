@@ -48,11 +48,13 @@ class MDBr_Writer:
         self.verbose = verbose
 
     def create_mdb_file_out(self):
-        self.qc_sat.verbose = self.verbose
-        if self.verbose:
-            print(f'[INFO] Started created MDB file out')
+        # self.qc_sat.verbose = self.verbose
+        self.qc_ins.verbose = self.verbose
+        # if self.verbose:
+        #     print(f'[INFO][MDB_reader] Started created MDB file out')
+        # self.qc_sat.compute_validity()
+        self.qc_ins.compute_validity()
 
-        self.qc_sat.compute_validity()
 
 
 def main():

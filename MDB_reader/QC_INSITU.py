@@ -21,16 +21,26 @@ class QC_INSITU:
         self.bands_variable = 'insitu_original_bands'
         self.spectral_variable = 'insitu_Rrs'
         self.spectral_variable_unc = 'insitu_Rrs_unc'
+        self.instrument_variable = 'insitu_instrument_id'
         self.time_max = 7200
         self.max_diff_wl = 5.0
         self.spectral_convolution_methods = ["nearest","interp","srf","band_shifting"]
         ##filters
+        self.filter_invalid = None
         self.filter_flag = []
         self.filter_spectral_range = []
         self.filter_band_range = []
 
         self.spectral_stats = ['all', 'any', 'avg', 'median', 'std', 'iqr', 'min', 'max', 'CV']
         self.actions = ['keep','remove']
+        self.filter_invalid_options = ['all', 'any']
+
+        ##DIMENSIONS
+        ##dimensions
+        self.n_bands = None  ##defined for wl_list
+        self.n_original_bands = None
+        self.n_mu = None
+        self.n_insitu_id = None
         # self.name = ''
         #
         # self.insitu_rrs = insitu_rrs
@@ -87,6 +97,7 @@ class QC_INSITU:
         self.bands_variable = options_config['bands_variable']
         self.spectral_variable = options_config['spectral_variable']
         self.spectral_variable_unc = options_config['spectral_variable_unc']
+        self.instrument_variable = options_config['instrument_variable']
 
         self.max_diff_wl  = options_config['max_diff_wl']
 
@@ -106,6 +117,7 @@ class QC_INSITU:
                 self.time_max = max_time_value * u_factor[units.index(max_time_units)]
 
         self.spectral_convolution = options_config['spectral_convolution']
+        self.filter_invalid = options_config['filter_invalid']
 
     def set_wl_list(self,options_config):
         if not self.bands_variable in self.dataset.variables:
@@ -128,7 +140,6 @@ class QC_INSITU:
         wl_max = options_config['wl_max']
         if wl_list is not None and (wl_min is not None or wl_max is not None):
             print(f'[WARNING] As wl_list is given, wl_min and wl_max values are not used for setting the wavelength list')
-
 
         if wl_list is None:
             if wl_min is not None or wl_max is not None:
@@ -159,35 +170,45 @@ class QC_INSITU:
 
         self.wl_list = np.ma.masked_all((self.n_instruments,n_list))
         self.indices_wl = np.ma.masked_all((self.n_instruments,n_list),np.int32)
+        self.n_bands = n_list
+        self.n_original_bands = n_original_bands
 
         ##check maximum wavelength difference by instrument
         for i_instrument in range(self.n_instruments):
             original_bands_i = original_bands[i_instrument,:]
+            if original_bands_i.mask.all():
+                print(f'[WARNING][QC_INS] No bands are available for instrument {i_instrument}. It could cause problems if validation of spectra for this instrument is required. Skipping to the next instrument...')
+                continue
             wl_list_i = wl_list[i_instrument,:]
             wl_list_m = np.repeat(wl_list_i,n_original_bands).reshape((n_list,n_original_bands))
             wl_original_m = np.tile(original_bands_i,n_list).reshape((n_list,n_original_bands))
 
             diff_wl = np.abs(wl_list_m-wl_original_m)
             min_diff_wl = np.min(diff_wl,axis=1)
+
             if np.max(min_diff_wl)>=self.max_diff_wl:
-                print(f'[ERROR][QC_INS] Some bands given in the parameter wl_list are not available as wavelength difference with the in situ original bands is greater than the allowed maximum of {self.max_diff_wl} nm')
-                min_diff_wl = np.ma.filled(min_diff_wl,self.max_diff_wl)  ##no_valid_bands are defined only for non-masked
-                no_valid_bands = wl_list_i[min_diff_wl>self.max_diff_wl]
-                print(f'Please review the following bands: ')
+                print(f'[WARNING][QC_INS][START]=======================================================================')
+                print(f'Some bands given in the parameter wl_list are not available as wavelength difference with the in situ original bands is greater than the allowed maximum of {self.max_diff_wl} nm')
+                print(f'Options:')
+                min_diff_wl_f = np.ma.filled(min_diff_wl,self.max_diff_wl)  ##no_valid_bands are defined only for non-masked
+                no_valid_bands = wl_list_i[min_diff_wl_f>self.max_diff_wl]
+                print(f' 1. Remove the following bands and try it again: ')
                 for no_valid_band in no_valid_bands:
-                    print(f'{no_valid_band} nm')
-                print(f'Or you can also modify the allowed  maximum difference using the max_diff_wl parameter in QC_INS')
-                self.wl_list = None
-                self.indices_wl = None
-                return
+                    print(f'    * {no_valid_band} nm')
+                print(f' 2. Modify the allowed  maximum difference using the max_diff_wl parameter in QC_INS and try it again')
+                print(f' 3. Use these results, considering that in situ spectra could be incomplete for some of the required bands')
+                print(f'[WARNING][QC_INS][STOP]========================================================================')
+
             indices_min_diff_wl = np.ma.array(np.argmin(diff_wl,axis=1),mask=min_diff_wl.mask)
-            indices_no_mask = indices_min_diff_wl.compressed()
-            self.wl_list[i_instrument,min_diff_wl.mask==False] = wl_list_i[indices_no_mask]
+            indices_min_diff_wl[min_diff_wl>self.max_diff_wl] = np.ma.masked
+            self.wl_list[i_instrument,:] = wl_list_i[:]
+            self.wl_list[i_instrument,indices_min_diff_wl.mask] = np.ma.masked
             self.indices_wl[i_instrument,:] = indices_min_diff_wl[:]
+
 
     def set_flag_filter(self,options_config, key_values = None):
         self.filter_flag = cfs.get_filter_list(options_config,'filter_flag_',key_values=key_values)
-        #print(self.flag_filter)
+
 
     def set_spectral_range_filter(self,options_config, key_values = None):
         self.filter_spectral_range = cfs.get_filter_list(options_config, 'filter_spectral_range_', key_values=key_values)
@@ -207,8 +228,33 @@ class QC_INSITU:
         if self.time_max is None:
             check_qc = False
 
+        if self.n_mu is None:
+            print(f'[ERROR][QC_INS] Problem retrieving the number of potential match-ups')
+            check_qc = False
+        if self.n_insitu_id is None:
+            print(f'[ERROR][QC_INS] Problem retrieving the number of potential spectra')
+            check_qc = False
+        if self.n_bands is None:
+            print(f'[ERROR][QC_INS] Problem retrieving the number of bands for wl_list')
+            check_qc = False
+        if self.n_original_bands is None:
+            print(f'[ERROR][QC_INS] Problem retrieving the number of original bands')
+            check_qc = False
+
         if not self.spectral_convolution  in self.spectral_convolution_methods:
             print(f'[ERROR][QC_INS] spectral_convolution {self.spectral_convolution} method is not available, it should be one of {self.spectral_convolution_methods}')
+            check_qc = False
+
+        if self.filter_invalid not in self.filter_invalid_options:
+            print(f'[ERROR][QC_INS] filter_invalid {self.filter_invalid} should be one of {self.filter_invalid_options}')
+            check_qc = False
+
+        if self.spectral_variable_unc is not None and not self.check_spectral_variable(self.spectral_variable_unc,self.bands_variable):
+            print(f'[ERROR][QC_INS] spectral_variable_unc {self.spectral_variable_unc} is not available, it should not be used in the quality control scripts')
+            check_qc = False
+
+        if self.n_instruments>1 and not self.check_non_spectral_variable(self.instrument_variable):
+            print(f'[ERROR][QC_INS] instruments_variable {self.instrument_variable} is not available, but it is required as the number of instruments {self.n_instruments} > 1:wq')
             check_qc = False
 
         if len(self.filter_flag)>0:
@@ -226,7 +272,7 @@ class QC_INSITU:
                 else:
                     if flag_list is not None:
                         if '$' in flag_list:
-                            print(f'[ERROR][QC_INS] Key flag \"$\" for empty flags is not allowed for flag_list, but only for flag_list_valid (filter_flag_{idx})')
+                            print(f'[ERROR][QC_INS] Key flag \"$NONE$\" for empty flags is not allowed for flag_list, but only for flag_list_valid (filter_flag_{idx})')
                             check_qc = False
                         if not self.check_flag_list(self.filter_flag[idx]['name_var'],flag_list):
                             check_qc = False
@@ -313,6 +359,112 @@ class QC_INSITU:
 
         return check_qc
 
+
+    def get_wl_list_subset_from_main_wl_list(self,wl_list_here):
+        wl_list_here = np.array(wl_list_here)
+        n_list_here = wl_list_here.shape[0]
+        wl_list_here = np.tile(wl_list_here, self.n_instruments).reshape(self.n_instruments, n_list_here)
+        n_original_bands = self.wl_list.shape[1]
+        wl_list_final = np.ma.masked_all((self.n_instruments, n_list_here), dtype=self.wl_list.dtype)
+        indices_wl_final = np.ma.masked_all((self.n_instruments, n_list_here), dtype=self.indices_wl.dtype)
+        for instrument_id in range(self.n_instruments):
+            wl_list_here_m = np.repeat(wl_list_here[instrument_id, :], n_original_bands).reshape(
+                (n_list_here, n_original_bands))
+            wl_original_m = np.tile(self.wl_list[instrument_id], n_list_here).reshape((n_list_here, n_original_bands))
+            diff_wl = np.abs(wl_list_here_m - wl_original_m)
+            min_diff_wl = np.min(diff_wl, axis=1)
+            indices_min_diff_wl = np.ma.array(np.argmin(diff_wl, axis=1), mask=min_diff_wl.mask)
+            indices_min_diff_wl[min_diff_wl > self.max_diff_wl] = np.ma.masked
+            wl_list_final[instrument_id, indices_min_diff_wl.mask == False] = self.wl_list[instrument_id, indices_min_diff_wl.compressed()]
+            indices_wl_final[instrument_id,indices_min_diff_wl.mask == False] = self.indices_wl[instrument_id, indices_min_diff_wl.compressed()]
+
+        return wl_list_final,indices_wl_final
+
+    def get_all_spectra(self,name_var,wl_list_here = None,to_original_shape = True,limit_to=None):
+        if wl_list_here is None:
+            wl_list_here = self.wl_list
+            indices_wl_here = self.indices_wl
+        else:
+            wl_list_here,indices_wl_here = self.get_wl_list_subset_from_main_wl_list(wl_list_here)
+
+
+
+
+
+        # if np.sum(np.diff(self.indices_wl,axis=0))==0:##indices wl are equal for all the instruments
+        #     indices_check = np.arange(self.dataset.variables[name_var].shape[1]).astype(np.int32).all()==self.indices_wl[0,:].all()
+        #     if indices_check:##data don't need to subsetted using the indices
+        #         data_dest = self.dataset.variables[name_var][:]
+        #     else:
+        #         data_dest = self.dataset.variables[name_var][:, self.indices_wl[0, :], :]
+        #     return data_dest
+
+        ##data are subsetted considering different instruments
+        n_sat = self.dataset.variables[name_var].shape[0]
+        n_ins = self.dataset.variables[name_var].shape[2]
+        n_all = n_sat*n_ins
+        n_bands = self.dataset.variables[name_var].shape[1]
+
+        data_orig = np.reshape(np.moveaxis(self.dataset.variables[name_var][:],1,2),(n_all,n_bands))
+        instrument_array = np.reshape(self.dataset.variables[self.instrument_variable][:],(n_all,))
+        n_bands_dest = wl_list_here.shape[1]
+        data_dest = np.ma.masked_all((n_all,n_bands_dest),dtype=data_orig.dtype)
+
+
+        for instrument_id in range(self.n_instruments):
+            indices_wl_instrument = indices_wl_here[instrument_id,:].compressed()
+            wl_instrument_mask = indices_wl_here[instrument_id,:].mask
+            is_sat_instrument = instrument_array==instrument_id
+            if np.sum(is_sat_instrument)>0:
+                data_dest_instrument = data_dest[is_sat_instrument,:]
+                data_orig_instrument = data_orig[:,indices_wl_instrument]
+                data_dest_instrument[:,wl_instrument_mask==False] = data_orig_instrument[is_sat_instrument,:]
+                data_dest[is_sat_instrument,:] = data_dest_instrument[:,:]
+
+
+        if limit_to is not None:
+            if limit_to=='VALID_ALL':
+                is_valid = np.ma.count(data_dest,axis=1)==data_dest.shape[1]
+                data_dest = data_dest[is_valid,:]
+            elif limit_to=='VALID_ANY':
+                is_valid = np.ma.sum(data_dest, axis=1) > 0
+                data_dest = data_dest[is_valid, :]
+
+            return data_dest
+
+        if to_original_shape:
+            data_dest = np.moveaxis(np.reshape(data_dest,(n_sat,n_ins,n_bands_dest)),2,1)
+
+
+        return data_dest
+
+    def compute_validity(self):
+        original_shape = self.dataset.variables[self.spectral_variable].shape
+        spectral_data = self.get_all_spectra(self.spectral_variable,to_original_shape = False)
+        if self.n_mu!=original_shape[0]:
+            print(f'[ERROR] Number of match-ups {self.n_mu} does not agree with the shape of the spectral variable {self.spectral_variable}: {original_shape[0]} ')
+            return
+        if self.n_insitu_id!=original_shape[2]:
+            print(f'[ERROR] Number of spectra {self.n_insitu_id} does not agree with the shape of the spectral variable {self.spectral_variable}: {original_shape.shape[1]} ')
+            return
+        n_all_spectra = self.n_mu * self.n_insitu_id
+        if n_all_spectra != spectral_data.shape[0]:
+            print(
+                f'[ERROR] Total number of spectra {n_all_spectra} does not agree with the shape of the transformed spectral variable {self.spectral_variable}: {spectral_data.shape[0]} ')
+            return
+
+        if self.verbose:
+            print(f'[INFO][QC_INS] Started spectral validity for {n_all_spectra} spectra ({self.n_mu} potential match-ups x {self.n_insitu_id} potential spectra by match-up)')
+
+        invalid_filter_array = self.compute_invalid_filter(spectral_data)
+        if self.verbose:
+            print(f'[INFO][QC_INS] Number of non available or incomplete spectra: {np.sum(invalid_filter_array)}')
+
+        mask_flag = self.compute_flag_mask_array()
+        if self.verbose:
+            print(f'[INFO][QC_INS] Number of filtered spectra using flag variables: {int(np.sum(mask_flag))}')
+
+
     def check_flag_list(self,name_variable,flag_list):
         if name_variable is None:
             print(f'[ERROR][QC_INS] name_variable is required for flagging filters, it could not be None')
@@ -324,41 +476,16 @@ class QC_INSITU:
             print(f'[ERROR][QC_INS] {flag_list} is required for flagging filters, it could not be None')
             return False
 
-        # ##flag list could be given as: flag_meanings (string with space separated flag) or flag_list (comma separated list)
-        # flag_list_var = None
-        # if 'flag_meanings' in self.dataset.variables[name_variable].ncattrs():
-        #     flag_list_var =self.dataset.variables[name_variable].flag_meanings.split(' ')
-        # elif 'flag_list' in self.dataset.variables[name_variable].ncattrs():
-        #     flag_list_var = self.dataset.variables[name_variable].flag_list.split(',')
-        # if flag_list_var is None:
-        #     print(f'[ERROR][QC_INS] Flag list is not available for variable {name_variable}, attribute flag_meanings or flag_list is required')
-        #     return False
-        #
-        # flag_values_var = None
-        # if 'flag_values' in self.dataset.variables[name_variable].ncattrs():
-        #     flag_values_var = self.dataset.variables[name_variable].flag_values
-        # elif 'flag_masks' in self.dataset.variables[name_variable].ncattrs():
-        #     flag_values_var = self.dataset.variables[name_variable].flag_masks
-        # elif 'flag_mask' in self.dataset.variables[name_variable].ncattrs():
-        #     flag_values_var = self.dataset.variables[name_variable].flag_mask
-        # if isinstance(flag_values_var,str):
-        #     try:
-        #         flag_values_var = [np.int64(x) for x in flag_values_var.split(',')]
-        #     except ValueError as ex:
-        #         print(f'[ERROR][QC_INS] Value error {ex}')
-        #         flag_values_var = None
-        # if not isinstance(flag_values_var,list):
-        #     print(f'[ERROR][QC_INS] Flag values list is not available for variable {name_variable}, attribute flag_values, flag_masks or flag_mask with a comma separated list of integer values is required')
-        #     return False
         flag_list_var, flag_values_var = ffs.get_info_from_flag_variable(self.dataset.variables[name_variable],key_error='QC_INS')
         if flag_values_var is None or flag_list_var is None:
             return False
-        if '$' in flag_list:
-            flag_list.remove('$')
+        flag_list_check = flag_list.copy()
+        if '$NONE$' in flag_list_check:
+            flag_list_check.remove('$NONE$')
 
-        check = set(flag_list).issubset(set(flag_list_var))
+        check = set(flag_list_check).issubset(set(flag_list_var))
         if not check:
-            print(f'[ERROR][QC_INS] {flag_list} flags are not available in the variable {name_variable} flag list: {flag_list_var}')
+            print(f'[ERROR][QC_INS] {flag_list_check} flags are not available in the variable {name_variable} flag list: {flag_list_var}')
         return check
 
     def check_spectral_variable(self,spectral_variable,bands_variable):
@@ -371,24 +498,43 @@ class QC_INSITU:
             print(f'[ERROR][QC_INS] Spectral variable {spectral_variable} is not available in the dataset. Choose among:')
             print(f'[ERROR][QC_INS]{list(self.dataset.variables)}')
             return False
-        original_bands = self.dataset.variables[self.bands_variable][:]
-        if len(original_bands.shape) == 1:
-            n_bands = original_bands.shape[0]
-        elif len(original_bands.shape) == 2:
-            n_bands = original_bands.shape[1]
+
+        if self.n_original_bands is None:
+            original_bands = self.dataset.variables[self.bands_variable][:]
+            if len(original_bands.shape) == 1:
+                n_bands = original_bands.shape[0]
+                self.n_original_bands = n_bands
+            elif len(original_bands.shape) == 2:
+                n_bands = original_bands.shape[1]
+                self.n_original_bands = n_bands
+            else:
+                print(f'[ERROR][QC_INS] Wavelength {self.bands_variable} variable should have 1 or 2 dimensions')
+                check_qc = False
+                n_bands = -1
         else:
-            print(f'[ERROR][QC_INS] Wavelength {self.bands_variable} variable should have 1 or 2 dimensions')
-            check_qc = False
-            n_bands = -1
+            n_bands = self.n_original_bands
 
         if len(self.dataset.variables[spectral_variable].shape) != 3:
             print(f'[ERROR][QC_INS] Spectral variable {self.spectral_variable} should have 3 dimensions: satellite_id,insitu_bands,insitu_id')
             check_qc = False
         else:
             n_bands_spectral = self.dataset.variables[spectral_variable].shape[1]
+            n_mu = self.dataset.variables[spectral_variable].shape[0]
+            n_id = self.dataset.variables[spectral_variable].shape[2]
             if n_bands_spectral != n_bands and n_bands>0:
-                print(f'[ERROR][QC_INS] The number of bands in the spectral variable ({n_bands_spectral}) should be equal to the number of bands in the band wavelengths variable ({n_bands}) ')
+                print(f'[ERROR][QC_INS] The number of bands in the spectral variable {spectral_variable} ({n_bands_spectral}) should be equal to the number of bands in the band wavelengths variable ({n_bands}) ')
                 check_qc = False
+            if self.n_mu is not None and self.n_mu!=n_mu:
+                print(f'[ERROR][QC_INS] The number of match-ups in the spectral variable {spectral_variable} ({n_mu}) should be equal to the general number of match-ups ({self.n_mu}) ')
+                check_qc = False
+            if self.n_mu is None:
+                self.n_mu = n_mu
+            if self.n_insitu_id is not None and self.n_insitu_id!=n_id:
+                print(f'[ERROR][QC_INS] The number of spectra in the spectral variable {spectral_variable} ({n_id}) should be equal to the general number of spectra ({self.n_insitu_id}) ')
+                check_qc = False
+            if self.n_insitu_id is None:
+                self.n_insitu_id = n_id
+
 
         return check_qc
 
@@ -402,8 +548,90 @@ class QC_INSITU:
         if len(self.dataset.variables[name_var].shape) != 2:
             print(f'[ERROR][QC_INS] Spectral variable {name_var} should have 2 dimensions: satellite_id, insitu_id')
             check_qc = False
+        n_mu = self.dataset.variables[name_var].shape[0]
+        n_id = self.dataset.variables[name_var].shape[1]
+        if self.n_mu is not None and self.n_mu != n_mu:
+            print(f'[ERROR][QC_INS] The number of match-ups in the non-spectral variable {name_var} ({n_mu}) should be equal to the general number of match-ups ({self.n_mu}) ')
+            check_qc = False
+        if self.n_mu is None:
+            self.n_mu = n_mu
+        if self.n_insitu_id is not None and self.n_insitu_id != n_id:
+            print(f'[ERROR][QC_INS] The number of spectra in the non-spectral variable {name_var} ({n_id}) should be equal to the general number of spectra ({self.n_insitu_id}) ')
+            check_qc = False
+        if self.n_insitu_id is None:
+            self.n_insitu_id = n_id
+
+
 
         return check_qc
+
+
+    def compute_invalid_filter(self,spectral_data):
+
+        invalid_filter = None
+        if self.filter_invalid.lower() == 'any':
+            invalid_filter = np.where(np.ma.count_masked(spectral_data,axis=1)>0,1,0)
+
+        elif self.filter_invalid.lower() == 'all':
+            invalid_filter = np.where(np.ma.count_masked(spectral_data, axis=1) == spectral_data.shape[1], 1, 0)
+
+        return invalid_filter
+
+    def compute_flag_mask_array(self):
+        n_all = self.n_mu * self.n_insitu_id
+        flag_mask = np.zeros((n_all,), dtype=np.uint64)
+        for idx in range(len(self.filter_flag)):
+            flag_mask_here = self.compute_flag_mask_array_impl(self.filter_flag[idx])
+            if self.verbose:
+                print(f'[INFO][QC_INS] Number of removed spectra using filter_flag_{idx} ({self.filter_flag[idx]["name_var"]}): {np.sum(flag_mask_here)}')
+            if flag_mask_here is not None:
+                flag_mask = flag_mask + flag_mask_here
+        flag_mask[flag_mask > 0] = 1
+
+        return flag_mask
+
+    def compute_flag_mask_array_impl(self, f_flag):
+        flag_array_all = self.dataset.variables[f_flag['name_var']][:].flatten()
+        if np.issubdtype(flag_array_all.dtype, np.floating): ##floating points are not allowed
+            flag_array_all = flag_array_all.astype('uint64')
+
+        flag_array = flag_array_all.compressed()
+        
+        fw = ffs.start_flag_work_from_variable(self.dataset.variables[f_flag['name_var']])
+        if fw is None:
+            print(f'[ERROR][QC_INS] Flag work object for variable {f_flag["name_var"]} could not be started')
+            return np.zeros(flag_array.shape, dtype=np.int8)
+        if self.verbose:
+            print(f'[INFO][QC_INS] Starting FlagWork object with variable {f_flag["name_var"]}. Data type: {fw.dType}')
+
+        ##invalid
+        mask_array = None
+        if f_flag['flag_list'] is not None:
+            mask_array = fw.mask(flag_array,f_flag['flag_list'])
+            mask_array[mask_array >= 1] = 1
+        if f_flag['flag_list_valid'] is not None:
+            f_list = f_flag['flag_list_valid'].copy()
+
+            if '$NONE$' in f_list:
+                mask_array_v = np.where(flag_array==0,0,1)
+                if len(f_list)>1:
+                    f_list.remove('$NONE$')
+                    m_array = fw.mask(flag_array,f_list)
+                    mask_array_v[m_array>=1] = 0
+            else:
+                m_array = fw.mask(flag_array, f_list)
+                mask_array_v = np.where(m_array>=1,0,1)
+            if mask_array is None:
+                mask_array = mask_array_v
+            else:
+                mask_array = np.where(np.logical_and(mask_array_v==0,ask_array==0,mask_array),0,1)
+
+        mask_array_all = np.ma.masked_all(flag_array_all.shape,dtype=mask_array.dtype)
+        mask_array_all[flag_array_all.mask==False] = mask_array[:]
+
+        return mask_array_all
+
+
     # def check_validity(self):
     #
     #
