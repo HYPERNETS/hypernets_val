@@ -76,13 +76,13 @@ class MDB_READER():
             return
 
         if self.mfile.df_validation is None:
-            nmu_valid, df_valid = self.mfile.prepare_df_validation()
-            #nmu_valid, df_valid = self.mfile.prepare_df_validtion_new()
+            #nmu_valid, df_valid = self.mfile.prepare_df_validation()
+            nmu_valid, df_valid = self.mfile.prepare_df_validation_new()
             foutcsv = fout.replace('.nc', '_summary.csv')
             foutcsv = foutcsv.replace('MDBr', 'CSVr')
             df_valid.to_csv(foutcsv, sep=';')
 
-
+        print(f'[INFO] Started creation of MDBr file...')
         ibase = INSITUBASE(None)
 
         if reduce_mdbr:
@@ -128,6 +128,7 @@ class MDB_READER():
         }
 
         for new_var_name in new_variables:
+            print(f'[INFO] Creating new variable: {new_var_name}')
             new_var = new_MDB.createVariable(new_var_name, new_variables[new_var_name]['type'], ('mu_id',), zlib=True,
                                              complevel=6)
             array = np.array(self.mfile.df_validation.loc[:, new_variables[new_var_name]['namedf']])
@@ -190,12 +191,13 @@ class MDB_READER():
         foutcsv = fout.replace('.nc', '.csv')
         foutcsv = foutcsv.replace('MDBr', 'CSVr')
 
-        if nmu_valid>0:
-            index_band_array = np.array(self.mfile.df_validation['Index_Band'][:])
-            index_band_min = np.min(index_band_array)
-            status = self.mfile.df_validation[self.mfile.df_validation['Index_Band'] == index_band_min]['status']
-            status_array = np.array(status)
-            self.mfile.df_mu['status'][:] = status_array
+        # not needed with df_validation new
+        # if nmu_valid>0:
+        #     index_band_array = np.array(self.mfile.df_validation['Index_Band'][:])
+        #     index_band_min = np.min(index_band_array)
+        #     status = self.mfile.df_validation[self.mfile.df_validation['Index_Band'] == index_band_min]['status']
+        #     status_array = np.array(status)
+        #     self.mfile.df_mu['status'][:] = status_array
 
         self.mfile.df_mu.to_csv(foutcsv, sep=';')
 

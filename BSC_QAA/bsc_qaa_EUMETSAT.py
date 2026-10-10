@@ -129,6 +129,8 @@ def qaa(rrs_in, band_in, g0=0.089, g1=0.1245):  # the qaa algorithm
     band_matrix = np.reshape(band_matrix, rrs0m.shape)
     bbp = bbp0 * (lam0 / band_matrix) ** n  # calculate bbp spectrum
 
+
+
     bbp443 = bbp[b443]  # bbp at 443 nm
     bbp470 = bbp0 * (lam0 / 470.) ** n
     a = ma.zeros(bbp.shape)
@@ -156,6 +158,7 @@ def qaa(rrs_in, band_in, g0=0.089, g1=0.1245):  # the qaa algorithm
     a555 = a[b555]
     bbp555 = bbp0 * (lam0 / band_in[b555]) ** n
     np.set_printoptions(threshold=sys.maxsize)
+
 
     out = {'bbp443': bbp443, 'adg443': adg443, 'aph443': aph443, 'lambda0': lam0, 'eta': n, 's': s, 'a555': a555,
            'bbp0': bbp0, 'a0': a0}

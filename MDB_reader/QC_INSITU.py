@@ -63,7 +63,11 @@ class QC_INSITU:
         self.insitu_time = None
         self.sat_time = None
 
+
+
     def check_validity(self):
+
+
         nmu = self.insitu_rrs.shape[0]
         nid = self.insitu_rrs.shape[2]
         nspectra = nmu * nid
@@ -75,6 +79,14 @@ class QC_INSITU:
         insitu_rrs_check = np.ma.masked_invalid(self.insitu_rrs)
         insitu_rrs_check = np.moveaxis(insitu_rrs_check,1,2)
         insitu_rrs_check = np.reshape(insitu_rrs_check,(nspectra,nbands))
+
+        # print('check validity line 83',insitu_rrs_check.shape)
+        # print(self.wl_list,self.wl_indices,self.instrument_id_array is None)
+        #
+        # if self.instrument_id_array is not None:
+        #     instrument_id_array = np.reshape(self.instrument_id_array,(nspectra,))
+        #     print(instrument_id_array.shape)
+
 
         #insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check, axis=1) > 0
         #insitu_rrs_check_sum = np.ma.count_masked(insitu_rrs_check, axis=1) > 3 ##for LAIT
@@ -161,6 +173,48 @@ class QC_INSITU:
         print(f'[INFO]->Number of conditions analysed: {nconditions}')
         self.insitu_valid_rrs = np.where(self.insitu_valid_rrs==nconditions,True,False)
         print(f'[INFO]->Number of valid spectra: {np.ma.sum(self.insitu_valid_rrs)}')
+
+    def get_spectra_rrs(self, insitu_id, valid_sat_id=None):
+        return self.get_spectra_impl(self.insitu_rrs,insitu_id,valid_sat_id)
+
+    def get_spectra_unc(self, insitu_id, valid_sat_id=None):
+        return self.get_spectra_impl(self.insitu_rrs_unc,insitu_id,valid_sat_id)
+
+    def get_spectra_impl(self,insitu_rrs_impl,insitu_id,valid_sat_id=None):
+        insitu_rrs_impl = insitu_rrs_impl[:]
+        insitu_rrs_all = np.moveaxis(insitu_rrs_impl, 1, 2)
+        if valid_sat_id is not None:
+            insitu_rrs_nearest = insitu_rrs_all[valid_sat_id==1, insitu_id, :]
+        else:
+            insitu_rrs_nearest = insitu_rrs_all[np.arange(insitu_rrs_all.shape[0]).astype(np.int32), insitu_id, :]
+        if len(self.wl_indices.shape) == 1:
+            insitu_rrs_nearest = insitu_rrs_nearest[:, self.wl_indices]
+            return insitu_rrs_nearest
+
+        if self.wl_indices.shape[0]==1:
+            insitu_rrs_nearest = insitu_rrs_nearest[:, self.wl_indices[0]]
+            return insitu_rrs_nearest
+
+
+        indices_equal = (self.wl_indices[0]==self.wl_indices).all()
+        if indices_equal:
+            insitu_rrs_nearest = insitu_rrs_nearest[:,self.wl_indices[0]]
+            return insitu_rrs_nearest
+        else:
+            if self.instrument_id_array is None:
+                print(f'[ERROR] {self.wl_indices.shape[0]} different wl arrays  for different instruments are given, but instrument id array is not available')
+                return None
+            if valid_sat_id is not None:
+                instrument_id_array = self.instrument_id_array[valid_sat_id == 1, insitu_id]
+            else:
+                instrument_id_array = self.instrument_id_array[np.arange(self.instrument_id_array.shape[0]).astype(np.int32), insitu_id]
+            instruments_here = np.unique(instrument_id_array).compressed()
+            insitu_rrs_end = np.ma.masked_all((insitu_rrs_nearest.shape[0],self.wl_indices.shape[1]))
+            for instrument_id in instruments_here:
+                insitu_rrs_nearest_here = insitu_rrs_nearest[instrument_id_array==instrument_id, :]
+                insitu_rrs_end[instrument_id_array==instrument_id,:] = insitu_rrs_nearest_here[:,self.wl_indices[instrument_id]]
+
+            return insitu_rrs_end
 
 
 
@@ -457,8 +511,6 @@ class QC_INSITU:
 
         return insitu_rrs_min,insitu_rrs_max
 
-
-
     def get_insitu_index(self, wl):
         all_wl = self.insitu_bands[:]
         dif_wl = np.abs(all_wl - wl)
@@ -518,8 +570,6 @@ class QC_INSITU:
 
         return np.array(stat_spectra)
 
-
-
     def get_finalspectrum_mu(self, index_mu, dif_time_array, exact_wl_array, wl_ref):
 
         time_condition = False
@@ -540,12 +590,11 @@ class QC_INSITU:
 
         indices_good = np.argsort(dif_time_good)
 
-
-
         time_condition_array = dif_time_good[indices_good]<self.time_max
 
         spectra_array = np.squeeze(self.insitu_rrs[index_mu, :, :])
         spectra_validity = np.squeeze(self.insitu_valid_rrs[index_mu, :])
+
         if ngood < dif_time_array.shape[0]:
             spectra_array = spectra_array[:,~dif_time_array.mask]
             spectra_validity = spectra_validity[~dif_time_array.mask]
@@ -555,11 +604,11 @@ class QC_INSITU:
 
         if self.instrument_id_array is not None:
             instrument_valid = self.instrument_id_array[~dif_time_array.mask]
+            instrument_valid = instrument_valid[indices_good]
             ins_here = np.unique(instrument_valid)
             if len(ins_here)==1:
                 if self.wl_indices.shape[0]==1:
                     indices = self.wl_indices[0,:]
-                    #print('--->',indices.shape,indices[0:10])
                 else:
                     indices = self.wl_indices[ins_here[0],:]
                 rrs_values = spectra_array[indices,:]
@@ -568,7 +617,7 @@ class QC_INSITU:
                 n_here = spectra_array.shape[1]
                 rrs_values = np.ma.masked_all((n_bands,n_here))
                 for ihere in range(n_here):
-                    indices = instrument_valid[ihere]
+                    indices = self.wl_indices[instrument_valid[ihere],:]
                     rrs_values[:,ihere]= spectra_array[indices,ihere]
         else:
             indices = self.wl_indices[0, :]

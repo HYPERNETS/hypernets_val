@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from netCDF4 import Dataset
 
+#from BSC_QAA import bsc_qaa_EUMETSAT
+
 parser = argparse.ArgumentParser(
     description="Obtaining information for running MDB_builder.")
 

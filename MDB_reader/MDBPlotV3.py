@@ -896,11 +896,20 @@ class MDBPlot:
             pspectra.legend_options['markerscale']=1.5
             pspectra.legend_options['loc']='lower center'
             pspectra.legend_options['ncols'] = 1#len(options_figure['legend_values'])
+            print('legend:',stat)
             #pos = (0.50,-0.40)
-            #pos = (0.15, 0.65) #arriba izquierda
-            #pos = (0.85, 0.65) #arriba derecha
-            #pos = (0.85, 0.10) #bias LAIT abajo derecha
-            pos = (0.40, 0.10)  # bajo centro
+            if stat=='MdAPD':
+                pos = (0.15, 0.65) #arriba izquierda
+            if stat=='MdAD' or stat=='RMSD':
+                pos = (0.85, 0.65) #arriba derecha
+            if stat=='MdBIAS':
+                pos = (0.85, 0.10) #bias abajo derecha
+            if stat=='R2' or stat=='MdRPD':
+                pos = (0.40, 0.10)  # bajo centro
+            if stat=='MdRPD':##LAIT
+                pos = (0.15, 0.65)  # arriba izquierda
+            if stat=='R2':
+                pos = (0.85, 0.65) #arriba derecha
             pspectra.legend_options['framealpha'] = 1.0
             pspectra.legend_options['bbox_to_anchor'] = pos
             pspectra.set_legend(options_figure['legend_values'])
@@ -2741,6 +2750,7 @@ class MDBPlot:
             min_y = options['y_min']
         if options['y_max'] is not None:
             max_y = options['y_max']
+
 
         plot.set_limits_X(min_x, max_x)
         plot.set_limits_Y(min_y, max_y)

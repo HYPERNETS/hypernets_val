@@ -226,15 +226,22 @@ class QC_SAT:
         self.satellite_rrs = np.ma.masked_invalid(self.satellite_rrs)##make sure that nan,-inf,inf are masked
 
         flag_mask,land = self.compute_flag_mask_array()
+        indices_to_check = [31,45,48,51,194,225,281]
+        for icheck in indices_to_check:
+            print(icheck,np.sum(flag_mask[icheck,:,:]))
+
         print(f'[INFO]->Number of flagged pixels: {np.ma.sum(flag_mask)}/{np.ma.count(flag_mask)}')
         print(f'[INFO]->Number of land pixels:  {np.ma.sum(land)}/{np.ma.count(land)}')
         mask_invalid = self.compute_invalid_masks_array()
+        print('mu31 invalid-->',mask_invalid.shape,np.sum(mask_invalid[31,:]))
         print(f'[INFO]->Number of invalid rrs: {np.ma.sum(mask_invalid)}/{np.ma.count(mask_invalid)}')
         mask_th = self.compute_th_masks_array()
+        print('mu31 th-->', np.sum(mask_invalid[31, :]))
         print(f'[INFO]->Number of pixels masked using user-defined thresholds: {np.ma.sum(mask_th)}/{np.ma.count(mask_th)}')
 
         final_mask = flag_mask + mask_invalid + mask_th
         final_mask[final_mask>0]=1
+        print('mu31 final mask-->', np.sum(mask_invalid[31, :]))
 
         print(f'[INFO]->Number of masked pixels in the final mask: {np.ma.sum(final_mask)}/{np.ma.count(final_mask)}')
 
@@ -284,6 +291,7 @@ class QC_SAT:
                 rrs_unc = self.satellite_rrs_unc[:, :, r_s:r_e, c_s:c_e]
             rrs_unc[mask_rrs] = np.ma.masked
             reported_rrs_unc = self.get_stat_spectral_impl(self.stat_value,rrs_unc)
+
 
 
         self.qc_sat_results = {

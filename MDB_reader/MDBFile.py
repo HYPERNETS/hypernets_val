@@ -681,7 +681,6 @@ class MDBFile:
         ins_time_index, time_condition, valid_insitu, spectrum_complete, rrs_values = self.qc_insitu.get_finalspectrum_mu(
             index_mu, time_difference, exact_wl, self.wlref)
 
-
         if time_condition and valid_insitu:
             ins_time = self.variables['insitu_time'][index_mu][ins_time_index]
             #mu_insitu_time = dt.utcfromtimestamp(float(ins_time))
@@ -745,8 +744,6 @@ class MDBFile:
 
         self.ins_time_index, self.mu_insitu_time, time_condition, valid_insitu, spectrum_complete, rrs_ins_values = \
             self.retrieve_ins_info_mu_spectra(index_mu)
-
-
 
         if rrs_ins_values is not None and len(rrs_ins_values)==1:
             rrs_ins_values = rrs_ins_values[0]
@@ -1205,46 +1202,39 @@ class MDBFile:
 
         return mu_ins_rrs_std,mu_ins_rrs_cv,mu_ins_rrs_nvalues,mu_ins_max_time_difference,mu_ins_max_spatial_index
 
-    def prepare_df_validtion_new(self):
+    def prepare_df_validation_new(self):
         print('[INFO] Preparing spectral validation...')
         nbands = len(self.wlref)
         print(f'[INFO] Number of bands: {nbands} Min.: {self.wlref[0]} Max.: {self.wlref[-1]}')
         ntot = nbands * self.n_mu_total
         self.df_validation = pd.DataFrame(columns=self.col_names, index=list(range(ntot)))
         self.delta_t = self.qc_insitu.time_max
-        index_tot = 0
-        nmu_valid = 0
-        nmu_valid_complete = 0
-        status_error = [0] * 8
+        if 'insitu_instrument_id' in self.variables:
+            self.qc_insitu.instrument_id_array = self.variables['insitu_instrument_id'][:]
+        # index_tot = 0
+        # nmu_valid = 0
+        # nmu_valid_complete = 0
+        # status_error = [0] * 8
 
-        print(f'[INFO] Checking in situ validity (prepare_df_validation_new)...')
+        print(f'[INFO] Checking in situ validity...')
         self.qc_insitu.check_validity()
         valid_mu_ins = np.where(np.sum(self.qc_insitu.insitu_valid_rrs, axis=1)>0,1,0)
         print(f'[INFO] Number of valid in situ spectra: {np.sum(self.qc_insitu.insitu_valid_rrs)} in {np.sum(valid_mu_ins)}/{self.n_mu_total} match-ups')
+
+
         print(f'[INFO] Checking satellite validity....')
         self.qc_sat.check_validity()
 
-        # print('-----')
-        # min_pixel_condition = self.qc_sat.qc_sat_results['min_pixel_condition']
-        # macropixel_condition = self.qc_sat.qc_sat_results['macropixel_condition']
-        # all_conditions = self.qc_sat.qc_sat_results['all_conditions']
-        # reported_rrs = self.qc_sat.qc_sat_results['reported_rrs']
-        # print(min_pixel_condition.shape)
-        # print(macropixel_condition.shape)
-        # print(all_conditions.shape,np.sum(all_conditions))
-        # print(reported_rrs.shape)
-        # print('-------------------------------')
-        # print(self.qc_insitu.insitu_valid_rrs.shape,valid_mu_ins.shape)
 
-        ##time difference condition
+        print(f'[INFO] Checking time differences....')
         satellite_time = self.variables['satellite_time'][:]
         insitu_time = self.variables['insitu_time'][:]
-        satellite_time = np.repeat(satellite_time,self.n_insitu_day).reshape(insitu_time.shape)
-        time_diff_computed = np.abs(satellite_time-insitu_time)
         time_diff_var = self.variables['time_difference'][:]
+        satellite_time_r = np.repeat(satellite_time,self.n_insitu_day).reshape(insitu_time.shape)
+        time_diff_computed = np.abs(satellite_time_r-insitu_time)
         check_time_diff = (time_diff_computed==time_diff_var).all()
         if not check_time_diff:
-            print(f'[WARNING] Unexpected unconsistencies between the computed time difference and the time difference variable. Using the computed time difference')
+            print(f'[WARNING] Unexpected inconsistencies between the computed time difference and the time difference variable. Using the computed time difference')
         time_diff_valid = np.where(time_diff_computed<=self.delta_t,1,0)
         time_diff_valid_mu = np.where(np.sum(time_diff_valid>0,axis=1),1,0)
         print(f'[INFO] Number of in situ spectra with a time difference lower than {self.delta_t} seconds: {np.sum(time_diff_valid)}/{np.ma.count(time_diff_computed)} in {np.sum(time_diff_valid_mu)}/{self.n_mu_total} match-ups')
@@ -1252,7 +1242,7 @@ class MDBFile:
         time_diff_valid_mu[valid_mu_ins==0]=0
         print(f'[INFO] Number of valid in situ spectra with a time difference lower than {self.delta_t} seconds: {np.sum(time_diff_valid)}/{np.ma.sum(self.qc_insitu.insitu_valid_rrs)} in {np.sum(time_diff_valid_mu)}/{self.n_mu_total} match-ups')
 
-
+        print('[INFO] Getting match-ups combining satellite quality control + in insitu quality control + time difference')
         valid_mu_sat = self.qc_sat.qc_sat_results['all_conditions'].astype(np.byte)
         valid_mu_sat_ins = valid_mu_sat*valid_mu_ins
         print(f'[INFO] Number of valid match-ups (valid satellite and in situ data): {np.sum(valid_mu_sat_ins)}')
@@ -1262,21 +1252,116 @@ class MDBFile:
         time_diff_computed[self.qc_insitu.insitu_valid_rrs == 0] = self.delta_t * 2
         min_insitu_id = np.ma.argmin(time_diff_computed, axis=1)
         min_insitu_id_valid = min_insitu_id[valid_mu_final==1]
+        insitu_rrs_nearest = self.qc_insitu.get_spectra_rrs(min_insitu_id)
+        insitu_rrs_valid = self.qc_insitu.get_spectra_rrs(min_insitu_id_valid,valid_sat_id=valid_mu_final)
+        if 'insitu_Rrs_unc' in self.variables.keys():
+            insitu_rrs_unc_nearest = self.qc_insitu.get_spectra_unc(min_insitu_id)
+            #insitu_rrs_unc_valid = self.qc_insitu.get_spectra_unc(min_insitu_id_valid, valid_sat_id=valid_mu_final)
+        else:
+            insitu_rrs_unc_nearest = np.ma.masked_all((self.n_mu_total,nbands))
+        print(f'[INFO] Retrieved {insitu_rrs_nearest.shape[0]}  in situ spectra with {insitu_rrs_nearest.shape[1]} bands')
+        print(f'[INFO] Retrieved {insitu_rrs_valid.shape[0]} valid in situ spectra with {insitu_rrs_valid.shape[1]} bands')
+
+        print(f'[INFO] Started validation data frame creation...')
+        sat_rrs_all = self.qc_sat.qc_sat_results['reported_rrs']
+        sat_rrs_all_unc = self.qc_sat.qc_sat_results['reported_rrs_unc']
+
+        satellite_time_str = [dt.fromtimestamp(x).astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M') for x in satellite_time]
+
+        insitu_time_nearest = insitu_time[np.arange(self.n_mu_total).astype(np.int32),min_insitu_id]
+        insitu_time_nearest_str = [dt.fromtimestamp(x).astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M') for x in insitu_time_nearest]
+
+        time_diff_computed_nearest = time_diff_computed[np.arange(self.n_mu_total).astype(np.int32),min_insitu_id]/3600
+
+        valid_str = np.array([False]*self.n_mu_total)
+        valid_str[valid_mu_final==1] = True
+
+        n_valid_bands = np.ma.count(insitu_rrs_nearest, axis=1)
+        spectrum_complete = n_valid_bands == nbands
+        nmu_valid = np.sum(valid_str)
+        spectrum_complete_valid = spectrum_complete * valid_str
+        nmu_valid_complete = np.sum(spectrum_complete_valid)
+
+        status = np.ones(self.n_mu_total).astype(np.int32)
+        status[time_diff_valid_mu==0]=-3
+        status[valid_mu_ins==0]=-4
+        status[valid_mu_sat==0]=-6
+        status[spectrum_complete==False] = -5
+
+        data_df = {
+            'Index': np.arange(ntot).astype(np.int32),
+            'Index_MU': np.repeat(np.arange(self.n_mu_total).astype(np.int32),nbands),
+            'Index_Band': np.tile(np.arange(nbands).astype(np.int32),self.n_mu_total),
+            'Sat_Time': np.repeat(satellite_time_str, nbands),
+            'Ins_Time': np.repeat(insitu_time_nearest_str,nbands),
+            'Time_Diff': np.repeat(time_diff_computed_nearest,nbands),
+            'Wavelenght': np.tile(self.wlref,self.n_mu_total),
+            'Ins_Rrs': np.reshape(insitu_rrs_nearest,(ntot,)).filled(fill_value=-999),
+            'Sat_Rrs': np.reshape(sat_rrs_all,(ntot,)).filled(fill_value=-999),
+            'Ins_Rrs_unc': np.reshape(insitu_rrs_unc_nearest,(ntot,)).filled(fill_value=-999),
+            'Sat_Rrs_unc': np.reshape(sat_rrs_all_unc,(ntot,)).filled(fill_value=-999),
+            'Valid': np.repeat(valid_str,nbands),
+            'status': np.repeat(status,nbands)
+        }
 
 
-        insitu_rrs_valid = np.moveaxis(self.variables['insitu_Rrs'][:],1,2)
 
-        insitu_rrs_valid = insitu_rrs_valid[valid_mu_final==1,min_insitu_id_valid,:]
-
+        self.df_validation = pd.DataFrame(data=data_df)
 
 
-        # self.qc_sat_results = {
-        #     'min_pixel_condition': min_pixel_condition,
-        #     'macropixel_condition': macropixel_condition,
-        #     'all_conditions': all_conditions,
-        #     'reported_rrs': reported_rrs,
-        #     'reported_rrs_unc': reported_rrs_unc
-        # }
+        self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
+        print(f'[INFO] Validation data frame creation completed.')
+
+        print(f'[INFO] Started summary data frames creation...')
+        key_site = 'site'
+        if key_site not in self.info.keys() and 'insitu_site_name' in self.info.keys():
+            key_site = 'insitu_site_name'
+        data_mu_df = {
+            'Index_MU': np.arange(self.n_mu_total).astype(np.int32),
+            'Sat_Time': satellite_time_str,
+            'Ins_Time': insitu_time_nearest_str,
+            'Time_Diff': time_diff_computed_nearest,
+            'satellite': [self.info['satellite'].upper()]*self.n_mu_total,
+            'platform': [self.info['platform'].upper()]*self.n_mu_total,
+            'sensor': [self.info['sensor'].upper()]*self.n_mu_total,
+            'site': [self.info[key_site].upper()]*self.n_mu_total,
+            'ac': [self.info['satellite_aco_processor'].upper()]*self.n_mu_total,
+            'mu_valid': valid_str,
+            'mu_insitu_id': min_insitu_id,
+            'spectrum_complete': spectrum_complete,
+            'n_good_bands': n_valid_bands,
+            'Ins_Lat': [-999.0]*self.n_mu_total,
+            'Ins_Lon': [-999.0]*self.n_mu_total,
+            'status': status
+        }
+        self.df_mu = pd.DataFrame(data=data_mu_df)
+
+
+
+        data_valid_df = {
+            'Satellite': [self.info['satellite'].upper()],
+            'Platform': [self.info['platform'].upper()],
+            'Sensor': [self.info['sensor'].upper()],
+            'Site': [self.info[key_site].upper()],
+            'Total': [self.n_mu_total],
+            'Valid': [nmu_valid],
+            '# NO VALID MDB FILE': np.sum(status == -1),
+            '# NO VALID MATCH-UP INDEX': np.sum(status == -2),
+            '# OUT OF TIME WINDOW': np.sum(status == -3),
+            '# INVALID IN SITU DATA': np.sum(status == -4),
+            '# INCOMPLETE IN SITU SPECTRUM': np.sum(status == -5),
+            '# INVALID SAT DATA': np.sum(status == -6),
+            '# INVALID IN SITU VALUES': np.sum(status == -7),
+        }
+
+        df_valid = pd.DataFrame(data=data_valid_df)
+        print(f'[INFO] Summary data frame creation completed.')
+        print(
+            f'[INFO] #total match-ups: {self.n_mu_total} Valid: {nmu_valid}  With complete spectrum: {nmu_valid_complete}')
+
+        return nmu_valid, df_valid
+
+
 
 
     def prepare_df_validation(self):
@@ -1334,7 +1419,7 @@ class MDBFile:
                     self.mu_insitu_time = self.sat_times[index_mu]
             else:
                 mu_valid, info_mu = self.load_mu_datav2(index_mu)
-                #print('mu_valid',mu_valid,info_mu['status'])
+
 
 
 
@@ -1446,6 +1531,8 @@ class MDBFile:
 
 
         self.df_validation_valid = self.df_validation[self.df_validation['Valid']][:]
+
+
 
         # print(self.df_validation.loc[0:50,:])
 
