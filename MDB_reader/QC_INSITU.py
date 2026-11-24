@@ -4,6 +4,8 @@ import pandas
 import warnings
 import COMMON.common_functions as cfs
 import COMMON.flag_functions as ffs
+import QC_TOOLS as qct
+
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -22,6 +24,10 @@ class QC_INSITU:
         self.spectral_variable = 'insitu_Rrs'
         self.spectral_variable_unc = 'insitu_Rrs_unc'
         self.instrument_variable = 'insitu_instrument_id'
+        self.insitu_time_variable = 'insitu_time'
+        self.satellite_time_variable = 'satellite_time'
+        self.time_diff_variable = 'time_difference'
+
         self.time_max = 7200
         self.max_diff_wl = 5.0
         self.spectral_convolution_methods = ["nearest","interp","srf","band_shifting"]
@@ -41,6 +47,8 @@ class QC_INSITU:
         self.n_original_bands = None
         self.n_mu = None
         self.n_insitu_id = None
+
+        self.validity_info = {}
         # self.name = ''
         #
         # self.insitu_rrs = insitu_rrs
@@ -92,12 +100,18 @@ class QC_INSITU:
         # self.sat_time = None
 
 
+    def start_common_tools(self):
+        qc_tools = qct.QC_COMMON_TOOLS(self.dataset,self.max_diff_wl)
+        return qc_tools
 
     def set_basic_info(self,options_config):
         self.bands_variable = options_config['bands_variable']
         self.spectral_variable = options_config['spectral_variable']
         self.spectral_variable_unc = options_config['spectral_variable_unc']
         self.instrument_variable = options_config['instrument_variable']
+        self.insitu_time_variable = options_config['insitu_time_variable']
+        self.satetite_time_variable = options_config['satellite_time_variable']
+        self.time_diff_variable = options_config['time_diff_variable']
 
         self.max_diff_wl  = options_config['max_diff_wl']
 
@@ -206,6 +220,23 @@ class QC_INSITU:
             self.indices_wl[i_instrument,:] = indices_min_diff_wl[:]
 
 
+    def get_exact_wavelengths(self,to_original_shape = False):
+        n_all = self.n_mu * self.n_insitu_id
+        if self.n_instruments==1:
+            exact_wavelengths = np.tile(self.wl_list,n_all).reshape(n_all,self.n_bands)
+        else:
+            instrument_id = self.dataset.variables[self.instrument_variable][:].flatten()
+            exact_wavelengths = np.ma.masked_all((n_all,self.n_bands),np.float32)
+            for i_instrument in range(self.n_instruments):
+                n_instrument = np.sum(instrument_id==i_instrument)
+                if n_instrument > 0:
+                    exact_wavelengths_here = np.tile(self.wl_list[i_instrument,:], n_instrument).reshape(n_instrument, self.n_bands)
+                    exact_wavelengths[instrument_id==i_instrument,:] = exact_wavelengths_here[:,:]
+
+        if to_original_shape:
+            exact_wavelengths = np.moveaxis(np.reshape(exact_wavelengths,(self.n_mu,self.n_insitu_id,self.n_bands)),2,1)
+
+        return exact_wavelengths
     def set_flag_filter(self,options_config, key_values = None):
         self.filter_flag = cfs.get_filter_list(options_config,'filter_flag_',key_values=key_values)
 
@@ -219,6 +250,8 @@ class QC_INSITU:
         #print(self.band_range_filter)
 
     def check_parameters(self):
+
+        qc_tools = self.start_common_tools()
 
         check_qc = self.check_spectral_variable(self.spectral_variable,self.bands_variable)
 
@@ -257,6 +290,20 @@ class QC_INSITU:
             print(f'[ERROR][QC_INS] instruments_variable {self.instrument_variable} is not available, but it is required as the number of instruments {self.n_instruments} > 1:wq')
             check_qc = False
 
+        ctime_sat = self.check_non_spectral_variable(self.satetite_time_variable)
+        ctime_ins = self.check_non_spectral_variable(self.insitu_time_variable)
+        ctime_dif = self.check_non_spectral_variable(self.time_diff_variable)
+        if not ctime_sat and not ctime_ins and not ctime_dif:
+            print(f'[ERROR] Problems setting all the time variables: satellite_time_variable, insitu_time_variable and time_diff_variable are not available')
+            check_qc = False
+        if not ctime_dif:
+            if not ctime_sat:
+                print(f'[ERROR] satellite_time_variable is not available but it is required (along with insitu_time_variable) as time_diff_variable is not available')
+                check_qc = False
+            if not ctime_ins:
+                print(f'[ERROR] insitu_time_variable is not available but it is required (along with satellite_time_variable) as time_diff_variable is not available')
+                check_qc = False
+
         if len(self.filter_flag)>0:
             for idx in range(len(self.filter_flag)):
                 if self.filter_flag[idx]['name_var'] is None and self.filter_flag[idx]['insitu_instrument'] is not None:
@@ -290,43 +337,26 @@ class QC_INSITU:
                     self.filter_spectral_range[idx]['name_var'] = self.spectral_variable
                 if self.filter_spectral_range[idx]['name_var_wl']=="$bands_variable$":
                     self.filter_spectral_range[idx]['name_var_wl'] = self.bands_variable
+
                 check_b = self.check_spectral_variable(self.filter_spectral_range[idx]['name_var'],self.filter_spectral_range[idx]['name_var_wl'])
                 if check_b:
-                    wl_min_abs = np.min(self.dataset.variables[self.filter_spectral_range[idx]['name_var_wl']][:]) - self.max_diff_wl
-                    wl_max_abs = np.max(self.dataset.variables[self.filter_spectral_range[idx]['name_var_wl']][:]) + self.max_diff_wl
-                    wl_min_here = self.filter_spectral_range[idx]['wl_min']
-                    wl_max_here = self.filter_spectral_range[idx]['wl_min']
-                    if not isinstance(wl_min_here, float):
-                        print(f'[ERROR][QC_INS] wl_min {wl_min_here} for filter_spectral_range_{idx} should be a float value')
+                    check_wl = qc_tools.check_wl(self.filter_spectral_range[idx]['name_var_wl'],self.filter_spectral_range[idx]['wl_min'],self.filter_spectral_range[idx]['wl_max'],key_log=f'filter_spectral_range_{idx}',key_qc='QC_INS')
+                    if not check_wl:
                         check_qc = False
-                    if not isinstance(wl_max_here, float):
-                        print(f'[ERROR][QC_INS] wl_max {wl_max_here} for filter_spectral_range_{idx} should be a float value')
-                        check_qc = False
-                    if isinstance(wl_min_here, float) and isinstance(wl_max_here, float):
-                        if wl_min_here > wl_max_here:
-                            print(f'[ERROR][QC_INS] wl_max {wl_max_here} should be greater or equal to wl_min {wl_min_here} for filter_spectral_range_{idx}')
-                            check_qc = False
-                        else:
-                            if wl_min_here < wl_min_abs or wl_min_here > wl_max_abs:
-                                print(f'[ERROR][QC_INS] wl_min {wl_min_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_range_{idx}')
-                                check_qc = False
-                            if wl_max_here < wl_min_abs or wl_max_here > wl_max_abs:
-                                print(f'[ERROR][QC_INS] wl_max {wl_max_here} should be in the spectral range {wl_min_abs} - {wl_max_abs} for filter_spectral_range_{idx}')
-                                check_qc = False
                 else:
                     check_qc = False
-
-                th_min_valid = isinstance(self.filter_spectral_range[idx]['th_min'], float)
-                th_max_valid = isinstance(self.filter_spectral_range[idx]['th_max'], float)
-                if th_min_valid or th_max_valid:
-                    pass
+                check_th, th_types = qc_tools.check_thresholds(self.filter_spectral_range[idx]['th_value'],
+                                                           self.filter_spectral_range[idx]['th_min'],
+                                                           self.filter_spectral_range[idx]['th_max'],
+                                                           self.filter_spectral_range[idx]['th_type'],
+                                                           key_filter=f'filter_spectral_range_{idx}',
+                                                            key_qc='QC_INS')
+                if not check_th:
+                    check_qc = False
                 else:
-                    if not th_min_valid:
-                        print(f'[ERROR][QC_INS] Minimum threshold th_min {self.filter_spectral_range[idx]['th_min']} for filter_spectral_range_{idx} should be a float')
-                        check_qc = False
-                    if not th_max_valid:
-                        print(f'[ERROR][QC_INS] Minimum threshold th_max {self.filter_spectral_range[idx]['th_max']} for filter_spectral_range_{idx} should be a float')
-                        check_qc = False
+                    self.filter_spectral_range[idx]['th_type'] = th_types
+
+
                 if not self.filter_spectral_range[idx]['spectral_stat'] in self.spectral_stats:
                     print(f'[ERROR][QC_INS] spectral_stat {self.filter_spectral_range[idx]['spectral_stat']} for filter_spectral_range_{idx} should one of {self.spectral_stats}')
                     check_qc = False
@@ -338,23 +368,16 @@ class QC_INSITU:
             for idx in range(len(self.filter_band_range)):
                 check_b = self.check_non_spectral_variable(self.filter_band_range[idx]['name_var'])
                 if not check_b:
-                    print(f'[ERROR][QC_INS] Error with name_var in filter_band_range {idx}')
                     check_qc = False
-                th_min_valid = isinstance(self.filter_band_range[idx]['th_min'], float)
-                th_max_valid = isinstance(self.filter_band_range[idx]['th_max'], float)
-                if th_min_valid or th_max_valid:
-                    pass
-                else:
-                    if not th_min_valid:
-                        print(f'[ERROR][QC_INS] Minimum threshold th_min {self.filter_band_range[idx]['th_min']} for filter_band_range_{idx} should be a float')
-                        check_qc = False
-                    if not th_max_valid:
-                        print(f'[ERROR][QC_INS] Minimum threshold th_max {self.filter_band_range[idx]['th_max']} for filter_band_range_{idx} should be a float')
-                        check_qc = False
-
-                if not self.filter_band_range[idx]['action'] in self.actions:
-                    print(
-                        f'[ERROR][QC_INS]action {self.filter_band_range[idx]['action']} for filter_band_range_{idx} should one of {self.actions}')
+                check_th, th_types = qc_tools.check_thresholds(self.filter_band_range[idx]['th_value'],
+                                                           self.filter_band_range[idx]['th_min'],
+                                                           self.filter_band_range[idx]['th_max'],
+                                                           self.filter_band_range[idx]['th_type'],
+                                                           key_filter=f'filter_band_range_{idx}',
+                                                           check_is_angle=True,
+                                                           is_angle=self.filter_band_range[idx]['is_angle'])
+                self.filter_band_range[idx]['th_type'] = th_types
+                if not check_th:
                     check_qc = False
 
         return check_qc
@@ -380,16 +403,12 @@ class QC_INSITU:
 
         return wl_list_final,indices_wl_final
 
-    def get_all_spectra(self,name_var,wl_list_here = None,to_original_shape = True,limit_to=None):
+    def get_all_spectra(self,name_var,wl_list_here = None,to_original_shape = False,limit_to=None):
         if wl_list_here is None:
             wl_list_here = self.wl_list
             indices_wl_here = self.indices_wl
         else:
             wl_list_here,indices_wl_here = self.get_wl_list_subset_from_main_wl_list(wl_list_here)
-
-
-
-
 
         # if np.sum(np.diff(self.indices_wl,axis=0))==0:##indices wl are equal for all the instruments
         #     indices_check = np.arange(self.dataset.variables[name_var].shape[1]).astype(np.int32).all()==self.indices_wl[0,:].all()
@@ -457,13 +476,106 @@ class QC_INSITU:
             print(f'[INFO][QC_INS] Started spectral validity for {n_all_spectra} spectra ({self.n_mu} potential match-ups x {self.n_insitu_id} potential spectra by match-up)')
 
         invalid_filter_array = self.compute_invalid_filter(spectral_data)
+        n_not_available = np.ma.sum(invalid_filter_array)
+        #n_available = n_all_spectra-n_not_available
         if self.verbose:
-            print(f'[INFO][QC_INS] Number of non available or incomplete spectra: {np.sum(invalid_filter_array)}')
+            print(f'[INFO][QC_INS] Number of non available or incomplete spectra: {n_not_available}')
 
         mask_flag = self.compute_flag_mask_array()
         if self.verbose:
-            print(f'[INFO][QC_INS] Number of filtered spectra using flag variables: {int(np.sum(mask_flag))}')
+            print(f'[INFO][QC_INS] Number of removed spectra using flag variables: {int(np.ma.sum(mask_flag))}')
 
+        mask_th_spectral = self.compute_filter_spectral_range_array()
+        if self.verbose:
+            print(f'[INFO][QC_INS] Number of removed spectra using spectral ranges (filter_spectral_range_): {int(np.ma.sum(mask_th_spectral))}')
+
+        mask_th_band = self.compute_filter_band_range_array()
+        if self.verbose:
+            print(f'[INFO][QC_INS] Number of removed spectra using band ranges (filter_band_range_): {int(np.ma.sum(mask_th_band))}')
+
+        mask_final = np.ma.sum(np.ma.vstack([invalid_filter_array, mask_flag, mask_th_spectral,mask_th_band]), axis=0)
+        mask_final = np.reshape(mask_final,(self.n_mu,self.n_insitu_id))
+        n_good_spectra_by_mu = np.ma.sum(mask_final==0,axis=1)
+
+        time_diff_array = self.get_time_diff_array()
+        mask_time = np.ma.where(time_diff_array > self.time_max, 1, 0)
+        mask_time_mu = np.ma.where(np.ma.min(time_diff_array, axis=1) > self.time_max, 1, 0)
+
+        time_diff_array_valid = time_diff_array.copy()
+        time_diff_array_valid[mask_final>0] = np.ma.masked
+        mask_time_mu_valid = np.ma.where(np.ma.min(time_diff_array_valid, axis=1) > self.time_max, 1, 0)
+
+        indices_min_time_and_valid = np.ma.argmin(time_diff_array_valid, axis=1)
+        if np.ma.count(indices_min_time_and_valid)>0:##make sure no masked
+            indices_min_time_and_valid = np.ma.filled(indices_min_time_and_valid,0)
+
+        mask_final_mu_nearest = mask_final[(np.arange(self.n_mu).astype(np.int32),indices_min_time_and_valid)]
+        qc_ins_valid_match_ups = np.ma.sum(np.ma.vstack([mask_final_mu_nearest,mask_time_mu_valid]), axis=0)
+        qc_ins_valid_match_ups = np.ma.where(qc_ins_valid_match_ups==0,1,0)
+
+        self.validity_info = {
+            'invalid_filter_array': invalid_filter_array,
+            'mask_flag': mask_flag,
+            'mask_th_spectral': mask_th_spectral,
+            'mask_th_band': mask_th_band,
+            'mask_final': mask_final,
+            'n_good_spectra_by_mu': n_good_spectra_by_mu,
+            'time_diff_array': time_diff_array,
+            'mask_time': mask_time,
+            'mask_time_mu': mask_time_mu,
+            'time_diff_array_valid': time_diff_array_valid,
+            'mask_time_mu_valid': mask_time_mu_valid,
+            'indices_min_time_and_valid': indices_min_time_and_valid,
+            'mask_final_mu_nearest': mask_final_mu_nearest,
+            'qc_ins_valid_match_ups': qc_ins_valid_match_ups
+        }
+
+    def print_validity_summary(self):
+        if len(self.validity_info) == 0:
+            print(f'[INFO][QC_INS] No validity info to be printed')
+            return
+        n_all_spectra = self.n_mu * self.n_insitu_id
+
+        n_not_available = np.ma.sum(self.validity_info['invalid_filter_array'])
+        n_available = n_all_spectra - n_not_available
+        mask_final = self.validity_info['mask_final']
+        n_valid = np.ma.sum(mask_final == 0)
+        p_valid = (n_valid / n_available) * 100
+        n_good_spectra_by_mu = self.validity_info['n_good_spectra_by_mu']
+        n_mu_with_good_spectra = np.ma.sum(n_good_spectra_by_mu >= 1)
+        p_mu_with_good_spectra = (n_mu_with_good_spectra / self.n_mu) * 100
+        mask_time = self.validity_info['mask_time']
+        n_time_condition_defined = np.ma.count(mask_time)
+        n_time_condition_out_range = np.ma.sum(mask_time)
+        n_time_condition_valid = np.ma.sum(mask_time == 0)
+        p_time_condition_out_range = (n_time_condition_out_range / n_time_condition_defined) * 100
+        p_time_condition_valid = (n_time_condition_valid / n_time_condition_defined) * 100
+        mask_time_mu  = self.validity_info['mask_time_mu']
+        n_mu_with_time_spectra = np.ma.sum(mask_time_mu == 0)
+        p_mu_with_time_spectra = (n_mu_with_time_spectra / self.n_mu) * 100
+        mask_time_mu_valid = self.validity_info['mask_time_mu_valid']
+        n_mu_with_time_spectra_valid = np.ma.sum(mask_time_mu_valid == 0)
+        p_mu_with_time_spectra_valid = (n_mu_with_time_spectra_valid / self.n_mu) * 100
+        qc_ins_valid_match_ups = self.validity_info['qc_ins_valid_match_ups']
+        n_valid_match_ups = np.ma.sum(qc_ins_valid_match_ups == 0)
+        p_valid_match_ups = (n_valid_match_ups / self.n_mu) * 100
+
+        print(f'[INFO][QC_INS] -----------------------------------------------------------------------------------------')
+        print(f'[INFO][QC_INS] In situ QC Summary:')
+        print(f'[INFO][QC_INS] - Analysed spectra: {n_all_spectra}')
+        print(f'[INFO][QC_INS] - Available/complete spectra: {n_available}')
+        print(f'[INFO][QC_INS]      * Valid: {int(n_valid)} ({p_valid:.2f}%)')
+        print(f'[INFO][QC_INS]      * Invalid: {int(n_available - n_valid)} ({100 - p_valid:.2f}%)')
+        print(f'[INFO][QC_INS] - Extracts with good spectra: {n_mu_with_good_spectra}/{self.n_mu} ({p_mu_with_good_spectra:.2f}%)')
+        print(f'[INFO][QC_INS] Time condition:')
+        print(f'[INFO][QC_INS] - Maximum time difference between satellite and in situ acquisitions: {self.time_max} seconds.')
+        print(f'[INFO][QC_INS] - Available spectra with defined time difference: {n_time_condition_defined}')
+        print(f'[INFO][QC_INS]      * Out of the time difference range: {n_time_condition_out_range} ({p_time_condition_out_range:.2f}%)')
+        print(f'[INFO][QC_INS]      * Within the time difference range: {n_time_condition_valid} ({p_time_condition_valid:.2f}%)')
+        print(f'[INFO][QC_INS] - Extracts with spectra within the time range: {n_mu_with_time_spectra}/{self.n_mu} ({p_mu_with_time_spectra:.2f}%)')
+        print(f'[INFO][QC_INS] - Extracts with valid spectra within the time range: {n_mu_with_time_spectra_valid}/{self.n_mu} ({p_mu_with_time_spectra_valid:.2f}%)')
+        print(f'[INFO][QC_INS] Final number of valid extracts passing the insitu quality control: {n_valid_match_ups} ({p_valid_match_ups:.2f}%)')
+        print(f'[INFO][QC_INS] -----------------------------------------------------------------------------------------')
 
     def check_flag_list(self,name_variable,flag_list):
         if name_variable is None:
@@ -545,9 +657,19 @@ class QC_INSITU:
             print(f'[ERROR][QC_INS] {list(self.dataset.variables)}')
             return False
 
+        if len(self.dataset.variables[name_var].shape) == 1: ##one dimension should be equal to n_mu
+            n_mu = self.dataset.variables[name_var].shape[0]
+            if self.n_mu is not None and self.n_mu != n_mu:
+                print(f'[ERROR][QC_INS] The number of match-ups in the non-spectral variable {name_var} ({n_mu}) should be equal to the general number of match-ups ({self.n_mu}) ')
+                return False
+            else:
+                self.n_mu = n_mu
+                return True
+
         if len(self.dataset.variables[name_var].shape) != 2:
-            print(f'[ERROR][QC_INS] Spectral variable {name_var} should have 2 dimensions: satellite_id, insitu_id')
-            check_qc = False
+            print(f'[ERROR][QC_INS] Non-spectral variable {name_var} should have 2 dimensions: satellite_id, insitu_id')
+            return False
+
         n_mu = self.dataset.variables[name_var].shape[0]
         n_id = self.dataset.variables[name_var].shape[1]
         if self.n_mu is not None and self.n_mu != n_mu:
@@ -596,7 +718,7 @@ class QC_INSITU:
             flag_array_all = flag_array_all.astype('uint64')
 
         flag_array = flag_array_all.compressed()
-        
+
         fw = ffs.start_flag_work_from_variable(self.dataset.variables[f_flag['name_var']])
         if fw is None:
             print(f'[ERROR][QC_INS] Flag work object for variable {f_flag["name_var"]} could not be started')
@@ -630,6 +752,97 @@ class QC_INSITU:
         mask_array_all[flag_array_all.mask==False] = mask_array[:]
 
         return mask_array_all
+
+    def compute_filter_spectral_range_array(self):
+        n_all = self.n_mu * self.n_insitu_id
+        mask_threshold = np.ma.masked_all((n_all,), dtype=np.int16)
+
+        ##filter spectral
+        exact_wavelengths = self.get_exact_wavelengths(to_original_shape=False)
+
+
+        for idx in range(len(self.filter_spectral_range)):
+
+            spectral_array = self.get_all_spectra(self.filter_spectral_range[idx]['name_var'],to_original_shape=False)
+
+            spectral_array[exact_wavelengths < self.filter_spectral_range[idx]['wl_min']] = np.ma.masked
+            spectral_array[exact_wavelengths > self.filter_spectral_range[idx]['wl_max']] = np.ma.masked
+
+            spectral_array = spectral_array[:,np.ma.count(spectral_array,axis=0)>1]
+            n_bands_range = spectral_array.shape[1]
+            mask_th_here = None
+            spectral_stat = self.filter_spectral_range[idx]['spectral_stat']
+            action = self.filter_spectral_range[idx]['action']
+            if spectral_stat=='any' or spectral_stat=='all':
+                mask_th_here = qct.get_mask_threshold_from_dict(spectral_array,self.filter_spectral_range[idx])
+                mask_th_here[mask_th_here > 1] = 1
+                if spectral_stat=='any':
+                    mask_th_here = np.ma.where(np.ma.sum(mask_th_here,axis=1) > 0, 1, 0)
+                elif spectral_stat=='all':
+                    mask_th_here = np.ma.where(np.ma.sum(mask_th_here, axis=1) == n_bands_range, 1, 0)
+
+            if self.verbose:
+                print(f'[INFO][QC_INS] Spectra selected using filter_spectral_range_{idx}: {np.ma.sum(mask_th_here)} (of {np.ma.count(mask_th_here)} valid spectra). Applied spectral stat: {spectral_stat}. Action set to: {action}')
+
+
+            if action=='keep':
+                mask_th_here = np.ma.where(mask_th_here==0,1,0)
+            mask_threshold = np.ma.sum(np.ma.vstack([mask_threshold,mask_th_here]),axis=0)
+
+        return mask_threshold
+
+    def compute_filter_band_range_array(self):
+        n_all = self.n_mu * self.n_insitu_id
+        mask_threshold = np.ma.masked_all((n_all,), dtype=np.int16)
+
+        for idx in range(len(self.filter_band_range)):
+            data_array = self.dataset.variables[self.filter_band_range[idx]['name_var']][:].flatten()
+            action = self.filter_band_range[idx]['action']
+            mask_th_here = qct.get_mask_threshold_from_dict(data_array,self.filter_band_range[idx])
+            mask_th_here[mask_th_here > 1] = 1
+            if self.verbose:
+                print(f'[INFO][QC_INS] Spectra selected using filter_band_range_{idx}: {np.ma.sum(mask_th_here)} (of {np.ma.count(mask_th_here)} valid spectra). Action set to: {action}')
+            if action == 'keep':
+                mask_th_here = np.ma.where(mask_th_here == 0, 1, 0)
+            mask_threshold = np.ma.sum(np.ma.vstack([mask_threshold, mask_th_here]), axis=0)
+
+        return mask_threshold
+
+    def get_time_diff_array(self):
+        ctime_sat = self.check_non_spectral_variable(self.satetite_time_variable)
+        ctime_ins = self.check_non_spectral_variable(self.insitu_time_variable)
+        ctime_dif = self.check_non_spectral_variable(self.time_diff_variable)
+        time_diff_array, time_diff_array_check = None, None
+        if ctime_dif:
+            time_diff_array = self.dataset.variables[self.time_diff_variable][:]
+        if ctime_sat and ctime_ins:
+            sat_time_m = np.repeat(self.dataset.variables[self.satetite_time_variable][:],self.n_insitu_id).reshape((self.n_mu,self.n_insitu_id))
+            time_diff_array_check = np.ma.abs(self.dataset.variables[self.insitu_time_variable][:]-sat_time_m)
+
+        if time_diff_array_check is not None and time_diff_array is not None:
+            check = time_diff_array_check.all()==time_diff_array.all()
+            if not check:
+                print(f'[WARNING][QC_INS] Time difference variable shows a different result than the computed difference between satellite and time variables. Computed result will be used')
+                time_diff_array = time_diff_array_check.copy()
+        if time_diff_array is None and time_diff_array_check is not None:
+            print(f'[INFO][QC_INS] Time difference was computed from in situ and satellite time variables as time difference variable is not available')
+            time_diff_array = time_diff_array_check.copy()
+
+        return time_diff_array
+
+        mask_time = np.ma.where(time_diff_array > self.time_max,1,0)
+        min_time_by_mu = np.ma.min(time_diff_array,axis=1)
+        index_min_time_by_mu = np.ma.argmin(time_diff_array,axis=1)
+        mask_time_mu = np.ma.where(min_time_by_mu>self.time_max,1,0)
+
+        tcheck_bymu = time_diff_array[:,index_min_time_by_mu]
+
+        print('-->',min_time_by_mu.all()==tcheck_bymu.all())
+
+        if self.verbose:
+            print(f'[INFO][QC_INS] Time difference mask: All: {mask_time.size}; Not defined: {np.ma.count_masked(mask_time)}; Out of time range: {np.ma.sum(mask_time)}; Valid: {np.ma.sum(mask_time==0)}')
+
+
 
 
     # def check_validity(self):

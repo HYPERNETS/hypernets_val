@@ -3,7 +3,9 @@ import COMMON.args_functions as afs
 import COMMON.common_functions as cfs
 from MDBFile import MDBFile
 
+
 from QC_OPTIONS import QC_OPTIONS
+import QC_TOOLS as qct
 
 # import datetime
 # from datetime import datetime as dt
@@ -48,13 +50,28 @@ class MDBr_Writer:
         self.verbose = verbose
 
     def create_mdb_file_out(self):
-        # self.qc_sat.verbose = self.verbose
+        self.qc_sat.verbose = self.verbose
         self.qc_ins.verbose = self.verbose
-        # if self.verbose:
-        #     print(f'[INFO][MDB_reader] Started created MDB file out')
-        # self.qc_sat.compute_validity()
+        if self.verbose:
+            print(f'[INFO][MDB_reader] Started created MDB file out')
+        self.qc_sat.compute_validity()
         self.qc_ins.compute_validity()
+        if self.verbose:
+            self.qc_sat.print_validity_summary()
+            self.qc_ins.print_validity_summary()
 
+        mu_valid_array, n_valid_mu = qct.get_valid_match_ups_array(self.qc_sat,self.qc_ins)
+        if mu_valid_array is None:
+            return
+        if n_valid_mu==0:
+            print(f'[WARNING] No valid match-ups were found between satellite and in situ data, no output file will be created.')
+            print(f'[WARNING] Please review the quality control and try it again')
+            return
+
+        if self.verbose:
+            print(f'[INFO][MDB_reader] Final number of match-ups: {n_valid_mu}')
+
+        sat_mu_spectra = self.qc_sat.compute_mu_spectra()
 
 
 def main():

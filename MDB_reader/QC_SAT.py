@@ -684,34 +684,21 @@ class QC_SAT:
     def compute_validity(self):
         spectral_data = self.dataset.variables[self.spectral_variable][:,self.indices_wl,:,:]
         spectral_data = np.ma.masked_invalid(spectral_data)##make sure that invalid values, NaN and so on are masked
-        mask_invalid = self.compute_invalid_masks_array(spectral_data)
-        if self.verbose:
-            print(f'[INFO][QC_SAT] Number of masked pixels using \"{self.filter_invalid}\" invalid filter: {np.sum(mask_invalid)}')
-        mask_flag = self.compute_flag_mask_array()
-        if self.verbose:
-            print(f'[INFO][QC_SAT] Number of masked pixels using flag bands: {int(np.sum(mask_flag))}')
-        mask_th_spectral = self.compute_th_spectral_masks_array()
-        if self.verbose:
-            print(f'[INFO][QC_SAT] Number of masked pixels using spectral ranges (filter_spectral_th_): {int(np.sum(mask_th_spectral))}')
-        mask_th_var = self.compute_th_var_masks_array()
-        if self.verbose:
-            print(f'[INFO][QC_SAT] Number of masked pixels using variable ranges (filter_var_th_): {int(np.sum(mask_th_var))}')
 
+        ##mask for each pixel in the window
+        mask_invalid = self.compute_invalid_masks_array(spectral_data)
+        mask_flag = self.compute_flag_mask_array()
+        mask_th_spectral = self.compute_th_spectral_masks_array()
+        mask_th_var = self.compute_th_var_masks_array()
         final_mask = mask_invalid+mask_flag+mask_th_spectral+mask_th_var
         final_mask[final_mask>1]=1
-        if self.verbose:
-            print(f'[INFO][QC_SAT] Number of masked pixels in the final mask: {int(np.sum(final_mask))}')
 
+        ##macropixel filtering
         macropixel_spectral = self.compute_macropixel_spectra()
-        if self.verbose:
-            print(f'[INFO][QC_SAT] Number of masked macropixels using spectral ranges (filter_macropixel_spectral_): {int(np.sum(macropixel_spectral))}')
-
         macropixel_var = self.compute_macropixel_var()
-        if self.verbose:
-            print(f'[INFO][QC_SAT] Number of masked macropixels using variable ranges (filter_macropixel_var_): {int(np.sum(macropixel_var))}')
-
         macropixel_all = macropixel_spectral + macropixel_var
 
+        ##filtering using the pixel mask according to the required minimun number of valid pixels in the extract
         n_total_by_mu = np.array([self.window_size * self.window_size]*self.n_mu)
         n_min_valid_by_mu = np.array([self.min_valid_pixels] * self.n_mu)
         water_mask = None
@@ -725,29 +712,16 @@ class QC_SAT:
                 n_total_by_mu = np.sum(water_mask==0,axis=(1,2))
             n_min_valid_by_mu = np.floor(n_total_by_mu * (self.min_valid_porc / 100.0)) + 1
 
-
         n_invalid_by_mu = np.sum(final_mask,axis=(1,2))
         n_valid_by_mu = n_total_by_mu-n_invalid_by_mu
 
-        valid_match_ups_using_mask = np.where(n_valid_by_mu>=n_min_valid_by_mu,1,0)
-        valid_match_ups_using_macropixels = np.where(macropixel_all==0,1,0)
-        qc_sat_valid_match_ups = np.where((valid_match_ups_using_mask+valid_match_ups_using_macropixels)==2,1,0)
-        n_invalid_only_by_mask = np.sum((valid_match_ups_using_mask==0) & (valid_match_ups_using_macropixels==1))
-        n_invalid_only_by_macropixel = np.sum((valid_match_ups_using_mask==1) & (valid_match_ups_using_macropixels==0))
-        n_invalid_both = np.sum((valid_match_ups_using_mask==0) & (valid_match_ups_using_macropixels==0))
-        n_invalid = np.sum(qc_sat_valid_match_ups==0)
-        check = n_invalid == n_invalid_only_by_mask+n_invalid_only_by_macropixel+n_invalid_both
-        if self.verbose:
-            print(f'[INFO][QC_SAT] Number of valid match-ups according to the final mask: {np.sum(valid_match_ups_using_mask)}')
-            print(f'[INFO][QC_SAT] Number of valid match-ups according to the macropixels filtering: {np.sum(valid_match_ups_using_macropixels)}')
-            print(f'[INFO][QC_SAT] Number of invalid match-ups: {n_invalid}. Check: {check}')
-            print(f'[INFO][QC_SAT]    - By mask: {np.sum(valid_match_ups_using_mask==0)}. Mask only: {n_invalid_only_by_mask}')
-            print(f'[INFO][QC_SAT]    - By macropixel: {np.sum(valid_match_ups_using_macropixels==0)}. Macropixels only: {n_invalid_only_by_macropixel}')
-            print(f'[INFO][QC_SAT]    - Mask + macropixels: {n_invalid_both}')
-            print(f'[INFO][QC_SAT] Final number of valid match-ups passing the satellite quality control: {np.sum(qc_sat_valid_match_ups)}')
+        valid_match_ups_using_mask = np.ma.where(n_valid_by_mu>=n_min_valid_by_mu,1,0)
+        valid_match_ups_using_macropixels = np.ma.where(macropixel_all==0,1,0)
+        valid_match_ups = np.ma.sum(np.vstack([valid_match_ups_using_mask,valid_match_ups_using_macropixels]),axis=0)
+        qc_sat_valid_match_ups = np.ma.where(valid_match_ups==2,1,0)
 
         self.validity_info = {
-            'mask_valid': mask_invalid,
+            'mask_invalid': mask_invalid,
             'mask_flag': mask_flag,
             'mask_th_spectral': mask_th_spectral,
             'mask_th_var': mask_th_var,
@@ -759,8 +733,73 @@ class QC_SAT:
             'n_total_by_mu': n_total_by_mu,
             'n_valid_by_mu': n_valid_by_mu,
             'n_min_valid_by_mu': n_min_valid_by_mu,
+            'valid_match_ups_using_mask': valid_match_ups_using_mask,
+            'valid_match_ups_using_macropixels': valid_match_ups_using_macropixels,
             'qc_sat_valid_match_ups': qc_sat_valid_match_ups
         }
+
+    def print_validity_summary(self):
+        if len(self.validity_info) == 0:
+            print(f'[INFO][QC_SAT] No validity info to be printed')
+            return
+        valid_match_ups_using_mask = self.validity_info['valid_match_ups_using_mask']
+        valid_match_ups_using_macropixels = self.validity_info['valid_match_ups_using_macropixels']
+        qc_sat_valid_match_ups = self.validity_info['qc_sat_valid_match_ups']
+        mask_invalid = self.validity_info['mask_invalid']
+        mask_th_spectral = self.validity_info['mask_th_spectral']
+        mask_th_var = self.validity_info['mask_th_var']
+        mask_flag = self.validity_info['mask_flag']
+        final_mask = self.validity_info['final_mask']
+        macropixel_spectral = self.validity_info['macropixel_spectral']
+        macropixel_var = self.validity_info['macropixel_var']
+        n_invalid_only_by_mask = np.ma.sum((valid_match_ups_using_mask == 0) & (valid_match_ups_using_macropixels == 1))
+        n_invalid_only_by_macropixel = np.ma.sum((valid_match_ups_using_mask == 1) & (valid_match_ups_using_macropixels == 0))
+        n_invalid_both = np.ma.sum((valid_match_ups_using_mask == 0) & (valid_match_ups_using_macropixels == 0))
+        n_invalid = np.ma.sum(qc_sat_valid_match_ups == 0)
+        check = n_invalid == n_invalid_only_by_mask + n_invalid_only_by_macropixel + n_invalid_both
+        n_pixels = self.n_mu * self.window_size * self.window_size
+        print(f'[INFO][QC_SAT] -----------------------------------------------------------------------------------------')
+        print(f'[INFO][QC_SAT] Satellite QC Summary:')
+        print(f'[INFO][QC_SAT]  - Analysed extracts: {self.n_mu}. Extract size: {self.window_size}x{self.window_size}. Pixels: {n_pixels}')
+        print(f'[INFO][QC_SAT]  - Masks at pixel level:')
+        print(f'[INFO][QC_SAT]      * Number of masked pixels using \"{self.filter_invalid}\" invalid filter: {np.ma.sum(mask_invalid)}')
+        print(f'[INFO][QC_SAT]      * Number of masked pixels using flag bands: {int(np.ma.sum(mask_flag))}')
+        print(f'[INFO][QC_SAT]      * Number of masked pixels using spectral ranges (filter_spectral_th_): {int(np.ma.sum(mask_th_spectral))}')
+        print(f'[INFO][QC_SAT]      * Number of masked pixels using variable ranges (filter_var_th_): {int(np.ma.sum(mask_th_var))}')
+        print(f'[INFO][QC_SAT]      * Number of masked pixels in the final mask: {int(np.ma.sum(final_mask))}')
+        print(f'[INFO][QC_SAT]  - Macropixel masks:')
+        print(f'[INFO][QC_SAT]      * Number of masked extracts using macropixel spectral ranges (filter_macropixel_spectral_): {int(np.sum(macropixel_spectral))}')
+        print(f'[INFO][QC_SAT]      * Number of masked extracts using macropixel variable ranges (filter_macropixel_var_): {int(np.sum(macropixel_var))}')
+        print(f'[INFO][QC_SAT]  - Number of valid extracts according to the final mask: {np.sum(valid_match_ups_using_mask)}')
+        print(f'[INFO][QC_SAT]  - Number of valid extracts according to the macropixel filtering: {np.sum(valid_match_ups_using_macropixels)}')
+        print(f'[INFO][QC_SAT]  - Number of invalid match-ups: {n_invalid}. Check: {check}')
+        print(f'[INFO][QC_SAT]       * By mask: {np.sum(valid_match_ups_using_mask == 0)}. Mask only: {n_invalid_only_by_mask}')
+        print(f'[INFO][QC_SAT]       * By macropixels: {np.sum(valid_match_ups_using_macropixels == 0)}. Macropixels only: {n_invalid_only_by_macropixel}')
+        print(f'[INFO][QC_SAT]       * Byt Mask + macropixels: {n_invalid_both}')
+        print(f'[INFO][QC_SAT]  - Final number of valid extracts passing the satellite quality control: {np.sum(qc_sat_valid_match_ups)}')
+        print(f'[INFO][QC_SAT] -----------------------------------------------------------------------------------------')
+
+    def compute_mu_spectra(self):
+        if len(self.validity_info)==0:
+            self.compute_validity()
+        if len(self.validity_info)==0:
+            print(f'[ERROR] Validity info could not be successfully obtained')
+            return
+        spectral_data = self.dataset.variables[self.spectral_variable][:, self.indices_wl, :, :]
+        central_r, central_c, r_s, r_e, c_s, c_e = self.get_window_dimensions()
+        spectral_data_window = np.moveaxis(spectral_data[:, :, r_s:r_e, c_s:c_e], 1, -1)
+
+
+        if self.outliers_info['apply']:
+            spectral_data_window = get_array_with_outliers_masked(spectral_data_window,
+                                                                       self.outliers_info['central_stat'],
+                                                                       self.outliers_info['dispersion_stat'],
+                                                                       self.outliers_info['factor'],
+                                                                       (1,2),
+                                                                       verbose=False)
+
+        spectra_mu = get_stats_from_array(spectral_data_window,self.st)
+
 
     def get_window_dimensions(self,w_size=None,n_rows=None,n_cols=None):
         if w_size is None:
@@ -2313,6 +2352,7 @@ def get_array_with_outliers_masked(array,central_stat,dispersion_stat,factor,axi
 
     ##getting upper_array and lower_array with the same shape as array (match-ups x n_rows x n_cols x n_bands),
     repeat_shape = upper_array.shape + (n_rows,n_cols)
+
     upper_array = np.repeat(upper_array,n_window).reshape(repeat_shape)
     upper_array = np.moveaxis(upper_array,(-2, -1), axis_window)
     lower_array = np.repeat(lower_array,n_window).reshape(repeat_shape)
